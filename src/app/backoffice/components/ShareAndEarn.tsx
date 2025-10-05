@@ -12,7 +12,7 @@ export function ShareAndEarnButton({ onClick }: { onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center justify-center gap-2 p-2 bg-[#0a0a0a] hover:bg-[#1f2937] rounded transition-colors text-lg border border-[#3ecf8e] hover:border-[#2dd4bf]"
+      className="w-full flex items-center justify-center gap-2 p-2 bg-[#0a0a0a] hover:bg-[#1f2937] rounded transition-colors border border-[#3ecf8e] hover:border-[#2dd4bf]"
     >
       <span>share and earn</span>
     </button>
@@ -112,35 +112,37 @@ export default function ShareAndEarnDialog({ isOpen, onClose }: ShareAndEarnProp
             </div>
 
             {/* Actions */}
-            <div className="p-4 border-t border-[#374151] space-y-3">
-              <button
-                onClick={handleShare}
-                className="w-full flex items-center justify-center gap-3 p-3 bg-[#3ecf8e] hover:bg-[#2dd4bf] rounded-lg transition-colors text-white font-semibold"
-              >
-                <Share2 className="w-5 h-5" />
-                <span>Share Link</span>
-              </button>
-              
-              <button
-                onClick={handleCopyLink}
-                className={`w-full flex items-center justify-center gap-3 p-3 rounded-lg transition-all duration-300 text-[#ededed] ${
-                  isCopied 
-                    ? 'bg-green-600 hover:bg-green-700' 
-                    : 'bg-[#1f2937] hover:bg-[#374151]'
-                }`}
-              >
-                {isCopied ? (
-                  <>
-                    <Check className="w-5 h-5" />
-                    <span>Copied!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-5 h-5" />
-                    <span>Copy Link</span>
-                  </>
-                )}
-              </button>
+            <div className="p-4 border-t border-[#374151]">
+              <div className="flex gap-3">
+                <button
+                  onClick={handleShare}
+                  className="flex-1 flex items-center justify-center gap-2 sm:gap-3 p-3 bg-[#1f2937] hover:bg-[#374151] rounded-lg transition-colors text-[#ededed] border border-[#3ecf8e] hover:border-[#2dd4bf]"
+                >
+                  <Share2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <span className="text-sm sm:text-base">Share</span>
+                </button>
+                
+                <button
+                  onClick={handleCopyLink}
+                  className={`flex-1 flex items-center justify-center gap-2 sm:gap-3 p-3 rounded-lg transition-all duration-300 text-[#ededed] ${
+                    isCopied 
+                      ? 'bg-green-600 hover:bg-green-700' 
+                      : 'bg-[#1f2937] hover:bg-[#374151]'
+                  }`}
+                >
+                  {isCopied ? (
+                    <>
+                      <Check className="w-4 h-4 sm:w-5 sm:h-5" />
+                      <span className="text-sm sm:text-base">Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4 sm:w-5 sm:h-5" />
+                      <span className="text-sm sm:text-base">Copy</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>

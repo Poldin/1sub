@@ -79,7 +79,7 @@ export default function Sidebar({ isOpen, onClose, credits, onShareAndEarnClick 
             
           {/* Credits Display - no currency symbol and no label */}
            <div className="text-center p-1 rounded">
-             <div className="text-2xl font-bold text-[#3ecf8e]">
+             <div className="font-bold text-[#3ecf8e]">
                <span className="font-thin text-[#9ca3af]">credits </span>{credits.toFixed(2)}
              </div>
            </div>
@@ -87,8 +87,8 @@ export default function Sidebar({ isOpen, onClose, credits, onShareAndEarnClick 
 
           {/* Profile & Logout */}
           <div className="flex gap-1">
-            <button className="flex-1 flex items-center justify-center gap-2 p-1 bg-[#1f2937] hover:bg-[#374151] rounded transition-colors text-lg">
-              <User className="w-5 h-5" />
+            <button className="flex-1 flex items-center justify-center gap-2 p-1 bg-[#1f2937] hover:bg-[#374151] rounded transition-colors">
+              <User className="w-4 h-4" />
               <span>profile</span>
             </button>
             
