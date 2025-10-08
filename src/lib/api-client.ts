@@ -12,7 +12,7 @@ export interface ApiError {
   message?: string;
 }
 
-export async function generateAccessToken(): Promise<TokenResponse> {
+export async function launchTool(toolId: number): Promise<{ launchUrl: string; accessToken: string; expiresAt: string; userId: string; toolId: number }> {
   // Get the current session from Supabase
   const { data: { session } } = await supabaseClient.auth.getSession();
   
@@ -20,34 +20,35 @@ export async function generateAccessToken(): Promise<TokenResponse> {
     throw new Error('No active session found. Please log in again.');
   }
 
-  const response = await fetch('/api/v1/token/mint', {
+  const response = await fetch('/api/v1/tools/launch', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${session.access_token}`,
     },
+    body: JSON.stringify({ toolId }),
   });
 
   if (!response.ok) {
     const error: ApiError = await response.json();
-    throw new Error(error.message || error.error || 'Failed to generate token');
+    throw new Error(error.message || error.error || 'Failed to launch tool');
   }
 
   return response.json();
 }
 
-export async function verifyToken(token: string): Promise<{ valid: boolean; userId?: string; error?: string }> {
-  const response = await fetch('/api/v1/verify-token', {
+export async function verifyUser(token: string): Promise<{ userId: string; email: string; verified: boolean; error?: string }> {
+  const response = await fetch('/api/v1/verify-user', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
     },
-    body: JSON.stringify({ token }),
   });
 
   if (!response.ok) {
     const error: ApiError = await response.json();
-    return { valid: false, error: error.message || error.error };
+    return { userId: '', email: '', verified: false, error: error.message || error.error };
   }
 
   return response.json();

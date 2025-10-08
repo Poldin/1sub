@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Menu, User, Users, LogOut } from 'lucide-react';
+import { Menu, User, Users, LogOut, ExternalLink } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Sidebar from './components/Sidebar';
 import ShareAndEarnDialog from './components/ShareAndEarn';
-import TokenDisplay from './components/TokenDisplay';
 import { useUser } from '@/hooks/useUser';
 import { useCredits } from '@/hooks/useCredits';
 import { supabaseClient } from '@/lib/supabaseClient';
+import { launchTool } from '@/lib/api-client';
 
 // Mock database for tools
 const mockTools = [
@@ -72,6 +72,17 @@ export default function Backoffice() {
 
   const closeShareDialog = () => {
     setIsShareDialogOpen(false);
+  };
+
+  const handleLaunchTool = async (toolId: number) => {
+    try {
+      const result = await launchTool(toolId);
+      // Redirect to the tool with the access token
+      window.open(result.launchUrl, '_blank');
+    } catch (error) {
+      console.error('Failed to launch tool:', error);
+      alert('Failed to launch tool. Please try again.');
+    }
   };
 
   // Drag to scroll functionality
@@ -295,6 +306,13 @@ export default function Backoffice() {
                           </div>
                           <span className={`${tool.badgeColor} px-2 py-1 rounded text-sm font-bold`}>{tool.badge}</span>
                         </div>
+                        <button
+                          onClick={() => handleLaunchTool(tool.id)}
+                          className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#3ecf8e] text-black rounded-lg font-medium hover:bg-[#2dd4bf] transition-colors"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          Launch Tool
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -332,16 +350,19 @@ export default function Backoffice() {
                         </div>
                         <span className={`${tool.badgeColor} px-2 py-1 rounded text-xs font-bold`}>{tool.badge}</span>
                       </div>
+                      <button
+                        onClick={() => handleLaunchTool(tool.id)}
+                        className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#3ecf8e] text-black rounded-lg font-medium hover:bg-[#2dd4bf] transition-colors"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        Launch Tool
+                      </button>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* API Token Section */}
-            <div className="mb-8">
-              <TokenDisplay />
-            </div>
 
             {/* All Tools Section */}
             <div className="mb-8">
@@ -365,6 +386,13 @@ export default function Backoffice() {
                         </div>
                         <span className={`${tool.badgeColor} px-2 py-1 rounded text-xs font-bold`}>{tool.badge}</span>
                       </div>
+                      <button
+                        onClick={() => handleLaunchTool(tool.id)}
+                        className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#3ecf8e] text-black rounded-lg font-medium hover:bg-[#2dd4bf] transition-colors"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        Launch Tool
+                      </button>
                     </div>
                   </div>
                 ))}

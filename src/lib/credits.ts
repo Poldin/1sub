@@ -73,7 +73,7 @@ export async function grantCredits(
     userId: data.user_id,
     delta: Number(data.delta),
     balanceAfter: Number(data.balance_after),
-    transactionType: data.transaction_type as any,
+    transactionType: data.transaction_type as 'grant' | 'consume' | 'refund' | 'adjustment',
     reason: data.reason,
     idempotencyKey: data.idempotency_key,
     createdAt: data.created_at
@@ -124,7 +124,7 @@ export async function consumeCredits(
     userId: transaction.user_id,
     delta: Number(transaction.delta),
     balanceAfter: Number(transaction.balance_after),
-    transactionType: transaction.transaction_type as any,
+    transactionType: transaction.transaction_type as 'grant' | 'consume' | 'refund' | 'adjustment',
     reason: transaction.reason,
     idempotencyKey: transaction.idempotency_key,
     createdAt: transaction.created_at

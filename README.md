@@ -1,4 +1,31 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 1sub - Unified Subscription Platform
+
+This is a [Next.js](https://nextjs.org) project for 1sub, a unified subscription platform that provides access to multiple tools through a single subscription.
+
+## Token Architecture
+
+The platform uses a simplified token system where tokens are only used at trust boundaries:
+
+### User Access Tokens (Minimal)
+- **Purpose:** Proves user is authenticated in 1sub
+- **Used by:** External tools to verify user identity
+- **Lifespan:** Short (1 hour)
+- **Generated:** Only when user launches a tool
+- **Endpoint:** `/api/v1/verify-user`
+
+### Tool API Keys (Long-lived)
+- **Purpose:** Proves tool is trusted by 1sub
+- **Used by:** Tools to consume credits, log usage
+- **Lifespan:** Long (revocable)
+- **Generated:** During tool registration
+- **Endpoints:** `/api/v1/credits/consume`, `/api/v1/tools/*`
+
+### Flow
+1. User clicks "Launch Tool" button
+2. API generates short-lived access token (1 hour)
+3. Redirects to tool with token as query param
+4. Tool calls `/verify-user` with token
+5. Tool uses its API key for subsequent calls
 
 ## Getting Started
 
