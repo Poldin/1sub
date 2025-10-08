@@ -38,20 +38,24 @@ export async function launchTool(toolId: number): Promise<{ launchUrl: string; a
 }
 
 export async function verifyUser(token: string): Promise<{ userId: string; email: string; verified: boolean; error?: string }> {
-  const response = await fetch('/api/v1/verify-user', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-    },
-  });
+  try {
+    const response = await fetch('/api/v1/verify-user', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+    });
 
-  if (!response.ok) {
-    const error: ApiError = await response.json();
-    return { userId: '', email: '', verified: false, error: error.message || error.error };
+    if (!response.ok) {
+      const error: ApiError = await response.json();
+      return { userId: '', email: '', verified: false, error: error.message || error.error };
+    }
+
+    return response.json();
+  } catch (error) {
+    return { userId: '', email: '', verified: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
-
-  return response.json();
 }
 
 export async function copyToClipboard(text: string): Promise<boolean> {
