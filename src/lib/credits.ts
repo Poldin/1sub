@@ -57,14 +57,12 @@ export async function grantCredits(
     throw new Error(`Failed to grant credits: ${error.message}`);
   }
 
-  // Update balance
-  const { error: updateError } = await supabaseAdmin
-    .from('credit_balances')
-    .update({ 
-      balance: supabaseAdmin.raw('balance + ?', [amount]),
-      updated_at: new Date().toISOString()
-    })
-    .eq('user_id', userId);
+    // Update balance using RPC function
+    const { error: updateError } = await supabaseAdmin
+      .rpc('increment_balance', {
+        p_user_id: userId,
+        p_amount: amount
+      });
 
   if (updateError) {
     throw new Error(`Failed to update credit balance: ${updateError.message}`);

@@ -124,4 +124,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- 7. Increment Balance Function
+CREATE OR REPLACE FUNCTION increment_balance(
+  p_user_id UUID,
+  p_amount NUMERIC
+)
+RETURNS VOID AS $$
+BEGIN
+  UPDATE credit_balances
+  SET balance = balance + p_amount, updated_at = NOW()
+  WHERE user_id = p_user_id;
+END;
+$$ LANGUAGE plpgsql;
+
 

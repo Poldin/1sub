@@ -37,7 +37,7 @@ const formatAdoptions = (num: number): string => {
 export default function Backoffice() {
   const router = useRouter();
   const { user, loading: userLoading } = useUser();
-  const { credits, loading: creditsLoading } = useCredits();
+  const { balance: credits, loading: creditsLoading } = useCredits(user?.id);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
 
@@ -53,18 +53,6 @@ export default function Backoffice() {
     router.push('/');
   };
 
-  // Show loading state while checking authentication
-  if (userLoading) {
-    return (
-      <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#3ecf8e] mx-auto mb-4"></div>
-          <p className="text-[#9ca3af]">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-  
   // Carousel drag and auto-scroll functionality
   const carouselRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -162,6 +150,17 @@ export default function Backoffice() {
     }, 3000);
   };
 
+  // Show loading state while checking authentication
+  if (userLoading) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#3ecf8e] mx-auto mb-4"></div>
+          <p className="text-[#9ca3af]">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex overflow-x-hidden">
