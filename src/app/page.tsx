@@ -1,4 +1,127 @@
+'use client';
+
+import { useState, useRef, useEffect } from 'react';
+import { Users } from 'lucide-react';
+
+// Mock database for tools
+const mockTools = [
+  { id: 1, name: "AI Content Generator", description: "Generate high-quality content with advanced AI", emoji: "🤖", rating: 4.8, adoptions: 12500, badge: "Popular", badgeColor: "bg-[#3ecf8e] text-black", gradient: "from-[#3ecf8e] to-[#2dd4bf]" },
+  { id: 2, name: "Advanced Analytics", description: "Deep insights into your business metrics", emoji: "📊", rating: 4.6, adoptions: 8900, badge: "New", badgeColor: "bg-blue-500 text-white", gradient: "from-purple-500 to-pink-500" },
+  { id: 3, name: "Design Studio Pro", description: "Professional design tools for everyone", emoji: "🎨", rating: 4.9, adoptions: 15600, badge: "Trending", badgeColor: "bg-orange-500 text-white", gradient: "from-orange-500 to-red-500" },
+  { id: 4, name: "Video Editor Plus", description: "Edit videos like a pro with AI assistance", emoji: "🎬", rating: 4.7, adoptions: 7300, badge: "Hot", badgeColor: "bg-red-500 text-white", gradient: "from-red-500 to-pink-600" },
+  { id: 5, name: "Code Assistant", description: "AI-powered coding companion for developers", emoji: "💻", rating: 4.5, adoptions: 9800, badge: "Dev", badgeColor: "bg-green-500 text-white", gradient: "from-green-500 to-teal-500" },
+  { id: 6, name: "Photo Enhancer", description: "Enhance your photos with AI magic", emoji: "📸", rating: 4.8, adoptions: 11200, badge: "Popular", badgeColor: "bg-[#3ecf8e] text-black", gradient: "from-cyan-500 to-blue-500" },
+  { id: 7, name: "Social Media Manager", description: "Automate your social media presence", emoji: "📱", rating: 4.4, adoptions: 6750, badge: "Social", badgeColor: "bg-purple-500 text-white", gradient: "from-purple-500 to-indigo-500" },
+  { id: 8, name: "Email Marketing Pro", description: "Create stunning email campaigns", emoji: "📧", rating: 4.6, adoptions: 5400, badge: "Marketing", badgeColor: "bg-yellow-500 text-black", gradient: "from-yellow-500 to-orange-400" },
+  { id: 9, name: "Voice Synthesizer", description: "Convert text to natural-sounding speech", emoji: "🔊", rating: 4.3, adoptions: 3200, badge: "Audio", badgeColor: "bg-indigo-500 text-white", gradient: "from-indigo-500 to-purple-600" },
+  { id: 10, name: "Data Visualizer", description: "Transform data into beautiful charts", emoji: "📈", rating: 4.7, adoptions: 8100, badge: "Charts", badgeColor: "bg-teal-500 text-white", gradient: "from-teal-500 to-green-600" }
+];
+
+// Helper function to format adoption numbers
+const formatAdoptions = (num: number): string => {
+  if (num >= 1000000) {
+    return (num / 1000000).toFixed(1) + 'M';
+  }
+  if (num >= 1000) {
+    return (num / 1000).toFixed(1) + 'K';
+  }
+  return num.toString();
+};
+
 export default function Home() {
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  // Carousel drag and auto-scroll functionality
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [scrollLeft, setScrollLeft] = useState(0);
+  const [userInteracting, setUserInteracting] = useState(false);
+  const autoScrollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Filter tools based on search term
+  const filteredTools = mockTools.filter(tool =>
+    tool.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    tool.description.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Drag to scroll functionality
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!carouselRef.current) return;
+    setIsDragging(true);
+    setUserInteracting(true);
+    setStartX(e.pageX - carouselRef.current.offsetLeft);
+    setScrollLeft(carouselRef.current.scrollLeft);
+    carouselRef.current.style.cursor = 'grabbing';
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || !carouselRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - carouselRef.current.offsetLeft;
+    const walk = (x - startX) * 2; // Scroll speed multiplier
+    carouselRef.current.scrollLeft = scrollLeft - walk;
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+    if (carouselRef.current) {
+      carouselRef.current.style.cursor = 'grab';
+    }
+    // Reset user interaction after 3 seconds
+    setTimeout(() => {
+      setUserInteracting(false);
+    }, 3000);
+  };
+
+  const handleMouseLeave = () => {
+    setIsDragging(false);
+    if (carouselRef.current) {
+      carouselRef.current.style.cursor = 'grab';
+    }
+  };
+
+  // Auto-scroll functionality
+  useEffect(() => {
+    const startAutoScroll = () => {
+      if (autoScrollIntervalRef.current) {
+        clearInterval(autoScrollIntervalRef.current);
+      }
+      
+      autoScrollIntervalRef.current = setInterval(() => {
+        // Only auto-scroll on tablet+ where carousel is visible
+        if (!userInteracting && carouselRef.current && window.innerWidth >= 640) {
+          const carousel = carouselRef.current;
+          const maxScrollLeft = carousel.scrollWidth - carousel.clientWidth;
+          
+          if (carousel.scrollLeft >= maxScrollLeft) {
+            // Reset to beginning when reached the end
+            carousel.scrollTo({ left: 0, behavior: 'smooth' });
+          } else {
+            // Scroll to the right
+            carousel.scrollBy({ left: 344, behavior: 'smooth' }); // w-80 + gap-6
+          }
+        }
+      }, 3000); // Auto-scroll every 3 seconds
+    };
+
+    startAutoScroll();
+
+    return () => {
+      if (autoScrollIntervalRef.current) {
+        clearInterval(autoScrollIntervalRef.current);
+      }
+    };
+  }, [userInteracting]);
+
+  // Handle scroll events to detect user interaction
+  const handleScroll = () => {
+    setUserInteracting(true);
+    setTimeout(() => {
+      setUserInteracting(false);
+    }, 3000);
+  };
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed]">
       {/* Header */}
@@ -11,6 +134,7 @@ export default function Home() {
                 1sub<span className="text-[#9ca3af] font-normal">.io</span>
               </h1>
             </div>
+            
             
             {/* CTA Button */}
             <a
@@ -35,6 +159,7 @@ export default function Home() {
             access a vast collection of tools with 1 single subscription. 
           </p>
           
+          
           <a
             href="/login"
             id="join"
@@ -47,100 +172,126 @@ export default function Home() {
 
       {/* Tools Showcase */}
       <section className="section-padding bg-[#111111]">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-7xl mx-auto">
           <h2 className="text-3xl sm:text-4xl font-bold text-center mb-8">
             Featured Tools & Services
           </h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {/* Tool Card 1 */}
-            <div className="bg-[#1f2937] rounded-lg p-4 hover:bg-[#374151] transition-colors">
-              <div className="w-10 h-10 bg-[#3ecf8e] rounded-lg flex items-center justify-center mb-3">
-                <span className="text-white font-bold text-xl">AI</span>
-              </div>
-              <h3 className="text-xl font-semibold mb-2">AI Writing Tools</h3>
-              <p className="text-[#d1d5db] mb-4">
-                Professional writing assistants, content generators, and editing tools 
-                to enhance your creative workflow.
-              </p>
-              <div className="text-sm text-[#9ca3af]">
-                Includes: GPT-4 access, Grammarly Premium, Jasper AI
-              </div>
-            </div>
-
-            {/* Tool Card 2 */}
-            <div className="bg-[#1f2937] rounded-lg p-4 hover:bg-[#374151] transition-colors">
-              <div className="w-10 h-10 bg-[#10b981] rounded-lg flex items-center justify-center mb-3">
-                <span className="text-white font-bold text-xl">📊</span>
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Analytics Suite</h3>
-              <p className="text-[#d1d5db] mb-4">
-                Comprehensive analytics and data visualization tools to track 
-                performance and gain valuable insights.
-              </p>
-              <div className="text-sm text-[#9ca3af]">
-                Includes: Google Analytics Pro, Mixpanel, Hotjar
+          {/* Search Bar */}
+          <div className="mb-8 max-w-md mx-auto md:mx-0 md:max-w-sm">
+            <div className="relative">
+              <input 
+                type="text" 
+                placeholder="Search tools..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full px-4 py-3 pl-12 bg-[#1f2937] border border-[#374151] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent text-[#ededed] text-base"
+              />
+              <div className="absolute left-4 top-3.5 text-[#9ca3af]">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
               </div>
             </div>
-
-            {/* Tool Card 3 */}
-            <div className="bg-[#1f2937] rounded-lg p-4 hover:bg-[#374151] transition-colors">
-              <div className="w-10 h-10 bg-[#f59e0b] rounded-lg flex items-center justify-center mb-3">
-                <span className="text-white font-bold text-xl">🎨</span>
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Design Tools</h3>
-              <p className="text-[#d1d5db] mb-4">
-                Professional design software and creative tools for stunning 
-                visual content and user experiences.
-              </p>
-              <div className="text-sm text-[#9ca3af]">
-                Includes: Adobe Creative Suite, Figma Pro, Canva Pro
-              </div>
-            </div>
-
-            {/* Tool Card 4 */}
-            <div className="bg-[#1f2937] rounded-lg p-4 hover:bg-[#374151] transition-colors">
-              <div className="w-10 h-10 bg-[#8b5cf6] rounded-lg flex items-center justify-center mb-3">
-                <span className="text-white font-bold text-xl">⚡</span>
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Productivity Suite</h3>
-              <p className="text-[#d1d5db] mb-4">
-                Essential productivity tools to streamline your workflow 
-                and boost team collaboration.
-              </p>
-              <div className="text-sm text-[#9ca3af]">
-                Includes: Notion Pro, Slack Premium, Zapier
-              </div>
-            </div>
-
-            {/* Tool Card 5 */}
-            <div className="bg-[#1f2937] rounded-lg p-4 hover:bg-[#374151] transition-colors">
-              <div className="w-10 h-10 bg-[#ef4444] rounded-lg flex items-center justify-center mb-3">
-                <span className="text-white font-bold text-xl">🔧</span>
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Developer Tools</h3>
-              <p className="text-[#d1d5db] mb-4">
-                Complete development environment with hosting, monitoring, 
-                and deployment solutions.
-              </p>
-              <div className="text-sm text-[#9ca3af]">
-                Includes: GitHub Pro, Vercel Pro, MongoDB Atlas
+          </div>
+          
+          {/* Mobile Carousel */}
+          <div className="mb-8 sm:hidden">
+            <div className="w-full overflow-hidden">
+              <div 
+                className="flex gap-4 overflow-x-auto pb-4 px-1" 
+                style={{
+                  scrollbarWidth: 'none',
+                  msOverflowStyle: 'none',
+                  WebkitOverflowScrolling: 'touch'
+                }}
+              >
+                {filteredTools.map((tool) => (
+                  <div key={tool.id} className="bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex-shrink-0 w-84 min-w-84 flex flex-col">
+                    <div className={`h-36 bg-gradient-to-br ${tool.gradient} flex items-center justify-center`}>
+                      <div className="text-4xl">{tool.emoji}</div>
+                    </div>
+                    <div className="p-3 flex flex-col flex-1">
+                      <h3 className="font-bold mb-1 text-base">{tool.name}</h3>
+                      <p className="text-[#9ca3af] text-sm mb-2 line-clamp-2 flex-1">{tool.description}</p>
+                      <div className="flex items-center justify-between mt-auto">
+                        <div className="flex items-center gap-1">
+                          <span className="text-[#3ecf8e] font-bold text-sm">★ {tool.rating}</span>
+                          <div className="flex items-center gap-1">
+                            <Users className="w-4 h-4 text-[#9ca3af]" />
+                            <span className="text-[#9ca3af] font-thin text-sm">{formatAdoptions(tool.adoptions)}</span>
+                          </div>
+                        </div>
+                        <span className={`${tool.badgeColor} px-2 py-1 rounded text-sm font-bold`}>{tool.badge}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
+          </div>
 
-            {/* Tool Card 6 */}
-            <div className="bg-[#1f2937] rounded-lg p-4 hover:bg-[#374151] transition-colors">
-              <div className="w-10 h-10 bg-[#06b6d4] rounded-lg flex items-center justify-center mb-3">
-                <span className="text-white font-bold text-xl">💼</span>
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Business Tools</h3>
-              <p className="text-[#d1d5db] mb-4">
-                Professional business management tools for CRM, email marketing, 
-                and financial planning.
-              </p>
-              <div className="text-sm text-[#9ca3af]">
-                Includes: HubSpot, Mailchimp Pro, QuickBooks
-              </div>
+          {/* Desktop Carousel */}
+          <div className="mb-8 hidden sm:block">
+            <div 
+              ref={carouselRef}
+              className="flex gap-6 overflow-x-auto pb-4 scrollbar-hide cursor-grab select-none" 
+              style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseLeave}
+              onScroll={handleScroll}
+            >
+              {filteredTools.map((tool) => (
+                <div key={tool.id} className="bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex-shrink-0 w-[22rem] flex flex-col">
+                  <div className={`h-40 bg-gradient-to-br ${tool.gradient} flex items-center justify-center`}>
+                    <div className="text-5xl">{tool.emoji}</div>
+                  </div>
+                  <div className="p-3 flex flex-col flex-1">
+                    <h3 className="font-bold mb-1">{tool.name}</h3>
+                    <p className="text-[#9ca3af] text-xs mb-2 flex-1">{tool.description}</p>
+                    <div className="flex items-center justify-between mt-auto">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[#3ecf8e] font-bold">★ {tool.rating}</span>
+                        <div className="flex items-center gap-1">
+                          <Users className="w-4 h-4 text-[#9ca3af] font-thin" />
+                          <span className="text-[#9ca3af] font-thin">{formatAdoptions(tool.adoptions)}</span>
+                        </div>
+                      </div>
+                      <span className={`${tool.badgeColor} px-2 py-1 rounded text-xs font-bold`}>{tool.badge}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* All Tools Section */}
+          <div className="mb-8">
+            <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">All Tools</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+              {filteredTools.map((tool) => (
+                <div key={tool.id} className="bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex flex-col">
+                  <div className={`h-32 sm:h-40 bg-gradient-to-br ${tool.gradient} flex items-center justify-center`}>
+                    <div className="text-4xl sm:text-5xl">{tool.emoji}</div>
+                  </div>
+                  <div className="p-3 flex flex-col flex-1">
+                    <h3 className="font-bold mb-1">{tool.name}</h3>
+                    <p className="text-[#9ca3af] text-xs mb-2 flex-1">{tool.description}</p>
+                    <div className="flex items-center justify-between mt-auto">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[#3ecf8e] font-bold">★ {tool.rating}</span>
+                        <div className="flex items-center gap-1">
+                          <Users className="w-4 h-4 text-[#9ca3af] font-thin" />
+                          <span className="text-[#9ca3af] font-thin">{formatAdoptions(tool.adoptions)}</span>
+                        </div>
+                      </div>
+                      <span className={`${tool.badgeColor} px-2 py-1 rounded text-xs font-bold`}>{tool.badge}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
