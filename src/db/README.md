@@ -6,6 +6,7 @@ This directory contains the complete database schema for the 1sub MVP Phase 1.
 
 - `schema.sql` - Complete table definitions with indexes and constraints
 - `triggers.sql` - Database triggers for auto-updates and user creation
+- `rls-policies.sql` - Row Level Security policies for data protection
 - `seed.sql` - Sample data for testing and development
 
 ## Database Tables
@@ -31,7 +32,8 @@ This directory contains the complete database schema for the 1sub MVP Phase 1.
 2. Navigate to SQL Editor
 3. Run `schema.sql` first
 4. Run `triggers.sql` second
-5. Run `seed.sql` for sample data
+5. Run `rls-policies.sql` third (IMPORTANT for security)
+6. Run `seed.sql` for sample data
 
 ### Option 2: Supabase CLI
 ```bash
@@ -63,9 +65,35 @@ Use a separate Supabase staging project for testing:
 
 ## Security Notes
 
-- All tables use RLS policies
+- All tables use RLS policies for data protection
 - Service role key required for credit operations
 - Idempotency keys prevent duplicate transactions
 - Credit balances cannot go negative
+- Users can only access their own data
+- Transactions and logs are immutable (no updates/deletes)
+
+## Testing RLS Policies
+
+After deployment, test the security policies:
+
+```sql
+-- Test 1: Check RLS is enabled
+SELECT schemaname, tablename, rowsecurity 
+FROM pg_tables 
+WHERE schemaname = 'public';
+
+-- Test 2: Verify policies exist
+SELECT schemaname, tablename, policyname, permissive, roles, cmd, qual
+FROM pg_policies 
+WHERE schemaname = 'public'
+ORDER BY tablename, policyname;
+
+-- Test 3: Test user access (replace with actual user ID)
+SET request.jwt.claim.sub = 'your-user-uuid-here';
+SELECT * FROM credit_balances; -- Should only see own balance
+
+-- Test 4: Test public access
+SELECT * FROM tools WHERE is_active = true; -- Should work for everyone
+```
 
 
