@@ -8,7 +8,7 @@ vi.mock('@/lib/supabaseClient', () => ({
   supabaseClient: mockSupabaseClient,
 }))
 
-import { launchTool, verifyUser } from '@/lib/api-client'
+import { launchTool, verifyUser, copyToClipboard } from '@/lib/api-client'
 
 // Mock fetch
 global.fetch = vi.fn()
@@ -156,6 +156,101 @@ describe('API Client Functions', () => {
         verified: false,
         error: 'Network error',
       })
+    })
+  })
+
+  describe('copyToClipboard', () => {
+    beforeEach(() => {
+      // Reset DOM
+      document.body.innerHTML = ''
+    })
+
+    it('should copy text using modern clipboard API', async () => {
+      // Mock navigator.clipboard
+      const mockWriteText = vi.fn().mockResolvedValue(undefined)
+      Object.defineProperty(navigator, 'clipboard', {
+        value: {
+          writeText: mockWriteText,
+        },
+        writable: true,
+      })
+
+      const result = await copyToClipboard('test text')
+
+      expect(mockWriteText).toHaveBeenCalledWith('test text')
+      expect(result).toBe(true)
+    })
+
+    it('should fallback to execCommand when clipboard API fails', async () => {
+      // Mock navigator.clipboard to throw error
+      Object.defineProperty(navigator, 'clipboard', {
+        value: {
+          writeText: vi.fn().mockRejectedValue(new Error('Clipboard API not available')),
+        },
+        writable: true,
+      })
+
+      // Mock document.execCommand
+      const mockExecCommand = vi.fn().mockReturnValue(true)
+      Object.defineProperty(document, 'execCommand', {
+        value: mockExecCommand,
+        writable: true,
+      })
+
+      // Spy on document.createElement and appendChild to verify textarea creation
+      const createElementSpy = vi.spyOn(document, 'createElement')
+      const appendChildSpy = vi.spyOn(document.body, 'appendChild')
+      const removeChildSpy = vi.spyOn(document.body, 'removeChild')
+
+      const result = await copyToClipboard('test text')
+
+      expect(mockExecCommand).toHaveBeenCalledWith('copy')
+      expect(result).toBe(true)
+      
+      // Verify textarea was created and manipulated
+      expect(createElementSpy).toHaveBeenCalledWith('textarea')
+      expect(appendChildSpy).toHaveBeenCalled()
+      expect(removeChildSpy).toHaveBeenCalled()
+    })
+
+    it('should return false when both methods fail', async () => {
+      // Mock navigator.clipboard to throw error
+      Object.defineProperty(navigator, 'clipboard', {
+        value: {
+          writeText: vi.fn().mockRejectedValue(new Error('Clipboard API not available')),
+        },
+        writable: true,
+      })
+
+      // Mock document.execCommand to return false
+      Object.defineProperty(document, 'execCommand', {
+        value: vi.fn().mockReturnValue(false),
+        writable: true,
+      })
+
+      const result = await copyToClipboard('test text')
+
+      expect(result).toBe(false)
+    })
+
+    it('should handle non-Error exceptions', async () => {
+      // Mock navigator.clipboard to throw non-Error
+      Object.defineProperty(navigator, 'clipboard', {
+        value: {
+          writeText: vi.fn().mockRejectedValue('String error'),
+        },
+        writable: true,
+      })
+
+      // Mock document.execCommand to return false
+      Object.defineProperty(document, 'execCommand', {
+        value: vi.fn().mockReturnValue(false),
+        writable: true,
+      })
+
+      const result = await copyToClipboard('test text')
+
+      expect(result).toBe(false)
     })
   })
 })
