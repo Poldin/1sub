@@ -5,6 +5,7 @@ import { Menu, User, Users, LogOut } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Sidebar from './components/Sidebar';
 import ShareAndEarnDialog from './components/ShareAndEarn';
+import TokenDisplay from './components/TokenDisplay';
 import { useUser } from '@/hooks/useUser';
 import { useCredits } from '@/hooks/useCredits';
 import { supabaseClient } from '@/lib/supabaseClient';
@@ -335,6 +336,11 @@ export default function Backoffice() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* API Token Section */}
+            <div className="mb-8">
+              <TokenDisplay />
             </div>
 
             {/* All Tools Section */}
