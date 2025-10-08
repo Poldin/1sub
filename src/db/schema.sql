@@ -78,7 +78,22 @@ CREATE TABLE public.usage_logs (
 CREATE INDEX idx_usage_logs_user_id_created_at ON public.usage_logs(user_id, created_at DESC);
 CREATE INDEX idx_usage_logs_tool_id_created_at ON public.usage_logs(tool_id, created_at DESC);
 
--- 6. Atomic Credit Consumption Function
+-- 6. Waitlist Table
+CREATE TABLE public.waitlist (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT NOT NULL,
+  name TEXT,
+  company TEXT,
+  use_case TEXT,
+  type TEXT NOT NULL CHECK (type IN ('user', 'vendor')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes for waitlist
+CREATE INDEX idx_waitlist_email ON public.waitlist(email);
+CREATE INDEX idx_waitlist_type ON public.waitlist(type);
+
+-- 7. Atomic Credit Consumption Function
 CREATE OR REPLACE FUNCTION consume_credits(
   p_user_id UUID,
   p_amount NUMERIC,

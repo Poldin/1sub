@@ -15,6 +15,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "1sub, countless tools",
   description: "Access premium tools with a single subscription. Simplify your workflow, reduce costs, and join a community of users.",
+  icons: {
+    icon: '/favicon.svg',
+  },
 };
 
 export default function RootLayout({

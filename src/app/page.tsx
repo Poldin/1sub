@@ -14,7 +14,7 @@ export default function Home() {
             
             {/* CTA Button */}
             <a
-              href="/login"
+              href="/waitlist"
               className="btn-secondary text-sm sm:text-base"
             >
               join us
@@ -36,7 +36,7 @@ export default function Home() {
           </p>
           
           <a
-            href="/login"
+            href="/waitlist"
             id="join"
             className="btn-secondary text-sm sm:text-base px-2"
           >

@@ -1,7 +1,41 @@
--- 1sub MVP Phase 1 Row Level Security (RLS) Policies
--- Comprehensive security policies for all database tables
+-- 1sub MVP Phase 1 Row Level Security (RLS) Policies - UPDATE VERSION
+-- This script drops existing policies and recreates them to avoid conflicts
 
--- Enable RLS on all tables
+-- Drop existing policies first
+DROP POLICY IF EXISTS "Users can view own profile" ON public.users;
+DROP POLICY IF EXISTS "Service role can insert users" ON public.users;
+DROP POLICY IF EXISTS "Users can update own profile" ON public.users;
+DROP POLICY IF EXISTS "Service role can update users" ON public.users;
+DROP POLICY IF EXISTS "Users cannot access other users' data" ON public.users;
+
+DROP POLICY IF EXISTS "Users can view own balance" ON public.credit_balances;
+DROP POLICY IF EXISTS "Service role full access to balances" ON public.credit_balances;
+DROP POLICY IF EXISTS "Only service role can modify credit balances" ON public.credit_balances;
+
+DROP POLICY IF EXISTS "Users can view own transactions" ON public.credit_transactions;
+DROP POLICY IF EXISTS "Service role can insert transactions" ON public.credit_transactions;
+DROP POLICY IF EXISTS "Only service role can modify credit transactions" ON public.credit_transactions;
+
+DROP POLICY IF EXISTS "Anyone can view active tools" ON public.tools;
+DROP POLICY IF EXISTS "Service role full access to tools" ON public.tools;
+DROP POLICY IF EXISTS "Only service role can modify tools" ON public.tools;
+DROP POLICY IF EXISTS "Only service role can delete tools" ON public.tools;
+
+DROP POLICY IF EXISTS "Users can view own usage logs" ON public.usage_logs;
+DROP POLICY IF EXISTS "Service role can insert logs" ON public.usage_logs;
+DROP POLICY IF EXISTS "Only service role can modify usage logs" ON public.usage_logs;
+DROP POLICY IF EXISTS "Only service role can delete usage logs" ON public.usage_logs;
+
+DROP POLICY IF EXISTS "Anyone can insert into waitlist" ON public.waitlist;
+DROP POLICY IF EXISTS "Service role can view all waitlist entries" ON public.waitlist;
+DROP POLICY IF EXISTS "Service role can update waitlist entries" ON public.waitlist;
+
+DROP POLICY IF EXISTS "Admin can view all users" ON public.users;
+DROP POLICY IF EXISTS "Admin can view all credit balances" ON public.credit_balances;
+DROP POLICY IF EXISTS "Admin can view all credit transactions" ON public.credit_transactions;
+DROP POLICY IF EXISTS "Admin can view all usage logs" ON public.usage_logs;
+
+-- Enable RLS on all tables (in case it's not enabled)
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.credit_balances ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.credit_transactions ENABLE ROW LEVEL SECURITY;
