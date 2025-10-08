@@ -93,6 +93,40 @@ describe('API Client Functions', () => {
 
       await expect(launchTool(1)).rejects.toThrow('Network error')
     })
+
+    it('should handle API errors with only error.error', async () => {
+      mockSupabaseClient.auth.getSession.mockResolvedValue({
+        data: { session: mockSession },
+        error: null,
+      })
+
+      const mockResponse = {
+        ok: false,
+        json: vi.fn().mockResolvedValue({
+          error: 'Tool not found', // Only error.error, no error.message
+        }),
+      }
+
+      vi.mocked(fetch).mockResolvedValueOnce(mockResponse as any)
+
+      await expect(launchTool(999)).rejects.toThrow('Tool not found')
+    })
+
+    it('should handle API errors with empty response', async () => {
+      mockSupabaseClient.auth.getSession.mockResolvedValue({
+        data: { session: mockSession },
+        error: null,
+      })
+
+      const mockResponse = {
+        ok: false,
+        json: vi.fn().mockResolvedValue({}), // Empty response
+      }
+
+      vi.mocked(fetch).mockResolvedValueOnce(mockResponse as any)
+
+      await expect(launchTool(999)).rejects.toThrow('Failed to launch tool')
+    })
   })
 
   describe('verifyUser', () => {
@@ -155,6 +189,19 @@ describe('API Client Functions', () => {
         email: '',
         verified: false,
         error: 'Network error',
+      })
+    })
+
+    it('should handle non-Error exceptions', async () => {
+      vi.mocked(fetch).mockRejectedValueOnce('String error') // Non-Error
+
+      const result = await verifyUser('token')
+
+      expect(result).toEqual({
+        userId: '',
+        email: '',
+        verified: false,
+        error: 'Unknown error',
       })
     })
   })
