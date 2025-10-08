@@ -1,9 +1,13 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Menu, User, Users } from 'lucide-react';
+import { Menu, User, Users, LogOut } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import Sidebar from './components/Sidebar';
 import ShareAndEarnDialog from './components/ShareAndEarn';
+import { useUser } from '@/hooks/useUser';
+import { useCredits } from '@/hooks/useCredits';
+import { supabaseClient } from '@/lib/supabaseClient';
 
 // Mock database for tools
 const mockTools = [
@@ -31,9 +35,35 @@ const formatAdoptions = (num: number): string => {
 };
 
 export default function Backoffice() {
+  const router = useRouter();
+  const { user, loading: userLoading } = useUser();
+  const { credits, loading: creditsLoading } = useCredits();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [credits, setCredits] = useState(1234.56);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!userLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, userLoading, router]);
+
+  const handleLogout = async () => {
+    await supabaseClient.auth.signOut();
+    router.push('/');
+  };
+
+  // Show loading state while checking authentication
+  if (userLoading) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#3ecf8e] mx-auto mb-4"></div>
+          <p className="text-[#9ca3af]">Loading...</p>
+        </div>
+      </div>
+    );
+  }
   
   // Carousel drag and auto-scroll functionality
   const carouselRef = useRef<HTMLDivElement>(null);
@@ -139,7 +169,7 @@ export default function Backoffice() {
       <Sidebar 
         isOpen={isMenuOpen} 
         onClose={toggleMenu}
-        credits={credits}
+        credits={creditsLoading ? 0 : credits}
         onShareAndEarnClick={openShareDialog}
       />
 
@@ -175,11 +205,23 @@ export default function Backoffice() {
               </div>
             </div>
             
-            {/* Profile Button */}
-            <button className="flex items-center gap-1 sm:gap-2 p-1.5 sm:p-2 bg-[#1f2937] hover:bg-[#374151] rounded-lg transition-colors flex-shrink-0">
-              <User className="w-6 h-6 sm:w-5 sm:h-5 text-[#3ecf8e]" />
-              <span className="hidden lg:block text-sm font-medium text-[#ededed]">profile</span>
-            </button>
+            {/* Profile Button with Logout */}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 sm:gap-2 p-1.5 sm:p-2 bg-[#1f2937] hover:bg-[#374151] rounded-lg transition-colors flex-shrink-0">
+                <User className="w-6 h-6 sm:w-5 sm:h-5 text-[#3ecf8e]" />
+                <span className="hidden lg:block text-sm font-medium text-[#ededed]">
+                  {user?.fullName || user?.email || 'profile'}
+                </span>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-1 p-1.5 sm:p-2 bg-red-600/20 hover:bg-red-600/30 rounded-lg transition-colors flex-shrink-0"
+                title="Logout"
+              >
+                <LogOut className="w-4 h-4 text-red-400" />
+                <span className="hidden lg:block text-sm font-medium text-red-400">logout</span>
+              </button>
+            </div>
           </div>
         </header>
 

@@ -2,19 +2,45 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
+import { supabaseClient } from '@/lib/supabaseClient';
 
 export default function LoginPage() {
+  const router = useRouter();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Here you would authenticate user
-    console.log('Login with:', formData);
+    setLoading(true);
+    setError('');
+
+    try {
+      const { data, error } = await supabaseClient.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.password,
+      });
+
+      if (error) {
+        setError(error.message);
+        return;
+      }
+
+      if (data.user) {
+        // Redirect to dashboard
+        router.push('/backoffice');
+      }
+    } catch (err) {
+      setError('An unexpected error occurred');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -84,11 +110,18 @@ export default function LoginPage() {
               </div>
             </div>
             
+            {error && (
+              <div className="text-red-400 text-sm bg-red-400/10 border border-red-400/20 rounded-lg p-3">
+                {error}
+              </div>
+            )}
+
             <button
               type="submit"
-              className="w-full bg-[#3ecf8e] text-white py-3 px-4 rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors"
+              disabled={loading}
+              className="w-full bg-[#3ecf8e] text-white py-3 px-4 rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              sign in
+              {loading ? 'signing in...' : 'sign in'}
             </button>
           </form>
 

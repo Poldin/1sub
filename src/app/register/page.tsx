@@ -2,19 +2,24 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
+import { supabaseClient } from '@/lib/supabaseClient';
+import { createUserProfile } from '@/lib/auth';
 
 export default function RegisterPage() {
-  const [step, setStep] = useState<'details' | 'otp'>('details');
+  const router = useRouter();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     confirmPassword: '',
+    fullName: '',
   });
-  const [otp, setOtp] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordError, setPasswordError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const validatePassword = (password: string) => {
     const minLength = 8;
@@ -41,28 +46,59 @@ export default function RegisterPage() {
     return '';
   };
 
-  const handleDetailsSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.email && formData.password && formData.confirmPassword) {
-      const passwordValidation = validatePassword(formData.password);
-      if (passwordValidation) {
-        setPasswordError(passwordValidation);
-        return;
-      }
-      if (formData.password !== formData.confirmPassword) {
-        setPasswordError('Passwords do not match');
-        return;
-      }
-      setPasswordError('');
-      setStep('otp');
-      // Here you would send OTP to email
-    }
-  };
+    setLoading(true);
+    setError('');
+    setPasswordError('');
 
-  const handleOtpSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Here you would verify OTP and create account
-    console.log('Register with:', { ...formData, otp });
+    // Validate password
+    const passwordValidation = validatePassword(formData.password);
+    if (passwordValidation) {
+      setPasswordError(passwordValidation);
+      setLoading(false);
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      setPasswordError('Passwords do not match');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // Sign up with Supabase Auth
+      const { data, error } = await supabaseClient.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.fullName
+          }
+        }
+      });
+
+      if (error) {
+        setError(error.message);
+        return;
+      }
+
+      if (data.user) {
+        // Create user profile in public.users table
+        await createUserProfile(
+          data.user.id,
+          formData.email,
+          formData.fullName
+        );
+
+        // Redirect to dashboard
+        router.push('/backoffice');
+      }
+    } catch (err) {
+      setError('An unexpected error occurred');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -93,25 +129,39 @@ export default function RegisterPage() {
 
         {/* Register Form */}
         <div className="bg-[#111111] rounded-2xl p-8 shadow-2xl border border-[#374151]">
-          {step === 'details' ? (
-            <>
-              <h2 className="text-2xl font-bold mb-6 text-center">create account</h2>
-              <form onSubmit={handleDetailsSubmit} className="space-y-6">
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-[#d1d5db] mb-2">
-                    email address
-                  </label>
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 bg-[#1f2937] border border-[#374151] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
-                    placeholder="your@email.com"
-                    required
-                  />
-                </div>
+          <h2 className="text-2xl font-bold mb-6 text-center">create account</h2>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label htmlFor="fullName" className="block text-sm font-medium text-[#d1d5db] mb-2">
+                full name
+              </label>
+              <input
+                type="text"
+                id="fullName"
+                name="fullName"
+                value={formData.fullName}
+                onChange={handleInputChange}
+                className="w-full px-4 py-3 bg-[#1f2937] border border-[#374151] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
+                placeholder="John Doe"
+                required
+              />
+            </div>
+
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-[#d1d5db] mb-2">
+                email address
+              </label>
+              <input
+                type="email"
+                id="email"
+                name="email"
+                value={formData.email}
+                onChange={handleInputChange}
+                className="w-full px-4 py-3 bg-[#1f2937] border border-[#374151] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
+                placeholder="your@email.com"
+                required
+              />
+            </div>
 
                 <div>
                   <label htmlFor="password" className="block text-sm font-medium text-[#d1d5db] mb-2">
@@ -195,57 +245,20 @@ export default function RegisterPage() {
                   </ul>
                 </div>
                 
+                {error && (
+                  <div className="text-red-400 text-sm bg-red-400/10 border border-red-400/20 rounded-lg p-3">
+                    {error}
+                  </div>
+                )}
+
                 <button
                   type="submit"
-                  className="w-full bg-[#3ecf8e] text-white py-3 px-4 rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors"
+                  disabled={loading}
+                  className="w-full bg-[#3ecf8e] text-white py-3 px-4 rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  send verification code
+                  {loading ? 'creating account...' : 'create account'}
                 </button>
               </form>
-            </>
-          ) : (
-            <>
-              <div className="text-center mb-6">
-                <h2 className="text-2xl font-bold mb-2">verify your email</h2>
-                <p className="text-[#9ca3af] text-sm">
-                  we sent a code to <span className="text-[#3ecf8e]">{formData.email}</span>
-                </p>
-              </div>
-              
-              <form onSubmit={handleOtpSubmit} className="space-y-6">
-                <div>
-                  <label htmlFor="otp" className="block text-sm font-medium text-[#d1d5db] mb-2">
-                    verification code
-                  </label>
-                  <input
-                    type="text"
-                    id="otp"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1f2937] border border-[#374151] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent text-center text-xl tracking-widest"
-                    placeholder="000000"
-                    maxLength={6}
-                    required
-                  />
-                </div>
-                
-                <button
-                  type="submit"
-                  className="w-full bg-[#3ecf8e] text-white py-3 px-4 rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors"
-                >
-                  create account
-                </button>
-                
-                <button
-                  type="button"
-                  onClick={() => setStep('details')}
-                  className="w-full text-[#9ca3af] text-sm hover:text-[#d1d5db] transition-colors"
-                >
-                  ← back to details
-                </button>
-              </form>
-            </>
-          )}
 
           {/* Links */}
           <div className="mt-6 text-center text-sm">
