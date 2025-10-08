@@ -1,4 +1,3 @@
-import { supabaseAdmin } from './supabaseAdmin';
 import { UserRow } from '@/types/db';
 
 export interface SessionUser {
@@ -7,24 +6,27 @@ export interface SessionUser {
   fullName?: string;
 }
 
+// This function should be called from a server action or API route
 export async function createUserProfile(userId: string, email: string, fullName?: string): Promise<UserRow | null> {
   try {
-    const { data, error } = await supabaseAdmin
-      .from('users')
-      .insert({
-        id: userId,
+    // This will be handled by a server action
+    const response = await fetch('/api/v1/create-user-profile', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId,
         email,
-        full_name: fullName
+        fullName
       })
-      .select()
-      .single();
+    });
 
-    if (error) {
-      console.error('Error creating user profile:', error);
-      return null;
+    if (!response.ok) {
+      throw new Error('Failed to create user profile');
     }
 
-    return data;
+    return await response.json();
   } catch (error) {
     console.error('Error creating user profile:', error);
     return null;

@@ -151,7 +151,7 @@ export default function Backoffice() {
   };
 
   // Show loading state while checking authentication
-  if (userLoading) {
+  if (userLoading || !user) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex items-center justify-center">
         <div className="text-center">

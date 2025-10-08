@@ -10,30 +10,29 @@ export interface UseUser {
 export function useUser(): UseUser {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    let mounted = true;
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    
+    let isMounted = true;
 
     // Get initial session
     const getInitialSession = async () => {
       const { data: { session } } = await supabaseClient.auth.getSession();
-      if (!mounted) return;
+      if (!isMounted) return;
       
       if (session?.user) {
-        // Get user profile from public.users table
-        const { data: profile } = await supabaseClient
-          .from('users')
-          .select('id, email, full_name')
-          .eq('id', session.user.id)
-          .single();
-
-        if (profile) {
-          setUser({
-            id: profile.id,
-            email: profile.email,
-            fullName: profile.full_name
-          });
-        }
+        // Use basic user info from auth session
+        setUser({
+          id: session.user.id,
+          email: session.user.email || '',
+          fullName: session.user.user_metadata?.full_name || null
+        });
       }
       setLoading(false);
     };
@@ -43,23 +42,15 @@ export function useUser(): UseUser {
     // Listen for auth changes
     const { data: { subscription } } = supabaseClient.auth.onAuthStateChange(
       async (event, session) => {
-        if (!mounted) return;
+        if (!isMounted) return;
 
         if (session?.user) {
-          // Get user profile
-          const { data: profile } = await supabaseClient
-            .from('users')
-            .select('id, email, full_name')
-            .eq('id', session.user.id)
-            .single();
-
-          if (profile) {
-            setUser({
-              id: profile.id,
-              email: profile.email,
-              fullName: profile.full_name
-            });
-          }
+          // Use basic user info from auth session
+          setUser({
+            id: session.user.id,
+            email: session.user.email || '',
+            fullName: session.user.user_metadata?.full_name || null
+          });
         } else {
           setUser(null);
         }
@@ -68,10 +59,10 @@ export function useUser(): UseUser {
     );
 
     return () => {
-      mounted = false;
+      isMounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [mounted]);
 
   return { user, loading };
 }
