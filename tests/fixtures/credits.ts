@@ -17,3 +17,4 @@ export const mockCreditTransaction = {
   idempotency_key: 'test-key-123',
   created_at: '2024-01-01T00:00:00Z',
 }
+

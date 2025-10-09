@@ -158,3 +158,4 @@ CREATE POLICY "Only service role can modify usage logs"
 CREATE POLICY "Only service role can delete usage logs"
   ON public.usage_logs FOR DELETE
   USING (auth.jwt()->>'role' = 'service_role');
+

@@ -108,3 +108,4 @@ describe('useCredits Hook', () => {
     expect(fetch).not.toHaveBeenCalled()
   })
 })
+

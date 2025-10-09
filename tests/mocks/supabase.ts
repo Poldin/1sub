@@ -52,3 +52,4 @@ mockSupabaseClient.auth.onAuthStateChange.mockReturnValue({
 })
 
 export default mockSupabaseClient
+

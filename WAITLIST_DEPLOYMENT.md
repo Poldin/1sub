@@ -89,3 +89,4 @@ RESEND_API_KEY=your_resend_api_key
 3. Add admin email to environment variables
 4. Test the complete flow
 5. Deploy to production
+

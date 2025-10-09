@@ -116,3 +116,4 @@ test.describe('Authentication Flow', () => {
     await expect(page).toHaveURL('/login')
   })
 })
+

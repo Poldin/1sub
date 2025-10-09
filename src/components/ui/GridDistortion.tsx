@@ -33,10 +33,10 @@ void main() {
   vec2 grid = abs(fract(uv * 20.0) - 0.5) / fwidth(uv * 20.0);
   float line = min(grid.x, grid.y);
   
-  // Mouse distortion effect - much stronger
+  // Mouse distortion effect - much stronger and more visible
   vec2 mouseDist = uv - mouse;
-  float mouseEffect = 1.0 / (1.0 + length(mouseDist) * 5.0);
-  vec2 distortion = mouseDist * mouseEffect * strength * 0.3;
+  float mouseEffect = 1.0 / (1.0 + length(mouseDist) * 3.0);
+  vec2 distortion = mouseDist * mouseEffect * strength * 0.5;
   
   // Time-based animation
   vec2 timeOffset = vec2(sin(time * 0.5) * 0.02, cos(time * 0.3) * 0.02);
@@ -44,13 +44,13 @@ void main() {
   // Sample background texture with distortion
   vec4 bgColor = texture2D(uTexture, uv - distortion + timeOffset);
   
-  // Create grid effect
+  // Create grid effect with mouse influence
   vec3 gridColor = vec3(0.0, 0.0, 0.0);
-  vec3 lineColor = vec3(0.3, 0.3, 0.3);
+  vec3 lineColor = vec3(0.3 + mouseEffect * 0.2, 0.3 + mouseEffect * 0.2, 0.3 + mouseEffect * 0.2);
   float gridMask = 1.0 - smoothstep(0.0, 1.0, line);
   
-  // Mix background with grid
-  vec3 finalColor = mix(bgColor.rgb, mix(gridColor, lineColor, gridMask), 0.4);
+  // Mix background with grid - make mouse effect more visible
+  vec3 finalColor = mix(bgColor.rgb, mix(gridColor, lineColor, gridMask), 0.4 + mouseEffect * 0.3);
   
   gl_FragColor = vec4(finalColor, bgColor.a);
 }
@@ -188,6 +188,7 @@ const GridDistortion: React.FC<GridDistortionProps> = ({
       // Update mouse uniform for shader
       if (uniforms.mouse) {
         uniforms.mouse.value.set(x, y);
+        console.log('Mouse position:', x, y); // Debug log
       }
     };
 
@@ -226,6 +227,10 @@ const GridDistortion: React.FC<GridDistortionProps> = ({
       // Update mouse uniform
       if (uniforms.mouse) {
         uniforms.mouse.value.set(mouseState.x, mouseState.y);
+        // Debug: log every 60 frames (once per second)
+        if (Math.floor(uniforms.time.value * 60) % 60 === 0) {
+          console.log('Animation - Mouse uniform:', uniforms.mouse.value.x, uniforms.mouse.value.y);
+        }
       }
 
       renderer.render(scene, camera);

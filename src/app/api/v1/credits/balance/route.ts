@@ -20,6 +20,10 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (error) {
+      // If no rows found, treat as zero balance instead of 500
+      if ((error as any)?.code === 'PGRST116') {
+        return NextResponse.json({ balance: 0 });
+      }
       console.error('Error fetching credit balance:', error);
       return NextResponse.json(
         { error: 'Failed to fetch credit balance' },

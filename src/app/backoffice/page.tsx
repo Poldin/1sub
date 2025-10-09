@@ -182,6 +182,11 @@ export default function Backoffice() {
         onClose={toggleMenu}
         credits={creditsLoading ? 0 : credits}
         onShareAndEarnClick={openShareDialog}
+        userId={user?.id || ''}
+        onCreditsUpdated={() => {
+          // Force refresh credits by updating the dependency
+          window.location.reload();
+        }}
       />
 
       {/* Main Content Area */}

@@ -1,25 +1,51 @@
 'use client';
 
+import { useState } from 'react';
 import { 
   X, 
   Home, 
   Wrench,
   User,
-  LogOut
+  LogOut,
+  Plus,
+  History
 } from 'lucide-react';
 import { ShareAndEarnButton } from './ShareAndEarn';
+import TopUpDialog from './TopUpDialog';
+import TransactionHistory from './TransactionHistory';
 
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   credits: number;
   onShareAndEarnClick: () => void;
+  userId: string;
+  onCreditsUpdated: () => void;
 }
 
-export default function Sidebar({ isOpen, onClose, credits, onShareAndEarnClick }: SidebarProps) {
+export default function Sidebar({ isOpen, onClose, credits, onShareAndEarnClick, userId, onCreditsUpdated }: SidebarProps) {
+  const [isTopUpDialogOpen, setIsTopUpDialogOpen] = useState(false);
+  const [isTransactionHistoryOpen, setIsTransactionHistoryOpen] = useState(false);
+
   const handleLogout = () => {
     // Implementare logout logic
     console.log('Logout clicked');
+  };
+
+  const handleTopUpClick = () => {
+    setIsTopUpDialogOpen(true);
+  };
+
+  const handleTopUpClose = () => {
+    setIsTopUpDialogOpen(false);
+  };
+
+  const handleTransactionHistoryClick = () => {
+    setIsTransactionHistoryOpen(true);
+  };
+
+  const handleTransactionHistoryClose = () => {
+    setIsTransactionHistoryOpen(false);
   };
 
   return (
@@ -77,12 +103,28 @@ export default function Sidebar({ isOpen, onClose, credits, onShareAndEarnClick 
           {/* Share and Earn Button */}
           <ShareAndEarnButton onClick={onShareAndEarnClick} />
             
-          {/* Credits Display - no currency symbol and no label */}
-           <div className="text-center p-1 rounded">
-             <div className="font-bold text-[#3ecf8e]">
-               <span className="font-thin text-[#9ca3af]">credits </span>{credits.toFixed(2)}
-             </div>
-           </div>
+          {/* Credits Display and Actions */}
+          <div className="text-center p-1 rounded space-y-2">
+            <div className="font-bold text-[#3ecf8e]">
+              <span className="font-thin text-[#9ca3af]">credits </span>{credits.toFixed(2)}
+            </div>
+            <div className="flex gap-1">
+              <button
+                onClick={handleTopUpClick}
+                className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-[#3ecf8e] hover:bg-[#2dd4bf] rounded-lg text-black font-medium transition-colors text-sm"
+              >
+                <Plus className="w-3 h-3" />
+                Top Up
+              </button>
+              <button
+                onClick={handleTransactionHistoryClick}
+                className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-[#374151] hover:bg-[#4b5563] rounded-lg text-[#ededed] font-medium transition-colors text-sm"
+              >
+                <History className="w-3 h-3" />
+                History
+              </button>
+            </div>
+          </div>
 
 
           {/* Profile & Logout */}
@@ -101,6 +143,21 @@ export default function Sidebar({ isOpen, onClose, credits, onShareAndEarnClick 
           </div>
         </div>
       </aside>
+
+      {/* Top-Up Dialog */}
+      <TopUpDialog
+        isOpen={isTopUpDialogOpen}
+        onClose={handleTopUpClose}
+        onCreditsUpdated={onCreditsUpdated}
+        userId={userId}
+      />
+
+      {/* Transaction History Dialog */}
+      <TransactionHistory
+        isOpen={isTransactionHistoryOpen}
+        onClose={handleTransactionHistoryClose}
+        userId={userId}
+      />
     </>
   );
 }
