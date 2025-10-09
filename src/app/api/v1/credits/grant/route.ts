@@ -13,8 +13,8 @@ export async function POST(req: NextRequest) {
 
     const entry = await grantCredits(userId, amount, reason);
     return NextResponse.json({ ok: true, data: { entry } });
-  } catch (err: any) {
-    const message = err?.message || 'Unknown error';
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
     return NextResponse.json(
       { ok: false, error: { code: 'INTERNAL_ERROR', message } },
       { status: 500 }

@@ -4,8 +4,8 @@ export interface AuditLogEntry {
   action: string;
   resourceType: string;
   resourceId?: string;
-  oldValues?: any;
-  newValues?: any;
+  oldValues?: Record<string, unknown>;
+  newValues?: Record<string, unknown>;
   ipAddress?: string;
   userAgent?: string;
 }
@@ -92,8 +92,8 @@ export function extractRequestInfo(req: Request): { ipAddress?: string; userAgen
 export async function auditToolOperation(
   action: 'CREATE' | 'UPDATE' | 'DELETE',
   toolId: string,
-  oldValues?: any,
-  newValues?: any,
+  oldValues?: Record<string, unknown>,
+  newValues?: Record<string, unknown>,
   req?: Request
 ): Promise<void> {
   const requestInfo = req ? extractRequestInfo(req) : {};
@@ -114,8 +114,8 @@ export async function auditToolOperation(
 export async function auditUserOperation(
   action: 'UPDATE' | 'DELETE',
   userId: string,
-  oldValues?: any,
-  newValues?: any,
+  oldValues?: Record<string, unknown>,
+  newValues?: Record<string, unknown>,
   req?: Request
 ): Promise<void> {
   const requestInfo = req ? extractRequestInfo(req) : {};

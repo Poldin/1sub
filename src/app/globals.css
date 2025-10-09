@@ -37,7 +37,7 @@ body {
 /* Utility classes for consistent styling */
 .btn-primary {
   background: var(--primary);
-  color: white;
+  color: #1f2937;
   padding: 3px 6px;
   border-radius: 6px;
   text-decoration: none;
@@ -59,7 +59,7 @@ body {
   padding: 3px 6px;
   border-radius: 6px;
   text-decoration: none;
-  font-weight: 600;
+  font-weight: 500;
   transition: all 0.2s ease;
   display: inline-block;
   border: 1px solid var(--border);
@@ -89,4 +89,20 @@ body {
 
 .scrollbar-hide::-webkit-scrollbar {
   display: none;  /* Safari and Chrome */
+}
+
+/* Custom animations */
+@keyframes border-glow {
+  0%, 100% {
+    border-color: rgba(255, 255, 255, 0.4);
+    box-shadow: 0 0 20px rgba(62, 207, 142, 0.3);
+  }
+  50% {
+    border-color: rgba(255, 255, 255, 0.8);
+    box-shadow: 0 0 30px rgba(62, 207, 142, 0.6);
+  }
+}
+
+.animate-border-glow {
+  animation: border-glow 2s ease-in-out infinite;
 }

@@ -105,9 +105,9 @@ export default function Backoffice() {
       const result = await launchTool(parseInt(toolId));
       // Redirect to the tool with the access token
       window.open(result.launchUrl, '_blank');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to launch tool:', error);
-      if (error.message.includes('Insufficient credits')) {
+      if (error instanceof Error && error.message.includes('Insufficient credits')) {
         alert(`Insufficient credits. You need more credits to launch this tool.`);
       } else {
         alert('Failed to launch tool. Please try again.');

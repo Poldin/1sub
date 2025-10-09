@@ -70,7 +70,7 @@ export async function checkAdminAccess(): Promise<{ user: AdminUser } | { error:
   try {
     const user = await requireAdmin();
     return { user };
-  } catch (error) {
+  } catch {
     return { error: 'Admin access required' };
   }
 }

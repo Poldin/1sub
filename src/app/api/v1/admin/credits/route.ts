@@ -98,10 +98,10 @@ export async function POST(req: NextRequest) {
       message: 'Credit adjustment successful',
       transaction 
     }, { status: 200 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error in credits POST:', error);
     
-    if (error.message.includes('User not found')) {
+    if (error instanceof Error && error.message.includes('User not found')) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
     

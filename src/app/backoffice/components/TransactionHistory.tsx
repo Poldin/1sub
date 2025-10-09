@@ -11,7 +11,7 @@ interface Transaction {
   reason?: string;
   idempotencyKey?: string;
   createdAt: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 interface TransactionHistoryProps {

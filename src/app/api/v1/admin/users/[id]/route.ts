@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Check admin access
@@ -12,6 +12,8 @@ export async function GET(
     if ('error' in accessCheck) {
       return NextResponse.json({ error: accessCheck.error }, { status: 403 });
     }
+
+    const { id } = await params;
 
     // Get user details with credit balance
     const { data: user, error: userError } = await supabaseAdmin
@@ -25,7 +27,7 @@ export async function GET(
         updated_at,
         credit_balances!inner(balance, created_at, updated_at)
       `)
-      .eq('id', params.id)
+      .eq('id', id)
       .single();
 
     if (userError) {
@@ -40,7 +42,7 @@ export async function GET(
     const { data: transactions, error: transactionsError } = await supabaseAdmin
       .from('credit_transactions')
       .select('*')
-      .eq('user_id', params.id)
+      .eq('user_id', id)
       .order('created_at', { ascending: false })
       .limit(50);
 
@@ -59,7 +61,7 @@ export async function GET(
         metadata,
         tools(name)
       `)
-      .eq('user_id', params.id)
+      .eq('user_id', id)
       .order('created_at', { ascending: false })
       .limit(50);
 
@@ -83,7 +85,7 @@ export async function GET(
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Check admin access
@@ -92,11 +94,17 @@ export async function PATCH(
       return NextResponse.json({ error: accessCheck.error }, { status: 403 });
     }
 
+    const { id } = await params;
+
     const body = await req.json();
     const { full_name, role } = body;
 
     // Build update object
-    const updateData: any = {};
+    const updateData: {
+      full_name?: string;
+      role?: string;
+      updated_at: string;
+    } = { updated_at: new Date().toISOString() };
     if (full_name !== undefined) updateData.full_name = full_name;
     if (role !== undefined) {
       if (!['user', 'admin'].includes(role)) {
@@ -104,12 +112,11 @@ export async function PATCH(
       }
       updateData.role = role;
     }
-    updateData.updated_at = new Date().toISOString();
 
     const { data, error } = await supabaseAdmin
       .from('users')
       .update(updateData)
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single();
 

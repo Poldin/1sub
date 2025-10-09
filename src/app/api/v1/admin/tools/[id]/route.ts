@@ -5,7 +5,7 @@ import { auditToolOperation } from '@/lib/audit';
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Check admin access
@@ -14,10 +14,12 @@ export async function GET(
       return NextResponse.json({ error: accessCheck.error }, { status: 403 });
     }
 
+    const { id } = await params;
+
     const { data, error } = await supabaseAdmin
       .from('tools')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .single();
 
     if (error) {
@@ -37,7 +39,7 @@ export async function GET(
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Check admin access
@@ -45,6 +47,8 @@ export async function PATCH(
     if ('error' in accessCheck) {
       return NextResponse.json({ error: accessCheck.error }, { status: 403 });
     }
+
+    const { id } = await params;
 
     const body = await req.json();
     const { name, description, url, credit_cost_per_use, is_active, metadata } = body;
@@ -57,19 +61,26 @@ export async function PATCH(
     }
 
     // Build update object
-    const updateData: any = {};
+    const updateData: {
+      name?: string;
+      description?: string;
+      url?: string;
+      credit_cost_per_use?: number;
+      is_active?: boolean;
+      metadata?: Record<string, unknown>;
+      updated_at: string;
+    } = { updated_at: new Date().toISOString() };
     if (name !== undefined) updateData.name = name;
     if (description !== undefined) updateData.description = description;
     if (url !== undefined) updateData.url = url;
     if (credit_cost_per_use !== undefined) updateData.credit_cost_per_use = parseFloat(credit_cost_per_use);
     if (is_active !== undefined) updateData.is_active = is_active;
     if (metadata !== undefined) updateData.metadata = metadata;
-    updateData.updated_at = new Date().toISOString();
 
     const { data, error } = await supabaseAdmin
       .from('tools')
       .update(updateData)
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single();
 
@@ -82,7 +93,7 @@ export async function PATCH(
     }
 
     // Log audit trail
-    await auditToolOperation('UPDATE', params.id, undefined, data, req);
+    await auditToolOperation('UPDATE', id, undefined, data, req);
 
     return NextResponse.json({ tool: data });
   } catch (error) {
@@ -93,7 +104,7 @@ export async function PATCH(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Check admin access
@@ -102,6 +113,8 @@ export async function DELETE(
       return NextResponse.json({ error: accessCheck.error }, { status: 403 });
     }
 
+    const { id } = await params;
+
     // Soft delete by setting is_active to false
     const { data, error } = await supabaseAdmin
       .from('tools')
@@ -109,7 +122,7 @@ export async function DELETE(
         is_active: false,
         updated_at: new Date().toISOString()
       })
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single();
 
@@ -122,7 +135,7 @@ export async function DELETE(
     }
 
     // Log audit trail
-    await auditToolOperation('DELETE', params.id, undefined, data, req);
+    await auditToolOperation('DELETE', id, undefined, data, req);
 
     return NextResponse.json({ message: 'Tool deactivated successfully', tool: data });
   } catch (error) {

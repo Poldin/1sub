@@ -304,8 +304,7 @@ export default function Home() {
             join our community
           </h2>
           <p className="text-lg text-[#d1d5db] mb-6 leading-relaxed">
-            Connect with like-minded professionals, share experiences, and discover 
-            new ways to optimize your toolkit. Our community helps you make the most 
+            Connect, share, and discover new ways to optimize. <br />Our community helps you make the most 
             of every subscription.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
@@ -334,19 +333,49 @@ export default function Home() {
             <h2 className="text-3xl sm:text-4xl font-bold mb-6 text-white">
               bring new members and earn            
             </h2>
-            <div className="mb-6">
-              <div className="text-8xl sm:text-9xl font-black text-white mb-2 leading-none">
-                1%
+            
+            {/* Commission Tiers - Step Visualization */}
+            <div className="mb-6 flex items-end justify-center gap-1 sm:gap-2 px-4">
+              {/* 1% Tier - Smallest */}
+              <div className="flex flex-col items-center">
+                <div className="border-2 border-white/80 rounded-lg p-3 sm:p-4 mb-2 w-20 sm:w-24 h-24 sm:h-28 flex flex-col items-center justify-center">
+                  <div className="text-3xl sm:text-4xl font-black text-white opacity-50">1%</div>
+                  <div className="flex items-center gap-1 mt-1">
+                    <Users className="w-3 h-3 text-green-100" />
+                    <span className="text-xs text-green-100 font-semibold">0-1K</span>
+                  </div>
+                </div>
               </div>
-              <p className="text-xl sm:text-2xl text-green-50 font-semibold">
-                lifetime commission
-              </p>
+              
+              {/* 2% Tier - Medium */}
+              <div className="flex flex-col items-center">
+                <div className="border-2 border-white/90 rounded-lg p-4 sm:p-6 mb-2 w-24 sm:w-32 h-32 sm:h-40 flex flex-col items-center justify-center">
+                  <div className="text-4xl sm:text-5xl font-black text-white opacity-75">2%</div>
+                  <div className="flex items-center gap-1 mt-1">
+                    <Users className="w-3 h-3 sm:w-4 sm:h-4 text-green-100" />
+                    <span className="text-xs sm:text-sm text-green-100 font-semibold">1K+</span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* 3% Tier - Largest */}
+              <div className="flex flex-col items-center">
+                <div className="border-3 border-white rounded-lg p-6 sm:p-8 mb-2 w-28 sm:w-40 h-40 sm:h-52 flex flex-col items-center justify-center">
+                  <div className="text-5xl sm:text-7xl font-black text-white opacity-100">3%</div>
+                  <div className="flex items-center gap-1 mt-2">
+                    <Users className="w-4 h-4 sm:w-5 sm:h-5 text-green-100" />
+                    <span className="text-sm sm:text-base text-green-100 font-semibold">10K+</span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <p className="text-base text-green-200 mb-4 max-w-2xl mx-auto opacity-80">
-            Earn 1% for every new member you refer when they use tools with 1sub. Once entered, you get the commission until member leaves.
+            
+            <p className="text-xl sm:text-2xl text-green-50 font-semibold mb-4">
+              lifetime commission
             </p>
-            <p className="text-sm text-green-300 mb-8 max-w-2xl mx-auto opacity-70">
-              Looking for deeper partnerships? Reach out to <span className="font-semibold text-white">partner@1sub.io</span>.
+            
+            <p className="text-base text-green-200 mb-8 max-w-2xl mx-auto opacity-80">
+            Earn commission for every new member you refer when they use tools with 1sub. Once entered, you get the commission until member leaves.
             </p>
             <a
               href="/login"
@@ -354,6 +383,16 @@ export default function Home() {
             >
               join us and share
             </a>
+            <p className="text-sm text-green-100 mt-4 opacity-70">
+              <a 
+                href="/tc_referral" 
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-white transition-colors"
+              >
+                Terms and conditions
+              </a> apply
+            </p>
           </div>
         </div>
       </section>
@@ -368,32 +407,22 @@ export default function Home() {
             Join 1sub and get discovered by thousands of subscribers.
           </p>
           <p className="text-base text-[#3ecf8e] mb-8 font-semibold">
-            Get a headstart, 1st month is free.
+            Get a headstart, 1st month is free of fees.
           </p>
-          <div className="mb-4">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-4">
             <a
               href="/register"
-              className="btn-secondary text-sm sm:text-base"
+              className="btn-secondary"
             >
               <span className="font-bold">sign up and submit</span>
             </a>
-          </div>
-          
-          {/* Powered by Stripe */}
-          <div className="flex items-center justify-center gap-1 mb-6 text-xs text-[#9ca3af]">
-            <span>powered by</span>
-            <span className="font-semibold text-[#6772E5]">Stripe</span>
-          </div>
-          
-          <p className="text-sm text-[#9ca3af]">
-            For partnerships and inquiries, write to 
             <a
-              href="mailto:partner@1sub.io"
-              className="text-[#3ecf8e] hover:text-[#2dd4aa] transition-colors ml-1 underline"
+              href="/vendors"
+              className="btn-primary text-sm sm:text-base"
             >
-              partner@1sub.io
+              discover more
             </a>
-          </p>
+          </div>
         </div>
       </section>
 

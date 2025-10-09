@@ -77,8 +77,8 @@ export async function POST(req: NextRequest) {
         `Tool launch: ${tool.name}`,
         idempotencyKey
       );
-    } catch (creditError: any) {
-      if (creditError.message.includes('Insufficient credits')) {
+    } catch (creditError: unknown) {
+      if (creditError instanceof Error && creditError.message.includes('Insufficient credits')) {
         return NextResponse.json(
           { 
             error: 'Insufficient credits',
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      if (creditError.message.includes('already processed')) {
+      if (creditError instanceof Error && creditError.message.includes('already processed')) {
         return NextResponse.json(
           { error: 'Launch request already processed' },
           { status: 409 }

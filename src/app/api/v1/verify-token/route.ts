@@ -24,10 +24,10 @@ export async function POST(req: NextRequest) {
         issuedAt: claims.iat,
         expiresAt: claims.exp
       });
-    } catch (jwtError: any) {
+    } catch (jwtError: unknown) {
       return NextResponse.json({
         valid: false,
-        error: jwtError.message || 'Invalid token'
+        error: jwtError instanceof Error ? jwtError.message : 'Invalid token'
       });
     }
   } catch (error) {

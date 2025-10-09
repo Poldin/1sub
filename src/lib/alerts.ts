@@ -15,6 +15,16 @@ export interface LowBalanceAlert {
   alertDate: string;
 }
 
+interface CreditBalanceWithUser {
+  user_id: string;
+  balance: string;
+  users: {
+    id: string;
+    email: string;
+    full_name: string | null;
+  };
+}
+
 /**
  * Check for users with low credit balances
  */
@@ -39,7 +49,7 @@ export async function checkLowBalances(threshold: number = 10): Promise<LowBalan
       return [];
     }
 
-    return (data || []).map(item => ({
+    return ((data as unknown as CreditBalanceWithUser[]) || []).map(item => ({
       userId: item.user_id,
       userEmail: item.users.email,
       userName: item.users.full_name || 'Unknown',

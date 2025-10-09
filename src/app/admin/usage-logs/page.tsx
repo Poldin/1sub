@@ -12,7 +12,7 @@ interface UsageLog {
   id: string;
   credits_consumed: number;
   status: 'success' | 'failed' | 'insufficient_credits';
-  metadata: any;
+  metadata: Record<string, unknown>;
   created_at: string;
   user: {
     id: string;
