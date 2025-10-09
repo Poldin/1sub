@@ -10,19 +10,16 @@ import { useCredits } from '@/hooks/useCredits';
 import { supabaseClient } from '@/lib/supabaseClient';
 import { launchTool } from '@/lib/api-client';
 
-// Mock database for tools
-const mockTools = [
-  { id: 1, name: "AI Content Generator", description: "Generate high-quality content with advanced AI", emoji: "🤖", rating: 4.8, adoptions: 12500, badge: "Popular", badgeColor: "bg-[#3ecf8e] text-black", gradient: "from-[#3ecf8e] to-[#2dd4bf]" },
-  { id: 2, name: "Advanced Analytics", description: "Deep insights into your business metrics", emoji: "📊", rating: 4.6, adoptions: 8900, badge: "New", badgeColor: "bg-blue-500 text-white", gradient: "from-purple-500 to-pink-500" },
-  { id: 3, name: "Design Studio Pro", description: "Professional design tools for everyone", emoji: "🎨", rating: 4.9, adoptions: 15600, badge: "Trending", badgeColor: "bg-orange-500 text-white", gradient: "from-orange-500 to-red-500" },
-  { id: 4, name: "Video Editor Plus", description: "Edit videos like a pro with AI assistance", emoji: "🎬", rating: 4.7, adoptions: 7300, badge: "Hot", badgeColor: "bg-red-500 text-white", gradient: "from-red-500 to-pink-600" },
-  { id: 5, name: "Code Assistant", description: "AI-powered coding companion for developers", emoji: "💻", rating: 4.5, adoptions: 9800, badge: "Dev", badgeColor: "bg-green-500 text-white", gradient: "from-green-500 to-teal-500" },
-  { id: 6, name: "Photo Enhancer", description: "Enhance your photos with AI magic", emoji: "📸", rating: 4.8, adoptions: 11200, badge: "Popular", badgeColor: "bg-[#3ecf8e] text-black", gradient: "from-cyan-500 to-blue-500" },
-  { id: 7, name: "Social Media Manager", description: "Automate your social media presence", emoji: "📱", rating: 4.4, adoptions: 6750, badge: "Social", badgeColor: "bg-purple-500 text-white", gradient: "from-purple-500 to-indigo-500" },
-  { id: 8, name: "Email Marketing Pro", description: "Create stunning email campaigns", emoji: "📧", rating: 4.6, adoptions: 5400, badge: "Marketing", badgeColor: "bg-yellow-500 text-black", gradient: "from-yellow-500 to-orange-400" },
-  { id: 9, name: "Voice Synthesizer", description: "Convert text to natural-sounding speech", emoji: "🔊", rating: 4.3, adoptions: 3200, badge: "Audio", badgeColor: "bg-indigo-500 text-white", gradient: "from-indigo-500 to-purple-600" },
-  { id: 10, name: "Data Visualizer", description: "Transform data into beautiful charts", emoji: "📈", rating: 4.7, adoptions: 8100, badge: "Charts", badgeColor: "bg-teal-500 text-white", gradient: "from-teal-500 to-green-600" }
-];
+interface Tool {
+  id: string;
+  name: string;
+  description: string;
+  url: string;
+  credit_cost_per_use: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
 // Helper function to format adoption numbers
 const formatAdoptions = (num: number): string => {
@@ -41,6 +38,8 @@ export default function Backoffice() {
   const { balance: credits, loading: creditsLoading } = useCredits(user?.id);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+  const [tools, setTools] = useState<Tool[]>([]);
+  const [toolsLoading, setToolsLoading] = useState(true);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -48,6 +47,33 @@ export default function Backoffice() {
       router.push('/login');
     }
   }, [user, userLoading, router]);
+
+  // Fetch tools from database
+  useEffect(() => {
+    const fetchTools = async () => {
+      try {
+        const { data, error } = await supabaseClient
+          .from('tools')
+          .select('*')
+          .eq('is_active', true)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Error fetching tools:', error);
+          setTools([]);
+        } else {
+          setTools(data || []);
+        }
+      } catch (err) {
+        console.error('Error fetching tools:', err);
+        setTools([]);
+      } finally {
+        setToolsLoading(false);
+      }
+    };
+
+    fetchTools();
+  }, []);
 
   const handleLogout = async () => {
     await supabaseClient.auth.signOut();
@@ -74,14 +100,18 @@ export default function Backoffice() {
     setIsShareDialogOpen(false);
   };
 
-  const handleLaunchTool = async (toolId: number) => {
+  const handleLaunchTool = async (toolId: string) => {
     try {
-      const result = await launchTool(toolId);
+      const result = await launchTool(parseInt(toolId));
       // Redirect to the tool with the access token
       window.open(result.launchUrl, '_blank');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to launch tool:', error);
-      alert('Failed to launch tool. Please try again.');
+      if (error.message.includes('Insufficient credits')) {
+        alert(`Insufficient credits. You need more credits to launch this tool.`);
+      } else {
+        alert('Failed to launch tool. Please try again.');
+      }
     }
   };
 
@@ -285,31 +315,88 @@ export default function Backoffice() {
             {/* Mobile Carousel */}
             <div className="mb-8 sm:hidden">
               <div className="w-full overflow-hidden">
+                {toolsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3ecf8e]"></div>
+                    <span className="ml-2 text-[#9ca3af]">Loading tools...</span>
+                  </div>
+                ) : tools.length === 0 ? (
+                  <div className="text-center py-8 text-[#9ca3af]">
+                    <p>No tools available</p>
+                  </div>
+                ) : (
+                  <div 
+                    className="flex gap-4 overflow-x-auto pb-4 px-1" 
+                    style={{
+                      scrollbarWidth: 'none',
+                      msOverflowStyle: 'none',
+                      WebkitOverflowScrolling: 'touch'
+                    }}
+                  >
+                    {tools.map((tool) => (
+                      <div key={tool.id} className="bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex-shrink-0 w-84 min-w-84 flex flex-col">
+                        <div className="h-36 bg-gradient-to-br from-[#3ecf8e] to-[#2dd4bf] flex items-center justify-center">
+                          <div className="text-4xl">🔧</div>
+                        </div>
+                        <div className="p-3 flex flex-col flex-1">
+                          <h3 className="font-bold mb-1 text-base">{tool.name}</h3>
+                          <p className="text-[#9ca3af] text-sm mb-2 line-clamp-2 flex-1">{tool.description}</p>
+                          <div className="flex items-center justify-between mt-auto">
+                            <div className="flex items-center gap-1">
+                              <span className="text-[#3ecf8e] font-bold text-sm">{tool.credit_cost_per_use} credits</span>
+                            </div>
+                            <span className="bg-[#3ecf8e] text-black px-2 py-1 rounded text-sm font-bold">Active</span>
+                          </div>
+                          <button
+                            onClick={() => handleLaunchTool(tool.id)}
+                            className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#3ecf8e] text-black rounded-lg font-medium hover:bg-[#2dd4bf] transition-colors"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                            Launch Tool
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Desktop Carousel */}
+            <div className="mb-8 hidden sm:block">
+              {toolsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3ecf8e]"></div>
+                  <span className="ml-2 text-[#9ca3af]">Loading tools...</span>
+                </div>
+              ) : tools.length === 0 ? (
+                <div className="text-center py-8 text-[#9ca3af]">
+                  <p>No tools available</p>
+                </div>
+              ) : (
                 <div 
-                  className="flex gap-4 overflow-x-auto pb-4 px-1" 
-                  style={{
-                    scrollbarWidth: 'none',
-                    msOverflowStyle: 'none',
-                    WebkitOverflowScrolling: 'touch'
-                  }}
+                  ref={carouselRef}
+                  className="flex gap-6 overflow-x-auto pb-4 scrollbar-hide cursor-grab select-none" 
+                  style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}
+                  onMouseDown={handleMouseDown}
+                  onMouseMove={handleMouseMove}
+                  onMouseUp={handleMouseUp}
+                  onMouseLeave={handleMouseLeave}
+                  onScroll={handleScroll}
                 >
-                  {mockTools.map((tool) => (
-                    <div key={tool.id} className="bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex-shrink-0 w-84 min-w-84 flex flex-col">
-                      <div className={`h-36 bg-gradient-to-br ${tool.gradient} flex items-center justify-center`}>
-                        <div className="text-4xl">{tool.emoji}</div>
+                  {tools.map((tool) => (
+                    <div key={tool.id} className="bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex-shrink-0 w-[22rem] flex flex-col">
+                      <div className="h-40 bg-gradient-to-br from-[#3ecf8e] to-[#2dd4bf] flex items-center justify-center">
+                        <div className="text-5xl">🔧</div>
                       </div>
                       <div className="p-3 flex flex-col flex-1">
-                        <h3 className="font-bold mb-1 text-base">{tool.name}</h3>
-                        <p className="text-[#9ca3af] text-sm mb-2 line-clamp-2 flex-1">{tool.description}</p>
+                        <h3 className="font-bold mb-1">{tool.name}</h3>
+                        <p className="text-[#9ca3af] text-xs mb-2 flex-1">{tool.description}</p>
                         <div className="flex items-center justify-between mt-auto">
-                          <div className="flex items-center gap-1">
-                            <span className="text-[#3ecf8e] font-bold text-sm">★ {tool.rating}</span>
-                            <div className="flex items-center gap-1">
-                              <Users className="w-4 h-4 text-[#9ca3af]" />
-                              <span className="text-[#9ca3af] font-thin text-sm">{formatAdoptions(tool.adoptions)}</span>
-                            </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[#3ecf8e] font-bold">{tool.credit_cost_per_use} credits</span>
                           </div>
-                          <span className={`${tool.badgeColor} px-2 py-1 rounded text-sm font-bold`}>{tool.badge}</span>
+                          <span className="bg-[#3ecf8e] text-black px-2 py-1 rounded text-xs font-bold">Active</span>
                         </div>
                         <button
                           onClick={() => handleLaunchTool(tool.id)}
@@ -322,86 +409,50 @@ export default function Backoffice() {
                     </div>
                   ))}
                 </div>
-              </div>
-            </div>
-
-            {/* Desktop Carousel */}
-            <div className="mb-8 hidden sm:block">
-              <div 
-                ref={carouselRef}
-                className="flex gap-6 overflow-x-auto pb-4 scrollbar-hide cursor-grab select-none" 
-                style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseLeave}
-                onScroll={handleScroll}
-              >
-                {mockTools.map((tool) => (
-                  <div key={tool.id} className="bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex-shrink-0 w-[22rem] flex flex-col">
-                    <div className={`h-40 bg-gradient-to-br ${tool.gradient} flex items-center justify-center`}>
-                      <div className="text-5xl">{tool.emoji}</div>
-                    </div>
-                    <div className="p-3 flex flex-col flex-1">
-                      <h3 className="font-bold mb-1">{tool.name}</h3>
-                      <p className="text-[#9ca3af] text-xs mb-2 flex-1">{tool.description}</p>
-                      <div className="flex items-center justify-between mt-auto">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[#3ecf8e] font-bold">★ {tool.rating}</span>
-                          <div className="flex items-center gap-1">
-                            <Users className="w-4 h-4 text-[#9ca3af] font-thin" />
-                            <span className="text-[#9ca3af] font-thin">{formatAdoptions(tool.adoptions)}</span>
-                          </div>
-                        </div>
-                        <span className={`${tool.badgeColor} px-2 py-1 rounded text-xs font-bold`}>{tool.badge}</span>
-                      </div>
-                      <button
-                        onClick={() => handleLaunchTool(tool.id)}
-                        className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#3ecf8e] text-black rounded-lg font-medium hover:bg-[#2dd4bf] transition-colors"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                        Launch Tool
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              )}
             </div>
 
 
             {/* All Tools Section */}
             <div className="mb-8">
               <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">All</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
-                {mockTools.map((tool) => (
-                  <div key={tool.id} className="bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex flex-col">
-                    <div className={`h-32 sm:h-40 bg-gradient-to-br ${tool.gradient} flex items-center justify-center`}>
-                      <div className="text-4xl sm:text-5xl">{tool.emoji}</div>
-                    </div>
-                    <div className="p-3 flex flex-col flex-1">
-                      <h3 className="font-bold mb-1">{tool.name}</h3>
-                      <p className="text-[#9ca3af] text-xs mb-2 flex-1">{tool.description}</p>
-                      <div className="flex items-center justify-between mt-auto">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[#3ecf8e] font-bold">★ {tool.rating}</span>
-                          <div className="flex items-center gap-1">
-                            <Users className="w-4 h-4 text-[#9ca3af] font-thin" />
-                            <span className="text-[#9ca3af] font-thin">{formatAdoptions(tool.adoptions)}</span>
-                          </div>
-                        </div>
-                        <span className={`${tool.badgeColor} px-2 py-1 rounded text-xs font-bold`}>{tool.badge}</span>
+              {toolsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3ecf8e]"></div>
+                  <span className="ml-2 text-[#9ca3af]">Loading tools...</span>
+                </div>
+              ) : tools.length === 0 ? (
+                <div className="text-center py-8 text-[#9ca3af]">
+                  <p>No tools available</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+                  {tools.map((tool) => (
+                    <div key={tool.id} className="bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex flex-col">
+                      <div className="h-32 sm:h-40 bg-gradient-to-br from-[#3ecf8e] to-[#2dd4bf] flex items-center justify-center">
+                        <div className="text-4xl sm:text-5xl">🔧</div>
                       </div>
-                      <button
-                        onClick={() => handleLaunchTool(tool.id)}
-                        className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#3ecf8e] text-black rounded-lg font-medium hover:bg-[#2dd4bf] transition-colors"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                        Launch Tool
-                      </button>
+                      <div className="p-3 flex flex-col flex-1">
+                        <h3 className="font-bold mb-1">{tool.name}</h3>
+                        <p className="text-[#9ca3af] text-xs mb-2 flex-1">{tool.description}</p>
+                        <div className="flex items-center justify-between mt-auto">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[#3ecf8e] font-bold">{tool.credit_cost_per_use} credits</span>
+                          </div>
+                          <span className="bg-[#3ecf8e] text-black px-2 py-1 rounded text-xs font-bold">Active</span>
+                        </div>
+                        <button
+                          onClick={() => handleLaunchTool(tool.id)}
+                          className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#3ecf8e] text-black rounded-lg font-medium hover:bg-[#2dd4bf] transition-colors"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          Launch Tool
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
