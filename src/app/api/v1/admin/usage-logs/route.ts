@@ -13,40 +13,45 @@ export async function GET(req: NextRequest) {
     // Parse query parameters
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
-    const search = searchParams.get('search') || '';
-    const role = searchParams.get('role');
-    const minBalance = searchParams.get('min_balance');
-    const maxBalance = searchParams.get('max_balance');
+    const limit = parseInt(searchParams.get('limit') || '50');
+    const userId = searchParams.get('user_id');
+    const toolId = searchParams.get('tool_id');
+    const status = searchParams.get('status');
+    const startDate = searchParams.get('start_date');
+    const endDate = searchParams.get('end_date');
 
     // Build query with joins
     let query = supabaseAdmin
-      .from('users')
+      .from('usage_logs')
       .select(`
         id,
-        email,
-        full_name,
-        role,
+        credits_consumed,
+        status,
+        metadata,
         created_at,
-        updated_at,
-        credit_balances!inner(balance)
+        users!inner(id, email, full_name),
+        tools(id, name)
       `, { count: 'exact' });
 
     // Apply filters
-    if (search) {
-      query = query.or(`email.ilike.%${search}%,full_name.ilike.%${search}%`);
+    if (userId) {
+      query = query.eq('user_id', userId);
     }
 
-    if (role) {
-      query = query.eq('role', role);
+    if (toolId) {
+      query = query.eq('tool_id', toolId);
     }
 
-    if (minBalance) {
-      query = query.gte('credit_balances.balance', parseFloat(minBalance));
+    if (status) {
+      query = query.eq('status', status);
     }
 
-    if (maxBalance) {
-      query = query.lte('credit_balances.balance', parseFloat(maxBalance));
+    if (startDate) {
+      query = query.gte('created_at', startDate);
+    }
+
+    if (endDate) {
+      query = query.lte('created_at', endDate);
     }
 
     // Apply pagination
@@ -57,18 +62,19 @@ export async function GET(req: NextRequest) {
     const { data, error, count } = await query;
 
     if (error) {
-      console.error('Error fetching users:', error);
-      return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 });
+      console.error('Error fetching usage logs:', error);
+      return NextResponse.json({ error: 'Failed to fetch usage logs' }, { status: 500 });
     }
 
-    // Transform data to flatten credit balance
-    const users = (data || []).map(user => ({
-      ...user,
-      balance: user.credit_balances?.[0]?.balance || 0
+    // Transform data to flatten user and tool info
+    const logs = (data || []).map(log => ({
+      ...log,
+      user: log.users,
+      tool: log.tools
     }));
 
     return NextResponse.json({
-      users,
+      logs,
       pagination: {
         page,
         limit,
@@ -77,7 +83,7 @@ export async function GET(req: NextRequest) {
       }
     });
   } catch (error) {
-    console.error('Error in users GET:', error);
+    console.error('Error in usage logs GET:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
