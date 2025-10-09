@@ -7,6 +7,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
+import { useUser } from '@/hooks/useUser';
 
 interface UsageLog {
   id: string;
@@ -27,6 +28,7 @@ interface UsageLog {
 
 export default function UsageLogs() {
   const router = useRouter();
+  const { user, loading: userLoading } = useUser();
   const [logs, setLogs] = useState<UsageLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
@@ -38,10 +40,24 @@ export default function UsageLogs() {
   });
 
   useEffect(() => {
+    if (userLoading) return;
+    
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+    
+    if (user.role !== 'admin') {
+      router.push('/backoffice');
+      return;
+    }
+    
     fetchLogs();
-  }, [filters]);
+  }, [filters, user, userLoading, router]);
 
   const fetchLogs = async () => {
+    if (!user) return;
+    
     try {
       const params = new URLSearchParams();
       if (filters.userId) params.append('user_id', filters.userId);
@@ -49,6 +65,7 @@ export default function UsageLogs() {
       if (filters.status) params.append('status', filters.status);
       if (filters.startDate) params.append('start_date', filters.startDate);
       if (filters.endDate) params.append('end_date', filters.endDate);
+      params.append('userId', user.id);
 
       const response = await fetch(`/api/v1/admin/usage-logs?${params}`);
       if (!response.ok) {
@@ -91,12 +108,19 @@ export default function UsageLogs() {
     }
   };
 
-  if (loading) {
+  if (userLoading || loading) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3ecf8e]"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3ecf8e] mx-auto mb-4"></div>
+          <p className="text-[#ededed]">Loading...</p>
+        </div>
       </div>
     );
+  }
+
+  if (!user || user.role !== 'admin') {
+    return null;
   }
 
   return (

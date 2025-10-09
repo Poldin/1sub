@@ -1,11 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { checkAdminAccess } from '@/lib/auth-server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+
+// Simple admin check function
+async function checkAdminAccess(req: NextRequest) {
+  try {
+    // Get user ID from query parameter (passed from client)
+    const url = new URL(req.url);
+    const userId = url.searchParams.get('userId');
+    
+    if (!userId) {
+      return { error: 'User ID required' };
+    }
+
+    // Check if user is admin
+    const { data: user, error } = await supabaseAdmin
+      .from('users')
+      .select('role')
+      .eq('id', userId)
+      .single();
+
+    if (error || !user) {
+      return { error: 'User not found' };
+    }
+
+    if (user.role !== 'admin') {
+      return { error: 'Admin access required' };
+    }
+
+    return { success: true };
+  } catch (error) {
+    return { error: 'Authentication failed' };
+  }
+}
 
 export async function GET(req: NextRequest) {
   try {
     // Check admin access
-    const accessCheck = await checkAdminAccess();
+    const accessCheck = await checkAdminAccess(req);
     if ('error' in accessCheck) {
       return NextResponse.json({ error: accessCheck.error }, { status: 403 });
     }

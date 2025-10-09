@@ -1,14 +1,7 @@
 import '@testing-library/jest-dom'
 import { vi } from 'vitest'
 
-// Mock environment variables
-vi.mock('process', () => ({
-  env: {
-    NEXT_PUBLIC_SUPABASE_URL: 'https://test.supabase.co',
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: 'test-anon-key',
-    JWT_SECRET: 'test-jwt-secret',
-  }
-}))
+// Environment variables are now loaded from .env.test via vitest config
 
 // Mock Next.js router
 vi.mock('next/navigation', () => ({
