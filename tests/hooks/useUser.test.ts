@@ -43,6 +43,7 @@ describe('useUser Hook', () => {
       id: mockUser.id,
       email: mockUser.email,
       fullName: mockUser.fullName,
+      role: mockUser.role,
     })
   })
 
@@ -75,6 +76,7 @@ describe('useUser Hook', () => {
         id: mockUser.id,
         email: mockUser.email,
         fullName: mockUser.fullName,
+        role: mockUser.role,
       })
     })
   })

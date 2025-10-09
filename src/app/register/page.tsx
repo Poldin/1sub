@@ -79,22 +79,33 @@ export default function RegisterPage() {
       });
 
       if (error) {
+        console.error('Registration error:', error);
         setError(error.message);
         return;
       }
 
-      if (data.user) {
-        // Create user profile in public.users table
-        await createUserProfile(
-          data.user.id,
-          formData.email,
-          formData.fullName
-        );
+      console.log('Registration data:', data);
 
-        // Redirect to dashboard
-        router.push('/backoffice');
+      if (data.user) {
+        // Check if email confirmation is required
+        if (data.user.email_confirmed_at) {
+          // Email already confirmed, proceed with registration
+          await createUserProfile(
+            data.user.id,
+            formData.email,
+            formData.fullName
+          );
+          router.push('/backoffice');
+        } else {
+          // Email confirmation required
+          setError('Please check your email and click the confirmation link to complete registration.');
+        }
+      } else {
+        console.log('No user data returned');
+        setError('Registration failed - no user data returned');
       }
     } catch (err) {
+      console.error('Registration exception:', err);
       setError('An unexpected error occurred');
     } finally {
       setLoading(false);

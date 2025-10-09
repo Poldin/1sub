@@ -7,6 +7,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { Dialog } from '@/components/ui/Dialog';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { useUser } from '@/hooks/useUser';
 
 interface Tool {
   id: string;
@@ -29,8 +30,13 @@ interface ToolFormData {
 
 export default function ToolsManagement() {
   const router = useRouter();
+  const { user, loading: userLoading } = useUser();
   const [tools, setTools] = useState<Tool[]>([]);
+  const [filteredTools, setFilteredTools] = useState<Tool[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingTool, setEditingTool] = useState<Tool | null>(null);
   const [formData, setFormData] = useState<ToolFormData>({
@@ -43,12 +49,51 @@ export default function ToolsManagement() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    if (userLoading) return;
+    
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+    
+    if (user.role !== 'admin') {
+      router.push('/backoffice');
+      return;
+    }
+    
     fetchTools();
-  }, []);
+  }, [user, userLoading, router]);
+
+  // Filter tools based on search term and status
+  useEffect(() => {
+    let filtered = tools;
+
+    // Apply search filter
+    if (searchTerm) {
+      filtered = filtered.filter(tool =>
+        tool.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        tool.description.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // Apply status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(tool => 
+        statusFilter === 'active' ? tool.is_active : !tool.is_active
+      );
+    }
+
+    setFilteredTools(filtered);
+  }, [tools, searchTerm, statusFilter]);
 
   const fetchTools = async () => {
+    if (!user) return;
+    
+    setLoading(true);
+    setError(null);
+    
     try {
-      const response = await fetch('/api/v1/admin/tools');
+      const response = await fetch(`/api/v1/admin/tools?userId=${user.id}`);
       if (!response.ok) {
         if (response.status === 403) {
           router.push('/backoffice');
@@ -58,9 +103,10 @@ export default function ToolsManagement() {
       }
 
       const data = await response.json();
-      setTools(data.tools);
+      setTools(data.tools || []);
     } catch (error) {
       console.error('Error fetching tools:', error);
+      setError('Error loading tools');
     } finally {
       setLoading(false);
     }
@@ -120,8 +166,33 @@ export default function ToolsManagement() {
     }
   };
 
-  const handleDeleteTool = async (tool: Tool) => {
+  const handleDeactivateTool = async (tool: Tool) => {
     if (!confirm(`Are you sure you want to deactivate "${tool.name}"?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/v1/admin/tools/${tool.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: false })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert(error.error || 'Failed to deactivate tool');
+        return;
+      }
+
+      await fetchTools();
+    } catch (error) {
+      console.error('Error deactivating tool:', error);
+      alert('Failed to deactivate tool');
+    }
+  };
+
+  const handleDeleteTool = async (tool: Tool) => {
+    if (!confirm(`Are you sure you want to delete "${tool.name}"?`)) {
       return;
     }
 
@@ -169,10 +240,33 @@ export default function ToolsManagement() {
     resetForm();
   };
 
-  if (loading) {
+  if (userLoading || loading) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3ecf8e]"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3ecf8e] mx-auto mb-4"></div>
+          <p className="text-[#ededed]">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user || user.role !== 'admin') {
+    return null; // Will redirect via useEffect
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-400 mb-4">{error}</p>
+          <button
+            onClick={fetchTools}
+            className="px-4 py-2 bg-[#3ecf8e] text-black rounded-lg hover:bg-[#2dd4bf] transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
       </div>
     );
   }
@@ -207,7 +301,28 @@ export default function ToolsManagement() {
         {/* Tools Table */}
         <div className="bg-[#1f2937] rounded-lg border border-[#374151]">
           <div className="p-6 border-b border-[#374151]">
-            <h2 className="text-lg font-semibold text-[#ededed]">All Tools</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-[#ededed]">All Tools</h2>
+              <div className="flex items-center space-x-4">
+                {/* Search Input */}
+                <Input
+                  placeholder="Search tools..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-64"
+                />
+                {/* Status Filter */}
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
+                  className="px-3 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e]"
+                >
+                  <option value="all">All Status</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <Table>
@@ -222,15 +337,15 @@ export default function ToolsManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {tools.length === 0 ? (
+                {!filteredTools || filteredTools.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center text-[#9ca3af] py-8">
-                      No tools found
+                      {tools.length === 0 ? 'No tools found' : 'No tools match your filters'}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  tools.map((tool) => (
-                    <TableRow key={tool.id}>
+                  filteredTools.map((tool) => (
+                    <TableRow key={tool.id} data-testid="tool-row">
                       <TableCell className="font-medium">{tool.name}</TableCell>
                       <TableCell className="text-[#9ca3af] max-w-xs truncate">
                         {tool.description}
@@ -258,6 +373,14 @@ export default function ToolsManagement() {
                           >
                             <Edit className="w-4 h-4" />
                           </button>
+                          {tool.is_active && (
+                            <button
+                              onClick={() => handleDeactivateTool(tool)}
+                              className="text-red-400 hover:text-red-300 transition-colors text-sm"
+                            >
+                              Deactivate
+                            </button>
+                          )}
                           <button
                             onClick={() => handleDeleteTool(tool)}
                             className="text-red-400 hover:text-red-300 transition-colors"

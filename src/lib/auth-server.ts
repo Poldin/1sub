@@ -10,27 +10,41 @@ export interface AdminUser extends SessionUser {
 export async function getSessionUser(): Promise<AdminUser | null> {
   try {
     const cookieStore = await cookies();
-    const accessToken = cookieStore.get('sb-access-token')?.value;
-    const refreshToken = cookieStore.get('sb-refresh-token')?.value;
+    
+    // Get all Supabase auth cookies
+    const authCookies = cookieStore.getAll().filter(cookie => 
+      cookie.name.startsWith('sb-') && cookie.name.includes('auth-token')
+    );
 
-    if (!accessToken || !refreshToken) return null;
+    if (authCookies.length === 0) {
+      console.log('No Supabase auth cookies found');
+      return null;
+    }
 
-    // Set session from cookies
-    const { data: sessionData, error: sessionError } = await supabaseClient.auth.setSession({
-      access_token: accessToken,
-      refresh_token: refreshToken
-    });
+    // Try to get session using the existing supabaseClient
+    const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
 
-    if (sessionError || !sessionData.user) return null;
+    if (sessionError || !session?.user) {
+      console.log('No valid session found:', sessionError?.message);
+      return null;
+    }
 
     // Get user profile from public.users table
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('users')
       .select('id, email, full_name, role')
-      .eq('id', sessionData.user.id)
+      .eq('id', session.user.id)
       .single();
 
-    if (profileError || !profile) return null;
+    if (profileError) {
+      console.log('Error fetching user profile:', profileError.message);
+      return null;
+    }
+
+    if (!profile) {
+      console.log('No user profile found for ID:', session.user.id);
+      return null;
+    }
 
     return {
       id: profile.id,

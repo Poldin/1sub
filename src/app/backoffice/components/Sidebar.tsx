@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   X, 
   Home, 
@@ -13,23 +14,31 @@ import {
 import { ShareAndEarnButton } from './ShareAndEarn';
 import TopUpDialog from './TopUpDialog';
 import TransactionHistory from './TransactionHistory';
+import { supabaseClient } from '@/lib/supabaseClient';
 
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
-  credits: number;
+  credits?: number;
   onShareAndEarnClick: () => void;
   userId: string;
   onCreditsUpdated: () => void;
 }
 
 export default function Sidebar({ isOpen, onClose, credits, onShareAndEarnClick, userId, onCreditsUpdated }: SidebarProps) {
+  const router = useRouter();
   const [isTopUpDialogOpen, setIsTopUpDialogOpen] = useState(false);
   const [isTransactionHistoryOpen, setIsTransactionHistoryOpen] = useState(false);
 
-  const handleLogout = () => {
-    // Implementare logout logic
-    console.log('Logout clicked');
+  const handleLogout = async () => {
+    try {
+      await supabaseClient.auth.signOut();
+      router.push('/');
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Still redirect even if logout fails
+      router.push('/');
+    }
   };
 
   const handleTopUpClick = () => {
@@ -105,8 +114,8 @@ export default function Sidebar({ isOpen, onClose, credits, onShareAndEarnClick,
             
           {/* Credits Display and Actions */}
           <div className="text-center p-1 rounded space-y-2">
-            <div className="font-bold text-[#3ecf8e]">
-              <span className="font-thin text-[#9ca3af]">credits </span>{credits.toFixed(2)}
+            <div className="font-bold text-[#3ecf8e]" data-testid="credit-balance">
+              <span className="font-thin text-[#9ca3af]">credits </span>{credits?.toFixed(2) || '0.00'}
             </div>
             <div className="flex gap-1">
               <button

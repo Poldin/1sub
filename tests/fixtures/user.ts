@@ -2,6 +2,7 @@ export const mockUser = {
   id: 'test-user-id-123',
   email: 'test@example.com',
   fullName: 'Test User',
+  role: 'user',
 }
 
 export const mockSession = {

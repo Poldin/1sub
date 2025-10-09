@@ -7,19 +7,9 @@ import Sidebar from './components/Sidebar';
 import ShareAndEarnDialog from './components/ShareAndEarn';
 import { useUser } from '@/hooks/useUser';
 import { useCredits } from '@/hooks/useCredits';
+import { useTools, ToolItem as Tool } from '@/hooks/useTools';
 import { supabaseClient } from '@/lib/supabaseClient';
 import { launchTool } from '@/lib/api-client';
-
-interface Tool {
-  id: string;
-  name: string;
-  description: string;
-  url: string;
-  credit_cost_per_use: number;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
 
 // Helper function to format adoption numbers
 const formatAdoptions = (num: number): string => {
@@ -36,10 +26,9 @@ export default function Backoffice() {
   const router = useRouter();
   const { user, loading: userLoading } = useUser();
   const { balance: credits, loading: creditsLoading } = useCredits(user?.id);
+  const { tools, loading: toolsLoading, error: toolsError } = useTools();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
-  const [tools, setTools] = useState<Tool[]>([]);
-  const [toolsLoading, setToolsLoading] = useState(true);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -48,36 +37,23 @@ export default function Backoffice() {
     }
   }, [user, userLoading, router]);
 
-  // Fetch tools from database
-  useEffect(() => {
-    const fetchTools = async () => {
-      try {
-        const { data, error } = await supabaseClient
-          .from('tools')
-          .select('*')
-          .eq('is_active', true)
-          .order('created_at', { ascending: false });
-
-        if (error) {
-          console.error('Error fetching tools:', error);
-          setTools([]);
-        } else {
-          setTools(data || []);
-        }
-      } catch (err) {
-        console.error('Error fetching tools:', err);
-        setTools([]);
-      } finally {
-        setToolsLoading(false);
-      }
-    };
-
-    fetchTools();
-  }, []);
-
   const handleLogout = async () => {
     await supabaseClient.auth.signOut();
     router.push('/');
+  };
+
+  const handleLaunchTool = async (toolId: string) => {
+    try {
+      const result = await launchTool(parseInt(toolId));
+      if (result.launchUrl) {
+        // Open tool in new window
+        window.open(result.launchUrl, '_blank', 'noopener,noreferrer');
+      } else {
+        console.error('Failed to launch tool: No launch URL returned');
+      }
+    } catch (error) {
+      console.error('Error launching tool:', error);
+    }
   };
 
   // Carousel drag and auto-scroll functionality
@@ -253,7 +229,7 @@ export default function Backoffice() {
             
             {/* Profile Button with Logout */}
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 sm:gap-2 p-1.5 sm:p-2 bg-[#1f2937] hover:bg-[#374151] rounded-lg transition-colors flex-shrink-0">
+              <div className="flex items-center gap-1 sm:gap-2 p-1.5 sm:p-2 bg-[#1f2937] hover:bg-[#374151] rounded-lg transition-colors flex-shrink-0" data-testid="user-menu">
                 <User className="w-6 h-6 sm:w-5 sm:h-5 text-[#3ecf8e]" />
                 <span className="hidden lg:block text-sm font-medium text-[#ededed]">
                   {user?.fullName || user?.email || 'profile'}
@@ -272,7 +248,7 @@ export default function Backoffice() {
         </header>
 
         {/* Content */}
-        <div className="p-3 sm:p-4 lg:p-8 overflow-x-hidden">
+        <div className="p-3 sm:p-4 lg:p-8 overflow-x-hidden" data-testid="dashboard-content">
           <div className="max-w-7xl mx-auto">
 
             {/* Categories */}
@@ -320,6 +296,10 @@ export default function Backoffice() {
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3ecf8e]"></div>
                     <span className="ml-2 text-[#9ca3af]">Loading tools...</span>
                   </div>
+                ) : toolsError ? (
+                  <div className="text-center py-8 text-red-400">
+                    <p>Error loading tools: {toolsError}</p>
+                  </div>
                 ) : tools.length === 0 ? (
                   <div className="text-center py-8 text-[#9ca3af]">
                     <p>No tools available</p>
@@ -334,7 +314,7 @@ export default function Backoffice() {
                     }}
                   >
                     {tools.map((tool) => (
-                      <div key={tool.id} className="bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex-shrink-0 w-84 min-w-84 flex flex-col">
+                      <div key={tool.id} data-testid="tool-card" className="bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex-shrink-0 w-84 min-w-84 flex flex-col">
                         <div className="h-36 bg-gradient-to-br from-[#3ecf8e] to-[#2dd4bf] flex items-center justify-center">
                           <div className="text-4xl">🔧</div>
                         </div>
@@ -369,6 +349,10 @@ export default function Backoffice() {
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3ecf8e]"></div>
                   <span className="ml-2 text-[#9ca3af]">Loading tools...</span>
                 </div>
+              ) : toolsError ? (
+                <div className="text-center py-8 text-red-400">
+                  <p>Error loading tools: {toolsError}</p>
+                </div>
               ) : tools.length === 0 ? (
                 <div className="text-center py-8 text-[#9ca3af]">
                   <p>No tools available</p>
@@ -385,7 +369,7 @@ export default function Backoffice() {
                   onScroll={handleScroll}
                 >
                   {tools.map((tool) => (
-                    <div key={tool.id} className="bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex-shrink-0 w-[22rem] flex flex-col">
+                    <div key={tool.id} data-testid="tool-card" className="bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex-shrink-0 w-[22rem] flex flex-col">
                       <div className="h-40 bg-gradient-to-br from-[#3ecf8e] to-[#2dd4bf] flex items-center justify-center">
                         <div className="text-5xl">🔧</div>
                       </div>

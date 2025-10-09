@@ -33,8 +33,20 @@ export default function LoginPage() {
       }
 
       if (data.user) {
-        // Redirect to dashboard
-        router.push('/backoffice');
+        // Get user profile to determine role and redirect accordingly
+        try {
+          const response = await fetch(`/api/v1/user/profile?userId=${data.user.id}`);
+          const profileData = await response.json();
+          
+          if (response.ok && profileData.role === 'admin') {
+            router.push('/admin');
+          } else {
+            router.push('/backoffice');
+          }
+        } catch (error) {
+          // Fallback to backoffice if profile fetch fails
+          router.push('/backoffice');
+        }
       }
     } catch (err) {
       setError('An unexpected error occurred');

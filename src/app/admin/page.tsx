@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Users, CreditCard, Activity, Settings } from 'lucide-react';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
+import { useUser } from '@/hooks/useUser';
 
 interface DashboardStats {
   totalBalance: number;
@@ -25,17 +26,45 @@ interface RecentTransaction {
 
 export default function AdminDashboard() {
   const router = useRouter();
+  const { user, loading: userLoading } = useUser();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentTransactions, setRecentTransactions] = useState<RecentTransaction[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Check admin access
   useEffect(() => {
-    fetchDashboardData();
-  }, []);
+    console.log('Admin page: userLoading:', userLoading);
+    console.log('Admin page: user:', user);
+    
+    if (!userLoading) {
+      if (!user) {
+        console.log('Admin page: No user, redirecting to login');
+        router.push('/login');
+        return;
+      }
+      
+      console.log('Admin page: User role:', user.role);
+      
+      // Check if user is admin
+      if (user.role !== 'admin') {
+        console.log('Admin page: User is not admin, redirecting to backoffice');
+        router.push('/backoffice');
+        return;
+      }
+      
+      console.log('Admin page: User is admin, allowing access');
+    }
+  }, [user, userLoading, router]);
+
+  useEffect(() => {
+    if (user && user.role === 'admin') {
+      fetchDashboardData();
+    }
+  }, [user]);
 
   const fetchDashboardData = async () => {
     try {
-      const response = await fetch('/api/v1/admin/credits');
+      const response = await fetch(`/api/v1/admin/credits?userId=${user.id}`);
       if (!response.ok) {
         if (response.status === 403) {
           router.push('/backoffice');
@@ -54,12 +83,16 @@ export default function AdminDashboard() {
     }
   };
 
-  if (loading) {
+  if (userLoading || loading) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3ecf8e]"></div>
       </div>
     );
+  }
+
+  if (!user || user.role !== 'admin') {
+    return null; // Will redirect via useEffect
   }
 
   return (
@@ -88,7 +121,7 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" data-testid="admin-dashboard">
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
@@ -98,7 +131,7 @@ export default function AdminDashboard() {
               </div>
               <div className="ml-4">
                 <p className="text-sm text-[#9ca3af]">Total Users</p>
-                <p className="text-2xl font-bold text-[#ededed]">{stats?.userCount || 0}</p>
+                <p className="text-2xl font-bold text-[#ededed]" data-testid="total-users">{stats?.userCount || 0}</p>
               </div>
             </div>
           </div>
@@ -110,7 +143,7 @@ export default function AdminDashboard() {
               </div>
               <div className="ml-4">
                 <p className="text-sm text-[#9ca3af]">Total Credits</p>
-                <p className="text-2xl font-bold text-[#ededed]">
+                <p className="text-2xl font-bold text-[#ededed]" data-testid="total-credits">
                   {stats?.totalBalance?.toFixed(2) || '0.00'}
                 </p>
               </div>
@@ -124,7 +157,7 @@ export default function AdminDashboard() {
               </div>
               <div className="ml-4">
                 <p className="text-sm text-[#9ca3af]">Average Balance</p>
-                <p className="text-2xl font-bold text-[#ededed]">
+                <p className="text-2xl font-bold text-[#ededed]" data-testid="average-balance">
                   {stats?.averageBalance?.toFixed(2) || '0.00'}
                 </p>
               </div>
