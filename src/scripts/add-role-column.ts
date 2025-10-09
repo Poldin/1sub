@@ -33,7 +33,7 @@ async function addRoleColumn() {
     }
     
     // Add role column using raw SQL
-    const { data, error } = await supabase.rpc('exec', {
+    const { error } = await supabase.rpc('exec', {
       sql: `
         ALTER TABLE public.users 
         ADD COLUMN role TEXT DEFAULT 'user' CHECK (role IN ('user', 'admin'));

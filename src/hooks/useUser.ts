@@ -101,7 +101,7 @@ export function useUser(): UseUser {
                 role: 'user'
               });
             }
-          } catch (error) {
+          } catch {
             // Fallback to auth session data
             setUser({
               id: session.user.id,

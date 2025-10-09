@@ -28,7 +28,7 @@ async function checkAdminAccess(req: NextRequest) {
     }
 
     return { success: true };
-  } catch (error) {
+  } catch {
     return { error: 'Authentication failed' };
   }
 }

@@ -42,20 +42,6 @@ export default function Backoffice() {
     router.push('/');
   };
 
-  const handleLaunchTool = async (toolId: string) => {
-    try {
-      const result = await launchTool(parseInt(toolId));
-      if (result.launchUrl) {
-        // Open tool in new window
-        window.open(result.launchUrl, '_blank', 'noopener,noreferrer');
-      } else {
-        console.error('Failed to launch tool: No launch URL returned');
-      }
-    } catch (error) {
-      console.error('Error launching tool:', error);
-    }
-  };
-
   // Carousel drag and auto-scroll functionality
   const carouselRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);

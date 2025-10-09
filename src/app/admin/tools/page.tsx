@@ -400,15 +400,15 @@ export default function ToolsManagement() {
 
       {/* Create Tool Dialog */}
       <Dialog
-        isOpen={isCreateDialogOpen}
-        onClose={() => {
-          setIsCreateDialogOpen(false);
-          resetForm();
+        open={isCreateDialogOpen}
+        onOpenChange={(open) => {
+          setIsCreateDialogOpen(open);
+          if (!open) resetForm();
         }}
-        title="Create New Tool"
-        className="max-w-lg"
       >
-        <div className="space-y-4">
+        <div className="bg-[#1f2937] rounded-lg p-6 max-w-lg mx-auto">
+          <h3 className="text-xl font-bold mb-4">Create New Tool</h3>
+          <div className="space-y-4">
           <Input
             label="Tool Name"
             value={formData.name}
@@ -467,16 +467,19 @@ export default function ToolsManagement() {
               {submitting ? 'Creating...' : 'Create Tool'}
             </Button>
           </div>
+          </div>
         </div>
       </Dialog>
 
       {/* Edit Tool Dialog */}
       <Dialog
-        isOpen={!!editingTool}
-        onClose={closeEditDialog}
-        title="Edit Tool"
-        className="max-w-lg"
+        open={!!editingTool}
+        onOpenChange={(open) => {
+          if (!open) closeEditDialog();
+        }}
       >
+        <div className="bg-[#1f2937] rounded-lg p-6 max-w-lg mx-auto">
+          <h3 className="text-xl font-bold mb-4">Edit Tool</h3>
         <div className="space-y-4">
           <Input
             label="Tool Name"
@@ -532,6 +535,7 @@ export default function ToolsManagement() {
             >
               {submitting ? 'Updating...' : 'Update Tool'}
             </Button>
+          </div>
           </div>
         </div>
       </Dialog>

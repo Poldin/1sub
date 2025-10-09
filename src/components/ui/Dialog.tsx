@@ -125,11 +125,14 @@ Dialog.Header = DialogHeader;
 Dialog.Title = DialogTitle;
 Dialog.Footer = DialogFooter;
 Dialog.CloseButton = DialogCloseButton;
-Dialog.Body = ({ children, className = '', scrollable = false }: { children: ReactNode; className?: string; scrollable?: boolean }) => (
+
+const DialogBody = ({ children, className = '', scrollable = false }: { children: ReactNode; className?: string; scrollable?: boolean }) => (
   <div className={`p-6 ${scrollable ? 'overflow-y-auto' : ''} ${className}`} data-testid="dialog-body">
     {children}
   </div>
 );
+DialogBody.displayName = 'DialogBody';
+Dialog.Body = DialogBody;
 
 export function DialogContent({ children, className = '', size = 'md', loading, scrollable }: DialogContentProps) {
   const sizeClasses = {

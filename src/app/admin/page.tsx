@@ -63,6 +63,8 @@ export default function AdminDashboard() {
   }, [user]);
 
   const fetchDashboardData = async () => {
+    if (!user) return;
+    
     try {
       const response = await fetch(`/api/v1/admin/credits?userId=${user.id}`);
       if (!response.ok) {

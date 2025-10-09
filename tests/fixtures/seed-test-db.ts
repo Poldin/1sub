@@ -61,7 +61,7 @@ async function createTestUsers() {
   
   // Check if users already exist in auth system
   const { data: existingUsers } = await supabase.auth.admin.listUsers()
-  const existingEmails = existingUsers.users.map(u => u.email)
+  const existingEmails = existingUsers.users.map((u: { email?: string }) => u.email)
   
   // Create regular user if it doesn't exist
   if (!existingEmails.includes(TEST_USERS.user.email)) {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, UserPlus, CreditCard, Eye } from 'lucide-react';
+import { ArrowLeft, Eye } from 'lucide-react';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
 import { Dialog } from '@/components/ui/Dialog';
 import { Input } from '@/components/ui/Input';
@@ -375,12 +375,12 @@ export default function UsersManagement() {
 
       {/* Credit Adjustment Dialog */}
       <Dialog
-        isOpen={isAdjustmentDialogOpen}
-        onClose={closeAdjustmentDialog}
-        title={`Adjust Credits for ${selectedUser?.full_name || selectedUser?.email}`}
-        className="max-w-md"
+        open={isAdjustmentDialogOpen}
+        onOpenChange={setIsAdjustmentDialogOpen}
       >
-        <div className="space-y-4">
+        <div className="bg-[#1f2937] rounded-lg p-6 max-w-md mx-auto">
+          <h3 className="text-xl font-bold mb-4">Adjust Credits for {selectedUser?.full_name || selectedUser?.email}</h3>
+          <div className="space-y-4">
           <div className="bg-[#374151] rounded-lg p-4">
             <p className="text-sm text-[#9ca3af]">Current Balance</p>
             <p className="text-xl font-bold text-[#3ecf8e]">
@@ -421,6 +421,7 @@ export default function UsersManagement() {
             >
               {submitting ? 'Processing...' : 'Adjust Credits'}
             </Button>
+          </div>
           </div>
         </div>
       </Dialog>

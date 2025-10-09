@@ -54,7 +54,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       if (!isDisabled && (e.key === 'Enter' || e.key === ' ')) {
         e.preventDefault();
         if (onClick) {
-          onClick(e as any);
+          onClick(e as unknown as React.MouseEvent<HTMLButtonElement>);
         }
       }
       if (onKeyDown) {

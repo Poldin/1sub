@@ -1,5 +1,4 @@
 import { supabaseAdmin } from './supabaseAdmin';
-import { CreditBalanceRow, CreditTransactionRow } from '@/types/db';
 
 /**
  * Credit Balance Interface
