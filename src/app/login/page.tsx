@@ -4,7 +4,6 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
-import { supabaseClient } from '@/lib/supabaseClient';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -13,46 +12,12 @@ export default function LoginPage() {
     password: '',
   });
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setError('');
-
-    try {
-      const { data, error } = await supabaseClient.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password,
-      });
-
-      if (error) {
-        setError(error.message);
-        return;
-      }
-
-      if (data.user) {
-        // Get user profile to determine role and redirect accordingly
-        try {
-          const response = await fetch(`/api/v1/user/profile?userId=${data.user.id}`);
-          const profileData = await response.json();
-          
-          if (response.ok && profileData.role === 'admin') {
-            router.push('/admin');
-          } else {
-            router.push('/backoffice');
-          }
-        } catch (error) {
-          // Fallback to backoffice if profile fetch fails
-          router.push('/backoffice');
-        }
-      }
-    } catch (err) {
-      setError('An unexpected error occurred');
-    } finally {
-      setLoading(false);
-    }
+    console.log('UI Demo - Login attempt:', formData);
+    // UI only - redirect to backoffice for demo
+    router.push('/backoffice');
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -121,19 +86,12 @@ export default function LoginPage() {
                 </button>
               </div>
             </div>
-            
-            {error && (
-              <div className="text-red-400 text-sm bg-red-400/10 border border-red-400/20 rounded-lg p-3">
-                {error}
-              </div>
-            )}
 
             <button
               type="submit"
-              disabled={loading}
-              className="w-full bg-[#3ecf8e] text-white py-3 px-4 rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-[#3ecf8e] text-white py-3 px-4 rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors"
             >
-              {loading ? 'signing in...' : 'sign in'}
+              sign in
             </button>
           </form>
 

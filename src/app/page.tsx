@@ -137,20 +137,9 @@ export default function Home() {
             
             {/* Navigation Links */}
             <div className="flex items-center gap-4">
+
               <a
                 href="/login"
-                className="text-[#ededed] hover:text-[#3ecf8e] transition-colors font-medium"
-              >
-                Sign in
-              </a>
-              <a
-                href="/register"
-                className="text-[#ededed] hover:text-[#3ecf8e] transition-colors font-medium"
-              >
-                Sign up
-              </a>
-              <a
-                href="/waitlist"
                 className="btn-secondary text-sm sm:text-base"
               >
                 join us
@@ -174,7 +163,7 @@ export default function Home() {
           
           
           <a
-            href="/waitlist"
+            href="/login"
             id="join"
             className="btn-secondary text-sm sm:text-base px-2"
           >

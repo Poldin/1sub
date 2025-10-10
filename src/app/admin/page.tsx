@@ -1,10 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Users, CreditCard, Activity, Settings } from 'lucide-react';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
-import { useUser } from '@/hooks/useUser';
 
 interface DashboardStats {
   totalBalance: number;
@@ -26,76 +23,32 @@ interface RecentTransaction {
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const { user, loading: userLoading } = useUser();
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [recentTransactions, setRecentTransactions] = useState<RecentTransaction[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  // Check admin access
-  useEffect(() => {
-    console.log('Admin page: userLoading:', userLoading);
-    console.log('Admin page: user:', user);
-    
-    if (!userLoading) {
-      if (!user) {
-        console.log('Admin page: No user, redirecting to login');
-        router.push('/login');
-        return;
-      }
-      
-      console.log('Admin page: User role:', user.role);
-      
-      // Check if user is admin
-      if (user.role !== 'admin') {
-        console.log('Admin page: User is not admin, redirecting to backoffice');
-        router.push('/backoffice');
-        return;
-      }
-      
-      console.log('Admin page: User is admin, allowing access');
-    }
-  }, [user, userLoading, router]);
-
-  useEffect(() => {
-    if (user && user.role === 'admin') {
-      fetchDashboardData();
-    }
-  }, [user]);
-
-  const fetchDashboardData = async () => {
-    if (!user) return;
-    
-    try {
-      const response = await fetch(`/api/v1/admin/credits?userId=${user.id}`);
-      if (!response.ok) {
-        if (response.status === 403) {
-          router.push('/backoffice');
-          return;
-        }
-        throw new Error('Failed to fetch dashboard data');
-      }
-
-      const data = await response.json();
-      setStats(data.summary);
-      setRecentTransactions(data.recentTransactions);
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-    } finally {
-      setLoading(false);
-    }
+  
+  // Mock data for UI only
+  const stats: DashboardStats = {
+    totalBalance: 15000,
+    userCount: 150,
+    averageBalance: 100
   };
-
-  if (userLoading || loading) {
-    return (
-      <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3ecf8e]"></div>
-      </div>
-    );
-  }
-
-  if (!user || user.role !== 'admin') {
-    return null; // Will redirect via useEffect
-  }
+  
+  const recentTransactions: RecentTransaction[] = [
+    {
+      id: '1',
+      delta: 100,
+      transaction_type: 'grant',
+      reason: 'Welcome bonus',
+      created_at: new Date().toISOString(),
+      users: { email: 'user1@example.com', full_name: 'John Doe' }
+    },
+    {
+      id: '2',
+      delta: -20,
+      transaction_type: 'consume',
+      reason: 'Tool usage',
+      created_at: new Date().toISOString(),
+      users: { email: 'user2@example.com', full_name: 'Jane Smith' }
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed]">
@@ -173,33 +126,33 @@ export default function AdminDashboard() {
             <h2 className="text-lg font-semibold text-[#ededed]">Recent Credit Transactions</h2>
           </div>
           <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>User</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Reason</TableHead>
-                  <TableHead>Date</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-[#374151]">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">User</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Type</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Amount</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Reason</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Date</th>
+                </tr>
+              </thead>
+              <tbody>
                 {recentTransactions.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center text-[#9ca3af] py-8">
+                  <tr>
+                    <td colSpan={5} className="px-6 py-8 text-center text-[#9ca3af]">
                       No recent transactions
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 ) : (
                   recentTransactions.map((transaction) => (
-                    <TableRow key={transaction.id}>
-                      <TableCell>
+                    <tr key={transaction.id} className="border-b border-[#374151]">
+                      <td className="px-6 py-4">
                         <div>
                           <p className="font-medium">{transaction.users.full_name || 'N/A'}</p>
                           <p className="text-sm text-[#9ca3af]">{transaction.users.email}</p>
                         </div>
-                      </TableCell>
-                      <TableCell>
+                      </td>
+                      <td className="px-6 py-4">
                         <span className={`px-2 py-1 rounded text-xs font-medium ${
                           transaction.transaction_type === 'grant' 
                             ? 'bg-green-500/20 text-green-400'
@@ -209,23 +162,23 @@ export default function AdminDashboard() {
                         }`}>
                           {transaction.transaction_type}
                         </span>
-                      </TableCell>
-                      <TableCell className={`font-medium ${
+                      </td>
+                      <td className={`px-6 py-4 font-medium ${
                         transaction.delta > 0 ? 'text-green-400' : 'text-red-400'
                       }`}>
                         {transaction.delta > 0 ? '+' : ''}{transaction.delta}
-                      </TableCell>
-                      <TableCell className="text-[#9ca3af]">
+                      </td>
+                      <td className="px-6 py-4 text-[#9ca3af]">
                         {transaction.reason}
-                      </TableCell>
-                      <TableCell className="text-[#9ca3af]">
+                      </td>
+                      <td className="px-6 py-4 text-[#9ca3af]">
                         {new Date(transaction.created_at).toLocaleDateString()}
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                    </tr>
                   ))
                 )}
-              </TableBody>
-            </Table>
+              </tbody>
+            </table>
           </div>
         </div>
 

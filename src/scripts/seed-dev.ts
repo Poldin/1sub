@@ -1,4 +1,0 @@
-// Placeholder seed script
-export {};
-
-

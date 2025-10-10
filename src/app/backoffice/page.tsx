@@ -5,11 +5,14 @@ import { Menu, User, Users, LogOut, ExternalLink } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Sidebar from './components/Sidebar';
 import ShareAndEarnDialog from './components/ShareAndEarn';
-import { useUser } from '@/hooks/useUser';
-import { useCredits } from '@/hooks/useCredits';
-import { useTools, ToolItem as Tool } from '@/hooks/useTools';
-import { supabaseClient } from '@/lib/supabaseClient';
-import { launchTool } from '@/lib/api-client';
+
+// Mock Tool type
+type Tool = {
+  id: string;
+  name: string;
+  description: string;
+  credit_cost_per_use: number;
+};
 
 // Helper function to format adoption numbers
 const formatAdoptions = (num: number): string => {
@@ -24,21 +27,26 @@ const formatAdoptions = (num: number): string => {
 
 export default function Backoffice() {
   const router = useRouter();
-  const { user, loading: userLoading } = useUser();
-  const { balance: credits, loading: creditsLoading } = useCredits(user?.id);
-  const { tools, loading: toolsLoading, error: toolsError } = useTools();
+  
+  // Mock data for UI only
+  const user = { id: '1', fullName: 'Demo User', email: 'demo@1sub.io' };
+  const credits = 100;
+  const tools: Tool[] = [
+    { id: '1', name: 'AI Assistant', description: 'Advanced AI tool for productivity', credit_cost_per_use: 5 },
+    { id: '2', name: 'Data Analyzer', description: 'Analyze your data with ease', credit_cost_per_use: 10 },
+    { id: '3', name: 'Content Generator', description: 'Generate amazing content', credit_cost_per_use: 8 },
+    { id: '4', name: 'Image Editor', description: 'Edit images professionally', credit_cost_per_use: 6 },
+    { id: '5', name: 'Video Creator', description: 'Create stunning videos', credit_cost_per_use: 15 },
+    { id: '6', name: 'SEO Optimizer', description: 'Optimize your content for search engines', credit_cost_per_use: 7 },
+  ];
+  const toolsLoading = false;
+  const toolsError = null;
+  
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
 
-  // Redirect if not authenticated
-  useEffect(() => {
-    if (!userLoading && !user) {
-      router.push('/login');
-    }
-  }, [user, userLoading, router]);
-
-  const handleLogout = async () => {
-    await supabaseClient.auth.signOut();
+  const handleLogout = () => {
+    console.log('UI Demo - Logout clicked');
     router.push('/');
   };
 
@@ -62,19 +70,9 @@ export default function Backoffice() {
     setIsShareDialogOpen(false);
   };
 
-  const handleLaunchTool = async (toolId: string) => {
-    try {
-      const result = await launchTool(parseInt(toolId));
-      // Redirect to the tool with the access token
-      window.open(result.launchUrl, '_blank');
-    } catch (error: unknown) {
-      console.error('Failed to launch tool:', error);
-      if (error instanceof Error && error.message.includes('Insufficient credits')) {
-        alert(`Insufficient credits. You need more credits to launch this tool.`);
-      } else {
-        alert('Failed to launch tool. Please try again.');
-      }
-    }
+  const handleLaunchTool = (toolId: string) => {
+    console.log('UI Demo - Launching tool:', toolId);
+    alert('UI Demo - Tool launch clicked! (No actual API call)');
   };
 
   // Drag to scroll functionality
@@ -154,30 +152,17 @@ export default function Backoffice() {
     }, 3000);
   };
 
-  // Show loading state while checking authentication
-  if (userLoading || !user) {
-    return (
-      <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#3ecf8e] mx-auto mb-4"></div>
-          <p className="text-[#9ca3af]">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex overflow-x-hidden">
       {/* Sidebar Component */}
       <Sidebar 
         isOpen={isMenuOpen} 
         onClose={toggleMenu}
-        credits={creditsLoading ? 0 : credits}
+        credits={credits}
         onShareAndEarnClick={openShareDialog}
         userId={user?.id || ''}
         onCreditsUpdated={() => {
-          // Force refresh credits by updating the dependency
-          window.location.reload();
+          console.log('UI Demo - Credits updated');
         }}
       />
 
@@ -227,7 +212,6 @@ export default function Backoffice() {
                 title="Logout"
               >
                 <LogOut className="w-4 h-4 text-red-400" />
-                <span className="hidden lg:block text-sm font-medium text-red-400">logout</span>
               </button>
             </div>
           </div>

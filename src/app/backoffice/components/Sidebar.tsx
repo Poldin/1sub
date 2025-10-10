@@ -14,7 +14,6 @@ import {
 import { ShareAndEarnButton } from './ShareAndEarn';
 import TopUpDialog from './TopUpDialog';
 import TransactionHistory from './TransactionHistory';
-import { supabaseClient } from '@/lib/supabaseClient';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -30,15 +29,9 @@ export default function Sidebar({ isOpen, onClose, credits, onShareAndEarnClick,
   const [isTopUpDialogOpen, setIsTopUpDialogOpen] = useState(false);
   const [isTransactionHistoryOpen, setIsTransactionHistoryOpen] = useState(false);
 
-  const handleLogout = async () => {
-    try {
-      await supabaseClient.auth.signOut();
-      router.push('/');
-    } catch (error) {
-      console.error('Logout error:', error);
-      // Still redirect even if logout fails
-      router.push('/');
-    }
+  const handleLogout = () => {
+    console.log('UI Demo - Logout clicked');
+    router.push('/');
   };
 
   const handleTopUpClick = () => {

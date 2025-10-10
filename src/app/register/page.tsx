@@ -2,13 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
-import { supabaseClient } from '@/lib/supabaseClient';
-import { createUserProfile } from '@/lib/auth';
 
 export default function RegisterPage() {
-  const router = useRouter();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -18,8 +14,6 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordError, setPasswordError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
   const validatePassword = (password: string) => {
     const minLength = 8;
@@ -46,70 +40,24 @@ export default function RegisterPage() {
     return '';
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setError('');
     setPasswordError('');
 
     // Validate password
     const passwordValidation = validatePassword(formData.password);
     if (passwordValidation) {
       setPasswordError(passwordValidation);
-      setLoading(false);
       return;
     }
 
     if (formData.password !== formData.confirmPassword) {
       setPasswordError('Passwords do not match');
-      setLoading(false);
       return;
     }
 
-    try {
-      // Sign up with Supabase Auth
-      const { data, error } = await supabaseClient.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: {
-          data: {
-            full_name: formData.fullName
-          }
-        }
-      });
-
-      if (error) {
-        console.error('Registration error:', error);
-        setError(error.message);
-        return;
-      }
-
-      console.log('Registration data:', data);
-
-      if (data.user) {
-        // Check if email confirmation is required
-        if (data.user.email_confirmed_at) {
-          // Email already confirmed, proceed with registration
-          await createUserProfile(
-            data.user.id,
-            formData.email,
-            formData.fullName
-          );
-          router.push('/backoffice');
-        } else {
-          // Email confirmation required
-          setError('Please check your email and click the confirmation link to complete registration.');
-        }
-      } else {
-        console.log('No user data returned');
-        setError('Registration failed - no user data returned');
-      }
-    } catch (err) {
-      console.error('Registration exception:', err);
-      setError('An unexpected error occurred');
-    } finally {
-      setLoading(false);
-    }
+    // UI only - no actual registration
+    console.log('UI Demo - Form data:', formData);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -255,19 +203,12 @@ export default function RegisterPage() {
                     </li>
                   </ul>
                 </div>
-                
-                {error && (
-                  <div className="text-red-400 text-sm bg-red-400/10 border border-red-400/20 rounded-lg p-3">
-                    {error}
-                  </div>
-                )}
 
                 <button
                   type="submit"
-                  disabled={loading}
-                  className="w-full bg-[#3ecf8e] text-white py-3 px-4 rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-[#3ecf8e] text-white py-3 px-4 rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors"
                 >
-                  {loading ? 'creating account...' : 'create account'}
+                  create account
                 </button>
               </form>
 

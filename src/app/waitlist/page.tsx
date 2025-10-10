@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import GridDistortion from '@/components/ui/GridDistortion';
+
 
 type WaitlistType = 'user' | 'vendor';
 
@@ -64,16 +64,6 @@ export default function WaitlistPage() {
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] relative overflow-hidden">
       {/* Three.js Background */}
       <div className="absolute inset-0 z-0">
-        <div style={{ width: '100%', height: '100vh', position: 'relative' }}>
-        <GridDistortion
-          imageSrc="/background.png"
-          grid={20}
-          mouse={0.8}
-          strength={2.0}
-          relaxation={0.9}
-          className="w-full h-full opacity-50"
-        />
-        </div>
       </div>
 
       {/* Header */}
