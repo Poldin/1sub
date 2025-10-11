@@ -440,6 +440,12 @@ export default function Home() {
             </p>
             <div className="flex justify-center gap-6 text-sm">
               <a
+                href="/support"
+                className="text-[#9ca3af] hover:text-[#3ecf8e] transition-colors"
+              >
+                Support
+              </a>
+              <a
                 href="/privacy"
                 className="text-[#9ca3af] hover:text-[#3ecf8e] transition-colors"
               >

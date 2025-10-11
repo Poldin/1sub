@@ -1,7 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Users, CreditCard, Activity, Settings } from 'lucide-react';
+import { Menu, Users, CreditCard, Activity, Settings } from 'lucide-react';
+import AdminSidebar from './components/AdminSidebar';
 
 interface DashboardStats {
   totalBalance: number;
@@ -23,6 +25,11 @@ interface RecentTransaction {
 
 export default function AdminDashboard() {
   const router = useRouter();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  const toggleMenu = () => {
+    setIsMenuOpen(!isMenuOpen);
+  };
   
   // Mock data for UI only
   const stats: DashboardStats = {
@@ -51,34 +58,40 @@ export default function AdminDashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#ededed]">
-      {/* Header */}
-      <div className="bg-[#111111] border-b border-[#374151]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <h1 className="text-2xl font-bold text-[#ededed]">Admin Dashboard</h1>
-            <div className="flex space-x-4">
-              <button
-                onClick={() => router.push('/admin/tools')}
-                className="flex items-center px-3 py-2 bg-[#3ecf8e] text-black rounded-lg hover:bg-[#2dd4bf] transition-colors"
-              >
-                <Settings className="w-4 h-4 mr-2" />
-                Manage Tools
-              </button>
-              <button
-                onClick={() => router.push('/backoffice')}
-                className="px-3 py-2 bg-[#374151] text-[#ededed] rounded-lg hover:bg-[#4b5563] transition-colors"
-              >
-                Back to App
-              </button>
-            </div>
+    <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex overflow-x-hidden">
+      {/* Sidebar Component */}
+      <AdminSidebar 
+        isOpen={isMenuOpen} 
+        onClose={toggleMenu}
+      />
+
+      {/* Main Content Area */}
+      <main className={`
+        flex-1 min-w-0 transition-all duration-300 ease-in-out overflow-x-hidden
+        ${isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'}
+      `}>
+        {/* Top Bar with Hamburger */}
+        <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-30 overflow-x-hidden">
+          <div className="flex items-center justify-between p-2 sm:p-3 min-w-0">
+            {/* Hamburger Button */}
+            <button
+              onClick={toggleMenu}
+              className="p-2 rounded-lg hover:bg-[#374151] transition-colors flex-shrink-0"
+            >
+              <Menu className="w-6 h-6 sm:w-6 sm:h-6" />
+            </button>
+            
+            {/* Page Title */}
+            <h1 className="text-xl sm:text-2xl font-bold text-[#ededed]">Admin Dashboard</h1>
+            
+            {/* Spacer for centering */}
+            <div className="w-10"></div>
           </div>
-        </div>
-      </div>
+        </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" data-testid="admin-dashboard">
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
           <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
             <div className="flex items-center">
               <div className="p-2 bg-[#3ecf8e]/20 rounded-lg">
@@ -87,6 +100,7 @@ export default function AdminDashboard() {
               <div className="ml-4">
                 <p className="text-sm text-[#9ca3af]">Total Users</p>
                 <p className="text-2xl font-bold text-[#ededed]" data-testid="total-users">{stats?.userCount || 0}</p>
+                <p className="text-xs text-green-400">+12.5%</p>
               </div>
             </div>
           </div>
@@ -101,6 +115,7 @@ export default function AdminDashboard() {
                 <p className="text-2xl font-bold text-[#ededed]" data-testid="total-credits">
                   {stats?.totalBalance?.toFixed(2) || '0.00'}
                 </p>
+                <p className="text-xs text-green-400">+8.2%</p>
               </div>
             </div>
           </div>
@@ -111,11 +126,52 @@ export default function AdminDashboard() {
                 <Activity className="w-6 h-6 text-[#3ecf8e]" />
               </div>
               <div className="ml-4">
-                <p className="text-sm text-[#9ca3af]">Average Balance</p>
-                <p className="text-2xl font-bold text-[#ededed]" data-testid="average-balance">
-                  {stats?.averageBalance?.toFixed(2) || '0.00'}
-                </p>
+                <p className="text-sm text-[#9ca3af]">Active Vendors</p>
+                <p className="text-2xl font-bold text-[#ededed]">24</p>
+                <p className="text-xs text-green-400">+3</p>
               </div>
+            </div>
+          </div>
+
+          <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
+            <div className="flex items-center">
+              <div className="p-2 bg-[#3ecf8e]/20 rounded-lg">
+                <Settings className="w-6 h-6 text-[#3ecf8e]" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm text-[#9ca3af]">Tools Published</p>
+                <p className="text-2xl font-bold text-[#ededed]">156</p>
+                <p className="text-xs text-green-400">+7</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
+            <div className="flex items-center">
+              <div className="p-2 bg-[#3ecf8e]/20 rounded-lg">
+                <CreditCard className="w-6 h-6 text-[#3ecf8e]" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm text-[#9ca3af]">Active Subscriptions</p>
+                <p className="text-2xl font-bold text-[#ededed]">89</p>
+                <p className="text-xs text-green-400">+15.3%</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Chart Placeholders */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
+            <h3 className="text-lg font-semibold text-[#ededed] mb-4">Platform Activity</h3>
+            <div className="h-48 border border-[#374151] rounded-lg flex items-center justify-center">
+              <p className="text-[#9ca3af]">Chart placeholder - Activity over time</p>
+            </div>
+          </div>
+          <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
+            <h3 className="text-lg font-semibold text-[#ededed] mb-4">Revenue Trends</h3>
+            <div className="h-48 border border-[#374151] rounded-lg flex items-center justify-center">
+              <p className="text-[#9ca3af]">Chart placeholder - Revenue trends</p>
             </div>
           </div>
         </div>
@@ -223,6 +279,7 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+      </main>
     </div>
   );
 }
