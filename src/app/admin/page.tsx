@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Users, CreditCard, Activity, Settings } from 'lucide-react';
+import { Users, CreditCard, Activity, Menu } from 'lucide-react';
+import AdminSidebar from './components/AdminSidebar';
 
 interface DashboardStats {
   totalBalance: number;
@@ -24,68 +25,45 @@ interface RecentTransaction {
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [recentTransactions, setRecentTransactions] = useState<RecentTransaction[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [stats] = useState<DashboardStats | null>(null);
+  const [recentTransactions] = useState<RecentTransaction[]>([]);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
-  const fetchDashboardData = async () => {
-    try {
-      const response = await fetch('/api/v1/admin/credits');
-      if (!response.ok) {
-        if (response.status === 403) {
-          router.push('/backoffice');
-          return;
-        }
-        throw new Error('Failed to fetch dashboard data');
-      }
-
-      const data = await response.json();
-      setStats(data.summary);
-      setRecentTransactions(data.recentTransactions);
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-    } finally {
-      setLoading(false);
-    }
+  const toggleMenu = () => {
+    setIsMenuOpen(!isMenuOpen);
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3ecf8e]"></div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#ededed]">
-      {/* Header */}
-      <div className="bg-[#111111] border-b border-[#374151]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <h1 className="text-2xl font-bold text-[#ededed]">Admin Dashboard</h1>
-            <div className="flex space-x-4">
-              <button
-                onClick={() => router.push('/admin/tools')}
-                className="flex items-center px-3 py-2 bg-[#3ecf8e] text-black rounded-lg hover:bg-[#2dd4bf] transition-colors"
-              >
-                <Settings className="w-4 h-4 mr-2" />
-                Manage Tools
-              </button>
-              <button
-                onClick={() => router.push('/backoffice')}
-                className="px-3 py-2 bg-[#374151] text-[#ededed] rounded-lg hover:bg-[#4b5563] transition-colors"
-              >
-                Back to App
-              </button>
-            </div>
+    <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex overflow-x-hidden">
+      {/* Sidebar Component */}
+      <AdminSidebar 
+        isOpen={isMenuOpen} 
+        onClose={toggleMenu}
+      />
+
+      {/* Main Content Area */}
+      <main className={`
+        flex-1 min-w-0 transition-all duration-300 ease-in-out overflow-x-hidden
+        ${isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'}
+      `}>
+        {/* Top Bar with Hamburger */}
+        <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-30 overflow-x-hidden">
+          <div className="flex items-center justify-between p-2 sm:p-3 min-w-0">
+            {/* Hamburger Button */}
+            <button
+              onClick={toggleMenu}
+              className="p-2 rounded-lg hover:bg-[#374151] transition-colors flex-shrink-0"
+            >
+              <Menu className="w-6 h-6 sm:w-6 sm:h-6" />
+            </button>
+            
+            {/* Page Title */}
+            <h1 className="text-xl sm:text-2xl font-bold text-[#ededed]">Admin Dashboard</h1>
+            
+            {/* Spacer for centering */}
+            <div className="w-10"></div>
           </div>
-        </div>
-      </div>
+        </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats Cards */}
@@ -234,6 +212,7 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+      </main>
     </div>
   );
 }
