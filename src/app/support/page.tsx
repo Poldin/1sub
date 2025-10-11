@@ -212,44 +212,44 @@ export default function SupportPage() {
           </div>
         </div>
 
-        {/* Additional Help */}
-        <div className="mt-8 bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
-          <h2 className="text-lg font-semibold text-[#ededed] mb-4">Additional Resources</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 bg-[#374151] rounded-lg">
-              <h3 className="font-medium text-[#ededed] mb-2">Documentation</h3>
-              <p className="text-sm text-[#9ca3af] mb-3">Browse our comprehensive guides and tutorials</p>
-              <button className="text-[#3ecf8e] text-sm hover:underline">View Docs →</button>
-            </div>
-            <div className="p-4 bg-[#374151] rounded-lg">
-              <h3 className="font-medium text-[#ededed] mb-2">Community</h3>
-              <p className="text-sm text-[#9ca3af] mb-3">Join our community forum for help and discussions</p>
-              <button className="text-[#3ecf8e] text-sm hover:underline">Join Community →</button>
-            </div>
-            <div className="p-4 bg-[#374151] rounded-lg">
-              <h3 className="font-medium text-[#ededed] mb-2">Status Page</h3>
-              <p className="text-sm text-[#9ca3af] mb-3">Check our system status and uptime</p>
-              <button className="text-[#3ecf8e] text-sm hover:underline">Check Status →</button>
-            </div>
-          </div>
-        </div>
-      </div>
-      </main>
+         {/* Additional Help */}
+         <div className="mt-8 bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
+           <h2 className="text-lg font-semibold text-[#ededed] mb-4">Additional Resources</h2>
+           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+             <div className="p-4 bg-[#374151] rounded-lg">
+               <h3 className="font-medium text-[#ededed] mb-2">Documentation</h3>
+               <p className="text-sm text-[#9ca3af] mb-3">Browse our comprehensive guides and tutorials</p>
+               <button className="text-[#3ecf8e] text-sm hover:underline">View Docs →</button>
+             </div>
+             <div className="p-4 bg-[#374151] rounded-lg">
+               <h3 className="font-medium text-[#ededed] mb-2">Community</h3>
+               <p className="text-sm text-[#9ca3af] mb-3">Join our community forum for help and discussions</p>
+               <button className="text-[#3ecf8e] text-sm hover:underline">Join Community →</button>
+             </div>
+             <div className="p-4 bg-[#374151] rounded-lg">
+               <h3 className="font-medium text-[#ededed] mb-2">Status Page</h3>
+               <p className="text-sm text-[#9ca3af] mb-3">Check our system status and uptime</p>
+               <button className="text-[#3ecf8e] text-sm hover:underline">Check Status →</button>
+             </div>
+           </div>
+         </div>
 
-      {/* Footer */}
-      <footer className="border-t border-[#374151] mt-16 py-8">
-        <div className="max-w-4xl mx-auto px-4 text-center">
-          <div className="flex justify-center space-x-6 text-sm">
-            <Link href="/" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Home</Link>
-            <Link href="/privacy" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Privacy</Link>
-            <Link href="/terms" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Terms</Link>
-            <Link href="/support" className="text-[#3ecf8e] font-medium">Support</Link>
-          </div>
-          <p className="text-[#9ca3af] text-xs mt-4">
-            © 2025 1sub.io. All rights reserved.
-          </p>
-        </div>
-      </footer>
+         {/* Footer */}
+         <footer className="border-t border-[#374151] mt-16 py-8">
+           <div className="max-w-4xl mx-auto px-4 text-center">
+             <div className="flex justify-center space-x-6 text-sm">
+               <Link href="/" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Home</Link>
+               <Link href="/privacy" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Privacy</Link>
+               <Link href="/terms" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Terms</Link>
+               <Link href="/support" className="text-[#3ecf8e] font-medium">Support</Link>
+             </div>
+             <p className="text-[#9ca3af] text-xs mt-4">
+               © 2025 1sub.io. All rights reserved.
+             </p>
+           </div>
+         </footer>
+       </div>
+       </main>
     </div>
   );
 }

@@ -96,7 +96,7 @@ export default function VendorToolsPage() {
           </div>
         </header>
 
-        <div className="p-4 lg:p-6 space-y-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex justify-between items-center">
             <h2 className="text-3xl font-bold text-[#ededed]">My Tools</h2>
             <button
@@ -108,7 +108,7 @@ export default function VendorToolsPage() {
             </button>
           </div>
 
-          <div className="bg-[#1f2937] rounded-lg border border-[#374151]">
+          <div className="bg-[#1f2937] rounded-lg border border-[#374151] mt-8">
             <div className="p-6 border-b border-[#374151]">
               <h3 className="text-xl font-semibold text-[#ededed]">Published Tools</h3>
             </div>
