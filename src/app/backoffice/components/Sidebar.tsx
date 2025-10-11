@@ -8,7 +8,8 @@ import {
   Wrench,
   User,
   History,
-  HelpCircle
+  HelpCircle,
+  Briefcase
 } from 'lucide-react';
 import TransactionHistory from './TransactionHistory';
 import { ShareAndEarnButton } from './ShareAndEarn';
@@ -20,9 +21,10 @@ interface SidebarProps {
   credits?: number;
   onShareAndEarnClick: () => void;
   userId: string;
+  userRole?: string;
 }
 
-export default function Sidebar({ isOpen, onClose, credits, onShareAndEarnClick, userId }: SidebarProps) {
+export default function Sidebar({ isOpen, onClose, credits, onShareAndEarnClick, userId, userRole = 'user' }: SidebarProps) {
   const router = useRouter();
   const [isTransactionHistoryOpen, setIsTransactionHistoryOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
@@ -114,6 +116,23 @@ export default function Sidebar({ isOpen, onClose, credits, onShareAndEarnClick,
               <HelpCircle className="w-5 h-5 text-[#3ecf8e] group-hover:text-[#2dd4bf]" />
               <span className="font-medium">Support</span>
             </button>
+
+            {/* Vendor Dashboard Link - Only show if user is vendor */}
+            {userRole === 'vendor' && (
+              <>
+                <div className="border-t border-[#374151] my-2"></div>
+                <button
+                  onClick={() => {
+                    router.push('/vendor-dashboard');
+                    onClose();
+                  }}
+                  className="w-full flex items-center gap-3 p-3 rounded hover:bg-[#374151] transition-colors text-[#ededed] group"
+                >
+                  <Briefcase className="w-5 h-5 text-[#3ecf8e] group-hover:text-[#2dd4bf]" />
+                  <span className="font-medium">Vendor Dashboard</span>
+                </button>
+              </>
+            )}
           </div>
         </nav>
 

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Menu, User, Users, LogOut, ExternalLink } from 'lucide-react';
+import Link from 'next/link';
+import { Menu, User, Users, LogOut, ExternalLink, Briefcase } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Sidebar from './components/Sidebar';
 import ShareAndEarnDialog from './components/ShareAndEarn';
@@ -44,6 +45,7 @@ export default function Backoffice() {
   
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+  const [userRole, setUserRole] = useState<string>('user'); // Change to 'vendor' to test vendor view
 
   const handleLogout = () => {
     console.log('UI Demo - Logout clicked');
@@ -161,6 +163,7 @@ export default function Backoffice() {
         credits={credits}
         onShareAndEarnClick={openShareDialog}
         userId={user?.id || ''}
+        userRole={userRole}
       />
 
       {/* Main Content Area */}
@@ -254,6 +257,32 @@ export default function Backoffice() {
                 </div>
               </div>
             </div> */}
+
+            {/* Vendor Dashboard Access - Only for vendors */}
+            {userRole === 'vendor' && (
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-8">
+                <div className="bg-gradient-to-r from-[#3ecf8e]/20 to-[#2dd4bf]/20 border border-[#3ecf8e]/30 rounded-xl p-6">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className="bg-[#3ecf8e] p-3 rounded-lg">
+                        <Briefcase className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold text-[#ededed]">Vendor Dashboard</h3>
+                        <p className="text-[#9ca3af]">Manage your tools, view analytics, and track earnings</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => router.push('/vendor-dashboard')}
+                      className="bg-[#3ecf8e] hover:bg-[#2dd4bf] text-white px-6 py-3 rounded-lg font-semibold transition-colors flex items-center gap-2 whitespace-nowrap"
+                    >
+                      Go to Dashboard
+                      <ExternalLink className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Mobile Carousel */}
             <div className="mb-8 sm:hidden">
@@ -405,45 +434,46 @@ export default function Backoffice() {
                 </div>
               )}
             </div>
+
+            {/* Become a Vendor CTA - Only for regular users - Bottom of page */}
+            {userRole === 'user' && (
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 mb-8">
+                <div className="bg-[#1f2937] border border-[#374151] rounded-xl p-6">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className="bg-[#374151] p-3 rounded-lg">
+                        <Briefcase className="w-6 h-6 text-[#9ca3af]" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-[#ededed]">Are you a developer?</h3>
+                        <p className="text-[#9ca3af]">Publish your tools on 1sub and earn revenue</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => router.push('/vendors')}
+                      className="bg-[#374151] hover:bg-[#4b5563] text-[#ededed] px-6 py-3 rounded-lg font-semibold transition-colors whitespace-nowrap"
+                    >
+                      Become a Vendor
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Footer */}
-        <footer className="bg-[#111111] border-t border-[#374151] mt-auto">
-          <div className="max-w-6xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-            <div className="text-center">
-              <h3 className="text-2xl font-bold text-[#3ecf8e] mb-2">
-                1sub<span className="text-[#9ca3af] font-normal">.io</span>
-              </h3>
-              <p className="text-[#9ca3af] mb-4">
-                1 subscription, countless tools.
-              </p>
-              
-              {/* Submit Tool Button */}
-              <div className="mb-6">
-                <a
-                  href="/submit"
-                  className="btn-secondary text-sm sm:text-base"
-                >
-                  submit your tool
-                </a>
-              </div>
-              
-              <div className="flex justify-center gap-6 text-sm">
-                <a
-                  href="/privacy"
-                  className="text-[#9ca3af] hover:text-[#3ecf8e] transition-colors"
-                >
-                  Privacy
-                </a>
-                <a
-                  href="/terms"
-                  className="text-[#9ca3af] hover:text-[#3ecf8e] transition-colors"
-                >
-                  Terms and Conditions
-                </a>
-              </div>
+        <footer className="bg-[#111111] border-t border-[#374151] mt-16 py-8">
+          <div className="max-w-4xl mx-auto px-4 text-center">
+            <div className="flex justify-center space-x-6 text-sm">
+              <Link href="/" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Home</Link>
+              <Link href="/privacy" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Privacy</Link>
+              <Link href="/terms" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Terms</Link>
+              <Link href="/support" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Support</Link>
             </div>
+            <p className="text-[#9ca3af] text-xs mt-4">
+              © 2025 1sub.io. All rights reserved.
+            </p>
           </div>
         </footer>
       </main>

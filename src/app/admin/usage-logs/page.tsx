@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Menu } from 'lucide-react';
 import AdminSidebar from '../components/AdminSidebar';
 
@@ -275,6 +276,21 @@ export default function UsageLogs() {
             </table>
           </div>
         </div>
+
+        {/* Footer */}
+        <footer className="border-t border-[#374151] mt-16 py-8">
+          <div className="max-w-4xl mx-auto px-4 text-center">
+            <div className="flex justify-center space-x-6 text-sm">
+              <Link href="/" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Home</Link>
+              <Link href="/privacy" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Privacy</Link>
+              <Link href="/terms" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Terms</Link>
+              <Link href="/support" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Support</Link>
+            </div>
+            <p className="text-[#9ca3af] text-xs mt-4">
+              © 2025 1sub.io. All rights reserved.
+            </p>
+          </div>
+        </footer>
       </div>
       </main>
     </div>
