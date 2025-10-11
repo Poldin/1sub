@@ -227,10 +227,23 @@ export default function RegisterPage() {
         </div>
 
         {/* Footer */}
-        <div className="text-center mt-8 text-[#9ca3af] text-sm">
-          <Link href="/" className="hover:text-[#d1d5db] transition-colors">
-            ← back to home
-          </Link>
+        <div className="text-center mt-8 text-[#9ca3af] text-sm space-y-2">
+          <div>
+            <Link href="/" className="hover:text-[#d1d5db] transition-colors">
+              ← back to home
+            </Link>
+          </div>
+          <div className="flex justify-center space-x-4 text-xs">
+            <Link href="/privacy" className="hover:text-[#d1d5db] transition-colors">
+              Privacy
+            </Link>
+            <Link href="/terms" className="hover:text-[#d1d5db] transition-colors">
+              Terms
+            </Link>
+            <Link href="/support" className="hover:text-[#d1d5db] transition-colors">
+              Support
+            </Link>
+          </div>
         </div>
       </div>
     </div>

@@ -161,9 +161,6 @@ export default function Backoffice() {
         credits={credits}
         onShareAndEarnClick={openShareDialog}
         userId={user?.id || ''}
-        onCreditsUpdated={() => {
-          console.log('UI Demo - Credits updated');
-        }}
       />
 
       {/* Main Content Area */}
