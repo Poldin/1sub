@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Users, CreditCard, Activity, Settings } from 'lucide-react';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
 
 interface DashboardStats {
   totalBalance: number;
@@ -138,33 +137,33 @@ export default function AdminDashboard() {
             <h2 className="text-lg font-semibold text-[#ededed]">Recent Credit Transactions</h2>
           </div>
           <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>User</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Reason</TableHead>
-                  <TableHead>Date</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-[#374151]">
+                  <th className="px-6 py-4 text-left text-sm font-medium text-[#9ca3af]">User</th>
+                  <th className="px-6 py-4 text-left text-sm font-medium text-[#9ca3af]">Type</th>
+                  <th className="px-6 py-4 text-left text-sm font-medium text-[#9ca3af]">Amount</th>
+                  <th className="px-6 py-4 text-left text-sm font-medium text-[#9ca3af]">Reason</th>
+                  <th className="px-6 py-4 text-left text-sm font-medium text-[#9ca3af]">Date</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#374151]">
                 {recentTransactions.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center text-[#9ca3af] py-8">
+                  <tr>
+                    <td colSpan={5} className="px-6 py-8 text-center text-[#9ca3af]">
                       No recent transactions
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 ) : (
                   recentTransactions.map((transaction) => (
-                    <TableRow key={transaction.id}>
-                      <TableCell>
+                    <tr key={transaction.id}>
+                      <td className="px-6 py-4">
                         <div>
                           <p className="font-medium">{transaction.users.full_name || 'N/A'}</p>
                           <p className="text-sm text-[#9ca3af]">{transaction.users.email}</p>
                         </div>
-                      </TableCell>
-                      <TableCell>
+                      </td>
+                      <td className="px-6 py-4">
                         <span className={`px-2 py-1 rounded text-xs font-medium ${
                           transaction.transaction_type === 'grant' 
                             ? 'bg-green-500/20 text-green-400'
@@ -174,23 +173,23 @@ export default function AdminDashboard() {
                         }`}>
                           {transaction.transaction_type}
                         </span>
-                      </TableCell>
-                      <TableCell className={`font-medium ${
+                      </td>
+                      <td className={`px-6 py-4 font-medium ${
                         transaction.delta > 0 ? 'text-green-400' : 'text-red-400'
                       }`}>
                         {transaction.delta > 0 ? '+' : ''}{transaction.delta}
-                      </TableCell>
-                      <TableCell className="text-[#9ca3af]">
+                      </td>
+                      <td className="px-6 py-4 text-[#9ca3af]">
                         {transaction.reason}
-                      </TableCell>
-                      <TableCell className="text-[#9ca3af]">
+                      </td>
+                      <td className="px-6 py-4 text-[#9ca3af]">
                         {new Date(transaction.created_at).toLocaleDateString()}
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                    </tr>
                   ))
                 )}
-              </TableBody>
-            </Table>
+              </tbody>
+            </table>
           </div>
         </div>
 
