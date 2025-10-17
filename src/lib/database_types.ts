@@ -39,102 +39,121 @@ export type Database = {
   }
   public: {
     Tables: {
-      admin_audit_logs: {
+      checkouts: {
         Row: {
-          action: string
-          admin_user_id: string
-          created_at: string | null
+          created_at: string
+          credit_amount: number | null
           id: string
-          ip_address: unknown | null
-          new_values: Json | null
-          old_values: Json | null
-          resource_id: string | null
-          resource_type: string
-          user_agent: string | null
+          metadata: Json | null
+          type: string | null
+          user_id: string | null
+          vendor_id: string | null
         }
         Insert: {
-          action: string
-          admin_user_id: string
-          created_at?: string | null
+          created_at?: string
+          credit_amount?: number | null
           id?: string
-          ip_address?: unknown | null
-          new_values?: Json | null
-          old_values?: Json | null
-          resource_id?: string | null
-          resource_type: string
-          user_agent?: string | null
+          metadata?: Json | null
+          type?: string | null
+          user_id?: string | null
+          vendor_id?: string | null
         }
         Update: {
-          action?: string
-          admin_user_id?: string
-          created_at?: string | null
+          created_at?: string
+          credit_amount?: number | null
           id?: string
-          ip_address?: unknown | null
-          new_values?: Json | null
-          old_values?: Json | null
-          resource_id?: string | null
-          resource_type?: string
-          user_agent?: string | null
+          metadata?: Json | null
+          type?: string | null
+          user_id?: string | null
+          vendor_id?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "admin_audit_logs_admin_user_id_fkey"
-            columns: ["admin_user_id"]
+            foreignKeyName: "checkouts_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkouts_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
         ]
       }
       credit_transactions: {
         Row: {
-          balance_after: number
+          balance_after: number | null
+          checkout_id: string | null
           created_at: string | null
-          delta: number
+          credits_amount: number | null
           id: string
           idempotency_key: string | null
           metadata: Json | null
           reason: string | null
-          transaction_type: string
+          stripe_transaction_id: string | null
+          tool_id: string | null
+          type: string | null
           user_id: string
         }
         Insert: {
-          balance_after: number
+          balance_after?: number | null
+          checkout_id?: string | null
           created_at?: string | null
-          delta: number
+          credits_amount?: number | null
           id?: string
           idempotency_key?: string | null
           metadata?: Json | null
           reason?: string | null
-          transaction_type: string
+          stripe_transaction_id?: string | null
+          tool_id?: string | null
+          type?: string | null
           user_id: string
         }
         Update: {
-          balance_after?: number
+          balance_after?: number | null
+          checkout_id?: string | null
           created_at?: string | null
-          delta?: number
+          credits_amount?: number | null
           id?: string
           idempotency_key?: string | null
           metadata?: Json | null
           reason?: string | null
-          transaction_type?: string
+          stripe_transaction_id?: string | null
+          tool_id?: string | null
+          type?: string | null
           user_id?: string
         }
         Relationships: [
           {
+            foreignKeyName: "credit_transactions_checkout_id_fkey"
+            columns: ["checkout_id"]
+            isOneToOne: false
+            referencedRelation: "checkouts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_transactions_tool_id_fkey"
+            columns: ["tool_id"]
+            isOneToOne: false
+            referencedRelation: "tools"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "credit_transactions_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
         ]
       }
       tools: {
         Row: {
-          api_endpoint: string | null
           created_at: string | null
-          credit_cost_per_use: number | null
           description: string | null
           id: string
           is_active: boolean | null
@@ -144,9 +163,7 @@ export type Database = {
           url: string
         }
         Insert: {
-          api_endpoint?: string | null
           created_at?: string | null
-          credit_cost_per_use?: number | null
           description?: string | null
           id?: string
           is_active?: boolean | null
@@ -156,9 +173,7 @@ export type Database = {
           url: string
         }
         Update: {
-          api_endpoint?: string | null
           created_at?: string | null
-          credit_cost_per_use?: number | null
           description?: string | null
           id?: string
           is_active?: boolean | null
@@ -169,75 +184,33 @@ export type Database = {
         }
         Relationships: []
       }
-      usage_logs: {
-        Row: {
-          created_at: string | null
-          credits_consumed: number
-          id: string
-          metadata: Json | null
-          status: string
-          tool_id: string | null
-          user_id: string
-        }
-        Insert: {
-          created_at?: string | null
-          credits_consumed: number
-          id?: string
-          metadata?: Json | null
-          status: string
-          tool_id?: string | null
-          user_id: string
-        }
-        Update: {
-          created_at?: string | null
-          credits_consumed?: number
-          id?: string
-          metadata?: Json | null
-          status?: string
-          tool_id?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "usage_logs_tool_id_fkey"
-            columns: ["tool_id"]
-            isOneToOne: false
-            referencedRelation: "tools"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "usage_logs_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      users: {
+      user_profiles: {
         Row: {
           created_at: string | null
           full_name: string | null
           id: string
+          is_vendor: boolean | null
+          metadata: Json | null
           role: string
           updated_at: string | null
-          user_id: string | null
         }
         Insert: {
           created_at?: string | null
           full_name?: string | null
           id: string
+          is_vendor?: boolean | null
+          metadata?: Json | null
           role?: string
           updated_at?: string | null
-          user_id?: string | null
         }
         Update: {
           created_at?: string | null
           full_name?: string | null
           id?: string
+          is_vendor?: boolean | null
+          metadata?: Json | null
           role?: string
           updated_at?: string | null
-          user_id?: string | null
         }
         Relationships: []
       }

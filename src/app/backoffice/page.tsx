@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { Menu, User, Users, LogOut, ExternalLink, Briefcase } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 import Sidebar from './components/Sidebar';
 import ShareAndEarnDialog from './components/ShareAndEarn';
 
@@ -29,8 +30,8 @@ const formatAdoptions = (num: number): string => {
 export default function Backoffice() {
   const router = useRouter();
   
-  // Mock data for UI only
-  const user = { id: '1', fullName: 'Demo User', email: 'demo@1sub.io' };
+  const [user, setUser] = useState<{ id: string; fullName: string | null; email: string } | null>(null);
+  const [userLoading, setUserLoading] = useState(true);
   const credits = 100;
   const tools: Tool[] = [
     { id: '1', name: 'AI Assistant', description: 'Advanced AI tool for productivity', credit_cost_per_use: 5 },
@@ -47,9 +48,50 @@ export default function Backoffice() {
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [userRole, setUserRole] = useState<string>('user'); // Change to 'vendor' to test vendor view
 
-  const handleLogout = () => {
-    console.log('UI Demo - Logout clicked');
-    router.push('/');
+  // Fetch user data
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const response = await fetch('/api/user/profile');
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            router.push('/login');
+            return;
+          }
+          throw new Error('Failed to fetch user profile');
+        }
+
+        const data = await response.json();
+
+        setUser({
+          id: data.id,
+          fullName: data.fullName || null,
+          email: data.email || '',
+        });
+
+        if (data.role) {
+          setUserRole(data.role);
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+        router.push('/login');
+      } finally {
+        setUserLoading(false);
+      }
+    };
+
+    fetchUserData();
+  }, [router]);
+
+  const handleLogout = async () => {
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      router.push('/');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
 
   // Carousel drag and auto-scroll functionality
@@ -153,6 +195,17 @@ export default function Backoffice() {
       setUserInteracting(false);
     }, 3000);
   };
+
+  if (userLoading) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#3ecf8e] border-r-transparent"></div>
+          <p className="mt-4 text-[#9ca3af]">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex overflow-x-hidden">
