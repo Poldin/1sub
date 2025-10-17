@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import Sidebar from './components/Sidebar';
 import ShareAndEarnDialog from './components/ShareAndEarn';
+import SearchBar from './components/SearchBar';
 
 // Mock Tool type
 type Tool = {
@@ -32,7 +33,7 @@ export default function Backoffice() {
   
   const [user, setUser] = useState<{ id: string; fullName: string | null; email: string } | null>(null);
   const [userLoading, setUserLoading] = useState(true);
-  const credits = 100;
+  const [credits, setCredits] = useState(0);
   const tools: Tool[] = [
     { id: '1', name: 'AI Assistant', description: 'Advanced AI tool for productivity', credit_cost_per_use: 5 },
     { id: '2', name: 'Data Analyzer', description: 'Analyze your data with ease', credit_cost_per_use: 10 },
@@ -47,6 +48,14 @@ export default function Backoffice() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [userRole, setUserRole] = useState<string>('user'); // Change to 'vendor' to test vendor view
+
+  // Load sidebar state from localStorage on mount
+  useEffect(() => {
+    const savedSidebarState = localStorage.getItem('sidebarOpen');
+    if (savedSidebarState !== null) {
+      setIsMenuOpen(savedSidebarState === 'true');
+    }
+  }, []);
 
   // Fetch user data
   useEffect(() => {
@@ -72,6 +81,10 @@ export default function Backoffice() {
 
         if (data.role) {
           setUserRole(data.role);
+        }
+
+        if (data.credits !== undefined) {
+          setCredits(data.credits);
         }
       } catch (error) {
         console.error('Error fetching user data:', error);
@@ -103,7 +116,10 @@ export default function Backoffice() {
   const autoScrollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const toggleMenu = () => {
-    setIsMenuOpen(!isMenuOpen);
+    const newState = !isMenuOpen;
+    setIsMenuOpen(newState);
+    // Save sidebar state to localStorage
+    localStorage.setItem('sidebarOpen', String(newState));
   };
 
   const openShareDialog = () => {
@@ -225,7 +241,7 @@ export default function Backoffice() {
         ${isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'}
       `}>
         {/* Top Bar con Hamburger */}
-        <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-30 overflow-x-hidden">
+        <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-50">
           <div className="flex items-center justify-center gap-2 p-2 sm:p-3 min-w-0 lg:justify-between">
             {/* Hamburger Button */}
             <button
@@ -235,33 +251,20 @@ export default function Backoffice() {
               <Menu className="w-6 h-6 sm:w-6 sm:h-6" />
             </button>
             
-            {/* Search Bar - Centered on desktop */}
-            <div className="flex-1 min-w-0 max-w-xs sm:max-w-sm lg:max-w-2xl lg:mx-auto">
-              <div className="relative">
-                <input 
-                  type="text" 
-                  placeholder="Search..."
-                  className="w-full px-2 sm:px-3 py-2 sm:py-3 pl-7 sm:pl-8 bg-[#1f2937] border border-[#374151] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent text-[#ededed] text-sm sm:text-base"
-                />
-                <div className="absolute left-2 top-2.5 sm:top-3.5 text-[#9ca3af]">
-                  <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                </div>
-              </div>
-            </div>
+            {/* Search Bar Component */}
+            <SearchBar />
             
             {/* Profile Button with Logout */}
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 sm:gap-2 p-1.5 sm:p-2 bg-[#1f2937] hover:bg-[#374151] rounded-lg transition-colors flex-shrink-0" data-testid="user-menu">
-                <User className="w-6 h-6 sm:w-5 sm:h-5 text-[#3ecf8e]" />
+              <div className="flex items-center gap-2 p-2 bg-[#1f2937] hover:bg-[#374151] rounded-lg transition-colors flex-shrink-0" data-testid="user-menu">
+                <User className="w-4 h-4 text-[#3ecf8e]" />
                 <span className="hidden lg:block text-sm font-medium text-[#ededed]">
                   {user?.fullName || user?.email || 'profile'}
                 </span>
               </div>
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-1 p-1.5 sm:p-2 bg-red-600/20 hover:bg-red-600/30 rounded-lg transition-colors flex-shrink-0"
+                className="flex items-center justify-center p-2 bg-red-600/20 hover:bg-red-600/30 rounded-lg transition-colors flex-shrink-0"
                 title="Logout"
               >
                 <LogOut className="w-4 h-4 text-red-400" />
@@ -488,30 +491,6 @@ export default function Backoffice() {
               )}
             </div>
 
-            {/* Become a Vendor CTA - Only for regular users - Bottom of page */}
-            {userRole === 'user' && (
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 mb-8">
-                <div className="bg-[#1f2937] border border-[#374151] rounded-xl p-6">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className="bg-[#374151] p-3 rounded-lg">
-                        <Briefcase className="w-6 h-6 text-[#9ca3af]" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-[#ededed]">Are you a developer?</h3>
-                        <p className="text-[#9ca3af]">Publish your tools on 1sub and earn revenue</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => router.push('/vendors')}
-                      className="bg-[#374151] hover:bg-[#4b5563] text-[#ededed] px-6 py-3 rounded-lg font-semibold transition-colors whitespace-nowrap"
-                    >
-                      Become a Vendor
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
 

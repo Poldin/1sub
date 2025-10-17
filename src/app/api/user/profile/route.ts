@@ -30,12 +30,38 @@ export async function GET() {
       );
     }
 
+    // Calculate remaining credits from credit_transactions
+    const { data: transactions, error: transactionsError } = await supabase
+      .from('credit_transactions')
+      .select('credits_amount, type')
+      .eq('user_id', authUser.id);
+
+    if (transactionsError) {
+      console.error('Error fetching credit transactions:', transactionsError);
+      // Continue without credits if there's an error
+    }
+
+    // Calculate total credits
+    let totalCredits = 0;
+    if (transactions && transactions.length > 0) {
+      totalCredits = transactions.reduce((sum, transaction) => {
+        const amount = transaction.credits_amount || 0;
+        if (transaction.type === 'add') {
+          return sum + amount;
+        } else if (transaction.type === 'subtract') {
+          return sum - amount;
+        }
+        return sum;
+      }, 0);
+    }
+
     return NextResponse.json({
       id: authUser.id,
       email: authUser.email,
       fullName: profile.full_name,
       role: profile.role,
       isVendor: profile.is_vendor,
+      credits: totalCredits,
     });
   } catch (error) {
     console.error('Get user profile error:', error);
