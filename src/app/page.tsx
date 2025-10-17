@@ -299,6 +299,24 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Pricing Preview Section */}
+      <section className="section-padding">
+        <div className="max-w-4xl mx-auto text-center">
+          <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+            Choose Your Plan
+          </h2>
+          <p className="text-lg text-[#d1d5db] mb-8 leading-relaxed">
+            Simple, transparent pricing that grows with you
+          </p>
+          <a
+            href="/pricing"
+            className="btn-secondary text-sm sm:text-base"
+          >
+            View All Plans
+          </a>
+        </div>
+      </section>
+
       {/* Community Section */}
       <section className="section-padding">
         <div className="max-w-4xl mx-auto text-center">

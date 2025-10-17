@@ -110,3 +110,5 @@ export default function VendorSidebar({ isOpen, onClose }: VendorSidebarProps) {
   );
 }
 
+
+
