@@ -1,20 +1,32 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { Menu, User, Users, LogOut, ExternalLink, Briefcase } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { Menu, User, Users, LogOut, ExternalLink, Briefcase, Check } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import Sidebar from './components/Sidebar';
 import ShareAndEarnDialog from './components/ShareAndEarn';
 import SearchBar from './components/SearchBar';
 
-// Mock Tool type
+// Tool type matching database schema
 type Tool = {
   id: string;
   name: string;
   description: string;
-  credit_cost_per_use: number;
+  url: string;
+  credit_cost_per_use?: number; // Legacy support
+  is_active: boolean;
+  metadata?: {
+    pricing_options?: {
+      one_time?: { enabled: boolean; price: number; description?: string };
+      subscription_monthly?: { enabled: boolean; price: number; description?: string };
+      subscription_yearly?: { enabled: boolean; price: number; description?: string };
+    };
+    icon?: string;
+    category?: string;
+    vendor_id?: string;
+  };
 };
 
 // Helper function to format adoption numbers
@@ -28,26 +40,21 @@ const formatAdoptions = (num: number): string => {
   return num.toString();
 };
 
-export default function Backoffice() {
+function BackofficeContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   
   const [user, setUser] = useState<{ id: string; fullName: string | null; email: string } | null>(null);
   const [userLoading, setUserLoading] = useState(true);
   const [credits, setCredits] = useState(0);
-  const tools: Tool[] = [
-    { id: '1', name: 'AI Assistant', description: 'Advanced AI tool for productivity', credit_cost_per_use: 5 },
-    { id: '2', name: 'Data Analyzer', description: 'Analyze your data with ease', credit_cost_per_use: 10 },
-    { id: '3', name: 'Content Generator', description: 'Generate amazing content', credit_cost_per_use: 8 },
-    { id: '4', name: 'Image Editor', description: 'Edit images professionally', credit_cost_per_use: 6 },
-    { id: '5', name: 'Video Creator', description: 'Create stunning videos', credit_cost_per_use: 15 },
-    { id: '6', name: 'SEO Optimizer', description: 'Optimize your content for search engines', credit_cost_per_use: 7 },
-  ];
-  const toolsLoading = false;
-  const toolsError = null;
+  const [tools, setTools] = useState<Tool[]>([]);
+  const [toolsLoading, setToolsLoading] = useState(true);
+  const [toolsError, setToolsError] = useState<string | null>(null);
   
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [userRole, setUserRole] = useState<string>('user'); // Change to 'vendor' to test vendor view
+  const [showPurchaseSuccess, setShowPurchaseSuccess] = useState(false);
 
   // Load sidebar state from localStorage on mount
   useEffect(() => {
@@ -97,6 +104,60 @@ export default function Backoffice() {
     fetchUserData();
   }, [router]);
 
+  // Fetch tools from database
+  useEffect(() => {
+    const fetchTools = async () => {
+      try {
+        setToolsLoading(true);
+        setToolsError(null);
+        
+        const supabase = createClient();
+        
+        const { data: toolsData, error } = await supabase
+          .from('tools')
+          .select('*')
+          .eq('is_active', true)
+          .order('created_at', { ascending: false });
+        
+        if (error) {
+          console.error('Error fetching tools:', error);
+          setToolsError('Failed to load tools from database');
+          setToolsLoading(false);
+          return;
+        }
+        
+        console.log('Fetched tools:', toolsData);
+        setTools(toolsData || []);
+        setToolsLoading(false);
+        
+      } catch (err) {
+        console.error('Unexpected error fetching tools:', err);
+        setToolsError('An unexpected error occurred');
+        setToolsLoading(false);
+      }
+    };
+    
+    fetchTools();
+    
+    // Check if returning from successful purchase
+    if (searchParams.get('purchase_success') === 'true') {
+      setShowPurchaseSuccess(true);
+      
+      // Refetch tools to show updated data
+      setTimeout(() => {
+        fetchTools();
+      }, 500);
+      
+      // Hide success message after 5 seconds
+      setTimeout(() => {
+        setShowPurchaseSuccess(false);
+      }, 5000);
+      
+      // Clean up URL
+      window.history.replaceState({}, '', '/backoffice');
+    }
+  }, [searchParams]); // Dependency on search params
+
   const handleLogout = async () => {
     try {
       const supabase = createClient();
@@ -130,9 +191,112 @@ export default function Backoffice() {
     setIsShareDialogOpen(false);
   };
 
-  const handleLaunchTool = (toolId: string) => {
-    console.log('UI Demo - Launching tool:', toolId);
-    alert('UI Demo - Tool launch clicked! (No actual API call)');
+  const handleLaunchTool = async (toolId: string) => {
+    if (!user) return;
+    
+    const supabase = createClient();
+    const tool = tools.find(t => t.id === toolId);
+    
+    if (!tool) {
+      alert('Tool not found');
+      return;
+    }
+
+    try {
+      const toolMetadata = tool.metadata as Record<string, unknown>;
+      const pricingOptions = toolMetadata?.pricing_options as {
+        one_time?: { enabled: boolean; price: number; description?: string };
+        subscription_monthly?: { enabled: boolean; price: number; description?: string };
+        subscription_yearly?: { enabled: boolean; price: number; description?: string };
+      } | undefined;
+
+      // Check if tool has flexible pricing options
+      if (pricingOptions) {
+        // Get all enabled pricing options
+        const enabledPrices = [];
+        if (pricingOptions.one_time?.enabled) enabledPrices.push(pricingOptions.one_time.price);
+        if (pricingOptions.subscription_monthly?.enabled) enabledPrices.push(pricingOptions.subscription_monthly.price);
+        if (pricingOptions.subscription_yearly?.enabled) enabledPrices.push(pricingOptions.subscription_yearly.price);
+
+        // Get cheapest price to check balance
+        const cheapestPrice = enabledPrices.length > 0 ? Math.min(...enabledPrices) : (tool.credit_cost_per_use || 0);
+
+        // Check if user has enough credits for cheapest option
+        if (credits < cheapestPrice) {
+          router.push(`/buy-credits?needed=${cheapestPrice}&tool_id=${tool.id}&tool_name=${encodeURIComponent(tool.name)}`);
+          return;
+        }
+
+        // Create checkout with pricing_options (user will select on checkout page)
+        const { data: checkout, error } = await supabase
+          .from('checkouts')
+          .insert({
+            user_id: user.id,
+            vendor_id: toolMetadata?.vendor_id || null, // ✅ Get from tool metadata
+            credit_amount: null, // Will be set when user selects pricing
+            type: null, // Will be set when user selects pricing
+            metadata: {
+              tool_id: tool.id,
+              tool_name: tool.name,
+              tool_url: tool.url, // ✅ Use actual tool URL
+              pricing_options: pricingOptions,
+              status: 'pending',
+            },
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Error creating checkout:', error);
+          alert('Failed to initiate checkout');
+          return;
+        }
+
+        router.push(`/credit_checkout/${checkout.id}`);
+      } else {
+        // Legacy: Single price tool
+        const toolPrice = tool.credit_cost_per_use || 0;
+
+        if (credits < toolPrice) {
+          router.push(`/buy-credits?needed=${toolPrice}&tool_id=${tool.id}&tool_name=${encodeURIComponent(tool.name)}`);
+          return;
+        }
+
+        const pricingType = toolMetadata?.pricing_type || 'one_time';
+        const subscriptionPeriod = toolMetadata?.subscription_period;
+        const checkoutType = pricingType === 'subscription' ? 'tool_subscription' : 'tool_purchase';
+
+        const { data: checkout, error } = await supabase
+          .from('checkouts')
+          .insert({
+            user_id: user.id,
+            vendor_id: toolMetadata?.vendor_id || null, // ✅ Get from tool metadata
+            credit_amount: toolPrice,
+            type: checkoutType,
+            metadata: {
+              tool_id: tool.id,
+              tool_name: tool.name,
+              tool_url: tool.url, // ✅ Use actual tool URL
+              pricing_type: pricingType,
+              subscription_period: subscriptionPeriod,
+              status: 'pending',
+            },
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Error creating checkout:', error);
+          alert('Failed to initiate checkout');
+          return;
+        }
+
+        router.push(`/credit_checkout/${checkout.id}`);
+      }
+    } catch (err) {
+      console.error('Checkout creation error:', err);
+      alert('An error occurred while creating checkout');
+    }
   };
 
   // Drag to scroll functionality
@@ -224,6 +388,20 @@ export default function Backoffice() {
   }
 
   return (
+    <>
+      {/* Success Banner */}
+      {showPurchaseSuccess && (
+        <div className="fixed top-4 right-4 z-50 bg-green-500/90 backdrop-blur text-white px-6 py-4 rounded-lg shadow-lg animate-slide-in">
+          <div className="flex items-center gap-3">
+            <Check className="w-5 h-5" />
+            <div>
+              <p className="font-semibold">Purchase Successful!</p>
+              <p className="text-sm opacity-90">Tool access granted</p>
+            </div>
+          </div>
+        </div>
+      )}
+
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex overflow-x-hidden">
       {/* Sidebar Component */}
       <Sidebar 
@@ -354,7 +532,8 @@ export default function Backoffice() {
                   </div>
                 ) : tools.length === 0 ? (
                   <div className="text-center py-8 text-[#9ca3af]">
-                    <p>No tools available</p>
+                    <p>No tools available yet</p>
+                    <p className="text-[#6b7280] text-sm mt-2">Check back soon for new tools!</p>
                   </div>
                 ) : (
                   <div 
@@ -375,7 +554,9 @@ export default function Backoffice() {
                           <p className="text-[#9ca3af] text-sm mb-2 line-clamp-2 flex-1">{tool.description}</p>
                           <div className="flex items-center justify-between mt-auto">
                             <div className="flex items-center gap-1">
-                              <span className="text-[#3ecf8e] font-bold text-sm">{tool.credit_cost_per_use} credits</span>
+                              <span className="text-[#3ecf8e] font-bold text-sm">
+                                {tool.metadata?.pricing_options ? 'Multiple options' : `${tool.credit_cost_per_use || 0} credits`}
+                              </span>
                             </div>
                             <span className="bg-[#3ecf8e] text-black px-2 py-1 rounded text-sm font-bold">Active</span>
                           </div>
@@ -396,20 +577,7 @@ export default function Backoffice() {
 
             {/* Desktop Carousel */}
             <div className="mb-8 hidden sm:block">
-              {toolsLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3ecf8e]"></div>
-                  <span className="ml-2 text-[#9ca3af]">Loading tools...</span>
-                </div>
-              ) : toolsError ? (
-                <div className="text-center py-8 text-red-400">
-                  <p>Error loading tools: {toolsError}</p>
-                </div>
-              ) : tools.length === 0 ? (
-                <div className="text-center py-8 text-[#9ca3af]">
-                  <p>No tools available</p>
-                </div>
-              ) : (
+              {!toolsLoading && !toolsError && tools.length > 0 && (
                 <div 
                   ref={carouselRef}
                   className="flex gap-6 overflow-x-auto pb-4 scrollbar-hide cursor-grab select-none" 
@@ -430,7 +598,9 @@ export default function Backoffice() {
                         <p className="text-[#9ca3af] text-xs mb-2 flex-1">{tool.description}</p>
                         <div className="flex items-center justify-between mt-auto">
                           <div className="flex items-center gap-2">
-                            <span className="text-[#3ecf8e] font-bold">{tool.credit_cost_per_use} credits</span>
+                            <span className="text-[#3ecf8e] font-bold">
+                              {tool.metadata?.pricing_options ? 'Multiple options' : `${tool.credit_cost_per_use || 0} credits`}
+                            </span>
                           </div>
                           <span className="bg-[#3ecf8e] text-black px-2 py-1 rounded text-xs font-bold">Active</span>
                         </div>
@@ -473,7 +643,9 @@ export default function Backoffice() {
                         <p className="text-[#9ca3af] text-xs mb-2 flex-1">{tool.description}</p>
                         <div className="flex items-center justify-between mt-auto">
                           <div className="flex items-center gap-2">
-                            <span className="text-[#3ecf8e] font-bold">{tool.credit_cost_per_use} credits</span>
+                            <span className="text-[#3ecf8e] font-bold">
+                              {tool.metadata?.pricing_options ? 'Multiple options' : `${tool.credit_cost_per_use || 0} credits`}
+                            </span>
                           </div>
                           <span className="bg-[#3ecf8e] text-black px-2 py-1 rounded text-xs font-bold">Active</span>
                         </div>
@@ -516,6 +688,22 @@ export default function Backoffice() {
         onClose={closeShareDialog} 
       />
     </div>
+    </>
+  );
+}
+
+export default function Backoffice() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#3ecf8e] border-r-transparent"></div>
+          <p className="mt-4 text-[#9ca3af]">Loading...</p>
+        </div>
+      </div>
+    }>
+      <BackofficeContent />
+    </Suspense>
   );
 }
 

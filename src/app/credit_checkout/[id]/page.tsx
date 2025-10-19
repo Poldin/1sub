@@ -1,122 +1,285 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { CreditCard, Calendar, Lock, Check } from 'lucide-react';
+import { Lock, Check, ExternalLink, Wrench, AlertCircle, Loader2 } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 
-type PaymentMode = 'subscription' | 'one-time' | 'donation';
-type BillingPeriod = 'monthly' | 'yearly';
+interface PricingOption {
+  enabled: boolean;
+  price: number;
+  description?: string;
+}
 
-interface FormData {
+interface CheckoutData {
+  id: string;
+  user_id: string;
+  vendor_id: string | null;
+  credit_amount: number | null;
+  type: string | null;
+  created_at: string;
+  metadata: {
+    tool_id: string;
+    tool_name: string;
+    tool_url: string;
+    status: 'pending' | 'completed' | 'failed';
+    completed_at?: string;
+    pricing_type?: string;
+    subscription_period?: string;
+    selected_pricing?: string;
+    pricing_options?: {
+      one_time?: PricingOption;
+      subscription_monthly?: PricingOption;
+      subscription_yearly?: PricingOption;
+    };
+  };
+}
+
+interface UserData {
+  id: string;
   email: string;
-  name: string;
-  cardNumber: string;
-  expiryDate: string;
-  cvv: string;
-  billingAddress: string;
-  zipCode: string;
-  country: string;
-  donationAmount: string;
+  credits: number;
+}
+
+interface VendorData {
+  id: string;
+  full_name: string;
 }
 
 export default function CreditCheckoutPage() {
   const router = useRouter();
   const params = useParams();
-  const id = params.id as string;
+  const checkoutId = params.id as string;
 
-  const [paymentMode, setPaymentMode] = useState<PaymentMode>('one-time');
-  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('monthly');
+  const [checkout, setCheckout] = useState<CheckoutData | null>(null);
+  const [user, setUser] = useState<UserData | null>(null);
+  const [vendor, setVendor] = useState<VendorData | null>(null);
+  const [loading, setLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [showBillingAddress, setShowBillingAddress] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedPricing, setSelectedPricing] = useState<'one_time' | 'subscription_monthly' | 'subscription_yearly' | null>(null);
 
-  const [formData, setFormData] = useState<FormData>({
-    email: '',
-    name: '',
-    cardNumber: '',
-    expiryDate: '',
-    cvv: '',
-    billingAddress: '',
-    zipCode: '',
-    country: '',
-    donationAmount: '10'
-  });
+  // Fetch checkout data
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const supabase = createClient();
 
-  // Sample prices and credits
-  const prices = {
-    'one-time': 29.99,
-    'subscription-monthly': 9.99,
-    'subscription-yearly': 99.99,
-  };
+        // Check authentication
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+        
+        if (authError || !authUser) {
+          router.push(`/login?redirect=/credit_checkout/${checkoutId}`);
+          return;
+        }
 
-  const credits = {
-    'one-time': 100,
-    'subscription-monthly': 50,
-    'subscription-yearly': 600,
-  };
+        // Fetch checkout record
+        const { data: checkoutData, error: checkoutError } = await supabase
+          .from('checkouts')
+          .select('*')
+          .eq('id', checkoutId)
+          .single();
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    
-    // Auto-format card number
-    if (name === 'cardNumber') {
-      const cleaned = value.replace(/\s/g, '');
-      const formatted = cleaned.match(/.{1,4}/g)?.join(' ') || cleaned;
-      setFormData(prev => ({ ...prev, [name]: formatted }));
-      return;
-    }
-    
-    // Auto-format expiry date
-    if (name === 'expiryDate') {
-      const cleaned = value.replace(/\D/g, '');
-      let formatted = cleaned;
-      if (cleaned.length >= 2) {
-        formatted = cleaned.slice(0, 2) + '/' + cleaned.slice(2, 4);
+        if (checkoutError || !checkoutData) {
+          setError('Checkout not found');
+          setLoading(false);
+          return;
+        }
+
+        // Verify user owns this checkout
+        if (checkoutData.user_id !== authUser.id) {
+          setError('Unauthorized access to this checkout');
+          setLoading(false);
+          return;
+        }
+
+        setCheckout(checkoutData as CheckoutData);
+
+        // Fetch user profile with credits
+        const response = await fetch('/api/user/profile');
+        if (response.ok) {
+          const userData = await response.json();
+          setUser({
+            id: userData.id,
+            email: userData.email,
+            credits: userData.credits || 0,
+          });
+        }
+
+        // Fetch vendor information if vendor_id exists
+        if (checkoutData.vendor_id) {
+          const { data: vendorData } = await supabase
+            .from('user_profiles')
+            .select('id, full_name')
+            .eq('id', checkoutData.vendor_id)
+            .single();
+
+          if (vendorData) {
+            setVendor(vendorData);
+          }
+        }
+
+        // Auto-select pricing if only one option available or if already selected
+        if (checkoutData.metadata.selected_pricing) {
+          setSelectedPricing(checkoutData.metadata.selected_pricing as 'one_time' | 'subscription_monthly' | 'subscription_yearly');
+        } else if (checkoutData.metadata.pricing_options) {
+          const options = checkoutData.metadata.pricing_options;
+          const enabledOptions = [
+            options.one_time?.enabled && 'one_time',
+            options.subscription_monthly?.enabled && 'subscription_monthly',
+            options.subscription_yearly?.enabled && 'subscription_yearly',
+          ].filter(Boolean);
+          
+          // Auto-select if only one option
+          if (enabledOptions.length === 1) {
+            setSelectedPricing(enabledOptions[0] as 'one_time' | 'subscription_monthly' | 'subscription_yearly');
+          }
+        }
+
+        setLoading(false);
+      } catch (err) {
+        console.error('Error fetching checkout data:', err);
+        setError('Failed to load checkout');
+        setLoading(false);
       }
-      setFormData(prev => ({ ...prev, [name]: formatted }));
+    };
+
+    fetchData();
+  }, [checkoutId, router]);
+
+  const handleConfirmPurchase = async () => {
+    if (!checkout || !user) return;
+
+    // Check if already completed
+    if (checkout.metadata.status === 'completed') {
+      // Open tool and redirect
+      window.open(checkout.metadata.tool_url, '_blank');
+      router.push('/backoffice?purchase_success=true');
       return;
     }
+
+    // For flexible pricing, ensure option is selected
+    const hasPricingOptions = checkout.metadata.pricing_options && 
+      Object.values(checkout.metadata.pricing_options).some(opt => opt?.enabled);
     
-    // Limit CVV to 3-4 digits
-    if (name === 'cvv') {
-      const cleaned = value.replace(/\D/g, '').slice(0, 4);
-      setFormData(prev => ({ ...prev, [name]: cleaned }));
+    if (hasPricingOptions && !selectedPricing) {
+      setError('Please select a payment method');
       return;
     }
 
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
+    // Get the selected price
+    const selectedPrice = selectedPricing && checkout.metadata.pricing_options?.[selectedPricing]?.price || checkout.credit_amount || 0;
 
-  const getCurrentPrice = () => {
-    if (paymentMode === 'donation') {
-      return parseFloat(formData.donationAmount) || 0;
+    // Check sufficient credits
+    if (user.credits < selectedPrice) {
+      setError(`Insufficient credits. You need ${selectedPrice} credits but only have ${user.credits}.`);
+      return;
     }
-    if (paymentMode === 'subscription') {
-      return prices[`subscription-${billingPeriod}`];
-    }
-    return prices['one-time'];
-  };
 
-  const getCurrentCredits = () => {
-    if (paymentMode === 'donation') {
-      // For donations: 10 credits per dollar
-      return Math.floor((parseFloat(formData.donationAmount) || 0) * 10);
-    }
-    if (paymentMode === 'subscription') {
-      return credits[`subscription-${billingPeriod}`];
-    }
-    return credits['one-time'];
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
     setIsProcessing(true);
-    
-    // Payment process simulation
-    setTimeout(() => {
+    setError(null);
+
+    try {
+      const response = await fetch('/api/checkout/process', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          checkout_id: checkout.id,
+          selected_pricing: selectedPricing,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || 'Purchase failed');
+        setIsProcessing(false);
+        return;
+      }
+
+          // Success! Open tool URL from checkout metadata
+          const toolUrl = checkout.metadata.tool_url || data.tool_url;
+          
+          if (toolUrl && toolUrl !== 'https://example.com/tool/' && !toolUrl.includes('example.com')) {
+            window.open(toolUrl, '_blank');
+          } else {
+            console.warn('Invalid tool URL:', toolUrl);
+            alert('Tool purchased successfully, but URL is not configured. Please contact the vendor.');
+          }
+          
+          // Update local state immediately
+          setCheckout(prev => prev ? {
+            ...prev,
+            metadata: { ...prev.metadata, status: 'completed', completed_at: new Date().toISOString() }
+          } : null);
+          
+          // Redirect to backoffice
+          setTimeout(() => {
+            router.push('/backoffice?purchase_success=true');
+          }, 1000);
+
+    } catch (err) {
+      console.error('Purchase error:', err);
+      setError('An unexpected error occurred. Please try again.');
       setIsProcessing(false);
-      alert('Payment processed successfully! (Demo)');
-    }, 2000);
+    }
   };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="inline-block h-8 w-8 animate-spin text-[#3ecf8e]" />
+          <p className="mt-4 text-[#9ca3af]">Loading checkout...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state - checkout not found
+  if (!checkout || error) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex items-center justify-center px-4">
+        <div className="text-center max-w-md">
+          <div className="bg-red-400/10 border border-red-400/20 rounded-lg p-6 mb-6">
+            <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-red-400 mb-2">Checkout Error</h2>
+            <p className="text-[#9ca3af]">{error || 'The requested checkout does not exist.'}</p>
+          </div>
+          <button
+            onClick={() => router.push('/backoffice')}
+            className="bg-[#3ecf8e] text-black px-6 py-3 rounded-lg font-semibold hover:bg-[#2dd4bf]"
+          >
+            Return to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Helper functions
+  const hasPricingOptions = checkout.metadata.pricing_options && 
+    Object.values(checkout.metadata.pricing_options).some(opt => opt?.enabled);
+  
+  const getSelectedPrice = () => {
+    if (hasPricingOptions && selectedPricing && checkout.metadata.pricing_options?.[selectedPricing]) {
+      return checkout.metadata.pricing_options[selectedPricing].price;
+    }
+    return checkout.credit_amount || 0;
+  };
+
+  const selectedPrice = getSelectedPrice();
+  const hasEnoughCredits = user && user.credits >= selectedPrice;
+  const isCompleted = checkout.metadata.status === 'completed';
+  const balanceAfter = user ? user.credits - selectedPrice : 0;
+  const isSubscription = selectedPricing?.includes('subscription') || checkout.type === 'tool_subscription';
+  const pricingType = checkout.metadata.pricing_type || 'one_time';
+  const subscriptionPeriod = checkout.metadata.subscription_period || 
+    (selectedPricing === 'subscription_monthly' ? 'monthly' : selectedPricing === 'subscription_yearly' ? 'yearly' : null);
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed]">
@@ -125,249 +288,300 @@ export default function CreditCheckoutPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <button
-              onClick={() => router.push('/')}
+              onClick={() => router.push('/backoffice')}
               className="text-2xl font-bold text-[#3ecf8e] hover:text-[#2dd4bf] transition-colors"
             >
               1sub<span className="text-[#9ca3af] font-normal">.io</span>
             </button>
-            <div className="flex items-center space-x-2 text-sm text-[#9ca3af]">
-              <Lock className="w-4 h-4" />
-              <span>Secure Payment</span>
+            <div className="flex items-center space-x-4">
+              <div className="text-sm text-[#9ca3af]">
+                Balance: <span className="text-[#3ecf8e] font-semibold">{user?.credits.toFixed(2) || 0} credits</span>
+              </div>
+              <div className="flex items-center space-x-2 text-sm text-[#9ca3af]">
+                <Lock className="w-4 h-4" />
+                <span>Secure</span>
+              </div>
             </div>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="max-w-6xl mx-auto px-4 py-12">
-        <div className="grid lg:grid-cols-2 gap-8">
-          {/* Left Side - Payment Form */}
-          <div className="space-y-6">
-            {/* Payment Mode Selector */}
-            <div className="bg-[#1f2937]/90 backdrop-blur-lg rounded-2xl p-6 border border-[#374151]/70">
-              <h2 className="text-xl font-semibold mb-4">Payment Method</h2>
-              
-              <div className="space-y-3">
-                {/* One-time Payment */}
-                <button
-                  type="button"
-                  onClick={() => setPaymentMode('one-time')}
-                  className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
-                    paymentMode === 'one-time'
-                      ? 'border-[#3ecf8e] bg-[#3ecf8e]/10'
-                      : 'border-[#374151] hover:border-[#4b5563]'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-semibold">One-time Payment</div>
-                      <div className="text-sm text-[#9ca3af]">Single purchase</div>
-                    </div>
-                    <div className="text-xl font-bold text-[#3ecf8e]">{credits['one-time']} credits</div>
-                  </div>
-                </button>
-
-                {/* Subscription */}
-                <button
-                  type="button"
-                  onClick={() => setPaymentMode('subscription')}
-                  className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
-                    paymentMode === 'subscription'
-                      ? 'border-[#3ecf8e] bg-[#3ecf8e]/10'
-                      : 'border-[#374151] hover:border-[#4b5563]'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="font-semibold">Subscription</div>
-                      <div className="text-sm text-[#9ca3af] mb-3">Auto-renewal</div>
-                      
-                      {paymentMode === 'subscription' && (
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setBillingPeriod('monthly');
-                            }}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                              billingPeriod === 'monthly'
-                                ? 'bg-[#3ecf8e] text-black'
-                                : 'bg-[#374151] text-[#9ca3af] hover:bg-[#4b5563]'
-                            }`}
-                          >
-                            Monthly
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setBillingPeriod('yearly');
-                            }}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                              billingPeriod === 'yearly'
-                                ? 'bg-[#3ecf8e] text-black'
-                                : 'bg-[#374151] text-[#9ca3af] hover:bg-[#4b5563]'
-                            }`}
-                          >
-                            Yearly
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    <div className="text-xl font-bold text-[#3ecf8e]">
-                      {billingPeriod === 'monthly' ? credits['subscription-monthly'] : credits['subscription-yearly']}
-                      <span className="text-sm text-[#9ca3af] font-normal">
-                        {' '}credits/{billingPeriod === 'monthly' ? 'mo' : 'yr'}
-                      </span>
-                    </div>
-                  </div>
-                </button>
-
-                {/* Donation */}
-                <button
-                  type="button"
-                  onClick={() => setPaymentMode('donation')}
-                  className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
-                    paymentMode === 'donation'
-                      ? 'border-[#3ecf8e] bg-[#3ecf8e]/10'
-                      : 'border-[#374151] hover:border-[#4b5563]'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="font-semibold">Donation</div>
-                      <div className="text-sm text-[#9ca3af] mb-3">10 credits per dollar</div>
-                      
-                      {paymentMode === 'donation' && (
-                        <div className="flex gap-2 flex-wrap">
-                          {['5', '10', '25', '50'].map((amount) => (
-                            <button
-                              key={amount}
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setFormData(prev => ({ ...prev, donationAmount: amount }));
-                              }}
-                              className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                                formData.donationAmount === amount
-                                  ? 'bg-[#3ecf8e] text-black'
-                                  : 'bg-[#374151] text-[#9ca3af] hover:bg-[#4b5563]'
-                              }`}
-                            >
-                              {parseInt(amount) * 10} cr
-                            </button>
-                          ))}
-                          <input
-                            type="number"
-                            name="donationAmount"
-                            value={formData.donationAmount}
-                            onChange={handleInputChange}
-                            onClick={(e) => e.stopPropagation()}
-                            className="w-20 px-3 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#3ecf8e]"
-                            placeholder="$"
-                          />
-                        </div>
-                      )}
-                    </div>
-                    {paymentMode === 'donation' && (
-                      <div className="text-xl font-bold text-[#3ecf8e]">
-                        {getCurrentCredits()} credits
-                      </div>
-                    )}
-                  </div>
-                </button>
+      <main className="max-w-3xl mx-auto px-4 py-12">
+        {/* Subscription Badge */}
+        {isSubscription && !isCompleted && (
+          <div className="bg-blue-400/10 border border-blue-400/20 rounded-lg p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <div className="bg-blue-400 p-2 rounded-lg">
+                <span className="text-white text-lg">🔄</span>
+              </div>
+              <div>
+                <p className="text-blue-400 font-medium">Subscription Tool</p>
+                <p className="text-sm text-[#9ca3af] mt-1">
+                  You&apos;ll be charged <span className="text-[#ededed] font-semibold">{checkout.credit_amount} credits</span> every {subscriptionPeriod}. You can cancel anytime from your profile.
+                </p>
               </div>
             </div>
           </div>
+        )}
 
-          {/* Right Side - Order Summary */}
-          <div className="lg:sticky lg:top-8 h-fit">
-            <div className="bg-[#1f2937]/90 backdrop-blur-lg rounded-2xl p-6 border border-[#374151]/70 space-y-6">
-              <h2 className="text-xl font-semibold">Order Summary</h2>
+        {/* Completed Badge */}
+        {isCompleted && (
+          <div className="bg-green-400/10 border border-green-400/20 rounded-lg p-4 mb-6">
+            <div className="flex items-center gap-3">
+              <Check className="w-5 h-5 text-green-400" />
+              <div>
+                <p className="text-green-400 font-medium">Purchase Completed</p>
+                <p className="text-sm text-[#9ca3af]">
+                  Completed on {new Date(checkout.metadata.completed_at!).toLocaleString()}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
-              {/* Order Details */}
-              <div className="space-y-4">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <div className="font-medium">1sub.io Credits</div>
-                    <div className="text-sm text-[#9ca3af]">ID: {id}</div>
-                    {paymentMode === 'subscription' && (
-                      <div className="text-sm text-[#9ca3af] mt-1">
-                        {billingPeriod === 'monthly' ? 'Monthly' : 'Yearly'} subscription
+        <div className="bg-[#1f2937]/90 backdrop-blur-lg rounded-2xl overflow-hidden border border-[#374151]/70">
+          {/* Tool Preview */}
+          <div className="bg-gradient-to-br from-[#3ecf8e] to-[#2dd4bf] p-8 text-center">
+            <div className="inline-block bg-white/20 p-4 rounded-full mb-4">
+              <Wrench className="w-12 h-12 text-white" />
+            </div>
+            <h1 className="text-3xl font-bold text-white mb-2">{checkout.metadata.tool_name}</h1>
+            <p className="text-white/80">Confirm your purchase to access this tool</p>
+          </div>
+
+          {/* Purchase Details */}
+          <div className="p-8 space-y-6">
+            {/* Payment Method Selector - Show if multiple options available */}
+            {hasPricingOptions && !isCompleted && (
+              <div className="space-y-3">
+                <h3 className="font-semibold text-[#ededed] mb-4">Payment Method</h3>
+                
+                {checkout.metadata.pricing_options?.one_time?.enabled && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPricing('one_time')}
+                    className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
+                      selectedPricing === 'one_time'
+                        ? 'border-[#3ecf8e] bg-[#3ecf8e]/10'
+                        : 'border-[#374151] hover:border-[#4b5563]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-semibold text-[#ededed]">One-time Payment</div>
+                        <div className="text-sm text-[#9ca3af] mt-1">
+                          {checkout.metadata.pricing_options.one_time.description || 'Lifetime access'}
+                        </div>
                       </div>
-                    )}
-                  </div>
-                  <div className="text-lg font-semibold text-[#3ecf8e]">
-                    {getCurrentCredits()} credits
-                  </div>
-                </div>
+                      <div className="text-xl font-bold text-[#3ecf8e]">
+                        {checkout.metadata.pricing_options.one_time.price} credits
+                      </div>
+                    </div>
+                  </button>
+                )}
+                
+                {checkout.metadata.pricing_options?.subscription_monthly?.enabled && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPricing('subscription_monthly')}
+                    className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
+                      selectedPricing === 'subscription_monthly'
+                        ? 'border-[#3ecf8e] bg-[#3ecf8e]/10'
+                        : 'border-[#374151] hover:border-[#4b5563]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-semibold text-[#ededed]">Monthly Subscription</div>
+                        <div className="text-sm text-[#9ca3af] mt-1">
+                          {checkout.metadata.pricing_options.subscription_monthly.description || 'Billed every month'}
+                        </div>
+                      </div>
+                      <div className="text-xl font-bold text-[#3ecf8e]">
+                        {checkout.metadata.pricing_options.subscription_monthly.price} credits/mo
+                      </div>
+                    </div>
+                  </button>
+                )}
+                
+                {checkout.metadata.pricing_options?.subscription_yearly?.enabled && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPricing('subscription_yearly')}
+                    className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
+                      selectedPricing === 'subscription_yearly'
+                        ? 'border-[#3ecf8e] bg-[#3ecf8e]/10'
+                        : 'border-[#374151] hover:border-[#4b5563]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-semibold text-[#ededed]">Yearly Subscription</div>
+                        <div className="text-sm text-[#9ca3af] mt-1">
+                          {checkout.metadata.pricing_options.subscription_yearly.description || 'Best value - Billed every year'}
+                        </div>
+                      </div>
+                      <div className="text-xl font-bold text-[#3ecf8e]">
+                        {checkout.metadata.pricing_options.subscription_yearly.price} credits/yr
+                      </div>
+                    </div>
+                  </button>
+                )}
+              </div>
+            )}
 
-                <div className="border-t border-[#374151] pt-4">
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className="text-[#9ca3af]">Subtotal</span>
-                    <span>{getCurrentPrice().toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className="text-[#9ca3af]">VAT (22%)</span>
-                    <span>{(getCurrentPrice() * 0.22).toFixed(2)}</span>
-                  </div>
+            {/* Purchase Summary */}
+            <div className="bg-[#0a0a0a]/50 rounded-lg p-6 border border-[#374151]">
+              <h3 className="font-semibold text-[#ededed] mb-4">Purchase Summary</h3>
+              
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-[#9ca3af]">Tool Access:</span>
+                  <span className="text-[#ededed] font-medium">{checkout.metadata.tool_name}</span>
                 </div>
-
-                <div className="border-t border-[#374151] pt-4">
-                  <div className="flex justify-between items-center text-xl font-bold">
-                    <span>Total</span>
-                    <span>{(getCurrentPrice() * 1.22).toFixed(2)}</span>
+                
+                {vendor && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[#9ca3af]">Vendor:</span>
+                    <span className="text-[#ededed] font-medium">{vendor.full_name}</span>
                   </div>
-                  {paymentMode === 'subscription' && (
-                    <div className="text-sm text-[#9ca3af] mt-1">
-                      Billed every {billingPeriod === 'monthly' ? 'month' : 'year'}
+                )}
+                
+                {hasPricingOptions && selectedPricing && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[#9ca3af]">Selected:</span>
+                    <span className="text-[#ededed] font-medium">
+                      {selectedPricing === 'one_time' ? 'One-time Payment' : 
+                       selectedPricing === 'subscription_monthly' ? 'Monthly Subscription' : 
+                       'Yearly Subscription'}
+                    </span>
+                  </div>
+                )}
+                
+                <div className="flex justify-between text-sm">
+                  <span className="text-[#9ca3af]">Cost:</span>
+                  <span className="text-[#3ecf8e] font-bold">
+                    {selectedPrice} credits{isSubscription && subscriptionPeriod ? `/${subscriptionPeriod === 'monthly' ? 'mo' : 'yr'}` : ''}
+                  </span>
+                </div>
+                
+                <div className="border-t border-[#374151] pt-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[#9ca3af]">Your Balance:</span>
+                    <span className="text-[#ededed] font-medium">{user?.credits.toFixed(2)} credits</span>
+                  </div>
+                  
+                  {!isCompleted && (
+                    <div className="flex justify-between text-sm mt-2">
+                      <span className="text-[#9ca3af]">After Purchase:</span>
+                      <span className={`font-bold ${hasEnoughCredits ? 'text-[#3ecf8e]' : 'text-red-400'}`}>
+                        {balanceAfter.toFixed(2)} credits
+                      </span>
                     </div>
                   )}
                 </div>
               </div>
+            </div>
 
-              {/* Pay Button */}
-              <button
-                type="submit"
-                onClick={handleSubmit}
-                disabled={isProcessing}
-                className="w-full bg-[#3ecf8e] text-black font-semibold py-4 px-6 rounded-lg hover:bg-[#2dd4bf] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2"
-              >
-                {isProcessing ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <Lock className="w-5 h-5" />
-                    Pay {(getCurrentPrice() * 1.22).toFixed(2)}
-                  </>
-                )}
-              </button>
+            {/* Insufficient Credits Warning */}
+            {!hasEnoughCredits && !isCompleted && (
+              <div className="bg-red-400/10 border border-red-400/20 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-red-400 font-medium mb-2">Insufficient Credits</p>
+                    <p className="text-sm text-[#9ca3af] mb-3">
+                      You need {checkout.credit_amount} credits but only have {user?.credits.toFixed(2)} credits.
+                    </p>
+                    <button
+                      onClick={() => router.push('/pricing')}
+                      className="text-sm text-[#3ecf8e] hover:text-[#2dd4bf] font-medium underline"
+                    >
+                      Buy More Credits →
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
-              {/* Security Badges */}
-              <div className="space-y-3 pt-4 border-t border-[#374151]">
+            {/* Error Message */}
+            {error && !isCompleted && (
+              <div className="bg-red-400/10 border border-red-400/20 rounded-lg p-4">
+                <p className="text-red-400 text-sm">{error}</p>
+              </div>
+            )}
+
+            {/* What's Included */}
+            <div className="space-y-3">
+              <h4 className="font-semibold text-[#ededed]">What you get:</h4>
+              <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm text-[#9ca3af]">
                   <Check className="w-4 h-4 text-[#3ecf8e]" />
-                  <span>Secure transaction with SSL encryption</span>
+                  <span>Instant access to {checkout.metadata.tool_name}</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-[#9ca3af]">
                   <Check className="w-4 h-4 text-[#3ecf8e]" />
-                  <span>No data stored on our servers</span>
+                  <span>Secure and private connection</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-[#9ca3af]">
                   <Check className="w-4 h-4 text-[#3ecf8e]" />
-                  <span>Protected by Stripe</span>
+                  <span>Transaction recorded in your history</span>
                 </div>
-                {paymentMode === 'subscription' && (
+                {vendor && (
                   <div className="flex items-center gap-2 text-sm text-[#9ca3af]">
                     <Check className="w-4 h-4 text-[#3ecf8e]" />
-                    <span>You can cancel anytime</span>
+                    <span>Support vendor: {vendor.full_name}</span>
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-4 pt-4">
+              <button
+                onClick={() => router.push('/backoffice')}
+                className="flex-1 bg-[#374151] text-[#ededed] font-semibold py-4 px-6 rounded-lg hover:bg-[#4b5563] transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmPurchase}
+                disabled={(!hasEnoughCredits && !isCompleted) || isProcessing || (hasPricingOptions && !selectedPricing && !isCompleted)}
+                className="flex-1 bg-[#3ecf8e] text-black font-semibold py-4 px-6 rounded-lg hover:bg-[#2dd4bf] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Processing...
+                  </>
+                ) : isCompleted ? (
+                  <>
+                    <ExternalLink className="w-5 h-5" />
+                    Open Tool Again
+                  </>
+                ) : hasPricingOptions && !selectedPricing ? (
+                  <>
+                    <ExternalLink className="w-5 h-5" />
+                    Select Payment Method
+                  </>
+                ) : isSubscription ? (
+                  <>
+                    <ExternalLink className="w-5 h-5" />
+                    Subscribe & Launch ({selectedPrice} credits/{subscriptionPeriod === 'monthly' ? 'mo' : 'yr'})
+                  </>
+                ) : (
+                  <>
+                    <ExternalLink className="w-5 h-5" />
+                    Confirm & Launch ({selectedPrice} credits)
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Checkout Info */}
+            <div className="text-center text-xs text-[#9ca3af] pt-4 border-t border-[#374151]">
+              Checkout ID: {checkout.id.slice(0, 8)}...
             </div>
           </div>
         </div>
@@ -375,4 +589,3 @@ export default function CreditCheckoutPage() {
     </div>
   );
 }
-
