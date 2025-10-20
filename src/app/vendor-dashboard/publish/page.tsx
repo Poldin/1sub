@@ -2,18 +2,18 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { Menu, ArrowLeft, Eye } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import VendorSidebar from '../components/VendorSidebar';
+import Footer from '../../components/Footer';
 
 export default function PublishToolPage() {
   const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1); // Step 1: Name & Image, Step 2: Rest of form
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    category: '',
     apiEndpoint: '',
     icon: ''
   });
@@ -35,9 +35,84 @@ export default function PublishToolPage() {
     }
   });
   const [isPublishing, setIsPublishing] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>('');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleStep1Submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!imageFile) {
+      alert('Please select an image for your tool');
+      return;
+    }
+
+    setIsUploadingImage(true);
+
+    try {
+      const supabase = createClient();
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !authUser) {
+        alert('You must be logged in to publish tools');
+        setIsUploadingImage(false);
+        return;
+      }
+
+      // Upload image to Supabase Storage
+      const fileExt = imageFile.name.split('.').pop();
+      const fileName = `${authUser.id}-${Date.now()}.${fileExt}`;
+      const filePath = `tool-images/${fileName}`;
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('allfile')
+        .upload(filePath, imageFile, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        alert('Failed to upload image: ' + uploadError.message);
+        setIsUploadingImage(false);
+        return;
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('allfile')
+        .getPublicUrl(filePath);
+
+      // Save image URL to form data
+      setFormData({
+        ...formData,
+        icon: publicUrl
+      });
+
+      setIsUploadingImage(false);
+      setCurrentStep(2); // Move to step 2
+    } catch (err) {
+      console.error('Error uploading image:', err);
+      alert('Failed to upload image');
+      setIsUploadingImage(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -97,15 +172,6 @@ export default function PublishToolPage() {
         };
       }
       
-      const toolMetadata = {
-        ...formData,
-        metadata: {
-          pricing_options,
-          api_endpoint: formData.apiEndpoint,
-          icon: formData.icon
-        }
-      };
-      
       // Get authenticated user (vendor)
       const supabase = createClient();
       const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
@@ -127,7 +193,6 @@ export default function PublishToolPage() {
           metadata: {
             pricing_options,
             icon: formData.icon,
-            category: formData.category,
             vendor_id: authUser.id, // Store vendor in metadata for now
           }
         })
@@ -191,67 +256,138 @@ export default function PublishToolPage() {
           </div>
         </header>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Form */}
-          <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
-            <h2 className="text-lg font-semibold text-[#ededed] mb-6">Tool Information</h2>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div>
-                <label htmlFor="name" className="block text-sm font-medium text-[#d1d5db] mb-2">
-                  Tool Name *
-                </label>
-                <input
-                  type="text"
-                  id="name"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
-                  placeholder="AI Content Generator"
-                  required
-                />
-              </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Step Indicator */}
+        <div className="flex items-center justify-center mb-8">
+          <div className="flex items-center">
+            <div className={`flex items-center justify-center w-10 h-10 rounded-full ${currentStep >= 1 ? 'bg-[#3ecf8e] text-black' : 'bg-[#374151] text-[#9ca3af]'} font-semibold`}>
+              1
+            </div>
+            <div className={`w-24 h-1 ${currentStep >= 2 ? 'bg-[#3ecf8e]' : 'bg-[#374151]'}`}></div>
+            <div className={`flex items-center justify-center w-10 h-10 rounded-full ${currentStep >= 2 ? 'bg-[#3ecf8e] text-black' : 'bg-[#374151] text-[#9ca3af]'} font-semibold`}>
+              2
+            </div>
+          </div>
+        </div>
 
-              <div>
-                <label htmlFor="description" className="block text-sm font-medium text-[#d1d5db] mb-2">
-                  Description *
-                </label>
-                <textarea
-                  id="description"
-                  name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  rows={3}
-                  className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
-                  placeholder="Generate high-quality content with advanced AI..."
-                  required
-                />
-              </div>
+        <div className={`grid gap-6 ${currentStep === 1 ? 'grid-cols-1 lg:grid-cols-[2fr_1fr]' : 'grid-cols-1 lg:grid-cols-2'}`}>
+          {/* Step 1: Name, Image & Description */}
+          {currentStep === 1 && (
+            <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
+              <h2 className="text-lg font-semibold text-[#ededed] mb-6">Step 1: Basic Information</h2>
+              <form id="step1-form" onSubmit={handleStep1Submit} className="space-y-6">
+                {/* Name and Image Side by Side */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="name" className="block text-sm font-medium text-[#d1d5db] mb-2">
+                      Tool Name *
+                    </label>
+                    <input
+                      type="text"
+                      id="name"
+                      name="name"
+                      value={formData.name}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
+                      placeholder="AI Content Generator"
+                      required
+                    />
+                  </div>
 
-              <div>
-                <label htmlFor="category" className="block text-sm font-medium text-[#d1d5db] mb-2">
-                  Category *
-                </label>
-                <select
-                  id="category"
-                  name="category"
-                  value={formData.category}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
-                  required
+                  <div>
+                    <label htmlFor="image" className="block text-sm font-medium text-[#d1d5db] mb-2">
+                      Tool Image *
+                    </label>
+                    <div className={`flex items-center gap-3 border-2 border-[#4b5563] border-dashed rounded-lg hover:border-[#3ecf8e] transition-colors ${imagePreview ? 'p-1' : 'p-1'}`}>
+                      {imagePreview ? (
+                        <>
+                          <img src={imagePreview} alt="Preview" className="h-10 w-10 object-cover rounded-lg flex-shrink-0" />
+                          <label
+                            htmlFor="file-upload"
+                            className="relative cursor-pointer rounded-md font-medium text-[#3ecf8e] hover:text-[#2dd4bf] text-sm"
+                          >
+                            <span>Change image</span>
+                            <input
+                              id="file-upload"
+                              name="file-upload"
+                              type="file"
+                              accept="image/*"
+                              className="sr-only"
+                              onChange={handleImageChange}
+                            />
+                          </label>
+                        </>
+                      ) : (
+                        <>
+                          <svg
+                            className="h-10 w-10 text-[#9ca3af] flex-shrink-0"
+                            stroke="currentColor"
+                            fill="none"
+                            viewBox="0 0 48 48"
+                            aria-hidden="true"
+                          >
+                            <path
+                              d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                              strokeWidth={2}
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                          <label
+                            htmlFor="file-upload"
+                            className="relative cursor-pointer rounded-md font-medium text-[#3ecf8e] hover:text-[#2dd4bf] text-sm"
+                          >
+                            <span>Upload image</span>
+                            <input
+                              id="file-upload"
+                              name="file-upload"
+                              type="file"
+                              accept="image/*"
+                              className="sr-only"
+                              onChange={handleImageChange}
+                              required={!imageFile}
+                            />
+                          </label>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Description - Full Width Below */}
+                <div>
+                  <label htmlFor="description" className="block text-sm font-medium text-[#d1d5db] mb-2">
+                    Tool Description *
+                  </label>
+                  <textarea
+                    id="description"
+                    name="description"
+                    value={formData.description}
+                    onChange={handleInputChange}
+                    rows={10}
+                    className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent resize-y"
+                    placeholder="Generate high-quality content with advanced AI. Perfect for content creators, marketers, and businesses..."
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isUploadingImage || !imageFile || !formData.name || !formData.description}
+                  className="w-full bg-[#3ecf8e] text-black py-3 px-4 rounded-lg font-semibold hover:bg-[#2dd4bf] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  <option value="">Select a category</option>
-                  <option value="ai">AI & Machine Learning</option>
-                  <option value="design">Design & Graphics</option>
-                  <option value="productivity">Productivity</option>
-                  <option value="analytics">Analytics</option>
-                  <option value="marketing">Marketing</option>
-                  <option value="development">Development</option>
-                </select>
-              </div>
+                  {isUploadingImage ? 'Uploading...' : 'Continue to Step 2'}
+                </button>
+              </form>
+            </div>
+          )}
 
-              {/* Pricing Configuration */}
+          {/* Step 2 Form */}
+          {currentStep === 2 && (
+            <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
+              <h2 className="text-lg font-semibold text-[#ededed] mb-6">Step 2: Complete Details</h2>
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Pricing Configuration */}
               <div className="border-t border-[#4b5563] pt-6">
                 <h3 className="text-md font-semibold text-[#ededed] mb-2">
                   Pricing Configuration *
@@ -432,130 +568,71 @@ export default function PublishToolPage() {
                 />
               </div>
 
-              <div>
-                <label htmlFor="icon" className="block text-sm font-medium text-[#d1d5db] mb-2">
-                  Icon URL (optional)
-                </label>
-                <input
-                  type="url"
-                  id="icon"
-                  name="icon"
-                  value={formData.icon}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
-                  placeholder="https://example.com/icon.png"
-                />
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep(1)}
+                  className="w-1/3 bg-[#374151] text-[#ededed] py-3 px-4 rounded-lg font-semibold hover:bg-[#4b5563] transition-colors"
+                >
+                  Back
+                </button>
+                <button
+                  type="submit"
+                  disabled={isPublishing || (
+                    !pricingConfig.one_time.enabled && 
+                    !pricingConfig.subscription_monthly.enabled && 
+                    !pricingConfig.subscription_yearly.enabled
+                  )}
+                  className="flex-1 bg-[#3ecf8e] text-black py-3 px-4 rounded-lg font-semibold hover:bg-[#2dd4bf] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {isPublishing ? 'Publishing...' : 'Publish Tool'}
+                </button>
               </div>
+              </form>
+            </div>
+          )}
 
-              <button
-                type="submit"
-                disabled={isPublishing || (
-                  !pricingConfig.one_time.enabled && 
-                  !pricingConfig.subscription_monthly.enabled && 
-                  !pricingConfig.subscription_yearly.enabled
-                )}
-                className="w-full bg-[#3ecf8e] text-black py-3 px-4 rounded-lg font-semibold hover:bg-[#2dd4bf] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {isPublishing ? 'Publishing...' : 'Publish Tool'}
-              </button>
-            </form>
-          </div>
-
-          {/* Preview */}
-          <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
-            <h2 className="text-lg font-semibold text-[#ededed] mb-6">Preview</h2>
-            <div className="bg-[#374151] rounded-lg p-4">
-              <div className="flex items-center mb-4">
-                <div className="w-12 h-12 bg-[#3ecf8e]/20 rounded-lg flex items-center justify-center mr-4">
-                  <span className="text-2xl">🤖</span>
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-[#ededed]">
-                    {formData.name || 'Tool Name'}
-                  </h3>
-                  <p className="text-sm text-[#9ca3af]">
-                    {formData.category || 'Category'}
-                  </p>
-                </div>
-              </div>
-              <p className="text-sm text-[#9ca3af] mb-4">
-                {formData.description || 'Tool description will appear here...'}
-              </p>
-              
-              {/* Pricing Preview */}
-              <div className="mb-4">
-                <h4 className="text-sm font-medium text-[#ededed] mb-2">Pricing Options</h4>
-                
-                {pricingConfig.one_time.enabled && (
-                  <div className="flex justify-between items-center mb-2 p-2 bg-[#0a0a0a] rounded border border-[#4b5563]">
-                    <div>
-                      <span className="text-[#ededed] text-sm font-medium">One-time</span>
-                      {pricingConfig.one_time.description && (
-                        <p className="text-xs text-[#9ca3af]">{pricingConfig.one_time.description}</p>
-                      )}
-                    </div>
-                    <span className="text-[#3ecf8e] font-semibold">
-                      {pricingConfig.one_time.price || '—'} credits
-                    </span>
+          {/* Preview - Column 3 in Step 1, Column 2 in Step 2 */}
+          <div className="rounded-lg overflow-hidden">
+            <div className="bg-[#1f2937] rounded-lg overflow-hidden border border-[#374151]">
+              {/* Image - Full Width at Top */}
+              <div className="w-full h-48 bg-gradient-to-br from-[#3ecf8e]/20 to-[#2dd4bf]/20 flex items-center justify-center overflow-hidden">
+                {imagePreview ? (
+                  <img 
+                    src={imagePreview} 
+                    alt={formData.name || 'Tool preview'} 
+                    className="w-full h-full object-cover" 
+                  />
+                ) : (
+                  <div className="text-center">
+                    <p className="text-sm text-[#9ca3af]">Upload an image to see preview</p>
                   </div>
-                )}
-                
-                {pricingConfig.subscription_monthly.enabled && (
-                  <div className="flex justify-between items-center mb-2 p-2 bg-[#0a0a0a] rounded border border-[#4b5563]">
-                    <div>
-                      <span className="text-[#ededed] text-sm font-medium">Monthly</span>
-                      {pricingConfig.subscription_monthly.description && (
-                        <p className="text-xs text-[#9ca3af]">{pricingConfig.subscription_monthly.description}</p>
-                      )}
-                    </div>
-                    <span className="text-[#3ecf8e] font-semibold">
-                      {pricingConfig.subscription_monthly.price || '—'} credits/mo
-                    </span>
-                  </div>
-                )}
-                
-                {pricingConfig.subscription_yearly.enabled && (
-                  <div className="flex justify-between items-center mb-2 p-2 bg-[#0a0a0a] rounded border border-[#4b5563]">
-                    <div>
-                      <span className="text-[#ededed] text-sm font-medium">Yearly</span>
-                      {pricingConfig.subscription_yearly.description && (
-                        <p className="text-xs text-[#9ca3af]">{pricingConfig.subscription_yearly.description}</p>
-                      )}
-                    </div>
-                    <span className="text-[#3ecf8e] font-semibold">
-                      {pricingConfig.subscription_yearly.price || '—'} credits/yr
-                    </span>
-                  </div>
-                )}
-                
-                {!pricingConfig.one_time.enabled && 
-                 !pricingConfig.subscription_monthly.enabled && 
-                 !pricingConfig.subscription_yearly.enabled && (
-                  <p className="text-[#9ca3af] text-sm">No pricing configured</p>
                 )}
               </div>
 
-              <button className="w-full px-4 py-2 bg-[#3ecf8e] text-black rounded-lg text-sm font-medium">
-                Launch Tool
-              </button>
+              {/* Content */}
+              <div className="p-4">
+                {/* Tool Name */}
+                <h3 className="text-lg font-bold text-[#ededed] mb-2">
+                  {formData.name || 'Tool Name'}
+                </h3>
+
+                {/* Description - Truncated */}
+                <p className="text-sm text-[#9ca3af] mb-4 line-clamp-3">
+                  {formData.description || 'Your tool description will appear here. Users will see this to understand what your tool does...'}
+                </p>
+
+                {/* CTA Button */}
+                <button className="w-full px-2 py-2 bg-[#3ecf8e] text-black rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors">
+                  Get Started
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <footer className="border-t border-[#374151] mt-16 py-8">
-          <div className="max-w-4xl mx-auto px-4 text-center">
-            <div className="flex justify-center space-x-6 text-sm">
-              <Link href="/" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Home</Link>
-              <Link href="/privacy" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Privacy</Link>
-              <Link href="/terms" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Terms</Link>
-              <Link href="/support" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Support</Link>
-            </div>
-            <p className="text-[#9ca3af] text-xs mt-4">
-              © 2025 1sub.io. All rights reserved.
-            </p>
-          </div>
-        </footer>
+        <Footer />
       </div>
       </main>
     </div>

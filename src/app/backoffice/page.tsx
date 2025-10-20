@@ -55,6 +55,7 @@ function BackofficeContent() {
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [userRole, setUserRole] = useState<string>('user'); // Change to 'vendor' to test vendor view
   const [showPurchaseSuccess, setShowPurchaseSuccess] = useState(false);
+  const [hasTools, setHasTools] = useState(false);
 
   // Load sidebar state from localStorage on mount
   useEffect(() => {
@@ -92,6 +93,17 @@ function BackofficeContent() {
 
         if (data.credits !== undefined) {
           setCredits(data.credits);
+        }
+
+        // Check if user has created any tools
+        const supabase = createClient();
+        const { data: userTools, error: toolsError } = await supabase
+          .from('tools')
+          .select('id')
+          .eq('metadata->>vendor_id', data.id);
+
+        if (!toolsError && userTools && userTools.length > 0) {
+          setHasTools(true);
         }
       } catch (error) {
         console.error('Error fetching user data:', error);
@@ -411,6 +423,7 @@ function BackofficeContent() {
         onShareAndEarnClick={openShareDialog}
         userId={user?.id || ''}
         userRole={userRole}
+        hasTools={hasTools}
       />
 
       {/* Main Content Area */}

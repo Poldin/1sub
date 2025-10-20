@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Users } from 'lucide-react';
+import Footer from './components/Footer';
 
 // Mock database for tools
 const mockTools = [
@@ -429,38 +430,7 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-[#111111] border-t border-[#374151]">
-        <div className="max-w-6xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h3 className="text-2xl font-bold text-[#3ecf8e] mb-2">
-              1sub<span className="text-[#9ca3af] font-normal">.io</span>
-            </h3>
-            <p className="text-[#9ca3af] mb-4">
-              1 subscription, countless tools.
-            </p>
-            <div className="flex justify-center gap-6 text-sm">
-              <a
-                href="/support"
-                className="text-[#9ca3af] hover:text-[#3ecf8e] transition-colors"
-              >
-                Support
-              </a>
-              <a
-                href="/privacy"
-                className="text-[#9ca3af] hover:text-[#3ecf8e] transition-colors"
-              >
-                Privacy
-              </a>
-              <a
-                href="/terms"
-                className="text-[#9ca3af] hover:text-[#3ecf8e] transition-colors"
-              >
-                Terms and Conditions
-              </a>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

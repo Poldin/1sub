@@ -4,13 +4,18 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   X, 
-  Home, 
-  Wrench,
+  Search,
   User,
   HelpCircle,
   Briefcase,
   Gift,
-  Plus
+  Plus,
+  ChevronDown,
+  ChevronUp,
+  BarChart3,
+  Users,
+  Key,
+  DollarSign
 } from 'lucide-react';
 import { ShareAndEarnButton } from './ShareAndEarn';
 import ShareAndEarnDialog from './ShareAndEarn';
@@ -22,11 +27,13 @@ interface SidebarProps {
   onShareAndEarnClick: () => void;
   userId: string;
   userRole?: string;
+  hasTools?: boolean; // If user has created at least one tool
 }
 
-export default function Sidebar({ isOpen, onClose, credits, onShareAndEarnClick, userId, userRole = 'user' }: SidebarProps) {
+export default function Sidebar({ isOpen, onClose, credits, onShareAndEarnClick, userId, userRole = 'user', hasTools = false }: SidebarProps) {
   const router = useRouter();
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+  const [isVendorMenuOpen, setIsVendorMenuOpen] = useState(false);
 
   const handleShareAndEarnClick = () => {
     setIsShareDialogOpen(true);
@@ -72,16 +79,8 @@ export default function Sidebar({ isOpen, onClose, credits, onShareAndEarnClick,
               href="/backoffice"
               className="flex items-center gap-3 p-3 rounded hover:bg-[#374151] transition-colors text-[#ededed] group"
             >
-              <Home className="w-5 h-5 text-[#3ecf8e] group-hover:text-[#2dd4bf]" />
-              <span className="font-medium">Home</span>
-            </a>
-            
-            <a
-              href="/backoffice/tools"
-              className="flex items-center gap-3 p-3 rounded hover:bg-[#374151] transition-colors text-[#ededed] group"
-            >
-              <Wrench className="w-5 h-5 text-[#3ecf8e] group-hover:text-[#2dd4bf]" />
-              <span className="font-medium">My tools</span>
+              <Search className="w-5 h-5 text-[#3ecf8e] group-hover:text-[#2dd4bf]" />
+              <span className="font-medium">Search</span>
             </a>
 
             <button 
@@ -100,20 +99,82 @@ export default function Sidebar({ isOpen, onClose, credits, onShareAndEarnClick,
               <span className="font-medium">Support</span>
             </button>
 
-            {/* Vendor Dashboard Link - Only show if user is vendor */}
-            {userRole === 'vendor' && (
+            {/* Vendor Menu - Only show if user has tools */}
+            {hasTools && (
               <>
                 <div className="border-t border-[#374151] my-2"></div>
-                <button
-                  onClick={() => {
-                    router.push('/vendor-dashboard');
-                    onClose();
-                  }}
-                  className="w-full flex items-center gap-3 p-3 rounded hover:bg-[#374151] transition-colors text-[#ededed] group"
-                >
-                  <Briefcase className="w-5 h-5 text-[#3ecf8e] group-hover:text-[#2dd4bf]" />
-                  <span className="font-medium">Vendor Dashboard</span>
-                </button>
+                <div>
+                  <button
+                    onClick={() => setIsVendorMenuOpen(!isVendorMenuOpen)}
+                    className="w-full flex items-center justify-between gap-3 p-3 rounded hover:bg-[#374151] transition-colors text-[#ededed] group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Briefcase className="w-5 h-5 text-[#3ecf8e] group-hover:text-[#2dd4bf]" />
+                      <span className="font-medium">Vendor</span>
+                    </div>
+                    {isVendorMenuOpen ? (
+                      <ChevronUp className="w-4 h-4 text-[#9ca3af]" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4 text-[#9ca3af]" />
+                    )}
+                  </button>
+                  
+                  {/* Vendor Submenu */}
+                  {isVendorMenuOpen && (
+                    <div className="ml-4 mt-1 space-y-1">
+                      <button
+                        onClick={() => {
+                          router.push('/vendor-dashboard');
+                          onClose();
+                        }}
+                        className="w-full flex items-center gap-3 p-2 rounded hover:bg-[#374151] transition-colors text-[#d1d5db] text-sm"
+                      >
+                        <BarChart3 className="w-4 h-4 text-[#3ecf8e]" />
+                        <span>Overview</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          router.push('/vendor-dashboard/users');
+                          onClose();
+                        }}
+                        className="w-full flex items-center gap-3 p-2 rounded hover:bg-[#374151] transition-colors text-[#d1d5db] text-sm"
+                      >
+                        <Users className="w-4 h-4 text-[#3ecf8e]" />
+                        <span>Users</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          router.push('/vendor-dashboard/analytics');
+                          onClose();
+                        }}
+                        className="w-full flex items-center gap-3 p-2 rounded hover:bg-[#374151] transition-colors text-[#d1d5db] text-sm"
+                      >
+                        <BarChart3 className="w-4 h-4 text-[#3ecf8e]" />
+                        <span>Analytics</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          router.push('/vendor-dashboard/transactions');
+                          onClose();
+                        }}
+                        className="w-full flex items-center gap-3 p-2 rounded hover:bg-[#374151] transition-colors text-[#d1d5db] text-sm"
+                      >
+                        <DollarSign className="w-4 h-4 text-[#3ecf8e]" />
+                        <span>Transactions</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          router.push('/vendor-dashboard/api');
+                          onClose();
+                        }}
+                        className="w-full flex items-center gap-3 p-2 rounded hover:bg-[#374151] transition-colors text-[#d1d5db] text-sm"
+                      >
+                        <Key className="w-4 h-4 text-[#3ecf8e]" />
+                        <span>API</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
               </>
             )}
           </div>
@@ -130,17 +191,17 @@ export default function Sidebar({ isOpen, onClose, credits, onShareAndEarnClick,
           </button>
         </div>
 
-        {/* Become a Vendor CTA - Only for regular users */}
-        {userRole === 'user' && (
+        {/* Become a Vendor CTA - Only for users without tools */}
+        {!hasTools && (
           <div className="mx-4 mb-4">
             <div className="bg-[#1f2937] border border-[#374151] rounded-lg p-4">
               <div className="flex items-center gap-3 mb-2">
-                <h3 className="text-sm font-bold text-[#ededed]">Are you a developer?</h3>
+                <h3 className="text-sm font-bold text-[#ededed]">Have you developed a tool?</h3>
               </div>
-              <p className="text-xs text-[#9ca3af] mb-3">Publish your tools and earn revenue</p>
+              <p className="text-xs text-[#9ca3af] mb-3">Publish your tool and engage with users!</p>
               <button
                 onClick={() => {
-                  router.push('/vendors');
+                  router.push('/vendor-dashboard');
                   onClose();
                 }}
                 className="w-full bg-[#374151] hover:bg-[#4b5563] text-[#ededed] px-4 py-2 rounded-lg font-semibold transition-colors text-sm"
