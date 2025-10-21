@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { calculateCreditsFromTransactions } from '@/lib/credits';
 
 export async function POST(request: NextRequest) {
   try {
@@ -105,19 +106,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Calculate current balance
-    let currentBalance = 0;
-    if (transactions && transactions.length > 0) {
-      currentBalance = transactions.reduce((sum, transaction) => {
-        const amount = transaction.credits_amount || 0;
-        if (transaction.type === 'add') {
-          return sum + amount;
-        } else if (transaction.type === 'subtract') {
-          return sum - amount;
-        }
-        return sum;
-      }, 0);
-    }
+    // Calculate current balance using centralized utility
+    const currentBalance = calculateCreditsFromTransactions(transactions || []);
 
     // 6. Verify user has enough credits
     if (currentBalance < creditCost) {
@@ -172,18 +162,8 @@ export async function POST(request: NextRequest) {
         .select('credits_amount, type')
         .eq('user_id', checkout.vendor_id);
 
-      let vendorBalance = 0;
-      if (vendorTransactions && vendorTransactions.length > 0) {
-        vendorBalance = vendorTransactions.reduce((sum, transaction) => {
-          const amount = transaction.credits_amount || 0;
-          if (transaction.type === 'add') {
-            return sum + amount;
-          } else if (transaction.type === 'subtract') {
-            return sum - amount;
-          }
-          return sum;
-        }, 0);
-      }
+      // Calculate vendor balance using centralized utility
+      const vendorBalance = calculateCreditsFromTransactions(vendorTransactions || []);
 
       const { error: vendorTransactionError } = await supabase
         .from('credit_transactions')

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   X, 
@@ -15,25 +15,61 @@ import {
   BarChart3,
   Users,
   Key,
-  DollarSign
+  DollarSign,
+  LayoutDashboard
 } from 'lucide-react';
 import { ShareAndEarnButton } from './ShareAndEarn';
 import ShareAndEarnDialog from './ShareAndEarn';
+import { getUserCreditsClient } from '@/lib/credits';
 
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
-  credits?: number;
   onShareAndEarnClick: () => void;
   userId: string;
   userRole?: string;
   hasTools?: boolean; // If user has created at least one tool
 }
 
-export default function Sidebar({ isOpen, onClose, credits, onShareAndEarnClick, userId, userRole = 'user', hasTools = false }: SidebarProps) {
+export default function Sidebar({ isOpen, onClose, onShareAndEarnClick, userId, userRole = 'user', hasTools = false }: SidebarProps) {
   const router = useRouter();
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [isVendorMenuOpen, setIsVendorMenuOpen] = useState(false);
+  const [credits, setCredits] = useState<number>(0);
+
+  // Load vendor menu state from localStorage on mount
+  useEffect(() => {
+    const savedState = localStorage.getItem('vendorMenuOpen');
+    if (savedState !== null) {
+      setIsVendorMenuOpen(savedState === 'true');
+    }
+  }, []);
+
+  // Fetch credits independently - Calculate from credit_transactions (source of truth)
+  useEffect(() => {
+    const fetchCredits = async () => {
+      if (!userId) return;
+
+      const totalCredits = await getUserCreditsClient(userId);
+      if (totalCredits !== null) {
+        setCredits(totalCredits);
+      }
+    };
+
+    fetchCredits();
+
+    // Refresh credits every 30 seconds
+    const interval = setInterval(fetchCredits, 30000);
+
+    return () => clearInterval(interval);
+  }, [userId]);
+
+  // Save vendor menu state to localStorage whenever it changes
+  const toggleVendorMenu = () => {
+    const newState = !isVendorMenuOpen;
+    setIsVendorMenuOpen(newState);
+    localStorage.setItem('vendorMenuOpen', String(newState));
+  };
 
   const handleShareAndEarnClick = () => {
     setIsShareDialogOpen(true);
@@ -105,7 +141,7 @@ export default function Sidebar({ isOpen, onClose, credits, onShareAndEarnClick,
                 <div className="border-t border-[#374151] my-2"></div>
                 <div>
                   <button
-                    onClick={() => setIsVendorMenuOpen(!isVendorMenuOpen)}
+                    onClick={toggleVendorMenu}
                     className="w-full flex items-center justify-between gap-3 px-3 py-1.5 rounded hover:bg-[#374151] transition-colors text-[#ededed] group text-sm"
                   >
                     <div className="flex items-center gap-3">
@@ -129,7 +165,7 @@ export default function Sidebar({ isOpen, onClose, credits, onShareAndEarnClick,
                         }}
                         className="w-full flex items-center gap-3 p-2 rounded hover:bg-[#374151] transition-colors text-[#d1d5db] text-sm"
                       >
-                        <BarChart3 className="w-4 h-4 text-[#3ecf8e]" />
+                        <LayoutDashboard className="w-4 h-4 text-[#3ecf8e]" />
                         <span>Overview</span>
                       </button>
                       <button

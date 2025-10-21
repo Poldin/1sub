@@ -40,13 +40,49 @@ const formatAdoptions = (num: number): string => {
   return num.toString();
 };
 
+// Component for tool image with fallback
+function ToolImage({ src, alt, className }: { src: string; alt: string; className?: string }) {
+  const [imgSrc, setImgSrc] = useState<string>(src);
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    setImgSrc(src);
+    setHasError(false);
+  }, [src]);
+
+  const handleError = () => {
+    setHasError(true);
+  };
+
+  if (!src || hasError) {
+    // Fallback to 1sub logo
+    return (
+      <div className={`bg-[#0a0a0a] flex items-center justify-center ${className}`}>
+        <div className="text-center">
+          <span className="text-4xl font-bold text-[#3ecf8e]">1sub</span>
+          <span className="text-4xl font-normal text-[#9ca3af]">.io</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <img 
+      src={imgSrc} 
+      alt={alt} 
+      className={`object-cover ${className}`}
+      onError={handleError}
+    />
+  );
+}
+
 function BackofficeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
   const [user, setUser] = useState<{ id: string; fullName: string | null; email: string } | null>(null);
   const [userLoading, setUserLoading] = useState(true);
-  const [credits, setCredits] = useState(0);
+  const [credits, setCredits] = useState(0); // Keep for internal use (tool purchase logic)
   const [tools, setTools] = useState<Tool[]>([]);
   const [toolsLoading, setToolsLoading] = useState(true);
   const [toolsError, setToolsError] = useState<string | null>(null);
@@ -419,7 +455,6 @@ function BackofficeContent() {
       <Sidebar 
         isOpen={isMenuOpen} 
         onClose={toggleMenu}
-        credits={credits}
         onShareAndEarnClick={openShareDialog}
         userId={user?.id || ''}
         userRole={userRole}
@@ -559,9 +594,11 @@ function BackofficeContent() {
                   >
                     {tools.map((tool) => (
                       <div key={tool.id} data-testid="tool-card" className="bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex-shrink-0 w-84 min-w-84 flex flex-col">
-                        <div className="h-36 bg-gradient-to-br from-[#3ecf8e] to-[#2dd4bf] flex items-center justify-center">
-                          <div className="text-4xl">🔧</div>
-                        </div>
+                        <ToolImage 
+                          src={tool.url} 
+                          alt={tool.name} 
+                          className="h-36 w-full"
+                        />
                         <div className="p-3 flex flex-col flex-1">
                           <h3 className="font-bold mb-1 text-base">{tool.name}</h3>
                           <p className="text-[#9ca3af] text-sm mb-2 line-clamp-2 flex-1">{tool.description}</p>
@@ -603,9 +640,11 @@ function BackofficeContent() {
                 >
                   {tools.map((tool) => (
                     <div key={tool.id} data-testid="tool-card" className="bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex-shrink-0 w-[22rem] flex flex-col">
-                      <div className="h-40 bg-gradient-to-br from-[#3ecf8e] to-[#2dd4bf] flex items-center justify-center">
-                        <div className="text-5xl">🔧</div>
-                      </div>
+                      <ToolImage 
+                        src={tool.url} 
+                        alt={tool.name} 
+                        className="h-40 w-full"
+                      />
                       <div className="p-3 flex flex-col flex-1">
                         <h3 className="font-bold mb-1">{tool.name}</h3>
                         <p className="text-[#9ca3af] text-xs mb-2 flex-1">{tool.description}</p>
@@ -648,9 +687,11 @@ function BackofficeContent() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                   {tools.map((tool) => (
                     <div key={tool.id} className="bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex flex-col">
-                      <div className="h-32 sm:h-40 bg-gradient-to-br from-[#3ecf8e] to-[#2dd4bf] flex items-center justify-center">
-                        <div className="text-4xl sm:text-5xl">🔧</div>
-                      </div>
+                      <ToolImage 
+                        src={tool.url} 
+                        alt={tool.name} 
+                        className="h-32 sm:h-40 w-full"
+                      />
                       <div className="p-3 flex flex-col flex-1">
                         <h3 className="font-bold mb-1">{tool.name}</h3>
                         <p className="text-[#9ca3af] text-xs mb-2 flex-1">{tool.description}</p>

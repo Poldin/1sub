@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Menu, Users, Search } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import Sidebar from '../../backoffice/components/Sidebar';
+import ToolSelector from '../components/ToolSelector';
 
 interface User {
   id: string;
@@ -19,7 +20,6 @@ export default function VendorUsersPage() {
   const [searchTerm, setSearchTerm] = useState('');
   
   // States for unified Sidebar
-  const [credits, setCredits] = useState(0);
   const [userId, setUserId] = useState<string>('');
   const [userRole, setUserRole] = useState<string>('user');
   const [hasTools, setHasTools] = useState(false);
@@ -48,12 +48,11 @@ export default function VendorUsersPage() {
         // Fetch user profile data
         const { data: profileData } = await supabase
           .from('user_profiles')
-          .select('credits, role')
+          .select('role')
           .eq('id', user.id)
           .single();
         
         if (profileData) {
-          setCredits(profileData.credits || 0);
           setUserRole(profileData.role || 'user');
         }
         
@@ -122,7 +121,6 @@ export default function VendorUsersPage() {
       <Sidebar 
         isOpen={isMenuOpen} 
         onClose={toggleMenu}
-        credits={credits}
         onShareAndEarnClick={handleShareAndEarnClick}
         userId={userId}
         userRole={userRole}
@@ -135,18 +133,25 @@ export default function VendorUsersPage() {
         ${isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'}
       `}>
         {/* Top Bar with Hamburger */}
-        <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-30 overflow-x-hidden">
+        <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-30 overflow-x-hidden border-b border-[#374151]">
           <div className="flex items-center justify-between p-2 sm:p-3 min-w-0">
-            {/* Hamburger Button */}
-            <button
-              onClick={toggleMenu}
-              className="p-2 rounded-lg hover:bg-[#374151] transition-colors flex-shrink-0"
-            >
-              <Menu className="w-6 h-6 sm:w-6 sm:h-6" />
-            </button>
-            
-            {/* Page Title */}
-            <h1 className="text-xl sm:text-2xl font-bold text-[#ededed]">Users</h1>
+            <div className="flex items-center gap-3">
+              {/* Hamburger Button */}
+              <button
+                onClick={toggleMenu}
+                className="p-2 rounded-lg hover:bg-[#374151] transition-colors flex-shrink-0"
+              >
+                <Menu className="w-6 h-6 sm:w-6 sm:h-6" />
+              </button>
+              
+              {/* Tool Selector */}
+              {hasTools && userId && (
+                <ToolSelector userId={userId} />
+              )}
+              
+              {/* Page Title */}
+              <h1 className="text-xl sm:text-2xl font-bold text-[#ededed]">Users</h1>
+            </div>
             
             {/* Search Bar */}
             <div className="relative">
@@ -156,7 +161,7 @@ export default function VendorUsersPage() {
                 placeholder="Search users or tools..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
+                className="pl-10 pr-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent text-sm"
               />
             </div>
           </div>

@@ -6,6 +6,7 @@ import { Menu, ArrowLeft } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import Sidebar from '../../../../backoffice/components/Sidebar';
 import Footer from '../../../../components/Footer';
+import ToolSelector from '../../../components/ToolSelector';
 
 interface Tool {
   id: string;
@@ -42,7 +43,6 @@ export default function EditToolPage() {
   const [hasChanges, setHasChanges] = useState(false);
   
   // States for unified Sidebar
-  const [credits, setCredits] = useState(0);
   const [userId, setUserId] = useState<string>('');
   const [userRole, setUserRole] = useState<string>('user');
   const [hasTools, setHasTools] = useState(false);
@@ -82,12 +82,11 @@ export default function EditToolPage() {
         // Fetch user profile data
         const { data: profileData } = await supabase
           .from('user_profiles')
-          .select('credits, role')
+          .select('role')
           .eq('id', user.id)
           .single();
         
         if (profileData) {
-          setCredits(profileData.credits || 0);
           setUserRole(profileData.role || 'user');
         }
         
@@ -256,7 +255,6 @@ export default function EditToolPage() {
       <Sidebar 
         isOpen={isMenuOpen} 
         onClose={toggleMenu}
-        credits={credits}
         onShareAndEarnClick={handleShareAndEarnClick}
         userId={userId}
         userRole={userRole}
@@ -268,11 +266,11 @@ export default function EditToolPage() {
         flex-1 min-w-0 transition-all duration-300 ease-in-out overflow-x-hidden
         ${isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'}
       `}>
-        {/* Top Bar with Hamburger, Back, and Save */}
+        {/* Top Bar with Hamburger, Tool Selector, and Save */}
         <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-30 overflow-x-hidden border-b border-[#374151]">
-          <div className="flex items-center justify-between p-4">
-            {/* Left: Hamburger and Back */}
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between p-3">
+            {/* Left: Hamburger and Tool Selector */}
+            <div className="flex items-center gap-3">
               <button
                 onClick={toggleMenu}
                 className="p-2 rounded-lg hover:bg-[#374151] transition-colors flex-shrink-0"
@@ -280,22 +278,19 @@ export default function EditToolPage() {
                 <Menu className="w-6 h-6" />
               </button>
               
-              <button
-                onClick={() => router.push('/vendor-dashboard')}
-                className="flex items-center gap-2 text-[#9ca3af] hover:text-[#ededed] transition-colors text-sm"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                <span>Back to Dashboard</span>
-              </button>
+              {/* Tool Selector with current tool selected */}
+              {userId && (
+                <ToolSelector userId={userId} currentToolId={toolId} />
+              )}
             </div>
             
             {/* Right: Save Button */}
             <button
               onClick={handleSubmit}
               disabled={!hasChanges || isSaving}
-              className="px-2 py-1 bg-[#3ecf8e] text-black rounded-lg font-medium hover:bg-[#2dd4bf] disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+              className="px-4 py-2 bg-[#3ecf8e] text-black rounded-lg font-medium hover:bg-[#2dd4bf] disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
             >
-              {isSaving ? 'Saving...' : 'Save'}
+              {isSaving ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </header>

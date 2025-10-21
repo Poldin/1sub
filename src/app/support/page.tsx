@@ -27,7 +27,6 @@ export default function SupportPage() {
   // User data states
   const [user, setUser] = useState<{ id: string; fullName: string | null; email: string } | null>(null);
   const [userLoading, setUserLoading] = useState(true);
-  const [credits, setCredits] = useState(0);
   const [userRole, setUserRole] = useState<string>('user');
   const [hasTools, setHasTools] = useState(false);
 
@@ -59,10 +58,6 @@ export default function SupportPage() {
 
         if (data.role) {
           setUserRole(data.role);
-        }
-
-        if (data.credits !== undefined) {
-          setCredits(data.credits);
         }
 
         // Check if user has created any tools
@@ -158,7 +153,6 @@ export default function SupportPage() {
       <Sidebar 
         isOpen={isMenuOpen} 
         onClose={toggleMenu}
-        credits={credits}
         onShareAndEarnClick={handleShareAndEarnClick}
         userId={user?.id || ''}
         userRole={userRole}

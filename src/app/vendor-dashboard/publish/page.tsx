@@ -6,6 +6,7 @@ import { Menu } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import Sidebar from '../../backoffice/components/Sidebar';
 import Footer from '../../components/Footer';
+import ToolSelector from '../components/ToolSelector';
 
 export default function PublishToolPage() {
   const router = useRouter();
@@ -20,7 +21,6 @@ export default function PublishToolPage() {
   const [isPublishing, setIsPublishing] = useState(false);
   
   // States for unified Sidebar
-  const [credits, setCredits] = useState(0);
   const [userId, setUserId] = useState<string>('');
   const [userRole, setUserRole] = useState<string>('user');
   const [hasTools, setHasTools] = useState(false);
@@ -49,12 +49,11 @@ export default function PublishToolPage() {
         // Fetch user profile data
         const { data: profileData } = await supabase
           .from('user_profiles')
-          .select('credits, role')
+          .select('role')
           .eq('id', user.id)
           .single();
         
         if (profileData) {
-          setCredits(profileData.credits || 0);
           setUserRole(profileData.role || 'user');
         }
         
@@ -178,7 +177,6 @@ export default function PublishToolPage() {
       <Sidebar 
         isOpen={isMenuOpen} 
         onClose={toggleMenu}
-        credits={credits}
         onShareAndEarnClick={handleShareAndEarnClick}
         userId={userId}
         userRole={userRole}
@@ -191,20 +189,27 @@ export default function PublishToolPage() {
         ${isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'}
       `}>
         {/* Top Bar with Hamburger */}
-        <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-30 overflow-x-hidden">
+        <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-30 overflow-x-hidden border-b border-[#374151]">
           <div className="flex items-center justify-between p-2 sm:p-3 min-w-0">
-            {/* Hamburger Button */}
-            <button
-              onClick={toggleMenu}
-              className="p-2 rounded-lg hover:bg-[#374151] transition-colors flex-shrink-0"
-            >
-              <Menu className="w-6 h-6 sm:w-6 sm:h-6" />
-            </button>
+            <div className="flex items-center gap-3">
+              {/* Hamburger Button */}
+              <button
+                onClick={toggleMenu}
+                className="p-2 rounded-lg hover:bg-[#374151] transition-colors flex-shrink-0"
+              >
+                <Menu className="w-6 h-6 sm:w-6 sm:h-6" />
+              </button>
+              
+              {/* Tool Selector */}
+              {hasTools && userId && (
+                <ToolSelector userId={userId} />
+              )}
+              
+              {/* Page Title */}
+              <h1 className="text-xl sm:text-2xl font-bold text-[#ededed]">Publish New Tool</h1>
+            </div>
             
-            {/* Page Title */}
-            <h1 className="text-xl sm:text-2xl font-bold text-[#ededed]">Publish New Tool</h1>
-            
-            {/* Spacer for centering */}
+            {/* Spacer */}
             <div className="w-10"></div>
           </div>
         </header>

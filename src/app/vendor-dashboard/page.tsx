@@ -6,6 +6,7 @@ import { Menu, Settings, Plus, BarChart3, TrendingUp, DollarSign, Users, Rocket,
 import Sidebar from '../backoffice/components/Sidebar';
 import Footer from '../components/Footer';
 import { createClient } from '@/lib/supabase/client';
+import ToolSelector from './components/ToolSelector';
 
 export default function VendorDashboard() {
   const router = useRouter();
@@ -14,7 +15,6 @@ export default function VendorDashboard() {
   // User data states
   const [user, setUser] = useState<{ id: string; fullName: string | null; email: string } | null>(null);
   const [userLoading, setUserLoading] = useState(true);
-  const [credits, setCredits] = useState(0);
   const [userRole, setUserRole] = useState<string>('user');
   const [hasTools, setHasTools] = useState(false);
   const [toolsCount, setToolsCount] = useState(0);
@@ -59,10 +59,6 @@ export default function VendorDashboard() {
 
         if (data.role) {
           setUserRole(data.role);
-        }
-
-        if (data.credits !== undefined) {
-          setCredits(data.credits);
         }
 
         // Fetch user's tools
@@ -113,7 +109,6 @@ export default function VendorDashboard() {
       <Sidebar 
         isOpen={isMenuOpen} 
         onClose={toggleMenu}
-        credits={credits}
         onShareAndEarnClick={handleShareAndEarnClick}
         userId={user?.id || ''}
         userRole={userRole}
@@ -126,22 +121,29 @@ export default function VendorDashboard() {
         ${isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'}
       `}>
         {/* Top Bar with Hamburger */}
-        <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-30 overflow-x-hidden">
+        <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-30 overflow-x-hidden border-b border-[#374151]">
           <div className="flex items-center justify-between p-2 sm:p-3 min-w-0">
-            {/* Hamburger Button */}
-            <button
-              onClick={toggleMenu}
-              className="p-2 rounded-lg hover:bg-[#374151] transition-colors flex-shrink-0"
-            >
-              <Menu className="w-6 h-6 sm:w-6 sm:h-6" />
-            </button>
+            <div className="flex items-center gap-3">
+              {/* Hamburger Button */}
+              <button
+                onClick={toggleMenu}
+                className="p-2 rounded-lg hover:bg-[#374151] transition-colors flex-shrink-0"
+              >
+                <Menu className="w-6 h-6 sm:w-6 sm:h-6" />
+              </button>
+              
+              {/* Tool Selector - Only show if user has tools */}
+              {hasTools && user?.id && (
+                <ToolSelector userId={user.id} />
+              )}
+              
+              {/* Page Title */}
+              <h1 className="text-xl sm:text-2xl font-bold text-[#ededed]">
+                {hasTools ? 'Vendor Dashboard' : 'Become a Vendor'}
+              </h1>
+            </div>
             
-            {/* Page Title */}
-            <h1 className="text-xl sm:text-2xl font-bold text-[#ededed]">
-              {hasTools ? 'Vendor Dashboard' : 'Become a Vendor'}
-            </h1>
-            
-            {/* Spacer for centering */}
+            {/* Spacer */}
             <div className="w-10"></div>
           </div>
         </header>

@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { calculateCreditsFromTransactions } from '@/lib/credits';
 
 export async function GET() {
   try {
@@ -30,7 +31,7 @@ export async function GET() {
       );
     }
 
-    // Calculate remaining credits from credit_transactions
+    // Fetch all credit transactions
     const { data: transactions, error: transactionsError } = await supabase
       .from('credit_transactions')
       .select('credits_amount, type')
@@ -41,19 +42,8 @@ export async function GET() {
       // Continue without credits if there's an error
     }
 
-    // Calculate total credits
-    let totalCredits = 0;
-    if (transactions && transactions.length > 0) {
-      totalCredits = transactions.reduce((sum, transaction) => {
-        const amount = transaction.credits_amount || 0;
-        if (transaction.type === 'add') {
-          return sum + amount;
-        } else if (transaction.type === 'subtract') {
-          return sum - amount;
-        }
-        return sum;
-      }, 0);
-    }
+    // Calculate total credits using centralized utility
+    const totalCredits = calculateCreditsFromTransactions(transactions || []);
 
     return NextResponse.json({
       id: authUser.id,
