@@ -151,6 +151,111 @@ export type Database = {
           },
         ]
       }
+      tool_products: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string | null
+          pricing_model: Json | null
+          tool_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string | null
+          pricing_model?: Json | null
+          tool_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string | null
+          pricing_model?: Json | null
+          tool_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tool_products_tool_id_fkey"
+            columns: ["tool_id"]
+            isOneToOne: false
+            referencedRelation: "tools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tool_subscriptions: {
+        Row: {
+          cancelled_at: string | null
+          checkout_id: string | null
+          created_at: string | null
+          credits_per_period: number
+          id: string
+          metadata: Json | null
+          next_billing_date: string
+          period: string
+          status: string | null
+          tool_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          checkout_id?: string | null
+          created_at?: string | null
+          credits_per_period: number
+          id?: string
+          metadata?: Json | null
+          next_billing_date: string
+          period: string
+          status?: string | null
+          tool_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          checkout_id?: string | null
+          created_at?: string | null
+          credits_per_period?: number
+          id?: string
+          metadata?: Json | null
+          next_billing_date?: string
+          period?: string
+          status?: string | null
+          tool_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tool_subscriptions_checkout_id_fkey"
+            columns: ["checkout_id"]
+            isOneToOne: false
+            referencedRelation: "checkouts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tool_subscriptions_tool_id_fkey"
+            columns: ["tool_id"]
+            isOneToOne: false
+            referencedRelation: "tools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tool_subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tools: {
         Row: {
           created_at: string | null
@@ -161,6 +266,7 @@ export type Database = {
           name: string
           updated_at: string | null
           url: string
+          user_profile_id: string | null
         }
         Insert: {
           created_at?: string | null
@@ -171,6 +277,7 @@ export type Database = {
           name: string
           updated_at?: string | null
           url: string
+          user_profile_id?: string | null
         }
         Update: {
           created_at?: string | null
@@ -181,8 +288,17 @@ export type Database = {
           name?: string
           updated_at?: string | null
           url?: string
+          user_profile_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "tools_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_profiles: {
         Row: {

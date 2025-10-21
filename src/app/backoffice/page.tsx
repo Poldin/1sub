@@ -100,7 +100,7 @@ function BackofficeContent() {
         const { data: userTools, error: toolsError } = await supabase
           .from('tools')
           .select('id')
-          .eq('metadata->>vendor_id', data.id);
+          .eq('user_profile_id', data.id);
 
         if (!toolsError && userTools && userTools.length > 0) {
           setHasTools(true);

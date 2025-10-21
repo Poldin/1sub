@@ -70,7 +70,7 @@ export default function VendorDashboard() {
         const { data: toolsData, error } = await supabase
           .from('tools')
           .select('*')
-          .eq('metadata->>vendor_id', data.id);
+          .eq('user_profile_id', data.id);
 
         if (!error && toolsData) {
           setToolsCount(toolsData.length);
@@ -310,13 +310,6 @@ export default function VendorDashboard() {
                     >
                       <BarChart3 className="w-4 h-4 mr-2" />
                       View Analytics
-                    </button>
-                    <button
-                      onClick={() => router.push('/vendor-dashboard/tools')}
-                      className="w-full flex items-center justify-center px-4 py-3 bg-[#374151] text-[#ededed] rounded-lg hover:bg-[#4b5563] transition-colors"
-                    >
-                      <Settings className="w-4 h-4 mr-2" />
-                      Manage Tools
                     </button>
                   </div>
                 </div>

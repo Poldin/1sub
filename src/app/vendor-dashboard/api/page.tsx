@@ -1,19 +1,70 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Menu, Key, Copy, RefreshCw, Eye, EyeOff } from 'lucide-react';
-import VendorSidebar from '../components/VendorSidebar';
+import { createClient } from '@/lib/supabase/client';
+import Sidebar from '../../backoffice/components/Sidebar';
 
 export default function VendorAPIPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [apiKey, setApiKey] = useState('sk-vendor-••••••••••••••••••••••••••••••••••••••••');
   const [isVisible, setIsVisible] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  
+  // States for unified Sidebar
+  const [credits, setCredits] = useState(0);
+  const [userId, setUserId] = useState<string>('');
+  const [userRole, setUserRole] = useState<string>('user');
+  const [hasTools, setHasTools] = useState(false);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
   };
+  
+  const handleShareAndEarnClick = () => {
+    // Handled by Sidebar component
+  };
+  
+  // Fetch user data
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const supabase = createClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        
+        if (authError || !user) {
+          return;
+        }
+        
+        setUserId(user.id);
+        
+        // Fetch user profile data
+        const { data: profileData } = await supabase
+          .from('user_profiles')
+          .select('credits, role')
+          .eq('id', user.id)
+          .single();
+        
+        if (profileData) {
+          setCredits(profileData.credits || 0);
+          setUserRole(profileData.role || 'user');
+        }
+        
+        // Check if user has tools
+        const { data: toolsData } = await supabase
+          .from('tools')
+          .select('id')
+          .eq('user_profile_id', user.id);
+        
+        setHasTools((toolsData?.length || 0) > 0);
+      } catch (err) {
+        console.error('Error fetching user data:', err);
+      }
+    };
+    
+    fetchUserData();
+  }, []);
 
   const handleCopyKey = () => {
     navigator.clipboard.writeText(apiKey);
@@ -31,10 +82,15 @@ export default function VendorAPIPage() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex overflow-x-hidden">
-      {/* Sidebar Component */}
-      <VendorSidebar 
+      {/* Unified Sidebar */}
+      <Sidebar 
         isOpen={isMenuOpen} 
         onClose={toggleMenu}
+        credits={credits}
+        onShareAndEarnClick={handleShareAndEarnClick}
+        userId={userId}
+        userRole={userRole}
+        hasTools={hasTools}
       />
 
       {/* Main Content Area */}

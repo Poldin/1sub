@@ -77,7 +77,7 @@ export default function Sidebar({ isOpen, onClose, credits, onShareAndEarnClick,
           <div className="space-y-2">
             <a
               href="/backoffice"
-              className="flex items-center gap-3 p-3 rounded hover:bg-[#374151] transition-colors text-[#ededed] group"
+              className="flex items-center gap-3 px-3 py-1.5 rounded hover:bg-[#374151] transition-colors text-[#ededed] group text-sm"
             >
               <Search className="w-5 h-5 text-[#3ecf8e] group-hover:text-[#2dd4bf]" />
               <span className="font-medium">Search</span>
@@ -85,7 +85,7 @@ export default function Sidebar({ isOpen, onClose, credits, onShareAndEarnClick,
 
             <button 
               onClick={() => router.push('/profile')}
-              className="w-full flex items-center gap-3 p-3 rounded hover:bg-[#374151] transition-colors text-[#ededed] group"
+              className="w-full flex items-center gap-3 px-3 py-1.5 rounded hover:bg-[#374151] transition-colors text-[#ededed] group text-sm"
             >
               <User className="w-5 h-5 text-[#3ecf8e] group-hover:text-[#2dd4bf]" />
               <span className="font-medium">Profile</span>
@@ -93,7 +93,7 @@ export default function Sidebar({ isOpen, onClose, credits, onShareAndEarnClick,
             
             <button 
               onClick={() => router.push('/support')}
-              className="w-full flex items-center gap-3 p-3 rounded hover:bg-[#374151] transition-colors text-[#ededed] group"
+              className="w-full flex items-center gap-3 px-3 py-1.5 rounded hover:bg-[#374151] transition-colors text-[#ededed] group text-sm"
             >
               <HelpCircle className="w-5 h-5 text-[#3ecf8e] group-hover:text-[#2dd4bf]" />
               <span className="font-medium">Support</span>
@@ -106,7 +106,7 @@ export default function Sidebar({ isOpen, onClose, credits, onShareAndEarnClick,
                 <div>
                   <button
                     onClick={() => setIsVendorMenuOpen(!isVendorMenuOpen)}
-                    className="w-full flex items-center justify-between gap-3 p-3 rounded hover:bg-[#374151] transition-colors text-[#ededed] group"
+                    className="w-full flex items-center justify-between gap-3 px-3 py-1.5 rounded hover:bg-[#374151] transition-colors text-[#ededed] group text-sm"
                   >
                     <div className="flex items-center gap-3">
                       <Briefcase className="w-5 h-5 text-[#3ecf8e] group-hover:text-[#2dd4bf]" />
