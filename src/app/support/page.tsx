@@ -1,9 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Menu, HelpCircle, Mail, ChevronDown, ChevronUp } from 'lucide-react';
-import ProfileSidebar from '../profile/components/ProfileSidebar';
+import Sidebar from '../backoffice/components/Sidebar';
+import Footer from '../components/Footer';
+import { createClient } from '@/lib/supabase/client';
 
 interface FAQ {
   question: string;
@@ -11,6 +14,7 @@ interface FAQ {
 }
 
 export default function SupportPage() {
+  const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -19,10 +23,63 @@ export default function SupportPage() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [expandedFAQ, setExpandedFAQ] = useState<number | null>(null);
+  
+  // User data states
+  const [user, setUser] = useState<{ id: string; fullName: string | null; email: string } | null>(null);
+  const [userLoading, setUserLoading] = useState(true);
+  const [userRole, setUserRole] = useState<string>('user');
+  const [hasTools, setHasTools] = useState(false);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
   };
+
+  // Fetch user data
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const response = await fetch('/api/user/profile');
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            router.push('/login');
+            return;
+          }
+          throw new Error('Failed to fetch user profile');
+        }
+
+        const data = await response.json();
+
+        setUser({
+          id: data.id,
+          fullName: data.fullName || null,
+          email: data.email || '',
+        });
+
+        if (data.role) {
+          setUserRole(data.role);
+        }
+
+        // Check if user has created any tools
+        const supabase = createClient();
+        const { data: userTools, error: toolsError } = await supabase
+          .from('tools')
+          .select('id')
+          .eq('user_profile_id', data.id);
+
+        if (!toolsError && userTools && userTools.length > 0) {
+          setHasTools(true);
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+        router.push('/login');
+      } finally {
+        setUserLoading(false);
+      }
+    };
+
+    fetchUserData();
+  }, [router]);
 
   // FAQ data
   const faqs: FAQ[] = [
@@ -75,12 +132,31 @@ export default function SupportPage() {
     setExpandedFAQ(expandedFAQ === index ? null : index);
   };
 
+  const handleShareAndEarnClick = () => {
+    // This will be handled by the Sidebar component internally
+  };
+
+  if (userLoading) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#3ecf8e] border-r-transparent"></div>
+          <p className="mt-4 text-[#9ca3af]">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex overflow-x-hidden">
       {/* Sidebar Component */}
-      <ProfileSidebar 
+      <Sidebar 
         isOpen={isMenuOpen} 
         onClose={toggleMenu}
+        onShareAndEarnClick={handleShareAndEarnClick}
+        userId={user?.id || ''}
+        userRole={userRole}
+        hasTools={hasTools}
       />
 
       {/* Main Content Area */}
@@ -235,19 +311,7 @@ export default function SupportPage() {
          </div>
 
          {/* Footer */}
-         <footer className="border-t border-[#374151] mt-16 py-8">
-           <div className="max-w-4xl mx-auto px-4 text-center">
-             <div className="flex justify-center space-x-6 text-sm">
-               <Link href="/" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Home</Link>
-               <Link href="/privacy" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Privacy</Link>
-               <Link href="/terms" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Terms</Link>
-               <Link href="/support" className="text-[#3ecf8e] font-medium">Support</Link>
-             </div>
-             <p className="text-[#9ca3af] text-xs mt-4">
-               © 2025 1sub.io. All rights reserved.
-             </p>
-           </div>
-         </footer>
+         <Footer />
        </div>
        </main>
     </div>

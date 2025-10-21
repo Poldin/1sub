@@ -1,9 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Menu, ArrowLeft, User, CreditCard, History, Download } from 'lucide-react';
-import ProfileSidebar from './components/ProfileSidebar';
+import Sidebar from '../backoffice/components/Sidebar';
+import Footer from '../components/Footer';
+import { createClient } from '@/lib/supabase/client';
+import { getUserCreditsClient } from '@/lib/credits';
 
 interface CreditHistory {
   id: string;
@@ -22,18 +25,75 @@ interface UsageSummary {
 export default function ProfilePage() {
   const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isTopUpOpen, setIsTopUpOpen] = useState(false);
+  
+  // User data states
+  const [user, setUser] = useState<{ id: string; fullName: string | null; email: string } | null>(null);
+  const [userLoading, setUserLoading] = useState(true);
+  const [credits, setCredits] = useState(0);
+  const [userRole, setUserRole] = useState<string>('user');
+  const [hasTools, setHasTools] = useState(false);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
   };
-  const [isTopUpOpen, setIsTopUpOpen] = useState(false);
 
-  // Mock user data
-  const user = {
-    email: 'demo@1sub.io',
-    fullName: 'Demo User',
-    credits: 100
+  const handleShareAndEarnClick = () => {
+    // Handled by Sidebar component
   };
+
+  // Fetch user data
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const response = await fetch('/api/user/profile');
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            router.push('/login');
+            return;
+          }
+          throw new Error('Failed to fetch user profile');
+        }
+
+        const data = await response.json();
+
+        setUser({
+          id: data.id,
+          fullName: data.fullName || null,
+          email: data.email || '',
+        });
+
+        if (data.role) {
+          setUserRole(data.role);
+        }
+
+        // Check if user has created any tools
+        const supabase = createClient();
+        const { data: userTools, error: toolsError } = await supabase
+          .from('tools')
+          .select('id')
+          .eq('user_profile_id', data.id);
+
+        if (!toolsError && userTools && userTools.length > 0) {
+          setHasTools(true);
+        }
+
+        // Fetch credits
+        const userCredits = await getUserCreditsClient(data.id);
+        if (userCredits !== null) {
+          setCredits(userCredits);
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+        router.push('/login');
+      } finally {
+        setUserLoading(false);
+      }
+    };
+
+    fetchUserData();
+  }, [router]);
 
   // Mock credit history
   const creditHistory: CreditHistory[] = [
@@ -98,12 +158,27 @@ export default function ProfilePage() {
     alert('Credit history exported to CSV!');
   };
 
+  if (userLoading) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#3ecf8e] border-r-transparent"></div>
+          <p className="mt-4 text-[#9ca3af]">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex overflow-x-hidden">
-      {/* Sidebar Component */}
-      <ProfileSidebar 
+      {/* Unified Sidebar */}
+      <Sidebar 
         isOpen={isMenuOpen} 
         onClose={toggleMenu}
+        onShareAndEarnClick={handleShareAndEarnClick}
+        userId={user?.id || ''}
+        userRole={userRole}
+        hasTools={hasTools}
       />
 
       {/* Main Content Area */}
@@ -142,11 +217,11 @@ export default function ProfilePage() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-[#d1d5db] mb-1">Email</label>
-                  <p className="text-[#ededed]">{user.email}</p>
+                  <p className="text-[#ededed]">{user?.email || '-'}</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-[#d1d5db] mb-1">Full Name</label>
-                  <p className="text-[#ededed]">{user.fullName}</p>
+                  <p className="text-[#ededed]">{user?.fullName || '-'}</p>
                 </div>
                 <button className="w-full px-4 py-2 bg-[#374151] text-[#ededed] rounded-lg hover:bg-[#4b5563] transition-colors">
                   Reset Password
@@ -161,7 +236,7 @@ export default function ProfilePage() {
                 Credits Overview
               </h2>
               <div className="text-center mb-6">
-                <p className="text-4xl font-bold text-[#3ecf8e] mb-2">{user.credits}</p>
+                <p className="text-4xl font-bold text-[#3ecf8e] mb-2">{credits.toFixed(2)}</p>
                 <p className="text-[#9ca3af]">Available Credits</p>
               </div>
               <button
@@ -261,6 +336,9 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
+
+        {/* Footer */}
+        <Footer />
       </div>
       </main>
     </div>

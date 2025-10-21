@@ -1,24 +1,46 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Menu } from 'lucide-react';
+import { useRouter, useParams } from 'next/navigation';
+import { Menu, ArrowLeft } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import Sidebar from '../../backoffice/components/Sidebar';
-import Footer from '../../components/Footer';
-import ToolSelector from '../components/ToolSelector';
+import Sidebar from '../../../../backoffice/components/Sidebar';
+import Footer from '../../../../components/Footer';
+import ToolSelector from '../../../components/ToolSelector';
 
-export default function PublishToolPage() {
+interface Tool {
+  id: string;
+  name: string;
+  description: string;
+  url: string;
+  is_active: boolean;
+  user_profile_id: string;
+  metadata?: Record<string, unknown>;
+}
+
+export default function EditToolPage() {
   const router = useRouter();
+  const params = useParams();
+  const toolId = params.id as string;
+  
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [tool, setTool] = useState<Tool | null>(null);
+  
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    icon: ''
+    url: ''
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
-  const [isPublishing, setIsPublishing] = useState(false);
+  const [originalData, setOriginalData] = useState({
+    name: '',
+    description: '',
+    url: ''
+  });
+  const [hasChanges, setHasChanges] = useState(false);
   
   // States for unified Sidebar
   const [userId, setUserId] = useState<string>('');
@@ -32,15 +54,26 @@ export default function PublishToolPage() {
   const handleShareAndEarnClick = () => {
     // Handled by Sidebar component
   };
-  
-  // Fetch user data
+
+  // Check if form has changes
   useEffect(() => {
-    const fetchUserData = async () => {
+    const changed = 
+      formData.name !== originalData.name ||
+      formData.description !== originalData.description ||
+      imageFile !== null;
+    setHasChanges(changed);
+  }, [formData, imageFile, originalData]);
+
+  // Fetch tool data
+  useEffect(() => {
+    const fetchTool = async () => {
       try {
         const supabase = createClient();
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         
         if (authError || !user) {
+          alert('You must be logged in');
+          router.push('/login');
           return;
         }
         
@@ -64,13 +97,40 @@ export default function PublishToolPage() {
           .eq('user_profile_id', user.id);
         
         setHasTools((toolsData?.length || 0) > 0);
+
+        const { data: toolData, error: fetchError } = await supabase
+          .from('tools')
+          .select('*')
+          .eq('id', toolId)
+          .eq('user_profile_id', user.id) // Ensure user owns this tool
+          .single();
+
+        if (fetchError || !toolData) {
+          console.error('Error fetching tool:', fetchError);
+          alert('Tool not found or you do not have permission to edit it');
+          router.push('/vendor-dashboard');
+          return;
+        }
+
+        setTool(toolData);
+        const initialData = {
+          name: toolData.name,
+          description: toolData.description || '',
+          url: toolData.url
+        };
+        setFormData(initialData);
+        setOriginalData(initialData);
+        setImagePreview(toolData.url); // Show current image
+        setIsLoading(false);
       } catch (err) {
-        console.error('Error fetching user data:', err);
+        console.error('Error:', err);
+        alert('Failed to load tool');
+        router.push('/vendor-dashboard');
       }
     };
-    
-    fetchUserData();
-  }, []);
+
+    fetchTool();
+  }, [toolId, router]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -85,82 +145,89 @@ export default function PublishToolPage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
+    if (!hasChanges) return;
     
-    if (!imageFile) {
-      alert('Please select an image for your tool');
-      return;
-    }
-
-    setIsPublishing(true);
+    setIsSaving(true);
 
     try {
       const supabase = createClient();
       const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
       
       if (authError || !authUser) {
-        alert('You must be logged in to publish tools');
-        setIsPublishing(false);
+        alert('You must be logged in');
+        setIsSaving(false);
         return;
       }
 
-      // Upload image to Supabase Storage
-      const fileExt = imageFile.name.split('.').pop();
-      const fileName = `${authUser.id}-${Date.now()}.${fileExt}`;
-      const filePath = `tool-images/${fileName}`;
+      let imageUrl = formData.url;
 
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('allfile')
-        .upload(filePath, imageFile, {
-          cacheControl: '3600',
-          upsert: false
-        });
+      // Upload new image if selected
+      if (imageFile) {
+        const fileExt = imageFile.name.split('.').pop();
+        const fileName = `${authUser.id}-${Date.now()}.${fileExt}`;
+        const filePath = `tool-images/${fileName}`;
 
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        alert('Failed to upload image: ' + uploadError.message);
-        setIsPublishing(false);
-        return;
+        const { error: uploadError } = await supabase.storage
+          .from('allfile')
+          .upload(filePath, imageFile, {
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (uploadError) {
+          console.error('Upload error:', uploadError);
+          alert('Failed to upload image: ' + uploadError.message);
+          setIsSaving(false);
+          return;
+        }
+
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('allfile')
+          .getPublicUrl(filePath);
+
+        imageUrl = publicUrl;
       }
 
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('allfile')
-        .getPublicUrl(filePath);
-
-      // Create tool with basic information
-      const { data: toolData, error: insertError } = await supabase
+      // Update tool
+      const { error: updateError } = await supabase
         .from('tools')
-        .insert({
+        .update({
           name: formData.name,
           description: formData.description,
-          url: publicUrl, // Image URL
-          is_active: true, // Active by default
-          user_profile_id: authUser.id, // Foreign key to user_profiles
-          metadata: {
-            // API endpoint and pricing will be configured in edit page
-          }
+          url: imageUrl,
+          updated_at: new Date().toISOString()
         })
-        .select()
-        .single();
+        .eq('id', toolId)
+        .eq('user_profile_id', authUser.id);
       
-      if (insertError) {
-        console.error('Database error:', insertError);
-        alert(`Failed to create tool: ${insertError.message}`);
-        setIsPublishing(false);
+      if (updateError) {
+        console.error('Update error:', updateError);
+        alert(`Failed to update tool: ${updateError.message}`);
+        setIsSaving(false);
         return;
       }
       
-      console.log('Tool created successfully:', toolData);
+      // Update original data to reflect saved state
+      const updatedData = {
+        name: formData.name,
+        description: formData.description,
+        url: imageUrl
+      };
+      setOriginalData(updatedData);
+      setFormData(updatedData);
+      setImagePreview(imageUrl); // Update preview with new image URL
+      setImageFile(null);
+      setHasChanges(false);
+      setIsSaving(false);
       
-      // Redirect to edit page to configure pricing and API
-      router.push(`/vendor-dashboard/tools/${toolData.id}/edit`);
+      alert('Tool updated successfully!');
       
     } catch (err) {
-      console.error('Error creating tool:', err);
-      alert('Failed to create tool');
-      setIsPublishing(false);
+      console.error('Error updating tool:', err);
+      alert('Failed to update tool');
+      setIsSaving(false);
     }
   };
 
@@ -170,6 +237,17 @@ export default function PublishToolPage() {
       [e.target.name]: e.target.value
     });
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#3ecf8e] border-r-transparent"></div>
+          <p className="mt-4 text-[#9ca3af]">Loading tool...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex overflow-x-hidden">
@@ -188,38 +266,42 @@ export default function PublishToolPage() {
         flex-1 min-w-0 transition-all duration-300 ease-in-out overflow-x-hidden
         ${isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'}
       `}>
-        {/* Top Bar with Hamburger */}
+        {/* Top Bar with Hamburger, Tool Selector, and Save */}
         <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-30 overflow-x-hidden border-b border-[#374151]">
-          <div className="flex items-center justify-between p-2 sm:p-3 min-w-0">
+          <div className="flex items-center justify-between p-3">
+            {/* Left: Hamburger and Tool Selector */}
             <div className="flex items-center gap-3">
-              {/* Hamburger Button */}
               <button
                 onClick={toggleMenu}
                 className="p-2 rounded-lg hover:bg-[#374151] transition-colors flex-shrink-0"
               >
-                <Menu className="w-6 h-6 sm:w-6 sm:h-6" />
+                <Menu className="w-6 h-6" />
               </button>
               
-              {/* Tool Selector */}
-              {hasTools && userId && (
-                <ToolSelector userId={userId} />
+              {/* Tool Selector with current tool selected */}
+              {userId && (
+                <ToolSelector userId={userId} currentToolId={toolId} />
               )}
-              
-              {/* Page Title */}
-              <h1 className="text-xl sm:text-2xl font-bold text-[#ededed]">Publish New Tool</h1>
             </div>
             
-            {/* Spacer */}
-            <div className="w-10"></div>
+            {/* Right: Save Button */}
+            <button
+              onClick={handleSubmit}
+              disabled={!hasChanges || isSaving}
+              className="px-4 py-2 bg-[#3ecf8e] text-black rounded-lg font-medium hover:bg-[#2dd4bf] disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+            >
+              {isSaving ? 'Saving...' : 'Save Changes'}
+            </button>
           </div>
         </header>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+
           <div className="grid gap-6 grid-cols-1 lg:grid-cols-[2fr_1fr]">
             {/* Form: Name, Image & Description */}
             <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
-              <h2 className="text-lg font-semibold text-[#ededed] mb-6">Basic Information</h2>
-              <form id="tool-form" onSubmit={handleSubmit} className="space-y-6">
+              <h2 className="text-lg font-semibold text-[#ededed] mb-6">Tool Information</h2>
+              <form id="tool-form" onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="space-y-6">
                 {/* Name and Image Side by Side */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -289,7 +371,6 @@ export default function PublishToolPage() {
                               accept="image/*"
                               className="sr-only"
                               onChange={handleImageChange}
-                              required={!imageFile}
                             />
                           </label>
                         </>
@@ -314,14 +395,6 @@ export default function PublishToolPage() {
                     required
                   />
                 </div>
-
-                <button
-                  type="submit"
-                  disabled={isPublishing || !imageFile || !formData.name || !formData.description}
-                  className="w-full bg-[#3ecf8e] text-black py-3 px-4 rounded-lg font-semibold hover:bg-[#2dd4bf] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {isPublishing ? 'Creating Tool...' : 'Create Tool'}
-                </button>
               </form>
             </div>
 
@@ -371,3 +444,4 @@ export default function PublishToolPage() {
     </div>
   );
 }
+

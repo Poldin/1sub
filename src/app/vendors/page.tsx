@@ -34,8 +34,8 @@ export default function VendorsPage() {
       <section className="section-padding text-center">
         <div className="mx-auto max-w-5xl">
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
-            We connect you with customers,{" "}
-            <span className="text-[#3ecf8e]">and customers with you</span>
+            We connect you with{" "}
+            <span className="text-[#3ecf8e]">users.</span>
           </h1>
           
           <p className="text-lg sm:text-xl text-[#d1d5db] max-w-3xl mx-auto mb-8 leading-relaxed">

@@ -1,8 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Menu, Users, Search } from 'lucide-react';
-import VendorSidebar from '../components/VendorSidebar';
+import { createClient } from '@/lib/supabase/client';
+import Sidebar from '../../backoffice/components/Sidebar';
+import ToolSelector from '../components/ToolSelector';
 
 interface User {
   id: string;
@@ -15,10 +18,58 @@ interface User {
 export default function VendorUsersPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // States for unified Sidebar
+  const [userId, setUserId] = useState<string>('');
+  const [userRole, setUserRole] = useState<string>('user');
+  const [hasTools, setHasTools] = useState(false);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
   };
+  
+  const handleShareAndEarnClick = () => {
+    // Handled by Sidebar component
+  };
+  
+  // Fetch user data
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const supabase = createClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        
+        if (authError || !user) {
+          return;
+        }
+        
+        setUserId(user.id);
+        
+        // Fetch user profile data
+        const { data: profileData } = await supabase
+          .from('user_profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+        
+        if (profileData) {
+          setUserRole(profileData.role || 'user');
+        }
+        
+        // Check if user has tools
+        const { data: toolsData } = await supabase
+          .from('tools')
+          .select('id')
+          .eq('user_profile_id', user.id);
+        
+        setHasTools((toolsData?.length || 0) > 0);
+      } catch (err) {
+        console.error('Error fetching user data:', err);
+      }
+    };
+    
+    fetchUserData();
+  }, []);
   
   // Mock users data
   const users: User[] = [
@@ -66,10 +117,14 @@ export default function VendorUsersPage() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex overflow-x-hidden">
-      {/* Sidebar Component */}
-      <VendorSidebar 
+      {/* Unified Sidebar */}
+      <Sidebar 
         isOpen={isMenuOpen} 
         onClose={toggleMenu}
+        onShareAndEarnClick={handleShareAndEarnClick}
+        userId={userId}
+        userRole={userRole}
+        hasTools={hasTools}
       />
 
       {/* Main Content Area */}
@@ -78,18 +133,25 @@ export default function VendorUsersPage() {
         ${isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'}
       `}>
         {/* Top Bar with Hamburger */}
-        <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-30 overflow-x-hidden">
+        <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-30 overflow-x-hidden border-b border-[#374151]">
           <div className="flex items-center justify-between p-2 sm:p-3 min-w-0">
-            {/* Hamburger Button */}
-            <button
-              onClick={toggleMenu}
-              className="p-2 rounded-lg hover:bg-[#374151] transition-colors flex-shrink-0"
-            >
-              <Menu className="w-6 h-6 sm:w-6 sm:h-6" />
-            </button>
-            
-            {/* Page Title */}
-            <h1 className="text-xl sm:text-2xl font-bold text-[#ededed]">Users</h1>
+            <div className="flex items-center gap-3">
+              {/* Hamburger Button */}
+              <button
+                onClick={toggleMenu}
+                className="p-2 rounded-lg hover:bg-[#374151] transition-colors flex-shrink-0"
+              >
+                <Menu className="w-6 h-6 sm:w-6 sm:h-6" />
+              </button>
+              
+              {/* Tool Selector */}
+              {hasTools && userId && (
+                <ToolSelector userId={userId} />
+              )}
+              
+              {/* Page Title */}
+              <h1 className="text-xl sm:text-2xl font-bold text-[#ededed]">Users</h1>
+            </div>
             
             {/* Search Bar */}
             <div className="relative">
@@ -99,7 +161,7 @@ export default function VendorUsersPage() {
                 placeholder="Search users or tools..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
+                className="pl-10 pr-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent text-sm"
               />
             </div>
           </div>
@@ -185,6 +247,21 @@ export default function VendorUsersPage() {
             </p>
           </div>
         </div>
+
+        {/* Footer */}
+        <footer className="border-t border-[#374151] mt-16 py-8">
+          <div className="max-w-4xl mx-auto px-4 text-center">
+            <div className="flex justify-center space-x-6 text-sm">
+              <Link href="/" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Home</Link>
+              <Link href="/privacy" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Privacy</Link>
+              <Link href="/terms" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Terms</Link>
+              <Link href="/support" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Support</Link>
+            </div>
+            <p className="text-[#9ca3af] text-xs mt-4">
+              © 2025 1sub.io. All rights reserved.
+            </p>
+          </div>
+        </footer>
       </div>
       </main>
     </div>
