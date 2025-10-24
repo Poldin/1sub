@@ -1,13 +1,12 @@
 'use client';
 
 import { useState, useRef, useEffect, Suspense } from 'react';
-import Link from 'next/link';
-import { Menu, User, Users, LogOut, ExternalLink, Briefcase, Check } from 'lucide-react';
+import { Menu, User, LogOut, ExternalLink, Briefcase, Check } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import Sidebar from './components/Sidebar';
-import ShareAndEarnDialog from './components/ShareAndEarn';
 import SearchBar from './components/SearchBar';
+import Footer from '@/app/components/Footer';
 
 // Tool type matching database schema
 type Tool = {
@@ -88,7 +87,6 @@ function BackofficeContent() {
   const [toolsError, setToolsError] = useState<string | null>(null);
   
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [userRole, setUserRole] = useState<string>('user'); // Change to 'vendor' to test vendor view
   const [showPurchaseSuccess, setShowPurchaseSuccess] = useState(false);
   const [hasTools, setHasTools] = useState(false);
@@ -229,14 +227,6 @@ function BackofficeContent() {
     setIsMenuOpen(newState);
     // Save sidebar state to localStorage
     localStorage.setItem('sidebarOpen', String(newState));
-  };
-
-  const openShareDialog = () => {
-    setIsShareDialogOpen(true);
-  };
-
-  const closeShareDialog = () => {
-    setIsShareDialogOpen(false);
   };
 
   const handleLaunchTool = async (toolId: string) => {
@@ -455,7 +445,6 @@ function BackofficeContent() {
       <Sidebar 
         isOpen={isMenuOpen} 
         onClose={toggleMenu}
-        onShareAndEarnClick={openShareDialog}
         userId={user?.id || ''}
         userRole={userRole}
         hasTools={hasTools}
@@ -721,26 +710,8 @@ function BackofficeContent() {
         </div>
 
         {/* Footer */}
-        <footer className="bg-[#111111] border-t border-[#374151] mt-16 py-8">
-          <div className="max-w-4xl mx-auto px-4 text-center">
-            <div className="flex justify-center space-x-6 text-sm">
-              <Link href="/" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Home</Link>
-              <Link href="/privacy" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Privacy</Link>
-              <Link href="/terms" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Terms</Link>
-              <Link href="/support" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Support</Link>
-            </div>
-            <p className="text-[#9ca3af] text-xs mt-4">
-              © 2025 1sub.io. All rights reserved.
-            </p>
-          </div>
-        </footer>
+        <Footer />
       </main>
-
-      {/* Share and Earn Dialog - Outside sidebar */}
-      <ShareAndEarnDialog 
-        isOpen={isShareDialogOpen} 
-        onClose={closeShareDialog} 
-      />
     </div>
     </>
   );

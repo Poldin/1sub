@@ -16,24 +16,22 @@ import {
   Users,
   Key,
   DollarSign,
-  LayoutDashboard
+  LayoutDashboard,
+  ExternalLink
 } from 'lucide-react';
-import { ShareAndEarnButton } from './ShareAndEarn';
-import ShareAndEarnDialog from './ShareAndEarn';
 import { getUserCreditsClient } from '@/lib/credits';
 
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
-  onShareAndEarnClick: () => void;
+  onShareAndEarnClick?: () => void; // Legacy prop, no longer used
   userId: string;
   userRole?: string;
   hasTools?: boolean; // If user has created at least one tool
 }
 
-export default function Sidebar({ isOpen, onClose, onShareAndEarnClick, userId, userRole = 'user', hasTools = false }: SidebarProps) {
+export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', hasTools = false }: SidebarProps) {
   const router = useRouter();
-  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [isVendorMenuOpen, setIsVendorMenuOpen] = useState(false);
   const [credits, setCredits] = useState<number>(0);
 
@@ -69,14 +67,6 @@ export default function Sidebar({ isOpen, onClose, onShareAndEarnClick, userId, 
     const newState = !isVendorMenuOpen;
     setIsVendorMenuOpen(newState);
     localStorage.setItem('vendorMenuOpen', String(newState));
-  };
-
-  const handleShareAndEarnClick = () => {
-    setIsShareDialogOpen(true);
-  };
-
-  const handleShareDialogClose = () => {
-    setIsShareDialogOpen(false);
   };
 
   return (
@@ -218,13 +208,18 @@ export default function Sidebar({ isOpen, onClose, onShareAndEarnClick, userId, 
 
         {/* Share and Earn Button */}
         <div className="mx-4 mb-4">
-          <button
-            onClick={handleShareAndEarnClick}
-            className="w-full flex items-center gap-2 p-2 bg-[#1f2937] hover:bg-[#374151] rounded-lg transition-colors text-[#ededed] font-medium"
+          <a
+            href="/shareandearn"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center justify-between gap-2 p-2 bg-[#1f2937] hover:bg-[#374151] rounded-lg transition-colors text-[#ededed] font-medium"
           >
-            <Gift className="w-4 h-4 text-[#3ecf8e]" />
-            <span className="text-sm">Share & Earn</span>
-          </button>
+            <div className="flex items-center gap-2">
+              <Gift className="w-4 h-4 text-[#3ecf8e]" />
+              <span className="text-sm">Share & Earn</span>
+            </div>
+            <ExternalLink className="w-3.5 h-3.5 text-[#9ca3af]" />
+          </a>
         </div>
 
         {/* Become a Vendor CTA - Only for users without tools */}
@@ -270,12 +265,6 @@ export default function Sidebar({ isOpen, onClose, onShareAndEarnClick, userId, 
           </div>
         </div>
       </aside>
-
-      {/* Share and Earn Dialog */}
-      <ShareAndEarnDialog
-        isOpen={isShareDialogOpen}
-        onClose={handleShareDialogClose}
-      />
     </>
   );
 }
