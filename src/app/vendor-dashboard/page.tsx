@@ -36,7 +36,7 @@ export default function VendorDashboard() {
     usageCount: 0,
     activeSubscribers: 0,
     revenue: 0,
-    successRate: 0
+    revenueGrowth: 0
   });
 
   const toggleMenu = () => {
@@ -124,14 +124,19 @@ export default function VendorDashboard() {
 
       const activeSubscribers = subscriptionsData?.length || 0;
 
-      // Mock success rate for now
-      const successRate = 98.5;
+      // Calculate revenue growth (month-over-month)
+      // For now, using mock data - will be replaced with real calculation
+      const currentMonthRevenue = revenue;
+      const previousMonthRevenue = revenue * 0.85; // Mock: assume 15% growth
+      const revenueGrowth = previousMonthRevenue > 0 
+        ? ((currentMonthRevenue - previousMonthRevenue) / previousMonthRevenue) * 100 
+        : 0;
 
       setToolStats({
         usageCount,
         activeSubscribers,
         revenue,
-        successRate
+        revenueGrowth
       });
     } catch (error) {
       console.error('Error fetching tool analytics:', error);
@@ -468,8 +473,16 @@ export default function VendorDashboard() {
                           <TrendingUp className="w-6 h-6 text-[#3ecf8e]" />
                         </div>
                         <div className="ml-4">
-                          <p className="text-sm text-[#9ca3af]">Success Rate</p>
-                          <p className="text-2xl font-bold text-[#ededed]">{toolStats.successRate}%</p>
+                          <p className="text-sm text-[#9ca3af]">Revenue Growth</p>
+                          <p className={`text-2xl font-bold ${
+                            toolStats.revenueGrowth > 0 
+                              ? 'text-green-400' 
+                              : toolStats.revenueGrowth < 0 
+                                ? 'text-red-400' 
+                                : 'text-[#ededed]'
+                          }`}>
+                            {toolStats.revenueGrowth > 0 ? '+' : ''}{toolStats.revenueGrowth.toFixed(1)}%
+                          </p>
                         </div>
                       </div>
                     </div>
