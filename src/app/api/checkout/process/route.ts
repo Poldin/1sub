@@ -48,7 +48,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3. Check if checkout is already completed
+    // 3. Prevent self-purchase (user cannot buy their own tools)
+    if (checkout.vendor_id === authUser.id) {
+      return NextResponse.json(
+        { error: 'You cannot purchase your own tools' },
+        { status: 400 }
+      );
+    }
+
+    // 4. Check if checkout is already completed
     const metadata = checkout.metadata as Record<string, unknown>;
     if (metadata?.status === 'completed') {
       return NextResponse.json(
@@ -57,7 +65,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 4. Determine credit cost and checkout type from selected pricing
+    // 5. Determine credit cost and checkout type from selected pricing
     let creditCost = checkout.credit_amount || 0;
     let checkoutType = checkout.type || 'tool_purchase';
     let billingPeriod = null;
@@ -93,7 +101,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 5. Fetch user's current credit balance
+    // 6. Fetch user's current credit balance
     const { data: transactions, error: transactionsError } = await supabase
       .from('credit_transactions')
       .select('credits_amount, type')
@@ -109,7 +117,7 @@ export async function POST(request: NextRequest) {
     // Calculate current balance using centralized utility
     const currentBalance = calculateCreditsFromTransactions(transactions || []);
 
-    // 6. Verify user has enough credits
+    // 7. Verify user has enough credits
     if (currentBalance < creditCost) {
       return NextResponse.json(
         { 
@@ -121,13 +129,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 7. Determine transaction reason based on checkout type
+    // 8. Determine transaction reason based on checkout type
     let transactionReason = `Tool purchase: ${metadata.tool_name}`;
     if (checkoutType === 'tool_subscription') {
       transactionReason = `Subscription payment: ${metadata.tool_name} (${billingPeriod || 'monthly'})`;
     }
 
-    // 8. Create user transaction (spend credits)
+    // 9. Create user transaction (spend credits)
     const { error: userTransactionError } = await supabase
       .from('credit_transactions')
       .insert({
@@ -154,7 +162,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 7. Create vendor transaction (earn credits) if vendor exists
+    // 10. Create vendor transaction (earn credits) if vendor exists
     if (checkout.vendor_id) {
       // Fetch vendor's current balance
       const { data: vendorTransactions } = await supabase
@@ -188,7 +196,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 9. Create subscription record if this is a subscription checkout
+    // 11. Create subscription record if this is a subscription checkout
     if (checkoutType === 'tool_subscription' && billingPeriod) {
       // Calculate next billing date
       const nextBillingDate = new Date();
