@@ -37,7 +37,6 @@ export default function VendorUsersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedToolId, setSelectedToolId] = useState<string>('');
-  const [vendorTools, setVendorTools] = useState<{id: string, name: string}[]>([]);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -66,11 +65,8 @@ export default function VendorUsersPage() {
 
       if (!tools || tools.length === 0) {
         setUsers([]);
-        setVendorTools([]);
         return;
       }
-
-      setVendorTools(tools);
       const toolIds = tools.map(tool => tool.id);
 
       // 2. Get credit transactions for these tools
@@ -85,7 +81,7 @@ export default function VendorUsersPage() {
       }
 
       // 3. Get active subscriptions (optional - table might not exist yet)
-      let subscriptions = [];
+      let subscriptions: { user_id: string; tool_id: string }[] = [];
       try {
         const { data: subscriptionsData, error: subscriptionsError } = await supabase
           .from('tool_subscriptions')
@@ -282,7 +278,7 @@ export default function VendorUsersPage() {
               {hasTools && userId && (
                 <ToolSelector 
                   userId={userId} 
-                  onToolChange={(toolId, toolName) => {
+                  onToolChange={(toolId) => {
                     setSelectedToolId(toolId);
                   }}
                 />
