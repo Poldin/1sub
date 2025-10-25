@@ -2,15 +2,67 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertCircle, CreditCard, ArrowLeft } from 'lucide-react';
-import { Suspense } from 'react';
+import { Suspense, useState, useEffect } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { getUserCreditsClient } from '@/lib/credits';
 
 function BuyCreditsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  const needed = searchParams.get('needed') || '0';
+  const needed = parseInt(searchParams.get('needed') || '0');
   const toolId = searchParams.get('tool_id');
   const toolName = searchParams.get('tool_name');
+  
+  // User and credit state (only needed if user was redirected here for a specific tool)
+  const [user, setUser] = useState<{ id: string; fullName: string | null; email: string } | null>(null);
+  const [credits, setCredits] = useState<number>(0);
+  const [loading, setLoading] = useState(false);
+
+  // Only fetch user data and credits if user was redirected here for a specific tool
+  useEffect(() => {
+    if (toolName) {
+      setLoading(true);
+      const fetchUserData = async () => {
+        try {
+          const response = await fetch('/api/user/profile');
+
+          if (!response.ok) {
+            if (response.status === 401) {
+              router.push('/login');
+              return;
+            }
+            throw new Error('Failed to fetch user profile');
+          }
+
+          const data = await response.json();
+
+          setUser({
+            id: data.id,
+            fullName: data.fullName || null,
+            email: data.email || '',
+          });
+
+          // Fetch credits using the client-side function
+          const userCredits = await getUserCreditsClient(data.id);
+          if (userCredits !== null) {
+            setCredits(userCredits);
+          }
+        } catch (error) {
+          console.error('Error fetching user data:', error);
+          router.push('/login');
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      fetchUserData();
+    }
+  }, [router, toolName]);
+
+  // Calculate remaining credits needed (only if user was redirected for a specific tool)
+  const remainingCredits = toolName ? Math.max(0, needed - credits) : 0;
+  const hasEnoughCredits = toolName ? credits >= needed : true;
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed]">
@@ -30,24 +82,39 @@ function BuyCreditsContent() {
 
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-4 py-12">
-        {/* Insufficient Credits Warning */}
-        <div className="bg-red-400/10 border border-red-400/20 rounded-lg p-6 mb-8">
-          <div className="flex items-start gap-4">
-            <AlertCircle className="w-6 h-6 text-red-400 flex-shrink-0 mt-1" />
-            <div>
-              <h2 className="text-xl font-bold text-red-400 mb-2">Insufficient Credits</h2>
-              {toolName ? (
-                <p className="text-[#9ca3af]">
-                  You need <span className="text-[#ededed] font-semibold">{needed} credits</span> to access <span className="text-[#3ecf8e] font-semibold">{decodeURIComponent(toolName)}</span>.
-                </p>
-              ) : (
-                <p className="text-[#9ca3af]">
-                  You need at least <span className="text-[#ededed] font-semibold">{needed} credits</span> to continue.
-                </p>
-              )}
+        {/* Only show insufficient credits warning if user was redirected here for a specific tool */}
+        {toolName && loading && (
+          <div className="bg-blue-400/10 border border-blue-400/20 rounded-lg p-6 mb-8">
+            <div className="flex items-start gap-4">
+              <div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin flex-shrink-0 mt-1"></div>
+              <div>
+                <h2 className="text-xl font-bold text-blue-400 mb-2">Loading Credits</h2>
+                <p className="text-[#9ca3af]">Please wait while we check your credit balance...</p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
+        {toolName && !loading && !hasEnoughCredits && (
+          <div className="bg-red-400/10 border border-red-400/20 rounded-lg p-6 mb-8">
+            <div className="flex items-start gap-4">
+              <AlertCircle className="w-6 h-6 text-red-400 flex-shrink-0 mt-1" />
+              <div>
+                <h2 className="text-xl font-bold text-red-400 mb-2">Insufficient Credits</h2>
+                <div className="space-y-2">
+                  <p className="text-[#9ca3af]">
+                    Current balance: <span className="text-[#ededed] font-semibold">{credits} credits</span>
+                  </p>
+                  <p className="text-[#9ca3af]">
+                    You need <span className="text-[#ededed] font-semibold">{needed} credits</span> to access <span className="text-[#3ecf8e] font-semibold">{decodeURIComponent(toolName)}</span>.
+                  </p>
+                  <p className="text-red-400 font-semibold">
+                    You need to purchase <span className="text-[#ededed]">{remainingCredits} more credits</span>.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Coming Soon Notice */}
         <div className="bg-[#1f2937]/90 backdrop-blur-lg rounded-2xl p-8 border border-[#374151]/70">
@@ -70,6 +137,12 @@ function BuyCreditsContent() {
           {/* Credit Packages Preview */}
           <div className="space-y-4 mb-8">
             <h3 className="font-semibold text-[#ededed]">Available Packages (Preview)</h3>
+            {toolName && !hasEnoughCredits && (
+              <p className="text-sm text-[#9ca3af] mb-4">
+                You need <span className="text-[#3ecf8e] font-semibold">{remainingCredits} more credits</span> to access <span className="text-[#3ecf8e] font-semibold">{decodeURIComponent(toolName)}</span>. 
+                Choose a package that covers your needs:
+              </p>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-[#0a0a0a]/50 border border-[#374151] rounded-lg p-4 opacity-50">
                 <div className="text-2xl font-bold text-[#3ecf8e] mb-2">100 credits</div>
@@ -125,4 +198,5 @@ export default function BuyCreditsPage() {
     </Suspense>
   );
 }
+
 

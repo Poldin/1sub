@@ -25,7 +25,6 @@ interface UsageSummary {
 export default function ProfilePage() {
   const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isTopUpOpen, setIsTopUpOpen] = useState(false);
   
   // User data states
   const [user, setUser] = useState<{ id: string; fullName: string | null; email: string } | null>(null);
@@ -240,7 +239,7 @@ export default function ProfilePage() {
                 <p className="text-[#9ca3af]">Available Credits</p>
               </div>
               <button
-                onClick={() => setIsTopUpOpen(true)}
+                onClick={() => router.push('/buy-credits')}
                 className="w-full bg-[#3ecf8e] text-black py-3 px-4 rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors"
               >
                 Top Up Credits
