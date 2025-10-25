@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import Sidebar from '../../backoffice/components/Sidebar';
 import Footer from '../../components/Footer';
 import ToolSelector from '../components/ToolSelector';
+import ToolPricingEditor, { PricingConfig } from '../components/ToolPricingEditor';
 
 export default function PublishToolPage() {
   const router = useRouter();
@@ -19,6 +20,22 @@ export default function PublishToolPage() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
   const [isPublishing, setIsPublishing] = useState(false);
+  const [pricing, setPricing] = useState<PricingConfig>({
+    one_time: {
+      available: false,
+      price: 0
+    },
+    subscription: {
+      available: false,
+      price: 0,
+      period: 'monthly'
+    },
+    usage: {
+      available: false,
+      price: 0,
+      unit: ''
+    }
+  });
   
   // States for unified Sidebar
   const [userId, setUserId] = useState<string>('');
@@ -93,6 +110,35 @@ export default function PublishToolPage() {
       return;
     }
 
+    // Validate pricing configuration
+    const hasAnyPricing = pricing.one_time.available || pricing.subscription.available || pricing.usage.available;
+    
+    if (hasAnyPricing) {
+      // Validate enabled pricing options
+      if (pricing.one_time.available && pricing.one_time.price <= 0) {
+        alert('One-time purchase price must be greater than 0');
+        return;
+      }
+      
+      if (pricing.subscription.available && pricing.subscription.price <= 0) {
+        alert('Subscription price must be greater than 0');
+        return;
+      }
+      
+      if (pricing.usage.available && (pricing.usage.price <= 0 || !pricing.usage.unit.trim())) {
+        alert('Usage-based pricing requires a positive price and usage unit');
+        return;
+      }
+    }
+
+    // Show warning if no pricing is enabled
+    if (!hasAnyPricing) {
+      const confirmed = confirm('No pricing options are enabled. Users won\'t be able to purchase this tool. Continue anyway?');
+      if (!confirmed) {
+        return;
+      }
+    }
+
     setIsPublishing(true);
 
     try {
@@ -129,7 +175,17 @@ export default function PublishToolPage() {
         .from('allfile')
         .getPublicUrl(filePath);
 
-      // Create tool with basic information
+      // Prepare complete data object for logging
+      const completeToolData = {
+        name: formData.name,
+        description: formData.description,
+        imageUrl: publicUrl,
+        pricing: pricing
+      };
+
+      console.log('Complete tool data:', completeToolData);
+
+      // Create tool with basic information and pricing
       const { data: toolData, error: insertError } = await supabase
         .from('tools')
         .insert({
@@ -139,7 +195,7 @@ export default function PublishToolPage() {
           is_active: true, // Active by default
           user_profile_id: authUser.id, // Foreign key to user_profiles
           metadata: {
-            // API endpoint and pricing will be configured in edit page
+            pricing: pricing
           }
         })
         .select()
@@ -154,7 +210,7 @@ export default function PublishToolPage() {
       
       console.log('Tool created successfully:', toolData);
       
-      // Redirect to edit page to configure pricing and API
+      // Redirect to edit page to configure API endpoints
       router.push(`/vendor-dashboard/tools/${toolData.id}/edit`);
       
     } catch (err) {
@@ -169,6 +225,10 @@ export default function PublishToolPage() {
       ...formData,
       [e.target.name]: e.target.value
     });
+  };
+
+  const handlePricingChange = (newPricing: PricingConfig) => {
+    setPricing(newPricing);
   };
 
   return (
@@ -216,10 +276,12 @@ export default function PublishToolPage() {
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="grid gap-6 grid-cols-1 lg:grid-cols-[2fr_1fr]">
-            {/* Form: Name, Image & Description */}
-            <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
-              <h2 className="text-lg font-semibold text-[#ededed] mb-6">Basic Information</h2>
-              <form id="tool-form" onSubmit={handleSubmit} className="space-y-6">
+            {/* Left Column: Forms */}
+            <div className="space-y-6">
+              {/* Form: Name, Image & Description */}
+              <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
+                <h2 className="text-lg font-semibold text-[#ededed] mb-6">Basic Information</h2>
+                <form id="tool-form" onSubmit={handleSubmit} className="space-y-6">
                 {/* Name and Image Side by Side */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -323,6 +385,13 @@ export default function PublishToolPage() {
                   {isPublishing ? 'Creating Tool...' : 'Create Tool'}
                 </button>
               </form>
+              </div>
+
+              {/* Pricing Configuration */}
+              <ToolPricingEditor 
+                pricing={pricing} 
+                onPricingChange={handlePricingChange} 
+              />
             </div>
 
             {/* Preview */}

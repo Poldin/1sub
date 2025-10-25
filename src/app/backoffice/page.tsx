@@ -265,6 +265,12 @@ function BackofficeContent() {
           return;
         }
 
+        // Prevent self-purchase
+        if (toolMetadata?.vendor_id === user.id) {
+          alert('You cannot purchase your own tools');
+          return;
+        }
+
         // Create checkout with pricing_options (user will select on checkout page)
         const { data: checkout, error } = await supabase
           .from('checkouts')
