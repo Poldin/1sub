@@ -306,282 +306,351 @@ export default function CreditCheckoutPage() {
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-3xl mx-auto px-4 py-12">
-        {/* Subscription Badge */}
-        {isSubscription && !isCompleted && (
-          <div className="bg-blue-400/10 border border-blue-400/20 rounded-lg p-4 mb-6">
-            <div className="flex items-start gap-3">
-              <div className="bg-blue-400 p-2 rounded-lg">
-                <span className="text-white text-lg">🔄</span>
-              </div>
-              <div>
-                <p className="text-blue-400 font-medium">Subscription Tool</p>
-                <p className="text-sm text-[#9ca3af] mt-1">
-                  You&apos;ll be charged <span className="text-[#ededed] font-semibold">{checkout.credit_amount} credits</span> every {subscriptionPeriod}. You can cancel anytime from your profile.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Completed Badge */}
-        {isCompleted && (
-          <div className="bg-green-400/10 border border-green-400/20 rounded-lg p-4 mb-6">
-            <div className="flex items-center gap-3">
-              <Check className="w-5 h-5 text-green-400" />
-              <div>
-                <p className="text-green-400 font-medium">Purchase Completed</p>
-                <p className="text-sm text-[#9ca3af]">
-                  Completed on {new Date(checkout.metadata.completed_at!).toLocaleString()}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="bg-[#1f2937]/90 backdrop-blur-lg rounded-2xl overflow-hidden border border-[#374151]/70">
-          {/* Tool Preview */}
-          <div className="bg-gradient-to-br from-[#3ecf8e] to-[#2dd4bf] p-8 text-center">
-            <div className="inline-block bg-white/20 p-4 rounded-full mb-4">
-              <Wrench className="w-12 h-12 text-white" />
-            </div>
-            <h1 className="text-3xl font-bold text-white mb-2">{checkout.metadata.tool_name}</h1>
-            <p className="text-white/80">Confirm your purchase to access this tool</p>
-          </div>
-
-          {/* Purchase Details */}
-          <div className="p-8 space-y-6">
-            {/* Payment Method Selector - Show if multiple options available */}
-            {hasPricingOptions && !isCompleted && (
+      {/* Main Content - Stripe-like Two Column Layout */}
+      <main className="max-w-7xl mx-auto px-4 py-8 lg:py-12">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+          {/* Left Column - Product Details */}
+          <div className="order-2 lg:order-1">
+            <div className="space-y-6">
+              {/* Tool Header */}
               <div className="space-y-3">
-                <h3 className="font-semibold text-[#ededed] mb-4">Payment Method</h3>
-                
-                {checkout.metadata.pricing_options?.one_time?.enabled && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedPricing('one_time')}
-                    className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
-                      selectedPricing === 'one_time'
-                        ? 'border-[#3ecf8e] bg-[#3ecf8e]/10'
-                        : 'border-[#374151] hover:border-[#4b5563]'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-semibold text-[#ededed]">One-time Payment</div>
-                        <div className="text-sm text-[#9ca3af] mt-1">
-                          {checkout.metadata.pricing_options.one_time.description || 'Lifetime access'}
-                        </div>
-                      </div>
-                      <div className="text-xl font-bold text-[#3ecf8e]">
-                        {checkout.metadata.pricing_options.one_time.price} credits
-                      </div>
-                    </div>
-                  </button>
-                )}
-                
-                {checkout.metadata.pricing_options?.subscription_monthly?.enabled && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedPricing('subscription_monthly')}
-                    className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
-                      selectedPricing === 'subscription_monthly'
-                        ? 'border-[#3ecf8e] bg-[#3ecf8e]/10'
-                        : 'border-[#374151] hover:border-[#4b5563]'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-semibold text-[#ededed]">Monthly Subscription</div>
-                        <div className="text-sm text-[#9ca3af] mt-1">
-                          {checkout.metadata.pricing_options.subscription_monthly.description || 'Billed every month'}
-                        </div>
-                      </div>
-                      <div className="text-xl font-bold text-[#3ecf8e]">
-                        {checkout.metadata.pricing_options.subscription_monthly.price} credits/mo
-                      </div>
-                    </div>
-                  </button>
-                )}
-                
-                {checkout.metadata.pricing_options?.subscription_yearly?.enabled && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedPricing('subscription_yearly')}
-                    className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
-                      selectedPricing === 'subscription_yearly'
-                        ? 'border-[#3ecf8e] bg-[#3ecf8e]/10'
-                        : 'border-[#374151] hover:border-[#4b5563]'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-semibold text-[#ededed]">Yearly Subscription</div>
-                        <div className="text-sm text-[#9ca3af] mt-1">
-                          {checkout.metadata.pricing_options.subscription_yearly.description || 'Best value - Billed every year'}
-                        </div>
-                      </div>
-                      <div className="text-xl font-bold text-[#3ecf8e]">
-                        {checkout.metadata.pricing_options.subscription_yearly.price} credits/yr
-                      </div>
-                    </div>
-                  </button>
-                )}
+                <div className="flex items-center gap-3">
+                  <div className="bg-gradient-to-br from-[#3ecf8e] to-[#2dd4bf] p-3 rounded-lg">
+                    <Wrench className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h1 className="text-2xl lg:text-3xl font-bold text-[#ededed]">
+                      {checkout.metadata.tool_name}
+                    </h1>
+                    {vendor && (
+                      <p className="text-sm text-[#9ca3af] mt-1">by {vendor.full_name}</p>
+                    )}
+                  </div>
+                </div>
               </div>
-            )}
 
-            {/* Purchase Summary */}
-            <div className="bg-[#0a0a0a]/50 rounded-lg p-6 border border-[#374151]">
-              <h3 className="font-semibold text-[#ededed] mb-4">Purchase Summary</h3>
-              
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-[#9ca3af]">Tool Access:</span>
-                  <span className="text-[#ededed] font-medium">{checkout.metadata.tool_name}</span>
+              {/* Status Badges */}
+              {isCompleted && (
+                <div className="bg-green-400/10 border border-green-400/20 rounded-lg p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-green-400/20 p-2 rounded-full">
+                      <Check className="w-5 h-5 text-green-400" />
+                    </div>
+                    <div>
+                      <p className="text-green-400 font-medium">Purchase Completed</p>
+                      <p className="text-sm text-[#9ca3af] mt-0.5">
+                        {new Date(checkout.metadata.completed_at!).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                
-                {vendor && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-[#9ca3af]">Vendor:</span>
-                    <span className="text-[#ededed] font-medium">{vendor.full_name}</span>
+              )}
+
+              {isSubscription && !isCompleted && (
+                <div className="bg-blue-400/10 border border-blue-400/20 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="bg-blue-400/20 p-2 rounded-full">
+                      <span className="text-blue-400 text-lg">🔄</span>
+                    </div>
+                    <div>
+                      <p className="text-blue-400 font-medium">Recurring Subscription</p>
+                      <p className="text-sm text-[#9ca3af] mt-1">
+                        Billed {subscriptionPeriod}. Cancel anytime from your profile.
+                      </p>
+                    </div>
                   </div>
-                )}
-                
-                {hasPricingOptions && selectedPricing && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-[#9ca3af]">Selected:</span>
-                    <span className="text-[#ededed] font-medium">
-                      {selectedPricing === 'one_time' ? 'One-time Payment' : 
-                       selectedPricing === 'subscription_monthly' ? 'Monthly Subscription' : 
-                       'Yearly Subscription'}
-                    </span>
-                  </div>
-                )}
-                
-                <div className="flex justify-between text-sm">
-                  <span className="text-[#9ca3af]">Cost:</span>
-                  <span className="text-[#3ecf8e] font-bold">
-                    {selectedPrice} credits{isSubscription && subscriptionPeriod ? `/${subscriptionPeriod === 'monthly' ? 'mo' : 'yr'}` : ''}
-                  </span>
                 </div>
-                
-                <div className="border-t border-[#374151] pt-3">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-[#9ca3af]">Your Balance:</span>
-                    <span className="text-[#ededed] font-medium">{user?.credits.toFixed(2)} credits</span>
+              )}
+
+              {/* What's Included Section */}
+              <div className="bg-[#1f2937]/50 border border-[#374151] rounded-xl p-6">
+                <h2 className="text-lg font-semibold text-[#ededed] mb-4">What&apos;s included</h2>
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5">
+                      <Check className="w-5 h-5 text-[#3ecf8e]" />
+                    </div>
+                    <div>
+                      <p className="text-[#ededed] font-medium">Instant Tool Access</p>
+                      <p className="text-sm text-[#9ca3af] mt-0.5">
+                        Get immediate access to {checkout.metadata.tool_name}
+                      </p>
+                    </div>
                   </div>
-                  
-                  {!isCompleted && (
-                    <div className="flex justify-between text-sm mt-2">
-                      <span className="text-[#9ca3af]">After Purchase:</span>
-                      <span className={`font-bold ${hasEnoughCredits ? 'text-[#3ecf8e]' : 'text-red-400'}`}>
-                        {balanceAfter.toFixed(2)} credits
-                      </span>
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5">
+                      <Check className="w-5 h-5 text-[#3ecf8e]" />
+                    </div>
+                    <div>
+                      <p className="text-[#ededed] font-medium">Secure Connection</p>
+                      <p className="text-sm text-[#9ca3af] mt-0.5">
+                        All transactions are encrypted and secure
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5">
+                      <Check className="w-5 h-5 text-[#3ecf8e]" />
+                    </div>
+                    <div>
+                      <p className="text-[#ededed] font-medium">Transaction History</p>
+                      <p className="text-sm text-[#9ca3af] mt-0.5">
+                        Full record in your dashboard
+                      </p>
+                    </div>
+                  </div>
+                  {vendor && (
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5">
+                        <Check className="w-5 h-5 text-[#3ecf8e]" />
+                      </div>
+                      <div>
+                        <p className="text-[#ededed] font-medium">Vendor Support</p>
+                        <p className="text-sm text-[#9ca3af] mt-0.5">
+                          Direct support from {vendor.full_name}
+                        </p>
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
-            </div>
 
-            {/* Insufficient Credits Warning */}
-            {!hasEnoughCredits && !isCompleted && (
-              <div className="bg-red-400/10 border border-red-400/20 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-red-400 font-medium mb-2">Insufficient Credits</p>
-                    <p className="text-sm text-[#9ca3af] mb-3">
-                      You need {checkout.credit_amount} credits but only have {user?.credits.toFixed(2)} credits.
-                    </p>
+              {/* Additional Info */}
+              <div className="bg-[#1f2937]/30 border border-[#374151]/50 rounded-xl p-6">
+                <h3 className="text-base font-semibold text-[#ededed] mb-3">How it works</h3>
+                <ol className="space-y-3 text-sm text-[#9ca3af]">
+                  <li className="flex gap-3">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#3ecf8e]/20 text-[#3ecf8e] flex items-center justify-center text-xs font-bold">1</span>
+                    <span>Confirm your purchase using your credit balance</span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#3ecf8e]/20 text-[#3ecf8e] flex items-center justify-center text-xs font-bold">2</span>
+                    <span>Credits are deducted from your account</span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#3ecf8e]/20 text-[#3ecf8e] flex items-center justify-center text-xs font-bold">3</span>
+                    <span>Tool opens immediately in a new tab</span>
+                  </li>
+                </ol>
+              </div>
+
+              {/* Security Badge */}
+              <div className="flex items-center gap-2 text-sm text-[#9ca3af] pt-4">
+                <Lock className="w-4 h-4" />
+                <span>Secure checkout powered by 1sub.io</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column - Order Summary (Sticky) */}
+          <div className="order-1 lg:order-2">
+            <div className="lg:sticky lg:top-8">
+              <div className="bg-[#1f2937]/90 backdrop-blur-lg rounded-2xl border border-[#374151] overflow-hidden">
+                <div className="p-6 lg:p-8 space-y-6">
+                  <h2 className="text-xl font-bold text-[#ededed]">Order Summary</h2>
+
+                  {/* Pricing Options */}
+                  {hasPricingOptions && !isCompleted && (
+                    <div className="space-y-3">
+                      <label className="text-sm font-medium text-[#9ca3af]">Select Plan</label>
+                      
+                      {checkout.metadata.pricing_options?.one_time?.enabled && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPricing('one_time')}
+                          className={`w-full p-4 rounded-xl border-2 transition-all text-left ${
+                            selectedPricing === 'one_time'
+                              ? 'border-[#3ecf8e] bg-[#3ecf8e]/5 shadow-lg shadow-[#3ecf8e]/10'
+                              : 'border-[#374151] hover:border-[#4b5563] bg-[#0a0a0a]/30'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="font-semibold text-[#ededed] mb-1">One-time Payment</div>
+                              <div className="text-xs text-[#9ca3af]">
+                                {checkout.metadata.pricing_options.one_time.description || 'Lifetime access'}
+                              </div>
+                            </div>
+                            <div className="text-lg font-bold text-[#3ecf8e] ml-4">
+                              {checkout.metadata.pricing_options.one_time.price}
+                              <span className="text-xs text-[#9ca3af] ml-1">credits</span>
+                            </div>
+                          </div>
+                        </button>
+                      )}
+                      
+                      {checkout.metadata.pricing_options?.subscription_monthly?.enabled && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPricing('subscription_monthly')}
+                          className={`w-full p-4 rounded-xl border-2 transition-all text-left ${
+                            selectedPricing === 'subscription_monthly'
+                              ? 'border-[#3ecf8e] bg-[#3ecf8e]/5 shadow-lg shadow-[#3ecf8e]/10'
+                              : 'border-[#374151] hover:border-[#4b5563] bg-[#0a0a0a]/30'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="font-semibold text-[#ededed] mb-1">Monthly</div>
+                              <div className="text-xs text-[#9ca3af]">
+                                {checkout.metadata.pricing_options.subscription_monthly.description || 'Billed monthly'}
+                              </div>
+                            </div>
+                            <div className="text-lg font-bold text-[#3ecf8e] ml-4">
+                              {checkout.metadata.pricing_options.subscription_monthly.price}
+                              <span className="text-xs text-[#9ca3af] ml-1">/mo</span>
+                            </div>
+                          </div>
+                        </button>
+                      )}
+                      
+                      {checkout.metadata.pricing_options?.subscription_yearly?.enabled && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPricing('subscription_yearly')}
+                          className={`w-full p-4 rounded-xl border-2 transition-all text-left relative ${
+                            selectedPricing === 'subscription_yearly'
+                              ? 'border-[#3ecf8e] bg-[#3ecf8e]/5 shadow-lg shadow-[#3ecf8e]/10'
+                              : 'border-[#374151] hover:border-[#4b5563] bg-[#0a0a0a]/30'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <div className="font-semibold text-[#ededed]">Yearly</div>
+                                <span className="text-xs bg-[#3ecf8e]/20 text-[#3ecf8e] px-2 py-0.5 rounded-full font-medium">Best Value</span>
+                              </div>
+                              <div className="text-xs text-[#9ca3af]">
+                                {checkout.metadata.pricing_options.subscription_yearly.description || 'Billed annually'}
+                              </div>
+                            </div>
+                            <div className="text-lg font-bold text-[#3ecf8e] ml-4">
+                              {checkout.metadata.pricing_options.subscription_yearly.price}
+                              <span className="text-xs text-[#9ca3af] ml-1">/yr</span>
+                            </div>
+                          </div>
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Order Details */}
+                  <div className="border-t border-[#374151] pt-6 space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-[#9ca3af]">Subtotal</span>
+                      <span className="text-base font-semibold text-[#ededed]">
+                        {selectedPrice} credits
+                      </span>
+                    </div>
+                    
+                    {hasPricingOptions && selectedPricing && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-[#9ca3af]">Plan Type</span>
+                        <span className="text-sm text-[#ededed]">
+                          {selectedPricing === 'one_time' ? 'One-time' : 
+                           selectedPricing === 'subscription_monthly' ? 'Monthly' : 
+                           'Yearly'}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="border-t border-[#374151] pt-4">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-base font-medium text-[#ededed]">Total</span>
+                        <span className="text-2xl font-bold text-[#3ecf8e]">
+                          {selectedPrice}
+                          <span className="text-sm text-[#9ca3af] ml-1">
+                            {isSubscription && subscriptionPeriod ? `/${subscriptionPeriod === 'monthly' ? 'mo' : 'yr'}` : 'credits'}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Balance Info */}
+                    {!isCompleted && (
+                      <div className="bg-[#0a0a0a]/50 rounded-lg p-4 space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-[#9ca3af]">Current Balance</span>
+                          <span className="text-[#ededed] font-medium">{user?.credits.toFixed(2)} credits</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-[#9ca3af]">After Purchase</span>
+                          <span className={`font-bold ${hasEnoughCredits ? 'text-[#3ecf8e]' : 'text-red-400'}`}>
+                            {balanceAfter.toFixed(2)} credits
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Error/Warning Messages */}
+                  {!hasEnoughCredits && !isCompleted && (
+                    <div className="bg-red-400/10 border border-red-400/20 rounded-lg p-4">
+                      <div className="flex items-start gap-3">
+                        <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-red-400 font-medium text-sm mb-1">Insufficient Credits</p>
+                          <p className="text-xs text-[#9ca3af] mb-3">
+                            You need {selectedPrice} credits but have {user?.credits.toFixed(2)} credits.
+                          </p>
+                          <button
+                            onClick={() => router.push('/buy-credits')}
+                            className="text-xs text-[#3ecf8e] hover:text-[#2dd4bf] font-medium underline"
+                          >
+                            Buy More Credits →
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {error && !isCompleted && (
+                    <div className="bg-red-400/10 border border-red-400/20 rounded-lg p-3">
+                      <p className="text-red-400 text-sm">{error}</p>
+                    </div>
+                  )}
+
+                  {/* Action Button */}
+                  <button
+                    onClick={handleConfirmPurchase}
+                    disabled={(!hasEnoughCredits && !isCompleted) || isProcessing || (hasPricingOptions && !selectedPricing && !isCompleted)}
+                    className="w-full bg-[#3ecf8e] text-black font-bold py-4 px-6 rounded-xl hover:bg-[#2dd4bf] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#3ecf8e]/20"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span>Processing...</span>
+                      </>
+                    ) : isCompleted ? (
+                      <>
+                        <ExternalLink className="w-5 h-5" />
+                        <span>Open Tool Again</span>
+                      </>
+                    ) : hasPricingOptions && !selectedPricing ? (
+                      <span>Select a Plan</span>
+                    ) : (
+                      <>
+                        <span>Confirm Purchase</span>
+                      </>
+                    )}
+                  </button>
+
+                  {/* Cancel Link */}
+                  {!isCompleted && (
                     <button
-                      onClick={() => router.push('/pricing')}
-                      className="text-sm text-[#3ecf8e] hover:text-[#2dd4bf] font-medium underline"
+                      onClick={() => router.push('/backoffice')}
+                      className="w-full text-center text-sm text-[#9ca3af] hover:text-[#ededed] transition-colors py-2"
                     >
-                      Buy More Credits →
+                      Cancel and return to dashboard
                     </button>
+                  )}
+
+                  {/* Checkout ID */}
+                  <div className="text-center text-xs text-[#9ca3af] pt-4 border-t border-[#374151]">
+                    Order ID: {checkout.id.slice(0, 8)}...
                   </div>
                 </div>
               </div>
-            )}
-
-            {/* Error Message */}
-            {error && !isCompleted && (
-              <div className="bg-red-400/10 border border-red-400/20 rounded-lg p-4">
-                <p className="text-red-400 text-sm">{error}</p>
-              </div>
-            )}
-
-            {/* What's Included */}
-            <div className="space-y-3">
-              <h4 className="font-semibold text-[#ededed]">What you get:</h4>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm text-[#9ca3af]">
-                  <Check className="w-4 h-4 text-[#3ecf8e]" />
-                  <span>Instant access to {checkout.metadata.tool_name}</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-[#9ca3af]">
-                  <Check className="w-4 h-4 text-[#3ecf8e]" />
-                  <span>Secure and private connection</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-[#9ca3af]">
-                  <Check className="w-4 h-4 text-[#3ecf8e]" />
-                  <span>Transaction recorded in your history</span>
-                </div>
-                {vendor && (
-                  <div className="flex items-center gap-2 text-sm text-[#9ca3af]">
-                    <Check className="w-4 h-4 text-[#3ecf8e]" />
-                    <span>Support vendor: {vendor.full_name}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex gap-4 pt-4">
-              <button
-                onClick={() => router.push('/backoffice')}
-                className="flex-1 bg-[#374151] text-[#ededed] font-semibold py-4 px-6 rounded-lg hover:bg-[#4b5563] transition-all"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmPurchase}
-                disabled={(!hasEnoughCredits && !isCompleted) || isProcessing || (hasPricingOptions && !selectedPricing && !isCompleted)}
-                className="flex-1 bg-[#3ecf8e] text-black font-semibold py-4 px-6 rounded-lg hover:bg-[#2dd4bf] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
-              >
-                {isProcessing ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Processing...
-                  </>
-                ) : isCompleted ? (
-                  <>
-                    <ExternalLink className="w-5 h-5" />
-                    Open Tool Again
-                  </>
-                ) : hasPricingOptions && !selectedPricing ? (
-                  <>
-                    <ExternalLink className="w-5 h-5" />
-                    Select Payment Method
-                  </>
-                ) : isSubscription ? (
-                  <>
-                    <ExternalLink className="w-5 h-5" />
-                    Subscribe & Launch ({selectedPrice} credits/{subscriptionPeriod === 'monthly' ? 'mo' : 'yr'})
-                  </>
-                ) : (
-                  <>
-                    <ExternalLink className="w-5 h-5" />
-                    Confirm & Launch ({selectedPrice} credits)
-                  </>
-                )}
-              </button>
-            </div>
-
-            {/* Checkout Info */}
-            <div className="text-center text-xs text-[#9ca3af] pt-4 border-t border-[#374151]">
-              Checkout ID: {checkout.id.slice(0, 8)}...
             </div>
           </div>
         </div>
