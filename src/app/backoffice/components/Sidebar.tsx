@@ -17,7 +17,8 @@ import {
   Key,
   DollarSign,
   LayoutDashboard,
-  ExternalLink
+  ExternalLink,
+  Package
 } from 'lucide-react';
 import { getUserCreditsClient } from '@/lib/credits';
 
@@ -167,6 +168,16 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
                       >
                         <Users className="w-4 h-4 text-[#3ecf8e]" />
                         <span>Users</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          router.push('/vendor-dashboard/products');
+                          onClose();
+                        }}
+                        className="w-full flex items-center gap-3 p-2 rounded hover:bg-[#374151] transition-colors text-[#d1d5db] text-sm"
+                      >
+                        <Package className="w-4 h-4 text-[#3ecf8e]" />
+                        <span>Products</span>
                       </button>
                       <button
                         onClick={() => {

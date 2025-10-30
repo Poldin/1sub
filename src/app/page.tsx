@@ -353,7 +353,7 @@ export default function Home() {
               {/* 2% Tier - Medium */}
               <div className="flex flex-col items-center">
                 <div className="border-2 border-white/90 rounded-lg p-4 sm:p-6 mb-2 w-24 sm:w-32 h-32 sm:h-40 flex flex-col items-center justify-center">
-                  <div className="text-4xl sm:text-5xl font-black text-white opacity-75">2%</div>
+                  <div className="text-4xl sm:text-5xl font-black text-white opacity-75">5%</div>
                   <div className="flex items-center gap-1 mt-1">
                     <Users className="w-3 h-3 sm:w-4 sm:h-4 text-green-100" />
                     <span className="text-xs sm:text-sm text-green-100 font-semibold">1K+</span>
@@ -364,7 +364,7 @@ export default function Home() {
               {/* 3% Tier - Largest */}
               <div className="flex flex-col items-center">
                 <div className="border-3 border-white rounded-lg p-6 sm:p-8 mb-2 w-28 sm:w-40 h-40 sm:h-52 flex flex-col items-center justify-center">
-                  <div className="text-5xl sm:text-7xl font-black text-white opacity-100">3%</div>
+                  <div className="text-5xl sm:text-7xl font-black text-white opacity-100">10%</div>
                   <div className="flex items-center gap-1 mt-2">
                     <Users className="w-4 h-4 sm:w-5 sm:h-5 text-green-100" />
                     <span className="text-sm sm:text-base text-green-100 font-semibold">10K+</span>

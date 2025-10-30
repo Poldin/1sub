@@ -366,53 +366,25 @@ export default function VendorDashboard() {
             // Existing vendor dashboard - Show stats and management
             <>
               {/* Vendor Summary Cards (Always visible, compact) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                <div className="bg-[#1f2937] rounded-lg p-4 border border-[#374151]">
-                  <div className="flex items-center">
-                    <div className="p-2 bg-[#3ecf8e]/20 rounded-lg">
-                      <Settings className="w-5 h-5 text-[#3ecf8e]" />
-                    </div>
-                    <div className="ml-3">
-                      <p className="text-xs text-[#9ca3af]">Total Tools</p>
-                      <p className="text-lg font-bold text-[#ededed]">{vendorStats.totalTools}</p>
-                    </div>
-                  </div>
+              <div className="flex items-center gap-6 mb-6">
+                <div className="flex items-center gap-2">
+                  <Settings className="w-4 h-4 text-[#3ecf8e]" />
+                  <p className="text-xs text-[#9ca3af]">Total Tools <span className="font-bold text-[#ededed]">{vendorStats.totalTools}</span></p>
                 </div>
 
-                <div className="bg-[#1f2937] rounded-lg p-4 border border-[#374151]">
-                  <div className="flex items-center">
-                    <div className="p-2 bg-[#3ecf8e]/20 rounded-lg">
-                      <TrendingUp className="w-5 h-5 text-[#3ecf8e]" />
-                    </div>
-                    <div className="ml-3">
-                      <p className="text-xs text-[#9ca3af]">Active Tools</p>
-                      <p className="text-lg font-bold text-[#ededed]">{vendorStats.activeTools}</p>
-                    </div>
-                  </div>
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-[#3ecf8e]" />
+                  <p className="text-xs text-[#9ca3af]">Active Tools <span className="font-bold text-[#ededed]">{vendorStats.activeTools}</span></p>
                 </div>
 
-                <div className="bg-[#1f2937] rounded-lg p-4 border border-[#374151]">
-                  <div className="flex items-center">
-                    <div className="p-2 bg-[#3ecf8e]/20 rounded-lg">
-                      <Users className="w-5 h-5 text-[#3ecf8e]" />
-                    </div>
-                    <div className="ml-3">
-                      <p className="text-xs text-[#9ca3af]">Total Users</p>
-                      <p className="text-lg font-bold text-[#ededed]">{vendorStats.totalUsers.toLocaleString()}</p>
-                    </div>
-                  </div>
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-[#3ecf8e]" />
+                  <p className="text-xs text-[#9ca3af]">Total Users <span className="font-bold text-[#ededed]">{vendorStats.totalUsers.toLocaleString()}</span></p>
                 </div>
 
-                <div className="bg-[#1f2937] rounded-lg p-4 border border-[#374151]">
-                  <div className="flex items-center">
-                    <div className="p-2 bg-[#3ecf8e]/20 rounded-lg">
-                      <DollarSign className="w-5 h-5 text-[#3ecf8e]" />
-                    </div>
-                    <div className="ml-3">
-                      <p className="text-xs text-[#9ca3af]">Total Revenue</p>
-                      <p className="text-lg font-bold text-[#ededed]">{vendorStats.totalRevenue.toLocaleString()}</p>
-                    </div>
-                  </div>
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-[#3ecf8e]" />
+                  <p className="text-xs text-[#9ca3af]">Total Revenue <span className="font-bold text-[#ededed]">{vendorStats.totalRevenue.toLocaleString()}</span></p>
                 </div>
               </div>
 
