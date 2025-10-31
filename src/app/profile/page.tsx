@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Menu, ArrowLeft, User, CreditCard, History, Download } from 'lucide-react';
+import { Menu, ArrowLeft, User, CreditCard, History, Download, RefreshCw } from 'lucide-react';
 import Sidebar from '../backoffice/components/Sidebar';
 import Footer from '../components/Footer';
 import { createClient } from '@/lib/supabase/client';
@@ -14,6 +14,10 @@ interface CreditHistory {
   amount: number;
   reason: string;
   date: string;
+  balanceAfter: number;
+  metadata: Record<string, unknown>;
+  toolId?: string;
+  checkoutId?: string;
 }
 
 interface UsageSummary {
@@ -25,7 +29,6 @@ interface UsageSummary {
 export default function ProfilePage() {
   const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isTopUpOpen, setIsTopUpOpen] = useState(false);
   
   // User data states
   const [user, setUser] = useState<{ id: string; fullName: string | null; email: string } | null>(null);
@@ -34,12 +37,119 @@ export default function ProfilePage() {
   const [userRole, setUserRole] = useState<string>('user');
   const [hasTools, setHasTools] = useState(false);
 
+  // Transaction data states
+  const [creditHistory, setCreditHistory] = useState<CreditHistory[]>([]);
+  const [usageSummary, setUsageSummary] = useState<UsageSummary[]>([]);
+  const [transactionsLoading, setTransactionsLoading] = useState(false);
+  const [transactionsError, setTransactionsError] = useState<string | null>(null);
+
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
   };
 
   const handleShareAndEarnClick = () => {
     // Handled by Sidebar component
+  };
+
+  // Fetch transaction data
+  const fetchTransactionData = async () => {
+    if (!user?.id) return;
+    
+    setTransactionsLoading(true);
+    setTransactionsError(null);
+
+    try {
+      const response = await fetch(`/api/user/transactions?limit=50`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch transactions');
+      }
+
+      const data = await response.json();
+      setCreditHistory(data.transactions || []);
+
+      // Generate usage summary from transaction data
+      const usageMap = new Map<string, { creditsSpent: number; lastUsed: string }>();
+      
+      data.transactions?.forEach((transaction: CreditHistory) => {
+        if (transaction.type === 'consume' && transaction.metadata?.tool_name) {
+          const toolName = transaction.metadata.tool_name as string;
+          const existing = usageMap.get(toolName) || { creditsSpent: 0, lastUsed: '' };
+          
+          usageMap.set(toolName, {
+            creditsSpent: existing.creditsSpent + Math.abs(transaction.amount),
+            lastUsed: transaction.date
+          });
+        }
+      });
+
+      const summary = Array.from(usageMap.entries()).map(([toolName, data]) => ({
+        toolName,
+        creditsSpent: data.creditsSpent,
+        lastUsed: formatTimeAgo(data.lastUsed)
+      }));
+
+      setUsageSummary(summary);
+
+      // Refresh credits after fetching transactions
+      await refreshCredits();
+    } catch (error) {
+      console.error('Error fetching transaction data:', error);
+      setTransactionsError(error instanceof Error ? error.message : 'Failed to fetch transactions');
+    } finally {
+      setTransactionsLoading(false);
+    }
+  };
+
+  // Refresh credits from API
+  const refreshCredits = async () => {
+    if (!user?.id) {
+      console.log('Refresh credits - No user ID available');
+      return;
+    }
+
+    try {
+      console.log('Refresh credits - Fetching from API...');
+      const response = await fetch('/api/user/profile');
+      console.log('Refresh credits - API response status:', response.status);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Refresh credits - API response data:', data);
+        
+        if (data.credits !== undefined) {
+          setCredits(data.credits);
+          console.log('Credits refreshed:', data.credits);
+        } else {
+          console.log('Refresh credits - No credits in response');
+        }
+      } else {
+        const errorData = await response.json();
+        console.error('Refresh credits - API error:', errorData);
+      }
+    } catch (error) {
+      console.error('Error refreshing credits:', error);
+    }
+  };
+
+
+  // Helper function to format time ago
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
+    
+    if (diffInHours < 1) return 'Just now';
+    if (diffInHours < 24) return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+    
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 7) return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
+    
+    const diffInWeeks = Math.floor(diffInDays / 7);
+    if (diffInWeeks < 4) return `${diffInWeeks} week${diffInWeeks > 1 ? 's' : ''} ago`;
+    
+    const diffInMonths = Math.floor(diffInDays / 30);
+    return `${diffInMonths} month${diffInMonths > 1 ? 's' : ''} ago`;
   };
 
   // Fetch user data
@@ -68,6 +178,14 @@ export default function ProfilePage() {
           setUserRole(data.role);
         }
 
+        // Set credits from API response
+        if (data.credits !== undefined) {
+          setCredits(data.credits);
+          console.log('Profile page - Credits set from API:', data.credits);
+        } else {
+          console.log('Profile page - No credits in API response');
+        }
+
         // Check if user has created any tools
         const supabase = createClient();
         const { data: userTools, error: toolsError } = await supabase
@@ -79,11 +197,8 @@ export default function ProfilePage() {
           setHasTools(true);
         }
 
-        // Fetch credits
-        const userCredits = await getUserCreditsClient(data.id);
-        if (userCredits !== null) {
-          setCredits(userCredits);
-        }
+        // Fetch transaction data after user data is loaded
+        await fetchTransactionData();
       } catch (error) {
         console.error('Error fetching user data:', error);
         router.push('/login');
@@ -95,67 +210,43 @@ export default function ProfilePage() {
     fetchUserData();
   }, [router]);
 
-  // Mock credit history
-  const creditHistory: CreditHistory[] = [
-    {
-      id: '1',
-      type: 'grant',
-      amount: 50,
-      reason: 'Welcome bonus',
-      date: '2024-01-01'
-    },
-    {
-      id: '2',
-      type: 'consume',
-      amount: -5,
-      reason: 'AI Content Generator',
-      date: '2024-01-15'
-    },
-    {
-      id: '3',
-      type: 'consume',
-      amount: -10,
-      reason: 'Data Analyzer Pro',
-      date: '2024-01-14'
-    },
-    {
-      id: '4',
-      type: 'grant',
-      amount: 25,
-      reason: 'Referral bonus',
-      date: '2024-01-10'
-    },
-    {
-      id: '5',
-      type: 'consume',
-      amount: -8,
-      reason: 'Image Editor',
-      date: '2024-01-12'
+  // Fetch transaction data when user changes
+  useEffect(() => {
+    if (user?.id) {
+      fetchTransactionData();
     }
-  ];
+  }, [user?.id]);
 
-  // Mock usage summary
-  const usageSummary: UsageSummary[] = [
-    {
-      toolName: 'AI Content Generator',
-      creditsSpent: 15,
-      lastUsed: '2 hours ago'
-    },
-    {
-      toolName: 'Data Analyzer Pro',
-      creditsSpent: 30,
-      lastUsed: '1 day ago'
-    },
-    {
-      toolName: 'Image Editor',
-      creditsSpent: 24,
-      lastUsed: '3 days ago'
-    }
-  ];
 
   const handleExportHistory = () => {
-    console.log('Exporting credit history...');
-    alert('Credit history exported to CSV!');
+    if (creditHistory.length === 0) {
+      alert('No transaction data to export');
+      return;
+    }
+
+    // Create CSV content
+    const headers = ['Date', 'Type', 'Amount', 'Reason', 'Balance After'];
+    const csvContent = [
+      headers.join(','),
+      ...creditHistory.map(transaction => [
+        new Date(transaction.date).toLocaleDateString(),
+        transaction.type,
+        transaction.amount,
+        `"${transaction.reason.replace(/"/g, '""')}"`, // Escape quotes in reason
+        transaction.balanceAfter
+      ].join(','))
+    ].join('\n');
+
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `credit-history-${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   if (userLoading) {
@@ -240,7 +331,7 @@ export default function ProfilePage() {
                 <p className="text-[#9ca3af]">Available Credits</p>
               </div>
               <button
-                onClick={() => setIsTopUpOpen(true)}
+                onClick={() => router.push('/buy-credits')}
                 className="w-full bg-[#3ecf8e] text-black py-3 px-4 rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors"
               >
                 Top Up Credits
@@ -258,52 +349,90 @@ export default function ProfilePage() {
                     <History className="w-5 h-5 mr-2" />
                     Credit History
                   </h2>
-                  <button
-                    onClick={handleExportHistory}
-                    className="flex items-center px-3 py-2 bg-[#374151] text-[#ededed] rounded-lg hover:bg-[#4b5563] transition-colors text-sm"
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    Export CSV
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={async () => {
+                        await fetchTransactionData();
+                        await refreshCredits();
+                      }}
+                      disabled={transactionsLoading}
+                      className="flex items-center px-3 py-2 bg-[#374151] text-[#ededed] rounded-lg hover:bg-[#4b5563] transition-colors text-sm disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-4 h-4 mr-2 ${transactionsLoading ? 'animate-spin' : ''}`} />
+                      Refresh
+                    </button>
+                    <button
+                      onClick={handleExportHistory}
+                      disabled={creditHistory.length === 0}
+                      className="flex items-center px-3 py-2 bg-[#374151] text-[#ededed] rounded-lg hover:bg-[#4b5563] transition-colors text-sm disabled:opacity-50"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Export CSV
+                    </button>
+                  </div>
                 </div>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-[#374151]">
-                      <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Type</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Amount</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Reason</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {creditHistory.map((transaction) => (
-                      <tr key={transaction.id} className="border-b border-[#374151]">
-                        <td className="px-6 py-4">
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${
-                            transaction.type === 'grant' 
-                              ? 'bg-green-500/20 text-green-400'
-                              : 'bg-red-500/20 text-red-400'
-                          }`}>
-                            {transaction.type}
-                          </span>
-                        </td>
-                        <td className={`px-6 py-4 font-medium ${
-                          transaction.amount > 0 ? 'text-green-400' : 'text-red-400'
-                        }`}>
-                          {transaction.amount > 0 ? '+' : ''}{transaction.amount}
-                        </td>
-                        <td className="px-6 py-4 text-[#9ca3af]">
-                          {transaction.reason}
-                        </td>
-                        <td className="px-6 py-4 text-[#9ca3af]">
-                          {new Date(transaction.date).toLocaleDateString()}
-                        </td>
+                {transactionsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="inline-block h-6 w-6 animate-spin rounded-full border-4 border-solid border-[#3ecf8e] border-r-transparent"></div>
+                    <span className="ml-2 text-[#9ca3af]">Loading transactions...</span>
+                  </div>
+                ) : transactionsError ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="text-center">
+                      <p className="text-red-400 mb-2">Error loading transactions</p>
+                      <p className="text-[#9ca3af] text-sm">{transactionsError}</p>
+                      <button 
+                        onClick={fetchTransactionData}
+                        className="mt-2 px-4 py-2 bg-[#3ecf8e] text-black rounded-lg hover:bg-[#2dd4bf] transition-colors"
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  </div>
+                ) : creditHistory.length === 0 ? (
+                  <div className="flex items-center justify-center py-8">
+                    <p className="text-[#9ca3af]">No transactions found</p>
+                  </div>
+                ) : (
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-[#374151]">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Type</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Amount</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Reason</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Date</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {creditHistory.map((transaction) => (
+                        <tr key={transaction.id} className="border-b border-[#374151]">
+                          <td className="px-6 py-4">
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${
+                              transaction.type === 'grant' 
+                                ? 'bg-green-500/20 text-green-400'
+                                : 'bg-red-500/20 text-red-400'
+                            }`}>
+                              {transaction.type}
+                            </span>
+                          </td>
+                          <td className={`px-6 py-4 font-medium ${
+                            transaction.amount > 0 ? 'text-green-400' : 'text-red-400'
+                          }`}>
+                            {transaction.amount > 0 ? '+' : ''}{transaction.amount}
+                          </td>
+                          <td className="px-6 py-4 text-[#9ca3af]">
+                            {transaction.reason}
+                          </td>
+                          <td className="px-6 py-4 text-[#9ca3af]">
+                            {new Date(transaction.date).toLocaleDateString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
             </div>
 
@@ -314,24 +443,37 @@ export default function ProfilePage() {
                 <p className="text-sm text-[#9ca3af] mt-1">Tools you&apos;ve used and credits spent</p>
               </div>
               <div className="p-6">
-                <div className="space-y-4">
-                  {usageSummary.map((usage, index) => (
-                    <div key={index} className="flex items-center justify-between p-4 bg-[#374151] rounded-lg">
-                      <div>
-                        <p className="font-medium text-[#ededed]">{usage.toolName}</p>
-                        <p className="text-sm text-[#9ca3af]">Last used: {usage.lastUsed}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[#3ecf8e] font-medium">{usage.creditsSpent} credits</p>
-                      </div>
+                {transactionsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="inline-block h-6 w-6 animate-spin rounded-full border-4 border-solid border-[#3ecf8e] border-r-transparent"></div>
+                    <span className="ml-2 text-[#9ca3af]">Loading usage data...</span>
+                  </div>
+                ) : usageSummary.length === 0 ? (
+                  <div className="flex items-center justify-center py-8">
+                    <p className="text-[#9ca3af]">No usage data available</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-4">
+                      {usageSummary.map((usage, index) => (
+                        <div key={index} className="flex items-center justify-between p-4 bg-[#374151] rounded-lg">
+                          <div>
+                            <p className="font-medium text-[#ededed]">{usage.toolName}</p>
+                            <p className="text-sm text-[#9ca3af]">Last used: {usage.lastUsed}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[#3ecf8e] font-medium">{usage.creditsSpent} credits</p>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-                <div className="mt-4 text-center">
-                  <button className="text-[#3ecf8e] text-sm hover:underline">
-                    View full history
-                  </button>
-                </div>
+                    <div className="mt-4 text-center">
+                      <button className="text-[#3ecf8e] text-sm hover:underline">
+                        View full history
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>

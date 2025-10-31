@@ -7,12 +7,20 @@ import { createClient } from '@/lib/supabase/client';
 import Sidebar from '../../backoffice/components/Sidebar';
 import ToolSelector from '../components/ToolSelector';
 
-interface User {
+interface VendorUser {
   id: string;
   email: string;
-  toolsUsed: string[];
+  fullName: string | null;
+  toolsUsed: {
+    toolId: string;
+    toolName: string;
+    usageCount: number;
+  }[];
   creditsSpent: number;
+  totalUsages: number;
   lastActive: string;
+  firstUsed: string;
+  isSubscribed: boolean;
 }
 
 export default function VendorUsersPage() {
@@ -23,6 +31,12 @@ export default function VendorUsersPage() {
   const [userId, setUserId] = useState<string>('');
   const [userRole, setUserRole] = useState<string>('user');
   const [hasTools, setHasTools] = useState(false);
+  
+  // States for real data
+  const [users, setUsers] = useState<VendorUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedToolId, setSelectedToolId] = useState<string>('');
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -32,6 +46,146 @@ export default function VendorUsersPage() {
     // Handled by Sidebar component
   };
   
+  // Fetch vendor users data
+  const fetchVendorUsers = async (vendorId: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const supabase = createClient();
+
+      // 1. Get vendor's tools
+      const { data: tools, error: toolsError } = await supabase
+        .from('tools')
+        .select('id, name')
+        .eq('user_profile_id', vendorId);
+
+      if (toolsError) {
+        throw new Error('Failed to fetch tools');
+      }
+
+      if (!tools || tools.length === 0) {
+        setUsers([]);
+        return;
+      }
+      const toolIds = tools.map(tool => tool.id);
+
+      // 2. Get credit transactions for these tools
+      const { data: transactions, error: transactionsError } = await supabase
+        .from('credit_transactions')
+        .select('user_id, tool_id, credits_amount, created_at')
+        .in('tool_id', toolIds)
+        .eq('type', 'subtract');
+
+      if (transactionsError) {
+        throw new Error('Failed to fetch transactions');
+      }
+
+      // 3. Get active subscriptions (optional - table might not exist yet)
+      let subscriptions: { user_id: string; tool_id: string }[] = [];
+      try {
+        const { data: subscriptionsData, error: subscriptionsError } = await supabase
+          .from('tool_subscriptions')
+          .select('user_id, tool_id')
+          .in('tool_id', toolIds)
+          .eq('status', 'active');
+        
+        if (!subscriptionsError) {
+          subscriptions = subscriptionsData || [];
+        } else {
+          console.warn('Subscriptions table not available or error:', subscriptionsError);
+        }
+      } catch (err) {
+        console.warn('Could not fetch subscriptions:', err);
+        subscriptions = [];
+      }
+
+      // 4. Get unique user IDs
+      const userIds = [...new Set(transactions?.map(t => t.user_id) || [])];
+      
+      if (userIds.length === 0) {
+        setUsers([]);
+        return;
+      }
+
+      // 5. Get user profiles
+      const { data: profiles, error: profilesError } = await supabase
+        .from('user_profiles')
+        .select('id, email, full_name')
+        .in('id', userIds);
+
+      if (profilesError) {
+        throw new Error('Failed to fetch user profiles');
+      }
+
+      // 6. Aggregate data per user
+      const userMap = new Map<string, VendorUser>();
+
+      // Initialize users
+      profiles?.forEach(profile => {
+        userMap.set(profile.id, {
+          id: profile.id,
+          email: profile.email,
+          fullName: profile.full_name,
+          toolsUsed: [],
+          creditsSpent: 0,
+          totalUsages: 0,
+          lastActive: '',
+          firstUsed: '',
+          isSubscribed: false
+        });
+      });
+
+      // Process transactions
+      transactions?.forEach(transaction => {
+        const user = userMap.get(transaction.user_id);
+        if (!user) return;
+
+        const tool = tools.find(t => t.id === transaction.tool_id);
+        if (!tool) return;
+
+        // Add credits spent
+        user.creditsSpent += transaction.credits_amount || 0;
+        user.totalUsages += 1;
+
+        // Update tool usage
+        const existingTool = user.toolsUsed.find(t => t.toolId === transaction.tool_id);
+        if (existingTool) {
+          existingTool.usageCount += 1;
+        } else {
+          user.toolsUsed.push({
+            toolId: transaction.tool_id,
+            toolName: tool.name,
+            usageCount: 1
+          });
+        }
+
+        // Update timestamps
+        const transactionDate = new Date(transaction.created_at || '');
+        if (!user.lastActive || transactionDate > new Date(user.lastActive)) {
+          user.lastActive = transaction.created_at || '';
+        }
+        if (!user.firstUsed || transactionDate < new Date(user.firstUsed)) {
+          user.firstUsed = transaction.created_at || '';
+        }
+      });
+
+      // Process subscriptions
+      subscriptions.forEach(subscription => {
+        const user = userMap.get(subscription.user_id);
+        if (user) {
+          user.isSubscribed = true;
+        }
+      });
+
+      setUsers(Array.from(userMap.values()));
+    } catch (err) {
+      console.error('Error fetching vendor users:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch users');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Fetch user data
   useEffect(() => {
     const fetchUserData = async () => {
@@ -62,58 +216,34 @@ export default function VendorUsersPage() {
           .select('id')
           .eq('user_profile_id', user.id);
         
-        setHasTools((toolsData?.length || 0) > 0);
+        const hasTools = (toolsData?.length || 0) > 0;
+        setHasTools(hasTools);
+        
+        // Fetch vendor users if user has tools
+        if (hasTools) {
+          await fetchVendorUsers(user.id);
+        }
       } catch (err) {
         console.error('Error fetching user data:', err);
+        setError('Failed to load user data');
       }
     };
     
     fetchUserData();
   }, []);
   
-  // Mock users data
-  const users: User[] = [
-    {
-      id: '1',
-      email: 'user1@example.com',
-      toolsUsed: ['AI Content Generator', 'Data Analyzer'],
-      creditsSpent: 150,
-      lastActive: '2 hours ago'
-    },
-    {
-      id: '2',
-      email: 'user2@example.com',
-      toolsUsed: ['Image Editor', 'Video Creator'],
-      creditsSpent: 89,
-      lastActive: '1 day ago'
-    },
-    {
-      id: '3',
-      email: 'user3@example.com',
-      toolsUsed: ['SEO Optimizer', 'AI Content Generator'],
-      creditsSpent: 234,
-      lastActive: '3 hours ago'
-    },
-    {
-      id: '4',
-      email: 'user4@example.com',
-      toolsUsed: ['Data Analyzer'],
-      creditsSpent: 45,
-      lastActive: '1 week ago'
-    },
-    {
-      id: '5',
-      email: 'user5@example.com',
-      toolsUsed: ['Video Creator', 'Image Editor', 'SEO Optimizer'],
-      creditsSpent: 312,
-      lastActive: '5 hours ago'
-    }
-  ];
-
-  const filteredUsers = users.filter(user =>
-    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.toolsUsed.some(tool => tool.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  // Filter users based on search term and selected tool
+  const filteredUsers = users.filter(user => {
+    const matchesSearch = 
+      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (user.fullName && user.fullName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      user.toolsUsed.some(tool => tool.toolName.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    const matchesSelectedTool = !selectedToolId || 
+      user.toolsUsed.some(tool => tool.toolId === selectedToolId);
+    
+    return matchesSearch && matchesSelectedTool;
+  });
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex overflow-x-hidden">
@@ -146,7 +276,12 @@ export default function VendorUsersPage() {
               
               {/* Tool Selector */}
               {hasTools && userId && (
-                <ToolSelector userId={userId} />
+                <ToolSelector 
+                  userId={userId} 
+                  onToolChange={(toolId) => {
+                    setSelectedToolId(toolId);
+                  }}
+                />
               )}
               
               {/* Page Title */}
@@ -168,27 +303,44 @@ export default function VendorUsersPage() {
         </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Users Table */}
-        <div className="bg-[#1f2937] rounded-lg border border-[#374151]">
-          <div className="p-6 border-b border-[#374151]">
-            <h2 className="text-lg font-semibold text-[#ededed]">Users Who Used Your Tools</h2>
-            <p className="text-sm text-[#9ca3af] mt-1">Users who have interacted with your published tools</p>
+        {/* Error State */}
+        {error && (
+          <div className="bg-red-900/20 border border-red-900 rounded-lg p-4 mb-6">
+            <p className="text-red-400">{error}</p>
           </div>
+        )}
+
+        {/* Loading State */}
+        {loading && (
+          <div className="bg-[#1f2937] rounded-lg border border-[#374151] p-8 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3ecf8e] mx-auto mb-4"></div>
+            <p className="text-[#9ca3af]">Loading users...</p>
+          </div>
+        )}
+
+        {/* Users Table */}
+        {!loading && (
+          <div className="bg-[#1f2937] rounded-lg border border-[#374151]">
+            <div className="p-6 border-b border-[#374151]">
+              <h2 className="text-lg font-semibold text-[#ededed]">Users Who Used Your Tools</h2>
+              <p className="text-sm text-[#9ca3af] mt-1">Users who have interacted with your published tools</p>
+            </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-[#374151]">
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">User Email</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">User</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Tools Used</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Credits Spent</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Total Uses</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Last Active</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-8 text-center text-[#9ca3af]">
-                      {searchTerm ? 'No users found matching your search' : 'No users have used your tools yet'}
+                    <td colSpan={5} className="px-6 py-8 text-center text-[#9ca3af]">
+                      {searchTerm || selectedToolId ? 'No users found matching your search' : 'No users have used your tools yet'}
                     </td>
                   </tr>
                 ) : (
@@ -199,7 +351,17 @@ export default function VendorUsersPage() {
                           <div className="p-2 bg-[#3ecf8e]/20 rounded-lg mr-3">
                             <Users className="w-4 h-4 text-[#3ecf8e]" />
                           </div>
-                          <span className="font-medium text-[#ededed]">{user.email}</span>
+                          <div>
+                            <span className="font-medium text-[#ededed] block">
+                              {user.fullName || 'Anonymous User'}
+                            </span>
+                            <span className="text-sm text-[#9ca3af]">{user.email}</span>
+                            {user.isSubscribed && (
+                              <span className="ml-2 px-2 py-0.5 bg-[#3ecf8e]/20 text-[#3ecf8e] text-xs rounded">
+                                Subscribed
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -209,16 +371,19 @@ export default function VendorUsersPage() {
                               key={index}
                               className="px-2 py-1 bg-[#374151] text-[#9ca3af] text-xs rounded"
                             >
-                              {tool}
+                              {tool.toolName} ({tool.usageCount})
                             </span>
                           ))}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-[#3ecf8e] font-medium">
-                        {user.creditsSpent}
+                        {user.creditsSpent.toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 text-[#ededed]">
+                        {user.totalUsages.toLocaleString()}
                       </td>
                       <td className="px-6 py-4 text-[#9ca3af]">
-                        {user.lastActive}
+                        {new Date(user.lastActive).toLocaleDateString()} {new Date(user.lastActive).toLocaleTimeString()}
                       </td>
                     </tr>
                   ))
@@ -227,26 +392,35 @@ export default function VendorUsersPage() {
             </table>
           </div>
         </div>
+        )}
 
         {/* Summary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-          <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
-            <h3 className="text-sm font-medium text-[#9ca3af] mb-2">Total Users</h3>
-            <p className="text-2xl font-bold text-[#ededed]">{users.length}</p>
+        {!loading && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-8">
+            <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
+              <h3 className="text-sm font-medium text-[#9ca3af] mb-2">Total Users</h3>
+              <p className="text-2xl font-bold text-[#ededed]">{users.length}</p>
+            </div>
+            <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
+              <h3 className="text-sm font-medium text-[#9ca3af] mb-2">Total Credits Earned</h3>
+              <p className="text-2xl font-bold text-[#3ecf8e]">
+                {users.reduce((sum, user) => sum + user.creditsSpent, 0).toLocaleString()}
+              </p>
+            </div>
+            <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
+              <h3 className="text-sm font-medium text-[#9ca3af] mb-2">Active Subscribers</h3>
+              <p className="text-2xl font-bold text-[#ededed]">
+                {users.filter(user => user.isSubscribed).length}
+              </p>
+            </div>
+            <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
+              <h3 className="text-sm font-medium text-[#9ca3af] mb-2">Total Uses</h3>
+              <p className="text-2xl font-bold text-[#ededed]">
+                {users.reduce((sum, user) => sum + user.totalUsages, 0).toLocaleString()}
+              </p>
+            </div>
           </div>
-          <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
-            <h3 className="text-sm font-medium text-[#9ca3af] mb-2">Total Credits Earned</h3>
-            <p className="text-2xl font-bold text-[#3ecf8e]">
-              {users.reduce((sum, user) => sum + user.creditsSpent, 0)}
-            </p>
-          </div>
-          <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
-            <h3 className="text-sm font-medium text-[#9ca3af] mb-2">Active Today</h3>
-            <p className="text-2xl font-bold text-[#ededed]">
-              {users.filter(user => user.lastActive.includes('hour') || user.lastActive.includes('day')).length}
-            </p>
-          </div>
-        </div>
+        )}
 
         {/* Footer */}
         <footer className="border-t border-[#374151] mt-16 py-8">

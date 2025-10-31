@@ -13,9 +13,10 @@ interface Tool {
 interface ToolSelectorProps {
   userId: string;
   currentToolId?: string;
+  onToolChange?: (toolId: string, toolName: string) => void;
 }
 
-export default function ToolSelector({ userId, currentToolId }: ToolSelectorProps) {
+export default function ToolSelector({ userId, currentToolId, onToolChange }: ToolSelectorProps) {
   const router = useRouter();
   const [tools, setTools] = useState<Tool[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -70,7 +71,12 @@ export default function ToolSelector({ userId, currentToolId }: ToolSelectorProp
       // Save selection to localStorage
       localStorage.setItem('selectedToolId', value);
       setSelectedToolId(value);
-      router.push(`/vendor-dashboard/tools/${value}/edit`);
+      
+      // Find the tool name and call the callback
+      const selectedTool = tools.find(tool => tool.id === value);
+      if (selectedTool && onToolChange) {
+        onToolChange(value, selectedTool.name);
+      }
     }
   };
 
