@@ -3,31 +3,40 @@
 import { useState, useRef, useEffect } from 'react';
 import { Users } from 'lucide-react';
 import Footer from './components/Footer';
+import ToolCard from './components/ToolCard';
 
 // Mock database for tools
 const mockTools = [
-  { id: 1, name: "AI Content Generator", description: "Generate high-quality content with advanced AI", emoji: "🤖", rating: 4.8, adoptions: 12500, badge: "Popular", badgeColor: "bg-[#3ecf8e] text-black", gradient: "from-[#3ecf8e] to-[#2dd4bf]" },
-  { id: 2, name: "Advanced Analytics", description: "Deep insights into your business metrics", emoji: "📊", rating: 4.6, adoptions: 8900, badge: "New", badgeColor: "bg-blue-500 text-white", gradient: "from-purple-500 to-pink-500" },
-  { id: 3, name: "Design Studio Pro", description: "Professional design tools for everyone", emoji: "🎨", rating: 4.9, adoptions: 15600, badge: "Trending", badgeColor: "bg-orange-500 text-white", gradient: "from-orange-500 to-red-500" },
-  { id: 4, name: "Video Editor Plus", description: "Edit videos like a pro with AI assistance", emoji: "🎬", rating: 4.7, adoptions: 7300, badge: "Hot", badgeColor: "bg-red-500 text-white", gradient: "from-red-500 to-pink-600" },
-  { id: 5, name: "Code Assistant", description: "AI-powered coding companion for developers", emoji: "💻", rating: 4.5, adoptions: 9800, badge: "Dev", badgeColor: "bg-green-500 text-white", gradient: "from-green-500 to-teal-500" },
-  { id: 6, name: "Photo Enhancer", description: "Enhance your photos with AI magic", emoji: "📸", rating: 4.8, adoptions: 11200, badge: "Popular", badgeColor: "bg-[#3ecf8e] text-black", gradient: "from-cyan-500 to-blue-500" },
-  { id: 7, name: "Social Media Manager", description: "Automate your social media presence", emoji: "📱", rating: 4.4, adoptions: 6750, badge: "Social", badgeColor: "bg-purple-500 text-white", gradient: "from-purple-500 to-indigo-500" },
-  { id: 8, name: "Email Marketing Pro", description: "Create stunning email campaigns", emoji: "📧", rating: 4.6, adoptions: 5400, badge: "Marketing", badgeColor: "bg-yellow-500 text-black", gradient: "from-yellow-500 to-orange-400" },
-  { id: 9, name: "Voice Synthesizer", description: "Convert text to natural-sounding speech", emoji: "🔊", rating: 4.3, adoptions: 3200, badge: "Audio", badgeColor: "bg-indigo-500 text-white", gradient: "from-indigo-500 to-purple-600" },
-  { id: 10, name: "Data Visualizer", description: "Transform data into beautiful charts", emoji: "📈", rating: 4.7, adoptions: 8100, badge: "Charts", badgeColor: "bg-teal-500 text-white", gradient: "from-teal-500 to-green-600" }
+  // 1. Solo Monthly (caso classico)
+  { id: 1, name: "AI Content Generator", description: "Generate high-quality content with advanced AI", emoji: "🤖", rating: 4.8, adoptions: 12500, pricing: { monthly: 29 }, gradient: "from-[#3ecf8e] to-[#2dd4bf]", imageUrl: "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&q=80", discount: 30, developmentStage: 'beta' as const },
+  
+  // 2. Solo One-Time
+  { id: 2, name: "Advanced Analytics", description: "Deep insights into your business metrics", emoji: "📊", rating: 4.6, adoptions: 8900, pricing: { oneTime: 149 }, gradient: "from-purple-500 to-pink-500", imageUrl: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80", developmentStage: null },
+  
+  // 3. Solo Consumption
+  { id: 3, name: "Design Studio Pro", description: "Professional design tools for everyone", emoji: "🎨", rating: 4.9, adoptions: 15600, pricing: { consumption: { price: 0.5, unit: "per 1000 renders" } }, gradient: "from-orange-500 to-red-500", imageUrl: "https://images.unsplash.com/photo-1561070791-2526d30994b5?w=800&q=80", discount: 20, developmentStage: null },
+  
+  // 4. Monthly + One-Time
+  { id: 4, name: "Video Editor Plus", description: "Edit videos like a pro with AI assistance", emoji: "🎬", rating: 4.7, adoptions: 7300, pricing: { monthly: 59, oneTime: 299 }, gradient: "from-red-500 to-pink-600", imageUrl: "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800&q=80", developmentStage: null },
+  
+  // 5. Monthly + Consumption
+  { id: 5, name: "Code Assistant", description: "AI-powered coding companion for developers", emoji: "💻", rating: 4.5, adoptions: 9800, pricing: { monthly: 19, consumption: { price: 0.01, unit: "per API call" } }, gradient: "from-green-500 to-teal-500", imageUrl: "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&q=80", discount: 40, developmentStage: 'alpha' as const },
+  
+  // 6. Tutti e 3 (Monthly + One-Time + Consumption)
+  { id: 6, name: "Photo Enhancer", description: "Enhance your photos with AI magic", emoji: "📸", rating: 4.8, adoptions: 11200, pricing: { monthly: 24, oneTime: 99, consumption: { price: 2, unit: "per 100 photos" } }, gradient: "from-cyan-500 to-blue-500", imageUrl: "https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=800&q=80", developmentStage: null },
+  
+  // 7. Solo Monthly con Beta
+  { id: 7, name: "Social Media Manager", description: "Automate your social media presence", emoji: "📱", rating: 4.4, adoptions: 6750, pricing: { monthly: 34 }, gradient: "from-purple-500 to-indigo-500", imageUrl: "https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=800&q=80", discount: 10, developmentStage: 'beta' as const },
+  
+  // 8. One-Time + Consumption
+  { id: 8, name: "Email Marketing Pro", description: "Create stunning email campaigns", emoji: "📧", rating: 4.6, adoptions: 5400, pricing: { oneTime: 199, consumption: { price: 0.1, unit: "per email sent" } }, gradient: "from-yellow-500 to-orange-400", imageUrl: "https://images.unsplash.com/photo-1563986768609-322da13575f3?w=800&q=80", developmentStage: null },
+  
+  // 9. Solo Consumption con Alpha
+  { id: 9, name: "Voice Synthesizer", description: "Convert text to natural-sounding speech", emoji: "🔊", rating: 4.3, adoptions: 3200, pricing: { consumption: { price: 0.05, unit: "per minute" } }, gradient: "from-indigo-500 to-purple-600", imageUrl: "https://images.unsplash.com/photo-1589903308904-1010c2294adc?w=800&q=80", discount: 15, developmentStage: 'alpha' as const },
+  
+  // 10. Legacy price (per retrocompatibilità)
+  { id: 10, name: "Data Visualizer", description: "Transform data into beautiful charts", emoji: "📈", rating: 4.7, adoptions: 8100, price: 54, gradient: "from-teal-500 to-green-600", imageUrl: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80", developmentStage: null }
 ];
-
-// Helper function to format adoption numbers
-const formatAdoptions = (num: number): string => {
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + 'M';
-  }
-  if (num >= 1000) {
-    return (num / 1000).toFixed(1) + 'K';
-  }
-  return num.toString();
-};
 
 export default function Home() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -199,7 +208,7 @@ export default function Home() {
           </div>
           
           {/* Mobile Carousel */}
-          <div className="mb-8 sm:hidden">
+          <div className="mb-8 mt-12 sm:hidden">
             <div className="w-full overflow-hidden">
               <div 
                 className="flex gap-4 overflow-x-auto pb-4 px-1" 
@@ -210,24 +219,8 @@ export default function Home() {
                 }}
               >
                 {filteredTools.map((tool) => (
-                  <div key={tool.id} className="bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex-shrink-0 w-84 min-w-84 flex flex-col">
-                    <div className={`h-36 bg-gradient-to-br ${tool.gradient} flex items-center justify-center`}>
-                      <div className="text-4xl">{tool.emoji}</div>
-                    </div>
-                    <div className="p-3 flex flex-col flex-1">
-                      <h3 className="font-bold mb-1 text-base">{tool.name}</h3>
-                      <p className="text-[#9ca3af] text-sm mb-2 line-clamp-2 flex-1">{tool.description}</p>
-                      <div className="flex items-center justify-between mt-auto">
-                        <div className="flex items-center gap-1">
-                          <span className="text-[#3ecf8e] font-bold text-sm">★ {tool.rating}</span>
-                          <div className="flex items-center gap-1">
-                            <Users className="w-4 h-4 text-[#9ca3af]" />
-                            <span className="text-[#9ca3af] font-thin text-sm">{formatAdoptions(tool.adoptions)}</span>
-                          </div>
-                        </div>
-                        <span className={`${tool.badgeColor} px-2 py-1 rounded text-sm font-bold`}>{tool.badge}</span>
-                      </div>
-                    </div>
+                  <div key={tool.id} className="flex-shrink-0 w-80 min-w-[20rem]">
+                    <ToolCard {...tool} />
                   </div>
                 ))}
               </div>
@@ -235,10 +228,10 @@ export default function Home() {
           </div>
 
           {/* Desktop Carousel */}
-          <div className="mb-8 hidden sm:block">
+          <div className="mb-4 mt-4  hidden sm:block">
             <div 
               ref={carouselRef}
-              className="flex gap-6 overflow-x-auto pb-4 scrollbar-hide cursor-grab select-none" 
+              className="flex gap-6 overflow-x-auto py-4 scrollbar-hide cursor-grab select-none" 
               style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
@@ -247,24 +240,8 @@ export default function Home() {
               onScroll={handleScroll}
             >
               {filteredTools.map((tool) => (
-                <div key={tool.id} className="bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex-shrink-0 w-[22rem] flex flex-col">
-                  <div className={`h-40 bg-gradient-to-br ${tool.gradient} flex items-center justify-center`}>
-                    <div className="text-5xl">{tool.emoji}</div>
-                  </div>
-                  <div className="p-3 flex flex-col flex-1">
-                    <h3 className="font-bold mb-1">{tool.name}</h3>
-                    <p className="text-[#9ca3af] text-xs mb-2 flex-1">{tool.description}</p>
-                    <div className="flex items-center justify-between mt-auto">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[#3ecf8e] font-bold">★ {tool.rating}</span>
-                        <div className="flex items-center gap-1">
-                          <Users className="w-4 h-4 text-[#9ca3af] font-thin" />
-                          <span className="text-[#9ca3af] font-thin">{formatAdoptions(tool.adoptions)}</span>
-                        </div>
-                      </div>
-                      <span className={`${tool.badgeColor} px-2 py-1 rounded text-xs font-bold`}>{tool.badge}</span>
-                    </div>
-                  </div>
+                <div key={tool.id} className="flex-shrink-0 w-[22rem]">
+                  <ToolCard {...tool} />
                 </div>
               ))}
             </div>
@@ -275,25 +252,7 @@ export default function Home() {
             <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">All Tools</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
               {filteredTools.map((tool) => (
-                <div key={tool.id} className="bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex flex-col">
-                  <div className={`h-32 sm:h-40 bg-gradient-to-br ${tool.gradient} flex items-center justify-center`}>
-                    <div className="text-4xl sm:text-5xl">{tool.emoji}</div>
-                  </div>
-                  <div className="p-3 flex flex-col flex-1">
-                    <h3 className="font-bold mb-1">{tool.name}</h3>
-                    <p className="text-[#9ca3af] text-xs mb-2 flex-1">{tool.description}</p>
-                    <div className="flex items-center justify-between mt-auto">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[#3ecf8e] font-bold">★ {tool.rating}</span>
-                        <div className="flex items-center gap-1">
-                          <Users className="w-4 h-4 text-[#9ca3af] font-thin" />
-                          <span className="text-[#9ca3af] font-thin">{formatAdoptions(tool.adoptions)}</span>
-                        </div>
-                      </div>
-                      <span className={`${tool.badgeColor} px-2 py-1 rounded text-xs font-bold`}>{tool.badge}</span>
-                    </div>
-                  </div>
-                </div>
+                <ToolCard key={tool.id} {...tool} />
               ))}
             </div>
           </div>
