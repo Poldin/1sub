@@ -2,10 +2,27 @@
 
 import { Users, Star, ExternalLink } from 'lucide-react';
 
+export interface Product {
+  id: string;
+  name: string;
+  description?: string;
+  pricing: {
+    monthly?: number;
+    oneTime?: number;
+    consumption?: {
+      price: number;
+      unit: string;
+    };
+  };
+  features?: string[];
+  isPreferred?: boolean;
+}
+
 export interface ToolCardProps {
   id: number;
   name: string;
   description: string;
+  longDescription?: string; // Full description for dialog
   emoji?: string;
   logoUrl?: string;
   imageUrl?: string;
@@ -20,6 +37,7 @@ export interface ToolCardProps {
       unit: string; // es: "per call", "per 1000 API calls", "per GB"
     };
   };
+  products?: Product[]; // Multiple products/plans
   gradient?: string;
   tags?: string[];
   verified?: boolean;
@@ -27,6 +45,7 @@ export interface ToolCardProps {
   developmentStage?: 'alpha' | 'beta' | null;
   ctaLabel?: string;
   onClick?: () => void;
+  onViewClick?: () => void; // Separate handler for view button
 }
 
 // Helper function to format adoption numbers
@@ -50,16 +69,23 @@ export default function ToolCard({
   adoptions,
   price,
   pricing,
+  products,
   gradient = "from-[#3ecf8e] to-[#2dd4bf]",
   tags = [],
   verified = false,
   discount,
   developmentStage,
   ctaLabel = "start",
-  onClick
+  onClick,
+  onViewClick
 }: ToolCardProps) {
-  // Determine pricing to display (new structure takes precedence over legacy)
-  const finalPricing = pricing || (price !== undefined ? { monthly: price } : {});
+  // Determine pricing to display (products > pricing > price)
+  // If products exist, use the preferred one or the first one
+  let finalPricing = pricing || (price !== undefined ? { monthly: price } : {});
+  if (products && products.length > 0) {
+    const preferredProduct = products.find(p => p.isPreferred) || products[0];
+    finalPricing = preferredProduct.pricing;
+  }
   const hasPricing = finalPricing.monthly || finalPricing.oneTime || finalPricing.consumption;
   
   // Determine main price to display (priority: monthly > oneTime > consumption)
@@ -99,6 +125,20 @@ export default function ToolCard({
       description: 'Consumption-based'
     });
   }
+  // Handle card click (except for buttons)
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Don't trigger if clicking on a button
+    const target = e.target as HTMLElement;
+    if (target.closest('button')) {
+      return;
+    }
+    if (onViewClick) {
+      onViewClick();
+    } else if (onClick) {
+      onClick();
+    }
+  };
+
   return (
     <div 
       className={`group bg-[#1f2937] rounded-lg hover:shadow-2xl transition-all duration-300 cursor-pointer flex flex-col h-full hover:-translate-y-1 relative ${
@@ -108,7 +148,7 @@ export default function ToolCard({
           ? 'border-2 border-blue-500 hover:border-blue-400 hover:shadow-blue-500/30'
           : 'border border-[#374151] hover:border-[#3ecf8e]/50 hover:shadow-[#3ecf8e]/20'
       }`}
-      onClick={onClick}
+      onClick={handleCardClick}
     >
       {/* Development Stage Badge - Top Center */}
       {developmentStage && (
@@ -259,12 +299,29 @@ export default function ToolCard({
           {/* CTA Buttons */}
           <div className="flex items-center gap-2">
             {/* Secondary CTA - View */}
-            <button className="text-[#9ca3af] hover:text-[#d1d5db] px-3 py-1.5 text-xs font-bold transition-colors flex items-center gap-1">
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onViewClick) {
+                  onViewClick();
+                } else if (onClick) {
+                  onClick();
+                }
+              }}
+              className="text-[#9ca3af] hover:text-[#d1d5db] px-3 py-1.5 text-xs font-bold transition-colors flex items-center gap-1"
+            >
               view
             </button>
             
             {/* Primary CTA - Start */}
-            <button className="bg-[#3ecf8e] text-black px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#2dd4bf] transition-all flex items-center gap-1 group-hover:gap-2">
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                // Here you would handle the "start" action
+                console.log('Start tool:', name);
+              }}
+              className="bg-[#3ecf8e] text-black px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#2dd4bf] transition-all flex items-center gap-1 group-hover:gap-2"
+            >
               {ctaLabel}
               <ExternalLink className="w-3.5 h-3.5" />
             </button>
