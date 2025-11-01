@@ -141,12 +141,12 @@ export default function ToolCard({
 
   return (
     <div 
-      className={`group bg-[#1f2937] rounded-lg hover:shadow-2xl transition-all duration-300 cursor-pointer flex flex-col h-full hover:-translate-y-1 relative ${
+      className={`group bg-[#1f2937] rounded-xl tool-card-hover cursor-pointer flex flex-col h-full relative overflow-hidden ${
         developmentStage === 'alpha' 
           ? 'border-2 border-purple-500 hover:border-purple-400 hover:shadow-purple-500/30' 
           : developmentStage === 'beta'
           ? 'border-2 border-blue-500 hover:border-blue-400 hover:shadow-blue-500/30'
-          : 'border border-[#374151] hover:border-[#3ecf8e]/50 hover:shadow-[#3ecf8e]/20'
+          : 'border border-[#374151] hover:border-[#3ecf8e]/50'
       }`}
       onClick={handleCardClick}
     >
@@ -208,14 +208,18 @@ export default function ToolCard({
         
         {/* Preview Image - Large, full width */}
         <div className="mb-3 rounded-md overflow-hidden bg-[#111111] -mx-4 w-[calc(100%+2rem)] relative">
-          <img 
-            src={imageUrl || '/favicon.ico'} 
-            alt={`${name} preview`}
-            className={`w-full h-48 transition-transform duration-300 ${imageUrl ? 'object-cover group-hover:scale-105' : 'object-contain p-8 opacity-20'}`}
-          />
+          <div className="relative overflow-hidden">
+            <img 
+              src={imageUrl || '/favicon.ico'} 
+              alt={`${name} preview`}
+              className={`w-full h-48 tool-card-image ${imageUrl ? 'object-cover' : 'object-contain p-8 opacity-20'}`}
+            />
+            {/* Gradient Overlay on Hover */}
+            <div className="absolute inset-0 bg-gradient-to-t from-[#1f2937]/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          </div>
           {/* Discount Badge */}
           {discount && (
-            <div className="absolute top-3 right-3 bg-red-500 text-white px-3 py-1.5 rounded-lg shadow-lg">
+            <div className="absolute top-3 right-3 bg-gradient-to-r from-red-500 to-red-600 text-white px-3 py-1.5 rounded-lg shadow-lg animate-pulse-glow">
               <span className="text-lg font-black">-{discount}%</span>
             </div>
           )}
