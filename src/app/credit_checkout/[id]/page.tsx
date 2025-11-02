@@ -4,11 +4,21 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Lock, Check, ExternalLink, Wrench, AlertCircle, Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { ProductPricingModel } from '@/lib/tool-types';
 
 interface PricingOption {
   enabled: boolean;
   price: number;
   description?: string;
+}
+
+interface CheckoutProduct {
+  id: string;
+  name: string;
+  description?: string;
+  pricing_model: ProductPricingModel;
+  features?: string[];
+  is_preferred?: boolean;
 }
 
 interface CheckoutData {
@@ -32,6 +42,7 @@ interface CheckoutData {
       subscription_monthly?: PricingOption;
       subscription_yearly?: PricingOption;
     };
+    products?: CheckoutProduct[];
   };
 }
 
@@ -57,7 +68,7 @@ export default function CreditCheckoutPage() {
   const [loading, setLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedPricing, setSelectedPricing] = useState<'one_time' | 'subscription_monthly' | 'subscription_yearly' | null>(null);
+  const [selectedPricing, setSelectedPricing] = useState<string | null>(null);
 
   // Fetch checkout data
   useEffect(() => {
@@ -120,9 +131,20 @@ export default function CreditCheckoutPage() {
           }
         }
 
-        // Auto-select pricing if only one option available or if already selected
+        // Auto-select pricing/product if only one option available or if already selected
         if (checkoutData.metadata.selected_pricing) {
-          setSelectedPricing(checkoutData.metadata.selected_pricing as 'one_time' | 'subscription_monthly' | 'subscription_yearly');
+          setSelectedPricing(checkoutData.metadata.selected_pricing as string);
+        } else if (checkoutData.metadata.products && Array.isArray(checkoutData.metadata.products)) {
+          // Auto-select if only one product
+          if (checkoutData.metadata.products.length === 1) {
+            setSelectedPricing(checkoutData.metadata.products[0].id);
+          } else {
+            // Auto-select preferred product
+            const preferredProduct = checkoutData.metadata.products.find((p: CheckoutProduct) => p.is_preferred);
+            if (preferredProduct) {
+              setSelectedPricing(preferredProduct.id);
+            }
+          }
         } else if (checkoutData.metadata.pricing_options) {
           const options = checkoutData.metadata.pricing_options;
           const enabledOptions = [
@@ -133,7 +155,7 @@ export default function CreditCheckoutPage() {
           
           // Auto-select if only one option
           if (enabledOptions.length === 1) {
-            setSelectedPricing(enabledOptions[0] as 'one_time' | 'subscription_monthly' | 'subscription_yearly');
+            setSelectedPricing(enabledOptions[0] as string);
           }
         }
 
@@ -159,17 +181,33 @@ export default function CreditCheckoutPage() {
       return;
     }
 
-    // For flexible pricing, ensure option is selected
+    // For flexible pricing or products, ensure option is selected
+    const hasProducts = Array.isArray(checkout.metadata.products) && checkout.metadata.products.length > 0;
     const hasPricingOptions = checkout.metadata.pricing_options && 
       Object.values(checkout.metadata.pricing_options).some(opt => opt?.enabled);
     
-    if (hasPricingOptions && !selectedPricing) {
-      setError('Please select a payment method');
+    if ((hasPricingOptions || hasProducts) && !selectedPricing) {
+      setError(hasProducts ? 'Please select a product' : 'Please select a payment method');
       return;
     }
 
     // Get the selected price
-    const selectedPrice = selectedPricing && checkout.metadata.pricing_options?.[selectedPricing]?.price || checkout.credit_amount || 0;
+    let selectedPrice = checkout.credit_amount || 0;
+    
+    if (hasProducts && selectedPricing) {
+      const product = checkout.metadata.products!.find((p: CheckoutProduct) => p.id === selectedPricing);
+      if (product) {
+        const pm = product.pricing_model;
+        if (pm.one_time?.enabled && pm.one_time.price) selectedPrice = pm.one_time.price;
+        else if (pm.subscription?.enabled && pm.subscription.price) selectedPrice = pm.subscription.price;
+        else if (pm.usage_based?.enabled && pm.usage_based.price_per_unit) selectedPrice = pm.usage_based.price_per_unit;
+      }
+    } else if (hasPricingOptions && selectedPricing) {
+      const pricingOption = checkout.metadata.pricing_options?.[selectedPricing as keyof typeof checkout.metadata.pricing_options];
+      if (pricingOption) {
+        selectedPrice = pricingOption.price;
+      }
+    }
 
     // Check sufficient credits
     if (user.credits < selectedPrice) {
@@ -262,13 +300,33 @@ export default function CreditCheckoutPage() {
   }
 
   // Helper functions
+  const hasProducts = Array.isArray(checkout.metadata.products) && checkout.metadata.products.length > 0;
   const hasPricingOptions = checkout.metadata.pricing_options && 
     Object.values(checkout.metadata.pricing_options).some(opt => opt?.enabled);
   
   const getSelectedPrice = () => {
-    if (hasPricingOptions && selectedPricing && checkout.metadata.pricing_options?.[selectedPricing]) {
-      return checkout.metadata.pricing_options[selectedPricing].price;
+    // Handle products (new structure)
+    if (hasProducts && selectedPricing) {
+      const product = checkout.metadata.products!.find((p: CheckoutProduct) => p.id === selectedPricing);
+      if (product) {
+        const pm = product.pricing_model;
+        if (pm.one_time?.enabled) {
+          if (pm.one_time.price) return pm.one_time.price;
+          if (pm.one_time.min_price) return pm.one_time.min_price; // Use min price as fallback
+        }
+        if (pm.subscription?.enabled && pm.subscription.price) return pm.subscription.price;
+        if (pm.usage_based?.enabled && pm.usage_based.price_per_unit) return pm.usage_based.price_per_unit;
+      }
     }
+    
+    // Handle pricing_options (old structure)
+    if (hasPricingOptions && selectedPricing) {
+      const pricingOption = checkout.metadata.pricing_options?.[selectedPricing as keyof typeof checkout.metadata.pricing_options];
+      if (pricingOption) {
+        return pricingOption.price;
+      }
+    }
+    
     return checkout.credit_amount || 0;
   };
 
@@ -449,8 +507,85 @@ export default function CreditCheckoutPage() {
                 <div className="p-6 lg:p-8 space-y-6">
                   <h2 className="text-xl font-bold text-[#ededed]">Order Summary</h2>
 
-                  {/* Pricing Options */}
-                  {hasPricingOptions && !isCompleted && (
+                  {/* Products Selection (new structure) */}
+                  {hasProducts && !isCompleted && (
+                    <div className="space-y-3">
+                      <label className="text-sm font-medium text-[#9ca3af]">Select Product</label>
+                      
+                      {checkout.metadata.products!.map((product: CheckoutProduct) => {
+                        const pm = product.pricing_model;
+                        let priceDisplay = '';
+                        let priceLabel = '';
+                        
+                        if (pm.one_time?.enabled) {
+                          if (pm.one_time.price) {
+                            priceDisplay = pm.one_time.price.toString();
+                            priceLabel = 'credits';
+                          } else if (pm.one_time.min_price && pm.one_time.max_price) {
+                            priceDisplay = `${pm.one_time.min_price}-${pm.one_time.max_price}`;
+                            priceLabel = 'credits';
+                          } else {
+                            priceDisplay = 'Custom';
+                            priceLabel = '';
+                          }
+                        } else if (pm.subscription?.enabled && pm.subscription.price) {
+                          priceDisplay = pm.subscription.price.toString();
+                          priceLabel = `/${pm.subscription.interval === 'year' ? 'yr' : 'mo'}`;
+                        } else if (pm.usage_based?.enabled && pm.usage_based.price_per_unit) {
+                          priceDisplay = pm.usage_based.price_per_unit.toString();
+                          priceLabel = `/${pm.usage_based.unit_name || 'unit'}`;
+                        }
+                        
+                        return (
+                          <button
+                            key={product.id}
+                            type="button"
+                            onClick={() => setSelectedPricing(product.id)}
+                            className={`w-full p-4 rounded-xl border-2 transition-all text-left ${
+                              selectedPricing === product.id
+                                ? 'border-[#3ecf8e] bg-[#3ecf8e]/5 shadow-lg shadow-[#3ecf8e]/10'
+                                : 'border-[#374151] hover:border-[#4b5563] bg-[#0a0a0a]/30'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <div className="font-semibold text-[#ededed] mb-1 flex items-center gap-2">
+                                  {product.name}
+                                  {product.is_preferred && (
+                                    <span className="text-xs bg-[#3ecf8e]/20 text-[#3ecf8e] px-2 py-0.5 rounded-full font-medium">
+                                      Recommended
+                                    </span>
+                                  )}
+                                </div>
+                                {product.description && (
+                                  <div className="text-xs text-[#9ca3af]">
+                                    {product.description}
+                                  </div>
+                                )}
+                                {product.features && product.features.length > 0 && (
+                                  <div className="mt-2 space-y-1">
+                                    {product.features.slice(0, 3).map((feature: string, idx: number) => (
+                                      <div key={idx} className="text-xs text-[#9ca3af] flex items-center gap-1">
+                                        <Check className="w-3 h-3 text-[#3ecf8e]" />
+                                        {feature}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="text-lg font-bold text-[#3ecf8e] ml-4">
+                                {priceDisplay}
+                                <span className="text-xs text-[#9ca3af] ml-1">{priceLabel}</span>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Pricing Options (old structure) */}
+                  {hasPricingOptions && !isCompleted && !hasProducts && (
                     <div className="space-y-3">
                       <label className="text-sm font-medium text-[#9ca3af]">Select Plan</label>
                       

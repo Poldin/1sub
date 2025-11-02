@@ -26,6 +26,19 @@ type Tool = {
     category?: string;
     vendor_id?: string;
   };
+  products?: Array<{
+    id: string;
+    name: string;
+    description?: string;
+    pricing_model: {
+      one_time?: { enabled: boolean; type: string; price?: number; min_price?: number; max_price?: number };
+      subscription?: { enabled: boolean; price: number; interval: string };
+      usage_based?: { enabled: boolean; price_per_unit: number; unit_name: string };
+    };
+    is_active: boolean;
+    features?: string[];
+    is_preferred?: boolean;
+  }>;
 };
 
 // Helper function to format adoption numbers
@@ -90,6 +103,7 @@ function BackofficeContent() {
   const [userRole, setUserRole] = useState<string>('user'); // Change to 'vendor' to test vendor view
   const [showPurchaseSuccess, setShowPurchaseSuccess] = useState(false);
   const [hasTools, setHasTools] = useState(false);
+  const [highlightedToolId, setHighlightedToolId] = useState<string | null>(null);
 
   // Load sidebar state from localStorage on mount
   useEffect(() => {
@@ -202,6 +216,27 @@ function BackofficeContent() {
       // Clean up URL
       window.history.replaceState({}, '', '/backoffice');
     }
+
+    // Check if coming from homepage with highlighted tool
+    const highlightParam = searchParams.get('highlight');
+    if (highlightParam) {
+      setHighlightedToolId(highlightParam);
+      
+      // Scroll to highlighted tool after a brief delay
+      setTimeout(() => {
+        const element = document.getElementById(`tool-${highlightParam}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 500);
+      
+      // Remove highlight after 3 seconds
+      setTimeout(() => {
+        setHighlightedToolId(null);
+        // Clean up URL
+        window.history.replaceState({}, '', '/backoffice');
+      }, 3000);
+    }
   }, [searchParams]); // Dependency on search params
 
   const handleLogout = async () => {
@@ -242,14 +277,80 @@ function BackofficeContent() {
 
     try {
       const toolMetadata = tool.metadata as Record<string, unknown>;
+      
+      // Check if tool has products (new structure)
+      const hasProducts = Array.isArray(tool.products) && tool.products.length > 0;
+      
+      // Check if tool has pricing_options in metadata (old structure)
       const pricingOptions = toolMetadata?.pricing_options as {
         one_time?: { enabled: boolean; price: number; description?: string };
         subscription_monthly?: { enabled: boolean; price: number; description?: string };
         subscription_yearly?: { enabled: boolean; price: number; description?: string };
       } | undefined;
 
-      // Check if tool has flexible pricing options
-      if (pricingOptions) {
+      // Handle tools with products (new unified structure)
+      if (hasProducts && tool.products) {
+        const activeProducts = tool.products.filter(p => p.is_active);
+        
+        if (activeProducts.length === 0) {
+          alert('This tool has no active products');
+          return;
+        }
+
+        // Get minimum price from products to check balance
+        const productPrices = activeProducts.map(p => {
+          const pm = p.pricing_model;
+          if (pm.one_time?.enabled) {
+            if (pm.one_time.price) return pm.one_time.price;
+            if (pm.one_time.min_price) return pm.one_time.min_price; // Use min price as fallback
+          }
+          if (pm.subscription?.enabled && pm.subscription.price) return pm.subscription.price;
+          if (pm.usage_based?.enabled && pm.usage_based.price_per_unit) return pm.usage_based.price_per_unit;
+          return 0;
+        }).filter(price => price > 0);
+
+        const cheapestPrice = productPrices.length > 0 ? Math.min(...productPrices) : 0;
+
+        // Check if user has enough credits for cheapest option
+        if (cheapestPrice > 0 && credits < cheapestPrice) {
+          router.push(`/buy-credits?needed=${cheapestPrice}&tool_id=${tool.id}&tool_name=${encodeURIComponent(tool.name)}`);
+          return;
+        }
+
+        // Prevent self-purchase
+        if (toolMetadata?.vendor_id === user.id) {
+          alert('You cannot purchase your own tools');
+          return;
+        }
+
+        // Create checkout with products
+        const { data: checkout, error } = await supabase
+          .from('checkouts')
+          .insert({
+            user_id: user.id,
+            vendor_id: toolMetadata?.vendor_id || null,
+            credit_amount: null, // Will be set when user selects product
+            type: null, // Will be set when user selects product
+            metadata: {
+              tool_id: tool.id,
+              tool_name: tool.name,
+              tool_url: tool.url,
+              products: activeProducts, // Pass products to checkout
+              status: 'pending',
+            },
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Error creating checkout:', error);
+          alert('Failed to initiate checkout');
+          return;
+        }
+
+        router.push(`/credit_checkout/${checkout.id}`);
+      } else if (pricingOptions) {
+        // Handle tools with pricing_options (old structure)
         // Get all enabled pricing options
         const enabledPrices = [];
         if (pricingOptions.one_time?.enabled) enabledPrices.push(pricingOptions.one_time.price);
@@ -587,8 +688,15 @@ function BackofficeContent() {
                       WebkitOverflowScrolling: 'touch'
                     }}
                   >
-                    {tools.map((tool) => (
-                      <div key={tool.id} data-testid="tool-card" className="bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex-shrink-0 w-84 min-w-84 flex flex-col">
+                  {tools.map((tool) => (
+                    <div 
+                      key={tool.id} 
+                      id={`tool-${tool.id}`}
+                      data-testid="tool-card" 
+                      className={`bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex-shrink-0 w-84 min-w-84 flex flex-col ${
+                        highlightedToolId === tool.id ? 'ring-2 ring-[#3ecf8e] shadow-lg shadow-[#3ecf8e]/50 animate-pulse' : ''
+                      }`}
+                    >
                         <ToolImage 
                           src={tool.url} 
                           alt={tool.name} 
@@ -634,7 +742,14 @@ function BackofficeContent() {
                   onScroll={handleScroll}
                 >
                   {tools.map((tool) => (
-                    <div key={tool.id} data-testid="tool-card" className="bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex-shrink-0 w-[22rem] flex flex-col">
+                    <div 
+                      key={tool.id} 
+                      id={`tool-${tool.id}`}
+                      data-testid="tool-card" 
+                      className={`bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex-shrink-0 w-[22rem] flex flex-col ${
+                        highlightedToolId === tool.id ? 'ring-2 ring-[#3ecf8e] shadow-lg shadow-[#3ecf8e]/50 animate-pulse' : ''
+                      }`}
+                    >
                       <ToolImage 
                         src={tool.url} 
                         alt={tool.name} 
@@ -681,7 +796,13 @@ function BackofficeContent() {
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                   {tools.map((tool) => (
-                    <div key={tool.id} className="bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex flex-col">
+                    <div 
+                      key={tool.id} 
+                      id={`tool-${tool.id}`}
+                      className={`bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex flex-col ${
+                        highlightedToolId === tool.id ? 'ring-2 ring-[#3ecf8e] shadow-lg shadow-[#3ecf8e]/50 animate-pulse' : ''
+                      }`}
+                    >
                       <ToolImage 
                         src={tool.url} 
                         alt={tool.name} 

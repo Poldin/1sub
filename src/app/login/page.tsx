@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -17,6 +18,10 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
 
+  // Get redirect URL from query params
+  const redirectUrl = searchParams.get('redirect');
+  const toolId = searchParams.get('tool');
+
   // Check if user is already logged in
   useEffect(() => {
     const checkUser = async () => {
@@ -25,7 +30,13 @@ export default function LoginPage() {
         const { data: { user } } = await supabase.auth.getUser();
         
         if (user) {
-          router.push('/backoffice');
+          // User is already logged in, redirect
+          if (redirectUrl) {
+            const fullRedirect = toolId ? `${redirectUrl}?highlight=${toolId}` : redirectUrl;
+            router.push(fullRedirect);
+          } else {
+            router.push('/backoffice');
+          }
           return;
         }
       } catch (err) {
@@ -36,7 +47,7 @@ export default function LoginPage() {
     };
 
     checkUser();
-  }, [router]);
+  }, [router, redirectUrl, toolId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,8 +67,13 @@ export default function LoginPage() {
       }
 
       if (data.user) {
-        // Successful login - redirect to backoffice
-        router.push('/backoffice');
+        // Successful login - redirect to the specified URL or backoffice
+        if (redirectUrl) {
+          const fullRedirect = toolId ? `${redirectUrl}?highlight=${toolId}` : redirectUrl;
+          router.push(fullRedirect);
+        } else {
+          router.push('/backoffice');
+        }
         router.refresh();
       }
     } catch (err) {
@@ -203,5 +219,20 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex items-center justify-center px-4">
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#3ecf8e] border-r-transparent"></div>
+          <p className="mt-4 text-[#9ca3af]">Loading...</p>
+        </div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }
