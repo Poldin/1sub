@@ -70,8 +70,44 @@ export async function POST(request: NextRequest) {
     let checkoutType = checkout.type || 'tool_purchase';
     let billingPeriod = null;
 
-    // If pricing options available and pricing selected, use that
-    if (selected_pricing && metadata.pricing_options) {
+    // Handle products (new structure) - priority over pricing_options
+    if (selected_pricing && metadata.products && Array.isArray(metadata.products)) {
+      const products = metadata.products as Array<{
+        id: string;
+        name: string;
+        pricing_model: {
+          one_time?: { enabled: boolean; type?: string; price?: number; min_price?: number; max_price?: number };
+          subscription?: { enabled: boolean; price: number; interval: 'day' | 'week' | 'month' | 'year'; trial_days?: number };
+          usage_based?: { enabled: boolean; price_per_unit: number; unit_name: string; minimum_units?: number };
+        };
+      }>;
+      
+      const selectedProduct = products.find(p => p.id === selected_pricing);
+      if (selectedProduct) {
+        const pm = selectedProduct.pricing_model;
+        
+        // Determine price and checkout type from product pricing model
+        if (pm.one_time?.enabled) {
+          if (pm.one_time.price) {
+            creditCost = pm.one_time.price;
+            checkoutType = 'tool_purchase';
+          } else if (pm.one_time.min_price) {
+            // For range pricing, use min_price (or could require user to specify)
+            creditCost = pm.one_time.min_price;
+            checkoutType = 'tool_purchase';
+          }
+        } else if (pm.subscription?.enabled && pm.subscription.price) {
+          creditCost = pm.subscription.price;
+          checkoutType = 'tool_subscription';
+          billingPeriod = pm.subscription.interval === 'year' ? 'yearly' : 'monthly';
+        } else if (pm.usage_based?.enabled && pm.usage_based.price_per_unit) {
+          creditCost = pm.usage_based.price_per_unit;
+          checkoutType = 'tool_purchase'; // Usage-based is typically one-time per unit
+        }
+      }
+    }
+    // Handle pricing_options (old structure) - fallback if products not used
+    else if (selected_pricing && metadata.pricing_options) {
       const pricingOptions = metadata.pricing_options as Record<string, { enabled: boolean; price: number; description?: string }>;
       const pricingOption = pricingOptions[selected_pricing];
       if (pricingOption && pricingOption.enabled) {
@@ -87,18 +123,34 @@ export async function POST(request: NextRequest) {
           checkoutType = 'tool_subscription';
           billingPeriod = 'yearly';
         }
-
-        // Update checkout with selected option
-        await supabase.from('checkouts').update({
-          credit_amount: creditCost,
-          type: checkoutType,
-          metadata: {
-            ...metadata,
-            selected_pricing,
-            billing_period: billingPeriod,
-          }
-        }).eq('id', checkout_id);
       }
+    }
+
+    // Validate that we have a valid credit cost
+    if (creditCost <= 0) {
+      return NextResponse.json(
+        { 
+          error: 'Invalid pricing configuration. Credit cost must be greater than 0.',
+          selected_pricing,
+          has_products: !!(metadata.products && Array.isArray(metadata.products)),
+          has_pricing_options: !!metadata.pricing_options,
+          checkout_credit_amount: checkout.credit_amount
+        },
+        { status: 400 }
+      );
+    }
+
+    // Update checkout with selected option (if products or pricing_options were used)
+    if (selected_pricing && (metadata.products || metadata.pricing_options)) {
+      await supabase.from('checkouts').update({
+        credit_amount: creditCost,
+        type: checkoutType,
+        metadata: {
+          ...metadata,
+          selected_pricing,
+          billing_period: billingPeriod,
+        }
+      }).eq('id', checkout_id);
     }
 
     // 6. Fetch user's current credit balance
@@ -163,6 +215,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 10. Create vendor transaction (earn credits) if vendor exists
+    let vendorTransactionWarning = null;
     if (checkout.vendor_id) {
       // Fetch vendor's current balance
       const { data: vendorTransactions } = await supabase
@@ -190,10 +243,25 @@ export async function POST(request: NextRequest) {
         });
 
       if (vendorTransactionError) {
-        console.error('Vendor transaction error:', vendorTransactionError);
+        console.error('CRITICAL: Vendor transaction creation failed:', {
+          error: vendorTransactionError,
+          vendor_id: checkout.vendor_id,
+          checkout_id: checkout.id,
+          tool_id: metadata.tool_id,
+          tool_name: metadata.tool_name,
+          credit_cost: creditCost,
+          buyer_id: authUser.id,
+        });
+        vendorTransactionWarning = 'Vendor earnings may not have been recorded. Please contact support.';
         // Note: User transaction already created, this is a critical issue
         // In production, this should be handled with proper transaction rollback
       }
+    } else {
+      console.warn('Checkout processed without vendor_id:', {
+        checkout_id: checkout.id,
+        tool_id: metadata.tool_id,
+        tool_name: metadata.tool_name,
+      });
     }
 
     // 11. Create subscription record if this is a subscription checkout
@@ -267,6 +335,7 @@ export async function POST(request: NextRequest) {
       new_balance: currentBalance - creditCost,
       is_subscription: checkoutType === 'tool_subscription',
       selected_pricing: selected_pricing || null,
+      vendor_warning: vendorTransactionWarning || undefined,
     });
 
   } catch (error) {

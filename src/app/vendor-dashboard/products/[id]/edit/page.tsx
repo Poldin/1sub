@@ -5,37 +5,16 @@ import { useRouter, useParams } from 'next/navigation';
 import { ArrowLeft, Upload, Save, Trash2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import Image from 'next/image';
-
-interface PricingModel {
-  one_time: {
-    enabled: boolean;
-    price: number;
-  };
-  subscription: {
-    enabled: boolean;
-    price: number;
-    interval: 'day' | 'week' | 'month' | 'year';
-    trial_days?: number;
-  };
-  usage_based: {
-    enabled: boolean;
-    price_per_unit: number;
-    unit_name: string;
-    minimum_units?: number;
-  };
-}
+import { ProductPricingModel } from '@/lib/tool-types';
 
 interface Product {
   id: string;
   name: string;
-  description: string;
-  price: number;
-  tool_id: string;
-  is_active: boolean;
-  metadata?: {
-    image_url?: string;
-    pricing_model?: PricingModel;
-  };
+  description: string | null;
+  tool_id: string | null;
+  is_active: boolean | null;
+  pricing_model: ProductPricingModel | null;
+  created_at: string;
 }
 
 export default function EditProductPage() {
@@ -56,9 +35,10 @@ export default function EditProductPage() {
   const [imagePreview, setImagePreview] = useState<string>('');
   const [isUpdating, setIsUpdating] = useState(false);
 
-  const [pricingModel, setPricingModel] = useState<PricingModel>({
+  const [pricingModel, setPricingModel] = useState<ProductPricingModel>({
     one_time: {
       enabled: false,
+      type: 'absolute',
       price: 0,
     },
     subscription: {
@@ -83,31 +63,48 @@ export default function EditProductPage() {
       try {
         const supabase = createClient();
         const { data, error } = await supabase
-          .from('products')
+          .from('tool_products')
           .select('*')
           .eq('id', productId)
           .single();
 
         if (error) {
-          console.error('Error fetching product:', error);
-          alert('Failed to load product');
+          console.error('Error fetching product:', {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code,
+          });
+          alert(`Failed to load product: ${error.message || 'Unknown error'}`);
+          router.push('/vendor-dashboard/products');
+          return;
+        }
+
+        if (!data) {
+          console.error('Product not found with ID:', productId);
+          alert('Product not found');
           router.push('/vendor-dashboard/products');
           return;
         }
 
         setProduct(data);
         setFormData({
-          name: data.name,
-          description: data.description,
-          is_active: data.is_active,
+          name: data.name || '',
+          description: data.description || '',
+          is_active: data.is_active ?? true,
         });
 
-        if (data.metadata?.image_url) {
-          setImagePreview(data.metadata.image_url);
-        }
-
-        if (data.metadata?.pricing_model) {
-          setPricingModel(data.metadata.pricing_model);
+        if (data.pricing_model) {
+          setPricingModel({
+            one_time: { 
+              enabled: false, 
+              price: 0, 
+              ...data.pricing_model.one_time, 
+              type: data.pricing_model.one_time?.type || ('absolute' as const) 
+            },
+            subscription: { enabled: false, price: 0, interval: 'month' as const, trial_days: 0, ...data.pricing_model.subscription },
+            usage_based: { enabled: false, price_per_unit: 0, unit_name: '', minimum_units: 0, ...data.pricing_model.usage_based },
+          });
         }
 
         // Fetch tool name
@@ -161,7 +158,7 @@ export default function EditProductPage() {
     try {
       const supabase = createClient();
       const { error } = await supabase
-        .from('products')
+        .from('tool_products')
         .delete()
         .eq('id', productId);
 
@@ -193,9 +190,9 @@ export default function EditProductPage() {
     }
 
     // Check if at least one pricing model is enabled
-    const hasAnyPricing = pricingModel.one_time.enabled || 
-                          pricingModel.subscription.enabled || 
-                          pricingModel.usage_based.enabled;
+    const hasAnyPricing = pricingModel.one_time?.enabled || 
+                          pricingModel.subscription?.enabled || 
+                          pricingModel.usage_based?.enabled;
 
     if (!hasAnyPricing) {
       alert('Please enable at least one pricing model');
@@ -203,17 +200,34 @@ export default function EditProductPage() {
     }
 
     // Validate enabled pricing models
-    if (pricingModel.one_time.enabled && pricingModel.one_time.price <= 0) {
-      alert('One-time payment price must be greater than 0');
-      return;
+    if (pricingModel.one_time?.enabled) {
+      if (pricingModel.one_time.type === 'absolute') {
+        if (!pricingModel.one_time.price || pricingModel.one_time.price <= 0) {
+          alert('One-time payment price must be greater than 0');
+          return;
+        }
+      } else if (pricingModel.one_time.type === 'range') {
+        if (pricingModel.one_time.min_price === undefined || pricingModel.one_time.min_price < 0) {
+          alert('One-time payment minimum price must be 0 or greater');
+          return;
+        }
+        if (!pricingModel.one_time.max_price || pricingModel.one_time.max_price <= 0) {
+          alert('One-time payment maximum price must be greater than 0');
+          return;
+        }
+        if (pricingModel.one_time.min_price > pricingModel.one_time.max_price) {
+          alert('One-time payment minimum price must be less than or equal to maximum price');
+          return;
+        }
+      }
     }
 
-    if (pricingModel.subscription.enabled && pricingModel.subscription.price <= 0) {
+    if (pricingModel.subscription?.enabled && pricingModel.subscription.price <= 0) {
       alert('Subscription price must be greater than 0');
       return;
     }
 
-    if (pricingModel.usage_based.enabled) {
+    if (pricingModel.usage_based?.enabled) {
       if (pricingModel.usage_based.price_per_unit <= 0) {
         alert('Usage-based price per unit must be greater than 0');
         return;
@@ -236,57 +250,14 @@ export default function EditProductPage() {
         return;
       }
 
-      let imageUrl = product?.metadata?.image_url || '';
-
-      // Upload new image if provided
-      if (imageFile) {
-        const fileExt = imageFile.name.split('.').pop();
-        const fileName = `${user.id}-${Date.now()}.${fileExt}`;
-        const filePath = `product-images/${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from('allfile')
-          .upload(filePath, imageFile, {
-            cacheControl: '3600',
-            upsert: false,
-          });
-
-        if (uploadError) {
-          console.error('Upload error:', uploadError);
-          alert('Failed to upload image: ' + uploadError.message);
-          setIsUpdating(false);
-          return;
-        }
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('allfile')
-          .getPublicUrl(filePath);
-
-        imageUrl = publicUrl;
-      }
-
-      // Calculate default price for the product (using first enabled pricing model)
-      let defaultPrice = 0;
-      if (pricingModel.one_time.enabled) {
-        defaultPrice = pricingModel.one_time.price;
-      } else if (pricingModel.subscription.enabled) {
-        defaultPrice = pricingModel.subscription.price;
-      } else if (pricingModel.usage_based.enabled) {
-        defaultPrice = pricingModel.usage_based.price_per_unit;
-      }
-
       // Update product
       const { error: updateError } = await supabase
-        .from('products')
+        .from('tool_products')
         .update({
           name: formData.name,
           description: formData.description,
-          price: defaultPrice,
           is_active: formData.is_active,
-          metadata: {
-            image_url: imageUrl,
-            pricing_model: pricingModel,
-          },
+          pricing_model: pricingModel,
         })
         .eq('id', productId);
 
@@ -483,7 +454,7 @@ export default function EditProductPage() {
             <div className="space-y-6">
               {/* One-Time Payment */}
               <div className={`border rounded-lg p-4 transition-colors ${
-                pricingModel.one_time.enabled 
+                pricingModel.one_time?.enabled 
                   ? 'border-[#3ecf8e] bg-[#3ecf8e]/5' 
                   : 'border-[#4b5563]'
               }`}>
@@ -500,42 +471,162 @@ export default function EditProductPage() {
                     type="button"
                     onClick={() => setPricingModel({
                       ...pricingModel,
-                      one_time: { ...pricingModel.one_time, enabled: !pricingModel.one_time.enabled }
+                      one_time: { 
+                        enabled: !(pricingModel.one_time?.enabled ?? false),
+                        type: (pricingModel.one_time?.type || 'absolute') as 'absolute' | 'range',
+                        price: pricingModel.one_time?.price ?? 0,
+                        min_price: pricingModel.one_time?.min_price,
+                        max_price: pricingModel.one_time?.max_price,
+                      }
                     })}
                     className={`flex-shrink-0 w-12 h-6 rounded-full transition-colors relative ${
-                      pricingModel.one_time.enabled ? 'bg-[#3ecf8e]' : 'bg-[#4b5563]'
+                      pricingModel.one_time?.enabled ? 'bg-[#3ecf8e]' : 'bg-[#4b5563]'
                     }`}
                   >
                     <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
-                      pricingModel.one_time.enabled ? 'translate-x-6' : 'translate-x-0'
+                      pricingModel.one_time?.enabled ? 'translate-x-6' : 'translate-x-0'
                     }`} />
                   </button>
                 </div>
 
-                {pricingModel.one_time.enabled && (
-                  <div>
-                    <label className="block text-sm font-medium text-[#d1d5db] mb-2">
-                      Price (Credits) *
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={pricingModel.one_time.price}
-                      onChange={(e) => setPricingModel({
-                        ...pricingModel,
-                        one_time: { ...pricingModel.one_time, price: parseFloat(e.target.value) || 0 }
-                      })}
-                      className="w-full px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
-                      placeholder="99.00"
-                    />
+                {pricingModel.one_time?.enabled && (
+                  <div className="space-y-4">
+                    {/* Type Selection */}
+                    <div className="flex items-center gap-3 mb-3">
+                      <button
+                        type="button"
+                        onClick={() => setPricingModel({
+                          ...pricingModel,
+                          one_time: { 
+                            enabled: pricingModel.one_time?.enabled ?? false,
+                            type: 'absolute' as const,
+                            price: pricingModel.one_time?.price ?? 0,
+                            min_price: undefined,
+                            max_price: undefined
+                          }
+                        })}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                          pricingModel.one_time?.type === 'absolute'
+                            ? 'bg-[#3ecf8e] text-black'
+                            : 'bg-[#374151] text-[#ededed] hover:bg-[#4b5563]'
+                        }`}
+                      >
+                        Fixed Price
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPricingModel({
+                          ...pricingModel,
+                          one_time: { 
+                            enabled: pricingModel.one_time?.enabled ?? false,
+                            type: 'range' as const,
+                            price: undefined,
+                            min_price: pricingModel.one_time?.min_price ?? 0,
+                            max_price: pricingModel.one_time?.max_price ?? 0
+                          }
+                        })}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                          pricingModel.one_time?.type === 'range'
+                            ? 'bg-[#3ecf8e] text-black'
+                            : 'bg-[#374151] text-[#ededed] hover:bg-[#4b5563]'
+                        }`}
+                      >
+                        Price Range
+                      </button>
+                    </div>
+
+                    {/* Absolute Price Input */}
+                    {pricingModel.one_time.type === 'absolute' && (
+                      <div>
+                        <label className="block text-sm font-medium text-[#d1d5db] mb-2">
+                          Price (Credits) *
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={pricingModel.one_time?.price || 0}
+                          onChange={(e) => setPricingModel({
+                            ...pricingModel,
+                            one_time: { 
+                              enabled: pricingModel.one_time?.enabled ?? false,
+                              type: pricingModel.one_time?.type || ('absolute' as const),
+                              price: parseFloat(e.target.value) || 0,
+                              min_price: pricingModel.one_time?.min_price,
+                              max_price: pricingModel.one_time?.max_price,
+                            }
+                          })}
+                          className="w-full px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
+                          placeholder="99.00"
+                        />
+                      </div>
+                    )}
+
+                    {/* Range Price Inputs */}
+                    {pricingModel.one_time?.type === 'range' && (
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-sm font-medium text-[#d1d5db] mb-2">
+                            Minimum Price (Credits) *
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={pricingModel.one_time?.min_price || 0}
+                            onChange={(e) => setPricingModel({
+                              ...pricingModel,
+                              one_time: { 
+                                enabled: pricingModel.one_time?.enabled ?? false,
+                                type: pricingModel.one_time?.type || ('range' as const),
+                                price: pricingModel.one_time?.price,
+                                min_price: parseFloat(e.target.value) || 0,
+                                max_price: pricingModel.one_time?.max_price,
+                              }
+                            })}
+                            className="w-full px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
+                            placeholder="0.00"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-[#d1d5db] mb-2">
+                            Maximum Price (Credits) *
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={pricingModel.one_time?.max_price || 0}
+                            onChange={(e) => setPricingModel({
+                              ...pricingModel,
+                              one_time: { 
+                                enabled: pricingModel.one_time?.enabled ?? false,
+                                type: pricingModel.one_time?.type || ('range' as const),
+                                price: pricingModel.one_time?.price,
+                                min_price: pricingModel.one_time?.min_price,
+                                max_price: parseFloat(e.target.value) || 0,
+                              }
+                            })}
+                            className="w-full px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
+                            placeholder="999.00"
+                          />
+                        </div>
+                        {pricingModel.one_time?.min_price !== undefined && 
+                         pricingModel.one_time?.max_price !== undefined && 
+                         pricingModel.one_time.min_price! > pricingModel.one_time.max_price! && (
+                          <p className="text-xs text-red-400">
+                            Minimum price must be less than or equal to maximum price
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
 
               {/* Subscription */}
               <div className={`border rounded-lg p-4 transition-colors ${
-                pricingModel.subscription.enabled 
+                pricingModel.subscription?.enabled 
                   ? 'border-[#3ecf8e] bg-[#3ecf8e]/5' 
                   : 'border-[#4b5563]'
               }`}>
@@ -552,19 +643,24 @@ export default function EditProductPage() {
                     type="button"
                     onClick={() => setPricingModel({
                       ...pricingModel,
-                      subscription: { ...pricingModel.subscription, enabled: !pricingModel.subscription.enabled }
+                      subscription: { 
+                        enabled: !(pricingModel.subscription?.enabled ?? false),
+                        price: pricingModel.subscription?.price ?? 0,
+                        interval: pricingModel.subscription?.interval || ('month' as const),
+                        trial_days: pricingModel.subscription?.trial_days,
+                      }
                     })}
                     className={`flex-shrink-0 w-12 h-6 rounded-full transition-colors relative ${
-                      pricingModel.subscription.enabled ? 'bg-[#3ecf8e]' : 'bg-[#4b5563]'
+                      pricingModel.subscription?.enabled ? 'bg-[#3ecf8e]' : 'bg-[#4b5563]'
                     }`}
                   >
                     <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
-                      pricingModel.subscription.enabled ? 'translate-x-6' : 'translate-x-0'
+                      pricingModel.subscription?.enabled ? 'translate-x-6' : 'translate-x-0'
                     }`} />
                   </button>
                 </div>
 
-                {pricingModel.subscription.enabled && (
+                {pricingModel.subscription?.enabled && (
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-[#d1d5db] mb-2">
@@ -574,10 +670,15 @@ export default function EditProductPage() {
                         type="number"
                         min="0"
                         step="0.01"
-                        value={pricingModel.subscription.price}
+                        value={pricingModel.subscription?.price ?? 0}
                         onChange={(e) => setPricingModel({
                           ...pricingModel,
-                          subscription: { ...pricingModel.subscription, price: parseFloat(e.target.value) || 0 }
+                          subscription: { 
+                            enabled: pricingModel.subscription?.enabled ?? false,
+                            price: parseFloat(e.target.value) || 0,
+                            interval: pricingModel.subscription?.interval || ('month' as const),
+                            trial_days: pricingModel.subscription?.trial_days,
+                          }
                         })}
                         className="w-full px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
                         placeholder="9.99"
@@ -589,18 +690,18 @@ export default function EditProductPage() {
                         Billing Interval *
                       </label>
                       <select
-                        value={pricingModel.subscription.interval}
+                        value={pricingModel.subscription?.interval || 'month'}
                         onChange={(e) => setPricingModel({
                           ...pricingModel,
                           subscription: { 
-                            ...pricingModel.subscription, 
-                            interval: e.target.value as 'day' | 'week' | 'month' | 'year'
+                            enabled: pricingModel.subscription?.enabled ?? false,
+                            price: pricingModel.subscription?.price ?? 0,
+                            interval: e.target.value as 'month' | 'year',
+                            trial_days: pricingModel.subscription?.trial_days,
                           }
                         })}
                         className="w-full px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
                       >
-                        <option value="day">Daily</option>
-                        <option value="week">Weekly</option>
                         <option value="month">Monthly</option>
                         <option value="year">Yearly</option>
                       </select>
@@ -613,10 +714,15 @@ export default function EditProductPage() {
                       <input
                         type="number"
                         min="0"
-                        value={pricingModel.subscription.trial_days || 0}
+                        value={pricingModel.subscription?.trial_days || 0}
                         onChange={(e) => setPricingModel({
                           ...pricingModel,
-                          subscription: { ...pricingModel.subscription, trial_days: parseInt(e.target.value) || 0 }
+                          subscription: { 
+                            enabled: pricingModel.subscription?.enabled ?? false,
+                            price: pricingModel.subscription?.price ?? 0,
+                            interval: pricingModel.subscription?.interval || ('month' as const),
+                            trial_days: parseInt(e.target.value) || 0
+                          }
                         })}
                         className="w-full px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
                         placeholder="7"
@@ -628,7 +734,7 @@ export default function EditProductPage() {
 
               {/* Usage-Based */}
               <div className={`border rounded-lg p-4 transition-colors ${
-                pricingModel.usage_based.enabled 
+                pricingModel.usage_based?.enabled 
                   ? 'border-[#3ecf8e] bg-[#3ecf8e]/5' 
                   : 'border-[#4b5563]'
               }`}>
@@ -645,19 +751,24 @@ export default function EditProductPage() {
                     type="button"
                     onClick={() => setPricingModel({
                       ...pricingModel,
-                      usage_based: { ...pricingModel.usage_based, enabled: !pricingModel.usage_based.enabled }
+                      usage_based: { 
+                        enabled: !(pricingModel.usage_based?.enabled ?? false),
+                        price_per_unit: pricingModel.usage_based?.price_per_unit ?? 0,
+                        unit_name: pricingModel.usage_based?.unit_name || '',
+                        minimum_units: pricingModel.usage_based?.minimum_units,
+                      }
                     })}
                     className={`flex-shrink-0 w-12 h-6 rounded-full transition-colors relative ${
-                      pricingModel.usage_based.enabled ? 'bg-[#3ecf8e]' : 'bg-[#4b5563]'
+                      pricingModel.usage_based?.enabled ? 'bg-[#3ecf8e]' : 'bg-[#4b5563]'
                     }`}
                   >
                     <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
-                      pricingModel.usage_based.enabled ? 'translate-x-6' : 'translate-x-0'
+                      pricingModel.usage_based?.enabled ? 'translate-x-6' : 'translate-x-0'
                     }`} />
                   </button>
                 </div>
 
-                {pricingModel.usage_based.enabled && (
+                {pricingModel.usage_based?.enabled && (
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-[#d1d5db] mb-2">
@@ -667,10 +778,15 @@ export default function EditProductPage() {
                         type="number"
                         min="0"
                         step="0.01"
-                        value={pricingModel.usage_based.price_per_unit}
+                        value={pricingModel.usage_based?.price_per_unit ?? 0}
                         onChange={(e) => setPricingModel({
                           ...pricingModel,
-                          usage_based: { ...pricingModel.usage_based, price_per_unit: parseFloat(e.target.value) || 0 }
+                          usage_based: { 
+                            enabled: pricingModel.usage_based?.enabled ?? false,
+                            price_per_unit: parseFloat(e.target.value) || 0,
+                            unit_name: pricingModel.usage_based?.unit_name || '',
+                            minimum_units: pricingModel.usage_based?.minimum_units,
+                          }
                         })}
                         className="w-full px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
                         placeholder="0.01"
@@ -683,10 +799,15 @@ export default function EditProductPage() {
                       </label>
                       <input
                         type="text"
-                        value={pricingModel.usage_based.unit_name}
+                        value={pricingModel.usage_based?.unit_name || ''}
                         onChange={(e) => setPricingModel({
                           ...pricingModel,
-                          usage_based: { ...pricingModel.usage_based, unit_name: e.target.value }
+                          usage_based: { 
+                            enabled: pricingModel.usage_based?.enabled ?? false,
+                            price_per_unit: pricingModel.usage_based?.price_per_unit ?? 0,
+                            unit_name: e.target.value,
+                            minimum_units: pricingModel.usage_based?.minimum_units,
+                          }
                         })}
                         className="w-full px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
                         placeholder="API call, request, token, etc."
@@ -700,10 +821,15 @@ export default function EditProductPage() {
                       <input
                         type="number"
                         min="0"
-                        value={pricingModel.usage_based.minimum_units || 0}
+                        value={pricingModel.usage_based?.minimum_units || 0}
                         onChange={(e) => setPricingModel({
                           ...pricingModel,
-                          usage_based: { ...pricingModel.usage_based, minimum_units: parseInt(e.target.value) || 0 }
+                          usage_based: { 
+                            enabled: pricingModel.usage_based?.enabled ?? false,
+                            price_per_unit: pricingModel.usage_based?.price_per_unit ?? 0,
+                            unit_name: pricingModel.usage_based?.unit_name || '',
+                            minimum_units: parseInt(e.target.value) || 0
+                          }
                         })}
                         className="w-full px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
                         placeholder="100"

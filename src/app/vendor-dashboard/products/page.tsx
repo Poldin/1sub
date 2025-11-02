@@ -8,11 +8,30 @@ import Sidebar from '../../backoffice/components/Sidebar';
 import Footer from '../../components/Footer';
 import ToolSelector from '../components/ToolSelector';
 
+interface PricingModel {
+  one_time?: {
+    enabled: boolean;
+    price?: number;
+    min_price?: number;
+    max_price?: number;
+  };
+  subscription?: {
+    enabled: boolean;
+    price: number;
+    interval: string;
+  };
+  usage_based?: {
+    enabled: boolean;
+    price_per_unit: number;
+    unit_name: string;
+  };
+}
+
 interface Product {
   id: string;
   name: string | null;
   description: string | null;
-  pricing_model: any;
+  pricing_model: PricingModel;
   tool_id: string | null;
   is_active: boolean | null;
   created_at: string;
@@ -45,7 +64,7 @@ export default function ProductsPage() {
   };
 
   // Helper to extract price from pricing_model
-  const getPriceDisplay = (pricingModel: any): string => {
+  const getPriceDisplay = (pricingModel: PricingModel): string => {
     if (pricingModel?.one_time?.enabled) {
       if (pricingModel.one_time.price) return pricingModel.one_time.price.toString();
       if (pricingModel.one_time.min_price && pricingModel.one_time.max_price) {

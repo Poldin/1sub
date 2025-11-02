@@ -238,26 +238,47 @@ export default function CreditCheckoutPage() {
         return;
       }
 
-          // Success! Open tool URL from checkout metadata
-          const toolUrl = checkout.metadata.tool_url || data.tool_url;
-          
-          if (toolUrl && toolUrl !== 'https://example.com/tool/' && !toolUrl.includes('example.com')) {
-            window.open(toolUrl, '_blank');
-          } else {
-            console.warn('Invalid tool URL:', toolUrl);
-            alert('Tool purchased successfully, but URL is not configured. Please contact the vendor.');
-          }
-          
-          // Update local state immediately
-          setCheckout(prev => prev ? {
+      // Success! Refetch user profile to get updated balance
+      try {
+        const profileResponse = await fetch('/api/user/profile');
+        if (profileResponse.ok) {
+          const userData = await profileResponse.json();
+          setUser(prev => prev ? {
             ...prev,
-            metadata: { ...prev.metadata, status: 'completed', completed_at: new Date().toISOString() }
+            credits: userData.credits || 0,
           } : null);
-          
-          // Redirect to backoffice
-          setTimeout(() => {
-            router.push('/backoffice?purchase_success=true');
-          }, 1000);
+        }
+      } catch (err) {
+        console.error('Error fetching updated balance:', err);
+        // Update balance from API response if available
+        if (data.new_balance !== undefined) {
+          setUser(prev => prev ? {
+            ...prev,
+            credits: data.new_balance,
+          } : null);
+        }
+      }
+
+      // Open tool URL from checkout metadata
+      const toolUrl = checkout.metadata.tool_url || data.tool_url;
+      
+      if (toolUrl && toolUrl !== 'https://example.com/tool/' && !toolUrl.includes('example.com')) {
+        window.open(toolUrl, '_blank');
+      } else {
+        console.warn('Invalid tool URL:', toolUrl);
+        alert('Tool purchased successfully, but URL is not configured. Please contact the vendor.');
+      }
+      
+      // Update local state immediately
+      setCheckout(prev => prev ? {
+        ...prev,
+        metadata: { ...prev.metadata, status: 'completed', completed_at: new Date().toISOString() }
+      } : null);
+      
+      // Redirect to backoffice
+      setTimeout(() => {
+        router.push('/backoffice?purchase_success=true');
+      }, 1000);
 
     } catch (err) {
       console.error('Purchase error:', err);

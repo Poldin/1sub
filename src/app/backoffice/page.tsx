@@ -16,6 +16,7 @@ type Tool = {
   url: string;
   credit_cost_per_use?: number; // Legacy support
   is_active: boolean;
+  user_profile_id?: string;
   metadata?: {
     pricing_options?: {
       one_time?: { enabled: boolean; price: number; description?: string };
@@ -50,6 +51,73 @@ const formatAdoptions = (num: number): string => {
     return (num / 1000).toFixed(1) + 'K';
   }
   return num.toString();
+};
+
+// Helper function to get pricing display text
+const getPricingDisplay = (tool: Tool): string => {
+  // Priority 1: Products (new structure)
+  if (tool.products && tool.products.length > 0) {
+    const activeProducts = tool.products.filter(p => p.is_active);
+    if (activeProducts.length > 0) {
+      const prices: number[] = [];
+      
+      activeProducts.forEach(p => {
+        if (p.pricing_model?.one_time?.enabled) {
+          if (p.pricing_model.one_time.price) {
+            prices.push(p.pricing_model.one_time.price);
+          } else if (p.pricing_model.one_time.min_price !== undefined) {
+            prices.push(p.pricing_model.one_time.min_price);
+          }
+        }
+        if (p.pricing_model?.subscription?.enabled && p.pricing_model.subscription.price) {
+          prices.push(p.pricing_model.subscription.price);
+        }
+        if (p.pricing_model?.usage_based?.enabled && p.pricing_model.usage_based.price_per_unit) {
+          prices.push(p.pricing_model.usage_based.price_per_unit);
+        }
+      });
+      
+      const validPrices = prices.filter(p => p > 0);
+      if (validPrices.length > 0) {
+        const minPrice = Math.min(...validPrices);
+        return activeProducts.length > 1 
+          ? `From ${minPrice} credits` 
+          : `${minPrice} credits`;
+      }
+    }
+  }
+  
+  // Priority 2: pricing_options (old structure)
+  if (tool.metadata?.pricing_options) {
+    const pricingOptions = tool.metadata.pricing_options;
+    const prices: number[] = [];
+    
+    if (pricingOptions.one_time?.enabled && pricingOptions.one_time.price) {
+      prices.push(pricingOptions.one_time.price);
+    }
+    if (pricingOptions.subscription_monthly?.enabled && pricingOptions.subscription_monthly.price) {
+      prices.push(pricingOptions.subscription_monthly.price);
+    }
+    if (pricingOptions.subscription_yearly?.enabled && pricingOptions.subscription_yearly.price) {
+      prices.push(pricingOptions.subscription_yearly.price);
+    }
+    
+    const validPrices = prices.filter(p => p > 0);
+    if (validPrices.length > 1) {
+      return `From ${Math.min(...validPrices)} credits`;
+    } else if (validPrices.length === 1) {
+      return `${validPrices[0]} credits`;
+    } else {
+      return 'Multiple options';
+    }
+  }
+  
+  // Priority 3: Legacy credit_cost_per_use
+  if (tool.credit_cost_per_use && tool.credit_cost_per_use > 0) {
+    return `${tool.credit_cost_per_use} credits`;
+  }
+  
+  return 'Contact vendor';
 };
 
 // Component for tool image with fallback
@@ -175,7 +243,10 @@ function BackofficeContent() {
         
         const { data: toolsData, error } = await supabase
           .from('tools')
-          .select('*')
+          .select(`
+            *,
+            products:tool_products(*)
+          `)
           .eq('is_active', true)
           .order('created_at', { ascending: false });
         
@@ -186,8 +257,19 @@ function BackofficeContent() {
           return;
         }
         
-        console.log('Fetched tools:', toolsData);
-        setTools(toolsData || []);
+        // Filter products to only active ones and add debug logging
+        const toolsWithActiveProducts = (toolsData || []).map(tool => ({
+          ...tool,
+          products: (tool.products || []).filter((p: { is_active?: boolean }) => p.is_active !== false)
+        }));
+        
+        console.log('Fetched tools with products:', toolsWithActiveProducts);
+        console.log('Tool products count:', toolsWithActiveProducts.map((t: { name?: string; products?: unknown[] }) => ({ 
+          name: t.name, 
+          productCount: t.products?.length || 0 
+        })));
+        
+        setTools(toolsWithActiveProducts);
         setToolsLoading(false);
         
       } catch (err) {
@@ -328,7 +410,7 @@ function BackofficeContent() {
           .from('checkouts')
           .insert({
             user_id: user.id,
-            vendor_id: toolMetadata?.vendor_id || null,
+            vendor_id: toolMetadata?.vendor_id || tool.user_profile_id || null,
             credit_amount: null, // Will be set when user selects product
             type: null, // Will be set when user selects product
             metadata: {
@@ -377,7 +459,7 @@ function BackofficeContent() {
           .from('checkouts')
           .insert({
             user_id: user.id,
-            vendor_id: toolMetadata?.vendor_id || null, // ✅ Get from tool metadata
+            vendor_id: toolMetadata?.vendor_id || tool.user_profile_id || null,
             credit_amount: null, // Will be set when user selects pricing
             type: null, // Will be set when user selects pricing
             metadata: {
@@ -415,7 +497,7 @@ function BackofficeContent() {
           .from('checkouts')
           .insert({
             user_id: user.id,
-            vendor_id: toolMetadata?.vendor_id || null, // ✅ Get from tool metadata
+            vendor_id: toolMetadata?.vendor_id || tool.user_profile_id || null,
             credit_amount: toolPrice,
             type: checkoutType,
             metadata: {
@@ -761,7 +843,7 @@ function BackofficeContent() {
                         <div className="flex items-center justify-between mt-auto">
                           <div className="flex items-center gap-2">
                             <span className="text-[#3ecf8e] font-bold">
-                              {tool.metadata?.pricing_options ? 'Multiple options' : `${tool.credit_cost_per_use || 0} credits`}
+                              {getPricingDisplay(tool)}
                             </span>
                           </div>
                           <span className="bg-[#3ecf8e] text-black px-2 py-1 rounded text-xs font-bold">Active</span>
@@ -814,7 +896,7 @@ function BackofficeContent() {
                         <div className="flex items-center justify-between mt-auto">
                           <div className="flex items-center gap-2">
                             <span className="text-[#3ecf8e] font-bold">
-                              {tool.metadata?.pricing_options ? 'Multiple options' : `${tool.credit_cost_per_use || 0} credits`}
+                              {getPricingDisplay(tool)}
                             </span>
                           </div>
                           <span className="bg-[#3ecf8e] text-black px-2 py-1 rounded text-xs font-bold">Active</span>
