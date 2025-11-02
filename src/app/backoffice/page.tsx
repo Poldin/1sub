@@ -7,9 +7,8 @@ import { createClient } from '@/lib/supabase/client';
 import Sidebar from './components/Sidebar';
 import SearchBar from './components/SearchBar';
 import Footer from '@/app/components/Footer';
-import { transformProducts, DatabaseProduct } from '@/lib/products';
 
-// Tool type matching database schema with products
+// Tool type matching database schema
 type Tool = {
   id: string;
   name: string;
@@ -18,11 +17,15 @@ type Tool = {
   credit_cost_per_use?: number; // Legacy support
   is_active: boolean;
   metadata?: {
+    pricing_options?: {
+      one_time?: { enabled: boolean; price: number; description?: string };
+      subscription_monthly?: { enabled: boolean; price: number; description?: string };
+      subscription_yearly?: { enabled: boolean; price: number; description?: string };
+    };
     icon?: string;
     category?: string;
     vendor_id?: string;
   };
-  tool_products?: DatabaseProduct[]; // Products from join
 };
 
 // Helper function to format adoption numbers
@@ -158,18 +161,7 @@ function BackofficeContent() {
         
         const { data: toolsData, error } = await supabase
           .from('tools')
-          .select(`
-            *,
-            tool_products (
-              id,
-              name,
-              description,
-              tool_id,
-              is_active,
-              created_at,
-              pricing_model
-            )
-          `)
+          .select('*')
           .eq('is_active', true)
           .order('created_at', { ascending: false });
         
@@ -250,29 +242,25 @@ function BackofficeContent() {
 
     try {
       const toolMetadata = tool.metadata as Record<string, unknown>;
-      
-      // Check if tool has products
-      if (tool.tool_products && tool.tool_products.length > 0) {
-        // Transform products to get pricing info
-        const products = transformProducts(tool.tool_products);
-        
-        if (products.length === 0) {
-          alert('This tool has no active products available for purchase');
-          return;
-        }
+      const pricingOptions = toolMetadata?.pricing_options as {
+        one_time?: { enabled: boolean; price: number; description?: string };
+        subscription_monthly?: { enabled: boolean; price: number; description?: string };
+        subscription_yearly?: { enabled: boolean; price: number; description?: string };
+      } | undefined;
 
-        // Get cheapest price from products
-        const prices: number[] = [];
-        products.forEach(product => {
-          if (product.pricing.monthly) prices.push(product.pricing.monthly);
-          if (product.pricing.oneTime) prices.push(product.pricing.oneTime);
-          if (product.pricing.consumption) prices.push(product.pricing.consumption.price);
-        });
+      // Check if tool has flexible pricing options
+      if (pricingOptions) {
+        // Get all enabled pricing options
+        const enabledPrices = [];
+        if (pricingOptions.one_time?.enabled) enabledPrices.push(pricingOptions.one_time.price);
+        if (pricingOptions.subscription_monthly?.enabled) enabledPrices.push(pricingOptions.subscription_monthly.price);
+        if (pricingOptions.subscription_yearly?.enabled) enabledPrices.push(pricingOptions.subscription_yearly.price);
 
-        const cheapestPrice = prices.length > 0 ? Math.min(...prices) : 0;
+        // Get cheapest price to check balance
+        const cheapestPrice = enabledPrices.length > 0 ? Math.min(...enabledPrices) : (tool.credit_cost_per_use || 0);
 
         // Check if user has enough credits for cheapest option
-        if (cheapestPrice > 0 && credits < cheapestPrice) {
+        if (credits < cheapestPrice) {
           router.push(`/buy-credits?needed=${cheapestPrice}&tool_id=${tool.id}&tool_name=${encodeURIComponent(tool.name)}`);
           return;
         }
@@ -283,19 +271,19 @@ function BackofficeContent() {
           return;
         }
 
-        // Create checkout with products (user will select on checkout page)
+        // Create checkout with pricing_options (user will select on checkout page)
         const { data: checkout, error } = await supabase
           .from('checkouts')
           .insert({
             user_id: user.id,
-            vendor_id: toolMetadata?.vendor_id || null,
-            credit_amount: null, // Will be set when user selects product
-            type: null, // Will be set when user selects product
+            vendor_id: toolMetadata?.vendor_id || null, // ✅ Get from tool metadata
+            credit_amount: null, // Will be set when user selects pricing
+            type: null, // Will be set when user selects pricing
             metadata: {
               tool_id: tool.id,
               tool_name: tool.name,
-              tool_url: tool.url,
-              products: tool.tool_products, // Store database products for checkout page
+              tool_url: tool.url, // ✅ Use actual tool URL
+              pricing_options: pricingOptions,
               status: 'pending',
             },
           })
@@ -310,9 +298,44 @@ function BackofficeContent() {
 
         router.push(`/credit_checkout/${checkout.id}`);
       } else {
-        // No products available
-        alert('This tool has no products configured. Please contact the vendor.');
-        return;
+        // Legacy: Single price tool
+        const toolPrice = tool.credit_cost_per_use || 0;
+
+        if (credits < toolPrice) {
+          router.push(`/buy-credits?needed=${toolPrice}&tool_id=${tool.id}&tool_name=${encodeURIComponent(tool.name)}`);
+          return;
+        }
+
+        const pricingType = toolMetadata?.pricing_type || 'one_time';
+        const subscriptionPeriod = toolMetadata?.subscription_period;
+        const checkoutType = pricingType === 'subscription' ? 'tool_subscription' : 'tool_purchase';
+
+        const { data: checkout, error } = await supabase
+          .from('checkouts')
+          .insert({
+            user_id: user.id,
+            vendor_id: toolMetadata?.vendor_id || null, // ✅ Get from tool metadata
+            credit_amount: toolPrice,
+            type: checkoutType,
+            metadata: {
+              tool_id: tool.id,
+              tool_name: tool.name,
+              tool_url: tool.url, // ✅ Use actual tool URL
+              pricing_type: pricingType,
+              subscription_period: subscriptionPeriod,
+              status: 'pending',
+            },
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Error creating checkout:', error);
+          alert('Failed to initiate checkout');
+          return;
+        }
+
+        router.push(`/credit_checkout/${checkout.id}`);
       }
     } catch (err) {
       console.error('Checkout creation error:', err);
@@ -577,19 +600,7 @@ function BackofficeContent() {
                           <div className="flex items-center justify-between mt-auto">
                             <div className="flex items-center gap-1">
                               <span className="text-[#3ecf8e] font-bold text-sm">
-                                {tool.tool_products && tool.tool_products.length > 1 
-                                  ? 'Multiple options' 
-                                  : tool.tool_products && tool.tool_products.length === 1 
-                                    ? (() => {
-                                        const product = tool.tool_products[0];
-                                        const pm = product.pricing_model?.pricing_model;
-                                        if (pm?.one_time?.enabled && pm.one_time.price) return `${pm.one_time.price} credits`;
-                                        if (pm?.subscription?.enabled && pm.subscription.price) return `${pm.subscription.price}/mo`;
-                                        if (pm?.usage_based?.enabled && pm.usage_based.price_per_unit) return `${pm.usage_based.price_per_unit} per ${pm.usage_based.unit_name || 'unit'}`;
-                                        return '0 credits';
-                                      })()
-                                    : '0 credits'
-                                }
+                                {tool.metadata?.pricing_options ? 'Multiple options' : `${tool.credit_cost_per_use || 0} credits`}
                               </span>
                             </div>
                             <span className="bg-[#3ecf8e] text-black px-2 py-1 rounded text-sm font-bold">Active</span>
@@ -635,20 +646,7 @@ function BackofficeContent() {
                         <div className="flex items-center justify-between mt-auto">
                           <div className="flex items-center gap-2">
                             <span className="text-[#3ecf8e] font-bold">
-                              {(() => {
-                                if (tool.tool_products && tool.tool_products.length > 0) {
-                                  const products = transformProducts(tool.tool_products);
-                                  if (products.length > 1) {
-                                    return 'Multiple options';
-                                  } else if (products.length === 1) {
-                                    const product = products[0];
-                                    if (product.pricing.monthly) return `${product.pricing.monthly}/mo`;
-                                    if (product.pricing.oneTime) return `${product.pricing.oneTime} credits`;
-                                    if (product.pricing.consumption) return `${product.pricing.consumption.price} per ${product.pricing.consumption.unit}`;
-                                  }
-                                }
-                                return `${tool.credit_cost_per_use || 0} credits`;
-                              })()}
+                              {tool.metadata?.pricing_options ? 'Multiple options' : `${tool.credit_cost_per_use || 0} credits`}
                             </span>
                           </div>
                           <span className="bg-[#3ecf8e] text-black px-2 py-1 rounded text-xs font-bold">Active</span>
@@ -695,20 +693,7 @@ function BackofficeContent() {
                         <div className="flex items-center justify-between mt-auto">
                           <div className="flex items-center gap-2">
                             <span className="text-[#3ecf8e] font-bold">
-                              {(() => {
-                                if (tool.tool_products && tool.tool_products.length > 0) {
-                                  const products = transformProducts(tool.tool_products);
-                                  if (products.length > 1) {
-                                    return 'Multiple options';
-                                  } else if (products.length === 1) {
-                                    const product = products[0];
-                                    if (product.pricing.monthly) return `${product.pricing.monthly}/mo`;
-                                    if (product.pricing.oneTime) return `${product.pricing.oneTime} credits`;
-                                    if (product.pricing.consumption) return `${product.pricing.consumption.price} per ${product.pricing.consumption.unit}`;
-                                  }
-                                }
-                                return `${tool.credit_cost_per_use || 0} credits`;
-                              })()}
+                              {tool.metadata?.pricing_options ? 'Multiple options' : `${tool.credit_cost_per_use || 0} credits`}
                             </span>
                           </div>
                           <span className="bg-[#3ecf8e] text-black px-2 py-1 rounded text-xs font-bold">Active</span>

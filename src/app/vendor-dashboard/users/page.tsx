@@ -110,51 +110,21 @@ export default function VendorUsersPage() {
       // 5. Get user profiles
       const { data: profiles, error: profilesError } = await supabase
         .from('user_profiles')
-        .select('id, full_name')
+        .select('id, email, full_name')
         .in('id', userIds);
 
       if (profilesError) {
-        console.error('Error fetching user profiles:', profilesError);
-        throw new Error(`Failed to fetch user profiles: ${profilesError.message}`);
+        throw new Error('Failed to fetch user profiles');
       }
 
-      // 6. Fetch emails via API endpoint
-      const userEmails = new Map<string, string>();
-      
-      try {
-        const response = await fetch('/api/vendor/users/emails', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userIds: Array.from(userIds) })
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          Object.entries(data.emails || {}).forEach(([userId, email]) => {
-            userEmails.set(userId, email as string);
-          });
-        } else {
-          console.warn('Could not fetch user emails from API, using fallback');
-        }
-      } catch (err) {
-        console.warn('Could not fetch user emails:', err);
-      }
-
-      // Fallback: use user ID prefix if email not available
-      userIds.forEach(userId => {
-        if (!userEmails.has(userId)) {
-          userEmails.set(userId, `user-${userId.slice(0, 8)}`);
-        }
-      });
-
-      // 7. Aggregate data per user
+      // 6. Aggregate data per user
       const userMap = new Map<string, VendorUser>();
 
       // Initialize users
       profiles?.forEach(profile => {
         userMap.set(profile.id, {
           id: profile.id,
-          email: userEmails.get(profile.id) || `user-${profile.id.slice(0, 8)}`, // Fallback to user ID prefix
+          email: profile.email,
           fullName: profile.full_name,
           toolsUsed: [],
           creditsSpent: 0,
