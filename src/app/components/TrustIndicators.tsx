@@ -89,7 +89,7 @@ export default function TrustIndicators() {
               </div>
 
               {/* Quote */}
-              <p className="text-[#d1d5db] mb-4 leading-relaxed">"{testimonial.text}"</p>
+              <p className="text-[#d1d5db] mb-4 leading-relaxed">&ldquo;{testimonial.text}&rdquo;</p>
 
               {/* Author */}
               <div className="flex items-center gap-3">
