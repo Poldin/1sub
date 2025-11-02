@@ -10,16 +10,12 @@ import ToolSelector from '../components/ToolSelector';
 
 interface Product {
   id: string;
-  name: string;
-  description: string;
-  price: number;
-  tool_id: string;
-  is_active: boolean;
+  name: string | null;
+  description: string | null;
+  pricing_model: any;
+  tool_id: string | null;
+  is_active: boolean | null;
   created_at: string;
-  metadata?: {
-    image_url?: string;
-    stock?: number;
-  };
 }
 
 export default function ProductsPage() {
@@ -48,6 +44,24 @@ export default function ProductsPage() {
     // Handled by Sidebar component
   };
 
+  // Helper to extract price from pricing_model
+  const getPriceDisplay = (pricingModel: any): string => {
+    if (pricingModel?.one_time?.enabled) {
+      if (pricingModel.one_time.price) return pricingModel.one_time.price.toString();
+      if (pricingModel.one_time.min_price && pricingModel.one_time.max_price) {
+        return `${pricingModel.one_time.min_price}-${pricingModel.one_time.max_price}`;
+      }
+      return 'Custom';
+    }
+    if (pricingModel?.subscription?.enabled && pricingModel.subscription.price) {
+      return pricingModel.subscription.price.toString();
+    }
+    if (pricingModel?.usage_based?.enabled && pricingModel.usage_based.price_per_unit) {
+      return pricingModel.usage_based.price_per_unit.toString();
+    }
+    return 'N/A';
+  };
+
   const handleToolChange = (toolId: string, toolName: string) => {
     setSelectedToolId(toolId);
     setSelectedToolName(toolName);
@@ -62,7 +76,7 @@ export default function ProductsPage() {
       const supabase = createClient();
       
       const { data, error } = await supabase
-        .from('products')
+        .from('tool_products')
         .select('*')
         .eq('tool_id', toolId)
         .order('created_at', { ascending: false });
@@ -90,7 +104,7 @@ export default function ProductsPage() {
       const supabase = createClient();
       
       const { error } = await supabase
-        .from('products')
+        .from('tool_products')
         .delete()
         .eq('id', productId);
 
@@ -302,25 +316,15 @@ export default function ProductsPage() {
                       className="bg-[#1f2937] rounded-lg border border-[#374151] overflow-hidden hover:border-[#3ecf8e]/50 transition-colors"
                     >
                       {/* Product Image */}
-                      {product.metadata?.image_url ? (
-                        <div className="w-full h-48 overflow-hidden bg-[#374151]">
-                          <img
-                            src={product.metadata.image_url}
-                            alt={product.name}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      ) : (
-                        <div className="w-full h-48 bg-gradient-to-br from-[#3ecf8e]/20 to-[#2dd4bf]/20 flex items-center justify-center">
-                          <Package className="w-16 h-16 text-[#3ecf8e]/50" />
-                        </div>
-                      )}
+                      <div className="w-full h-48 bg-gradient-to-br from-[#3ecf8e]/20 to-[#2dd4bf]/20 flex items-center justify-center">
+                        <Package className="w-16 h-16 text-[#3ecf8e]/50" />
+                      </div>
 
                       {/* Product Content */}
                       <div className="p-6">
                         <div className="flex items-start justify-between mb-2">
                           <h3 className="text-lg font-bold text-[#ededed] line-clamp-1">
-                            {product.name}
+                            {product.name || 'Unnamed Product'}
                           </h3>
                           <span className={`px-2 py-1 rounded text-xs font-semibold ${
                             product.is_active 
@@ -332,13 +336,13 @@ export default function ProductsPage() {
                         </div>
 
                         <p className="text-sm text-[#9ca3af] mb-4 line-clamp-2">
-                          {product.description}
+                          {product.description || 'No description'}
                         </p>
 
                         <div className="flex items-center gap-2 mb-4">
                           <DollarSign className="w-4 h-4 text-[#3ecf8e]" />
                           <span className="text-xl font-bold text-[#ededed]">
-                            {product.price} credits
+                            {getPriceDisplay(product.pricing_model)} credits
                           </span>
                         </div>
 
