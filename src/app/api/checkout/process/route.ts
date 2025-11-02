@@ -1,12 +1,11 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { calculateCreditsFromTransactions } from '@/lib/credits';
-import { DatabaseProduct } from '@/lib/products';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { checkout_id, selected_product_id, selected_pricing_model } = body;
+    const { checkout_id, selected_pricing } = body;
 
     if (!checkout_id) {
       return NextResponse.json(
@@ -66,94 +65,89 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 5. Determine credit cost and checkout type from selected product
+    // 5. Determine credit cost and checkout type from selected pricing
     let creditCost = checkout.credit_amount || 0;
     let checkoutType = checkout.type || 'tool_purchase';
     let billingPeriod = null;
-    let selectedProductName = '';
 
-    // If products available and product selected, use that
-    if (selected_product_id && metadata.products) {
-      const products = metadata.products as DatabaseProduct[];
-      const selectedProduct = products.find(p => p.id === selected_product_id);
+    // Handle products (new structure) - priority over pricing_options
+    if (selected_pricing && metadata.products && Array.isArray(metadata.products)) {
+      const products = metadata.products as Array<{
+        id: string;
+        name: string;
+        pricing_model: {
+          one_time?: { enabled: boolean; type?: string; price?: number; min_price?: number; max_price?: number };
+          subscription?: { enabled: boolean; price: number; interval: 'day' | 'week' | 'month' | 'year'; trial_days?: number };
+          usage_based?: { enabled: boolean; price_per_unit: number; unit_name: string; minimum_units?: number };
+        };
+      }>;
       
-      if (!selectedProduct) {
-        return NextResponse.json(
-          { error: 'Selected product not found' },
-          { status: 400 }
-        );
-      }
-
-      if (!selectedProduct.is_active) {
-        return NextResponse.json(
-          { error: 'Selected product is no longer available' },
-          { status: 400 }
-        );
-      }
-
-      const pricingModel = selectedProduct.pricing_model?.pricing_model;
-      selectedProductName = selectedProduct.name;
-
-      // Determine pricing from product using selected pricing model
-      if (pricingModel) {
-        // Use the selected pricing model if provided
-        if (selected_pricing_model) {
-          if (selected_pricing_model === 'one_time' && pricingModel.one_time?.enabled && pricingModel.one_time.price) {
-            creditCost = pricingModel.one_time.price;
+      const selectedProduct = products.find(p => p.id === selected_pricing);
+      if (selectedProduct) {
+        const pm = selectedProduct.pricing_model;
+        
+        // Determine price and checkout type from product pricing model
+        if (pm.one_time?.enabled) {
+          if (pm.one_time.price) {
+            creditCost = pm.one_time.price;
             checkoutType = 'tool_purchase';
-          } else if (selected_pricing_model === 'subscription' && pricingModel.subscription?.enabled && pricingModel.subscription.price) {
-            creditCost = pricingModel.subscription.price;
-            checkoutType = 'tool_subscription';
-            billingPeriod = pricingModel.subscription.interval || 'month';
-          } else if (selected_pricing_model === 'usage_based' && pricingModel.usage_based?.enabled && pricingModel.usage_based.price_per_unit) {
-            const pricePerUnit = pricingModel.usage_based.price_per_unit;
-            const minimumUnits = pricingModel.usage_based.minimum_units || 1;
-            creditCost = pricePerUnit * minimumUnits; // Calculate minimum purchase amount
-            checkoutType = 'tool_purchase'; // Usage-based treated as purchase
-          } else {
-            return NextResponse.json(
-              { error: 'Invalid pricing model selected' },
-              { status: 400 }
-            );
-          }
-        } else {
-          // Fallback: Use priority-based selection for backward compatibility
-          // Check one-time pricing
-          if (pricingModel.one_time?.enabled && pricingModel.one_time.price) {
-            creditCost = pricingModel.one_time.price;
+          } else if (pm.one_time.min_price) {
+            // For range pricing, use min_price (or could require user to specify)
+            creditCost = pm.one_time.min_price;
             checkoutType = 'tool_purchase';
           }
-          // Check subscription pricing (priority over one-time if both exist)
-          else if (pricingModel.subscription?.enabled && pricingModel.subscription.price) {
-            creditCost = pricingModel.subscription.price;
-            checkoutType = 'tool_subscription';
-            billingPeriod = pricingModel.subscription.interval || 'month';
-          }
-          // Check usage-based pricing
-          else if (pricingModel.usage_based?.enabled && pricingModel.usage_based.price_per_unit) {
-            const pricePerUnit = pricingModel.usage_based.price_per_unit;
-            const minimumUnits = pricingModel.usage_based.minimum_units || 1;
-            creditCost = pricePerUnit * minimumUnits; // Calculate minimum purchase amount
-            checkoutType = 'tool_purchase'; // Usage-based treated as purchase
-          }
+        } else if (pm.subscription?.enabled && pm.subscription.price) {
+          creditCost = pm.subscription.price;
+          checkoutType = 'tool_subscription';
+          billingPeriod = pm.subscription.interval === 'year' ? 'yearly' : 'monthly';
+        } else if (pm.usage_based?.enabled && pm.usage_based.price_per_unit) {
+          creditCost = pm.usage_based.price_per_unit;
+          checkoutType = 'tool_purchase'; // Usage-based is typically one-time per unit
         }
       }
-
-      if (creditCost <= 0) {
-        return NextResponse.json(
-          { error: 'Invalid product pricing' },
-          { status: 400 }
-        );
+    }
+    // Handle pricing_options (old structure) - fallback if products not used
+    else if (selected_pricing && metadata.pricing_options) {
+      const pricingOptions = metadata.pricing_options as Record<string, { enabled: boolean; price: number; description?: string }>;
+      const pricingOption = pricingOptions[selected_pricing];
+      if (pricingOption && pricingOption.enabled) {
+        creditCost = pricingOption.price;
+        
+        // Determine checkout type
+        if (selected_pricing === 'one_time') {
+          checkoutType = 'tool_purchase';
+        } else if (selected_pricing === 'subscription_monthly') {
+          checkoutType = 'tool_subscription';
+          billingPeriod = 'monthly';
+        } else if (selected_pricing === 'subscription_yearly') {
+          checkoutType = 'tool_subscription';
+          billingPeriod = 'yearly';
+        }
       }
+    }
 
-      // Update checkout with selected product
+    // Validate that we have a valid credit cost
+    if (creditCost <= 0) {
+      return NextResponse.json(
+        { 
+          error: 'Invalid pricing configuration. Credit cost must be greater than 0.',
+          selected_pricing,
+          has_products: !!(metadata.products && Array.isArray(metadata.products)),
+          has_pricing_options: !!metadata.pricing_options,
+          checkout_credit_amount: checkout.credit_amount
+        },
+        { status: 400 }
+      );
+    }
+
+    // Update checkout with selected option (if products or pricing_options were used)
+    if (selected_pricing && (metadata.products || metadata.pricing_options)) {
       await supabase.from('checkouts').update({
         credit_amount: creditCost,
         type: checkoutType,
         metadata: {
           ...metadata,
-          selected_product_id,
-          selected_product_name: selectedProductName,
+          selected_pricing,
           billing_period: billingPeriod,
         }
       }).eq('id', checkout_id);
@@ -208,9 +202,7 @@ export async function POST(request: NextRequest) {
           tool_name: metadata.tool_name,
           tool_url: metadata.tool_url,
           checkout_type: checkoutType,
-          selected_product_id: selected_product_id || null,
-          selected_product_name: selectedProductName || null,
-          selected_pricing_model: selected_pricing_model || null,
+          selected_pricing: selected_pricing || null,
         },
       });
 
@@ -223,6 +215,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 10. Create vendor transaction (earn credits) if vendor exists
+    let vendorTransactionWarning = null;
     if (checkout.vendor_id) {
       // Fetch vendor's current balance
       const { data: vendorTransactions } = await supabase
@@ -250,24 +243,35 @@ export async function POST(request: NextRequest) {
         });
 
       if (vendorTransactionError) {
-        console.error('Vendor transaction error:', vendorTransactionError);
+        console.error('CRITICAL: Vendor transaction creation failed:', {
+          error: vendorTransactionError,
+          vendor_id: checkout.vendor_id,
+          checkout_id: checkout.id,
+          tool_id: metadata.tool_id,
+          tool_name: metadata.tool_name,
+          credit_cost: creditCost,
+          buyer_id: authUser.id,
+        });
+        vendorTransactionWarning = 'Vendor earnings may not have been recorded. Please contact support.';
         // Note: User transaction already created, this is a critical issue
         // In production, this should be handled with proper transaction rollback
       }
+    } else {
+      console.warn('Checkout processed without vendor_id:', {
+        checkout_id: checkout.id,
+        tool_id: metadata.tool_id,
+        tool_name: metadata.tool_name,
+      });
     }
 
     // 11. Create subscription record if this is a subscription checkout
     if (checkoutType === 'tool_subscription' && billingPeriod) {
       // Calculate next billing date
       const nextBillingDate = new Date();
-      if (billingPeriod === 'month') {
+      if (billingPeriod === 'monthly') {
         nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
-      } else if (billingPeriod === 'year') {
+      } else if (billingPeriod === 'yearly') {
         nextBillingDate.setFullYear(nextBillingDate.getFullYear() + 1);
-      } else if (billingPeriod === 'week') {
-        nextBillingDate.setDate(nextBillingDate.getDate() + 7);
-      } else if (billingPeriod === 'day') {
-        nextBillingDate.setDate(nextBillingDate.getDate() + 1);
       }
 
       const { error: subError } = await supabase
@@ -285,9 +289,7 @@ export async function POST(request: NextRequest) {
           metadata: {
             tool_name: metadata.tool_name,
             initial_checkout_id: checkout.id,
-            selected_product_id,
-            selected_product_name: selectedProductName,
-            selected_pricing_model: selected_pricing_model || null,
+            selected_pricing,
           },
         });
 
@@ -310,9 +312,6 @@ export async function POST(request: NextRequest) {
       ...metadata,
       status: 'completed',
       completed_at: new Date().toISOString(),
-      selected_product_id: selected_product_id || null,
-      selected_product_name: selectedProductName || null,
-      selected_pricing_model: selected_pricing_model || null,
     };
 
     const { error: updateError } = await supabase
@@ -335,8 +334,8 @@ export async function POST(request: NextRequest) {
       tool_url: metadata.tool_url,
       new_balance: currentBalance - creditCost,
       is_subscription: checkoutType === 'tool_subscription',
-      selected_product_id: selected_product_id || null,
-      selected_product_name: selectedProductName || null,
+      selected_pricing: selected_pricing || null,
+      vendor_warning: vendorTransactionWarning || undefined,
     });
 
   } catch (error) {

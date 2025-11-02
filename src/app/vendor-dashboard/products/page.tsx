@@ -8,21 +8,33 @@ import Sidebar from '../../backoffice/components/Sidebar';
 import Footer from '../../components/Footer';
 import ToolSelector from '../components/ToolSelector';
 
+interface PricingModel {
+  one_time?: {
+    enabled: boolean;
+    price?: number;
+    min_price?: number;
+    max_price?: number;
+  };
+  subscription?: {
+    enabled: boolean;
+    price: number;
+    interval: string;
+  };
+  usage_based?: {
+    enabled: boolean;
+    price_per_unit: number;
+    unit_name: string;
+  };
+}
+
 interface Product {
   id: string;
-  name: string;
-  description: string;
-  tool_id: string;
-  is_active: boolean;
+  name: string | null;
+  description: string | null;
+  pricing_model: PricingModel;
+  tool_id: string | null;
+  is_active: boolean | null;
   created_at: string;
-  pricing_model?: {
-    pricing_model?: {
-      one_time?: { enabled: boolean; price?: number; type?: string; min_price?: number; max_price?: number };
-      subscription?: { enabled: boolean; price?: number; interval?: string; trial_days?: number };
-      usage_based?: { enabled: boolean; price_per_unit?: number; unit_name?: string; minimum_units?: number };
-    };
-    image_url?: string;
-  } | null;
 }
 
 export default function ProductsPage() {
@@ -49,6 +61,24 @@ export default function ProductsPage() {
 
   const handleShareAndEarnClick = () => {
     // Handled by Sidebar component
+  };
+
+  // Helper to extract price from pricing_model
+  const getPriceDisplay = (pricingModel: PricingModel): string => {
+    if (pricingModel?.one_time?.enabled) {
+      if (pricingModel.one_time.price) return pricingModel.one_time.price.toString();
+      if (pricingModel.one_time.min_price && pricingModel.one_time.max_price) {
+        return `${pricingModel.one_time.min_price}-${pricingModel.one_time.max_price}`;
+      }
+      return 'Custom';
+    }
+    if (pricingModel?.subscription?.enabled && pricingModel.subscription.price) {
+      return pricingModel.subscription.price.toString();
+    }
+    if (pricingModel?.usage_based?.enabled && pricingModel.usage_based.price_per_unit) {
+      return pricingModel.usage_based.price_per_unit.toString();
+    }
+    return 'N/A';
   };
 
   const handleToolChange = (toolId: string, toolName: string) => {
@@ -305,25 +335,15 @@ export default function ProductsPage() {
                       className="bg-[#1f2937] rounded-lg border border-[#374151] overflow-hidden hover:border-[#3ecf8e]/50 transition-colors"
                     >
                       {/* Product Image */}
-                      {product.pricing_model?.image_url ? (
-                        <div className="w-full h-48 overflow-hidden bg-[#374151]">
-                          <img
-                            src={product.pricing_model.image_url}
-                            alt={product.name}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      ) : (
-                        <div className="w-full h-48 bg-gradient-to-br from-[#3ecf8e]/20 to-[#2dd4bf]/20 flex items-center justify-center">
-                          <Package className="w-16 h-16 text-[#3ecf8e]/50" />
-                        </div>
-                      )}
+                      <div className="w-full h-48 bg-gradient-to-br from-[#3ecf8e]/20 to-[#2dd4bf]/20 flex items-center justify-center">
+                        <Package className="w-16 h-16 text-[#3ecf8e]/50" />
+                      </div>
 
                       {/* Product Content */}
                       <div className="p-6">
                         <div className="flex items-start justify-between mb-2">
                           <h3 className="text-lg font-bold text-[#ededed] line-clamp-1">
-                            {product.name}
+                            {product.name || 'Unnamed Product'}
                           </h3>
                           <span className={`px-2 py-1 rounded text-xs font-semibold ${
                             product.is_active 
@@ -335,26 +355,13 @@ export default function ProductsPage() {
                         </div>
 
                         <p className="text-sm text-[#9ca3af] mb-4 line-clamp-2">
-                          {product.description}
+                          {product.description || 'No description'}
                         </p>
 
                         <div className="flex items-center gap-2 mb-4">
                           <DollarSign className="w-4 h-4 text-[#3ecf8e]" />
                           <span className="text-xl font-bold text-[#ededed]">
-                            {(() => {
-                              // Extract price from pricing_model
-                              const pm = product.pricing_model?.pricing_model;
-                              if (pm?.one_time?.enabled && pm.one_time.price) {
-                                return `${pm.one_time.price} credits`;
-                              }
-                              if (pm?.subscription?.enabled && pm.subscription.price) {
-                                return `${pm.subscription.price} credits/${pm.subscription.interval || 'month'}`;
-                              }
-                              if (pm?.usage_based?.enabled && pm.usage_based.price_per_unit) {
-                                return `${pm.usage_based.price_per_unit} credits/${pm.usage_based.unit_name || 'unit'}`;
-                              }
-                              return 'Price not set';
-                            })()}
+                            {getPriceDisplay(product.pricing_model)} credits
                           </span>
                         </div>
 

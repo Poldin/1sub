@@ -7,9 +7,8 @@ import { createClient } from '@/lib/supabase/client';
 import Sidebar from './components/Sidebar';
 import SearchBar from './components/SearchBar';
 import Footer from '@/app/components/Footer';
-import { transformProducts, DatabaseProduct } from '@/lib/products';
 
-// Tool type matching database schema with products
+// Tool type matching database schema
 type Tool = {
   id: string;
   name: string;
@@ -17,12 +16,30 @@ type Tool = {
   url: string;
   credit_cost_per_use?: number; // Legacy support
   is_active: boolean;
+  user_profile_id?: string;
   metadata?: {
+    pricing_options?: {
+      one_time?: { enabled: boolean; price: number; description?: string };
+      subscription_monthly?: { enabled: boolean; price: number; description?: string };
+      subscription_yearly?: { enabled: boolean; price: number; description?: string };
+    };
     icon?: string;
     category?: string;
     vendor_id?: string;
   };
-  tool_products?: DatabaseProduct[]; // Products from join
+  products?: Array<{
+    id: string;
+    name: string;
+    description?: string;
+    pricing_model: {
+      one_time?: { enabled: boolean; type: string; price?: number; min_price?: number; max_price?: number };
+      subscription?: { enabled: boolean; price: number; interval: string };
+      usage_based?: { enabled: boolean; price_per_unit: number; unit_name: string };
+    };
+    is_active: boolean;
+    features?: string[];
+    is_preferred?: boolean;
+  }>;
 };
 
 // Helper function to format adoption numbers
@@ -34,6 +51,73 @@ const formatAdoptions = (num: number): string => {
     return (num / 1000).toFixed(1) + 'K';
   }
   return num.toString();
+};
+
+// Helper function to get pricing display text
+const getPricingDisplay = (tool: Tool): string => {
+  // Priority 1: Products (new structure)
+  if (tool.products && tool.products.length > 0) {
+    const activeProducts = tool.products.filter(p => p.is_active);
+    if (activeProducts.length > 0) {
+      const prices: number[] = [];
+      
+      activeProducts.forEach(p => {
+        if (p.pricing_model?.one_time?.enabled) {
+          if (p.pricing_model.one_time.price) {
+            prices.push(p.pricing_model.one_time.price);
+          } else if (p.pricing_model.one_time.min_price !== undefined) {
+            prices.push(p.pricing_model.one_time.min_price);
+          }
+        }
+        if (p.pricing_model?.subscription?.enabled && p.pricing_model.subscription.price) {
+          prices.push(p.pricing_model.subscription.price);
+        }
+        if (p.pricing_model?.usage_based?.enabled && p.pricing_model.usage_based.price_per_unit) {
+          prices.push(p.pricing_model.usage_based.price_per_unit);
+        }
+      });
+      
+      const validPrices = prices.filter(p => p > 0);
+      if (validPrices.length > 0) {
+        const minPrice = Math.min(...validPrices);
+        return activeProducts.length > 1 
+          ? `From ${minPrice} credits` 
+          : `${minPrice} credits`;
+      }
+    }
+  }
+  
+  // Priority 2: pricing_options (old structure)
+  if (tool.metadata?.pricing_options) {
+    const pricingOptions = tool.metadata.pricing_options;
+    const prices: number[] = [];
+    
+    if (pricingOptions.one_time?.enabled && pricingOptions.one_time.price) {
+      prices.push(pricingOptions.one_time.price);
+    }
+    if (pricingOptions.subscription_monthly?.enabled && pricingOptions.subscription_monthly.price) {
+      prices.push(pricingOptions.subscription_monthly.price);
+    }
+    if (pricingOptions.subscription_yearly?.enabled && pricingOptions.subscription_yearly.price) {
+      prices.push(pricingOptions.subscription_yearly.price);
+    }
+    
+    const validPrices = prices.filter(p => p > 0);
+    if (validPrices.length > 1) {
+      return `From ${Math.min(...validPrices)} credits`;
+    } else if (validPrices.length === 1) {
+      return `${validPrices[0]} credits`;
+    } else {
+      return 'Multiple options';
+    }
+  }
+  
+  // Priority 3: Legacy credit_cost_per_use
+  if (tool.credit_cost_per_use && tool.credit_cost_per_use > 0) {
+    return `${tool.credit_cost_per_use} credits`;
+  }
+  
+  return 'Contact vendor';
 };
 
 // Component for tool image with fallback
@@ -87,6 +171,7 @@ function BackofficeContent() {
   const [userRole, setUserRole] = useState<string>('user'); // Change to 'vendor' to test vendor view
   const [showPurchaseSuccess, setShowPurchaseSuccess] = useState(false);
   const [hasTools, setHasTools] = useState(false);
+  const [highlightedToolId, setHighlightedToolId] = useState<string | null>(null);
 
   // Load sidebar state from localStorage on mount
   useEffect(() => {
@@ -160,15 +245,7 @@ function BackofficeContent() {
           .from('tools')
           .select(`
             *,
-            tool_products (
-              id,
-              name,
-              description,
-              tool_id,
-              is_active,
-              created_at,
-              pricing_model
-            )
+            products:tool_products(*)
           `)
           .eq('is_active', true)
           .order('created_at', { ascending: false });
@@ -180,8 +257,19 @@ function BackofficeContent() {
           return;
         }
         
-        console.log('Fetched tools:', toolsData);
-        setTools(toolsData || []);
+        // Filter products to only active ones and add debug logging
+        const toolsWithActiveProducts = (toolsData || []).map(tool => ({
+          ...tool,
+          products: (tool.products || []).filter((p: { is_active?: boolean }) => p.is_active !== false)
+        }));
+        
+        console.log('Fetched tools with products:', toolsWithActiveProducts);
+        console.log('Tool products count:', toolsWithActiveProducts.map((t: { name?: string; products?: unknown[] }) => ({ 
+          name: t.name, 
+          productCount: t.products?.length || 0 
+        })));
+        
+        setTools(toolsWithActiveProducts);
         setToolsLoading(false);
         
       } catch (err) {
@@ -209,6 +297,27 @@ function BackofficeContent() {
       
       // Clean up URL
       window.history.replaceState({}, '', '/backoffice');
+    }
+
+    // Check if coming from homepage with highlighted tool
+    const highlightParam = searchParams.get('highlight');
+    if (highlightParam) {
+      setHighlightedToolId(highlightParam);
+      
+      // Scroll to highlighted tool after a brief delay
+      setTimeout(() => {
+        const element = document.getElementById(`tool-${highlightParam}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 500);
+      
+      // Remove highlight after 3 seconds
+      setTimeout(() => {
+        setHighlightedToolId(null);
+        // Clean up URL
+        window.history.replaceState({}, '', '/backoffice');
+      }, 3000);
     }
   }, [searchParams]); // Dependency on search params
 
@@ -251,25 +360,38 @@ function BackofficeContent() {
     try {
       const toolMetadata = tool.metadata as Record<string, unknown>;
       
-      // Check if tool has products
-      if (tool.tool_products && tool.tool_products.length > 0) {
-        // Transform products to get pricing info
-        const products = transformProducts(tool.tool_products);
+      // Check if tool has products (new structure)
+      const hasProducts = Array.isArray(tool.products) && tool.products.length > 0;
+      
+      // Check if tool has pricing_options in metadata (old structure)
+      const pricingOptions = toolMetadata?.pricing_options as {
+        one_time?: { enabled: boolean; price: number; description?: string };
+        subscription_monthly?: { enabled: boolean; price: number; description?: string };
+        subscription_yearly?: { enabled: boolean; price: number; description?: string };
+      } | undefined;
+
+      // Handle tools with products (new unified structure)
+      if (hasProducts && tool.products) {
+        const activeProducts = tool.products.filter(p => p.is_active);
         
-        if (products.length === 0) {
-          alert('This tool has no active products available for purchase');
+        if (activeProducts.length === 0) {
+          alert('This tool has no active products');
           return;
         }
 
-        // Get cheapest price from products
-        const prices: number[] = [];
-        products.forEach(product => {
-          if (product.pricing.monthly) prices.push(product.pricing.monthly);
-          if (product.pricing.oneTime) prices.push(product.pricing.oneTime);
-          if (product.pricing.consumption) prices.push(product.pricing.consumption.price);
-        });
+        // Get minimum price from products to check balance
+        const productPrices = activeProducts.map(p => {
+          const pm = p.pricing_model;
+          if (pm.one_time?.enabled) {
+            if (pm.one_time.price) return pm.one_time.price;
+            if (pm.one_time.min_price) return pm.one_time.min_price; // Use min price as fallback
+          }
+          if (pm.subscription?.enabled && pm.subscription.price) return pm.subscription.price;
+          if (pm.usage_based?.enabled && pm.usage_based.price_per_unit) return pm.usage_based.price_per_unit;
+          return 0;
+        }).filter(price => price > 0);
 
-        const cheapestPrice = prices.length > 0 ? Math.min(...prices) : 0;
+        const cheapestPrice = productPrices.length > 0 ? Math.min(...productPrices) : 0;
 
         // Check if user has enough credits for cheapest option
         if (cheapestPrice > 0 && credits < cheapestPrice) {
@@ -283,19 +405,68 @@ function BackofficeContent() {
           return;
         }
 
-        // Create checkout with products (user will select on checkout page)
+        // Create checkout with products
         const { data: checkout, error } = await supabase
           .from('checkouts')
           .insert({
             user_id: user.id,
-            vendor_id: toolMetadata?.vendor_id || null,
+            vendor_id: toolMetadata?.vendor_id || tool.user_profile_id || null,
             credit_amount: null, // Will be set when user selects product
             type: null, // Will be set when user selects product
             metadata: {
               tool_id: tool.id,
               tool_name: tool.name,
               tool_url: tool.url,
-              products: tool.tool_products, // Store database products for checkout page
+              products: activeProducts, // Pass products to checkout
+              status: 'pending',
+            },
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Error creating checkout:', error);
+          alert('Failed to initiate checkout');
+          return;
+        }
+
+        router.push(`/credit_checkout/${checkout.id}`);
+      } else if (pricingOptions) {
+        // Handle tools with pricing_options (old structure)
+        // Get all enabled pricing options
+        const enabledPrices = [];
+        if (pricingOptions.one_time?.enabled) enabledPrices.push(pricingOptions.one_time.price);
+        if (pricingOptions.subscription_monthly?.enabled) enabledPrices.push(pricingOptions.subscription_monthly.price);
+        if (pricingOptions.subscription_yearly?.enabled) enabledPrices.push(pricingOptions.subscription_yearly.price);
+
+        // Get cheapest price to check balance
+        const cheapestPrice = enabledPrices.length > 0 ? Math.min(...enabledPrices) : (tool.credit_cost_per_use || 0);
+
+        // Check if user has enough credits for cheapest option
+        if (credits < cheapestPrice) {
+          router.push(`/buy-credits?needed=${cheapestPrice}&tool_id=${tool.id}&tool_name=${encodeURIComponent(tool.name)}`);
+          return;
+        }
+
+        // Prevent self-purchase
+        if (toolMetadata?.vendor_id === user.id) {
+          alert('You cannot purchase your own tools');
+          return;
+        }
+
+        // Create checkout with pricing_options (user will select on checkout page)
+        const { data: checkout, error } = await supabase
+          .from('checkouts')
+          .insert({
+            user_id: user.id,
+            vendor_id: toolMetadata?.vendor_id || tool.user_profile_id || null,
+            credit_amount: null, // Will be set when user selects pricing
+            type: null, // Will be set when user selects pricing
+            metadata: {
+              tool_id: tool.id,
+              tool_name: tool.name,
+              tool_url: tool.url, // ✅ Use actual tool URL
+              pricing_options: pricingOptions,
               status: 'pending',
             },
           })
@@ -310,9 +481,44 @@ function BackofficeContent() {
 
         router.push(`/credit_checkout/${checkout.id}`);
       } else {
-        // No products available
-        alert('This tool has no products configured. Please contact the vendor.');
-        return;
+        // Legacy: Single price tool
+        const toolPrice = tool.credit_cost_per_use || 0;
+
+        if (credits < toolPrice) {
+          router.push(`/buy-credits?needed=${toolPrice}&tool_id=${tool.id}&tool_name=${encodeURIComponent(tool.name)}`);
+          return;
+        }
+
+        const pricingType = toolMetadata?.pricing_type || 'one_time';
+        const subscriptionPeriod = toolMetadata?.subscription_period;
+        const checkoutType = pricingType === 'subscription' ? 'tool_subscription' : 'tool_purchase';
+
+        const { data: checkout, error } = await supabase
+          .from('checkouts')
+          .insert({
+            user_id: user.id,
+            vendor_id: toolMetadata?.vendor_id || tool.user_profile_id || null,
+            credit_amount: toolPrice,
+            type: checkoutType,
+            metadata: {
+              tool_id: tool.id,
+              tool_name: tool.name,
+              tool_url: tool.url, // ✅ Use actual tool URL
+              pricing_type: pricingType,
+              subscription_period: subscriptionPeriod,
+              status: 'pending',
+            },
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Error creating checkout:', error);
+          alert('Failed to initiate checkout');
+          return;
+        }
+
+        router.push(`/credit_checkout/${checkout.id}`);
       }
     } catch (err) {
       console.error('Checkout creation error:', err);
@@ -564,8 +770,15 @@ function BackofficeContent() {
                       WebkitOverflowScrolling: 'touch'
                     }}
                   >
-                    {tools.map((tool) => (
-                      <div key={tool.id} data-testid="tool-card" className="bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex-shrink-0 w-84 min-w-84 flex flex-col">
+                  {tools.map((tool) => (
+                    <div 
+                      key={tool.id} 
+                      id={`tool-${tool.id}`}
+                      data-testid="tool-card" 
+                      className={`bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex-shrink-0 w-84 min-w-84 flex flex-col ${
+                        highlightedToolId === tool.id ? 'ring-2 ring-[#3ecf8e] shadow-lg shadow-[#3ecf8e]/50 animate-pulse' : ''
+                      }`}
+                    >
                         <ToolImage 
                           src={tool.url} 
                           alt={tool.name} 
@@ -577,19 +790,7 @@ function BackofficeContent() {
                           <div className="flex items-center justify-between mt-auto">
                             <div className="flex items-center gap-1">
                               <span className="text-[#3ecf8e] font-bold text-sm">
-                                {tool.tool_products && tool.tool_products.length > 1 
-                                  ? 'Multiple options' 
-                                  : tool.tool_products && tool.tool_products.length === 1 
-                                    ? (() => {
-                                        const product = tool.tool_products[0];
-                                        const pm = product.pricing_model?.pricing_model;
-                                        if (pm?.one_time?.enabled && pm.one_time.price) return `${pm.one_time.price} credits`;
-                                        if (pm?.subscription?.enabled && pm.subscription.price) return `${pm.subscription.price}/mo`;
-                                        if (pm?.usage_based?.enabled && pm.usage_based.price_per_unit) return `${pm.usage_based.price_per_unit} per ${pm.usage_based.unit_name || 'unit'}`;
-                                        return '0 credits';
-                                      })()
-                                    : '0 credits'
-                                }
+                                {tool.metadata?.pricing_options ? 'Multiple options' : `${tool.credit_cost_per_use || 0} credits`}
                               </span>
                             </div>
                             <span className="bg-[#3ecf8e] text-black px-2 py-1 rounded text-sm font-bold">Active</span>
@@ -623,7 +824,14 @@ function BackofficeContent() {
                   onScroll={handleScroll}
                 >
                   {tools.map((tool) => (
-                    <div key={tool.id} data-testid="tool-card" className="bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex-shrink-0 w-[22rem] flex flex-col">
+                    <div 
+                      key={tool.id} 
+                      id={`tool-${tool.id}`}
+                      data-testid="tool-card" 
+                      className={`bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex-shrink-0 w-[22rem] flex flex-col ${
+                        highlightedToolId === tool.id ? 'ring-2 ring-[#3ecf8e] shadow-lg shadow-[#3ecf8e]/50 animate-pulse' : ''
+                      }`}
+                    >
                       <ToolImage 
                         src={tool.url} 
                         alt={tool.name} 
@@ -635,20 +843,7 @@ function BackofficeContent() {
                         <div className="flex items-center justify-between mt-auto">
                           <div className="flex items-center gap-2">
                             <span className="text-[#3ecf8e] font-bold">
-                              {(() => {
-                                if (tool.tool_products && tool.tool_products.length > 0) {
-                                  const products = transformProducts(tool.tool_products);
-                                  if (products.length > 1) {
-                                    return 'Multiple options';
-                                  } else if (products.length === 1) {
-                                    const product = products[0];
-                                    if (product.pricing.monthly) return `${product.pricing.monthly}/mo`;
-                                    if (product.pricing.oneTime) return `${product.pricing.oneTime} credits`;
-                                    if (product.pricing.consumption) return `${product.pricing.consumption.price} per ${product.pricing.consumption.unit}`;
-                                  }
-                                }
-                                return `${tool.credit_cost_per_use || 0} credits`;
-                              })()}
+                              {getPricingDisplay(tool)}
                             </span>
                           </div>
                           <span className="bg-[#3ecf8e] text-black px-2 py-1 rounded text-xs font-bold">Active</span>
@@ -683,7 +878,13 @@ function BackofficeContent() {
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                   {tools.map((tool) => (
-                    <div key={tool.id} className="bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex flex-col">
+                    <div 
+                      key={tool.id} 
+                      id={`tool-${tool.id}`}
+                      className={`bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex flex-col ${
+                        highlightedToolId === tool.id ? 'ring-2 ring-[#3ecf8e] shadow-lg shadow-[#3ecf8e]/50 animate-pulse' : ''
+                      }`}
+                    >
                       <ToolImage 
                         src={tool.url} 
                         alt={tool.name} 
@@ -695,20 +896,7 @@ function BackofficeContent() {
                         <div className="flex items-center justify-between mt-auto">
                           <div className="flex items-center gap-2">
                             <span className="text-[#3ecf8e] font-bold">
-                              {(() => {
-                                if (tool.tool_products && tool.tool_products.length > 0) {
-                                  const products = transformProducts(tool.tool_products);
-                                  if (products.length > 1) {
-                                    return 'Multiple options';
-                                  } else if (products.length === 1) {
-                                    const product = products[0];
-                                    if (product.pricing.monthly) return `${product.pricing.monthly}/mo`;
-                                    if (product.pricing.oneTime) return `${product.pricing.oneTime} credits`;
-                                    if (product.pricing.consumption) return `${product.pricing.consumption.price} per ${product.pricing.consumption.unit}`;
-                                  }
-                                }
-                                return `${tool.credit_cost_per_use || 0} credits`;
-                              })()}
+                              {getPricingDisplay(tool)}
                             </span>
                           </div>
                           <span className="bg-[#3ecf8e] text-black px-2 py-1 rounded text-xs font-bold">Active</span>

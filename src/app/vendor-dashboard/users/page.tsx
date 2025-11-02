@@ -100,75 +100,92 @@ export default function VendorUsersPage() {
       }
 
       // 4. Get unique user IDs
-      const userIds = [...new Set(transactions?.map(t => t.user_id) || [])];
+      const userIds = [...new Set(transactions?.map(t => t.user_id).filter(id => id) || [])];
       
       if (userIds.length === 0) {
         setUsers([]);
+        setLoading(false);
         return;
       }
 
-      // 5. Get user profiles
-      const { data: profiles, error: profilesError } = await supabase
-        .from('user_profiles')
-        .select('id, full_name')
-        .in('id', userIds);
-
-      if (profilesError) {
-        console.error('Error fetching user profiles:', profilesError);
-        throw new Error(`Failed to fetch user profiles: ${profilesError.message}`);
-      }
-
-      // 6. Fetch emails via API endpoint
-      const userEmails = new Map<string, string>();
+      // 5. Get user profiles (handle case where some users might not have profiles)
+      // Note: user_profiles doesn't have email - that's in auth.users which we can't query directly
+      let profiles: { id: string; full_name: string | null }[] = [];
       
       try {
-        const response = await fetch('/api/vendor/users/emails', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userIds: Array.from(userIds) })
-        });
+        if (userIds.length > 0) {
+          // Fetch profiles - only selecting fields that exist in user_profiles table
+          const { data: profilesData, error: profilesError } = await supabase
+            .from('user_profiles')
+            .select('id, full_name')
+            .in('id', userIds);
 
-        if (response.ok) {
-          const data = await response.json();
-          Object.entries(data.emails || {}).forEach(([userId, email]) => {
-            userEmails.set(userId, email as string);
-          });
-        } else {
-          console.warn('Could not fetch user emails from API, using fallback');
+          if (profilesError) {
+            console.error('[Vendor Users] Error fetching user profiles:', profilesError);
+            console.error('[Vendor Users] Error details:', JSON.stringify(profilesError, null, 2));
+            console.error('[Vendor Users] User IDs attempted:', userIds);
+            // Don't throw - continue with empty profiles and use transaction data
+            profiles = [];
+          } else {
+            profiles = profilesData || [];
+            console.log('[Vendor Users] Fetched profiles:', profiles.length, 'out of', userIds.length);
+          }
         }
       } catch (err) {
-        console.warn('Could not fetch user emails:', err);
+        console.error('[Vendor Users] Exception fetching profiles:', err);
+        // Continue with empty profiles - we can still show users from transaction data
+        profiles = [];
       }
 
-      // Fallback: use user ID prefix if email not available
-      userIds.forEach(userId => {
-        if (!userEmails.has(userId)) {
-          userEmails.set(userId, `user-${userId.slice(0, 8)}`);
-        }
-      });
+      // Create a map of user IDs that have profiles
+      const profileMap = new Map(profiles.map(p => [p.id, p]));
+      
+      // 5b. Try to get emails from checkouts metadata (fallback method)
+      const checkoutUserEmails = new Map<string, string>();
+      try {
+        const { data: checkoutsData } = await supabase
+          .from('checkouts')
+          .select('user_id, metadata')
+          .in('tool_id', toolIds);
+        
+        checkoutsData?.forEach(checkout => {
+          const metadata = checkout.metadata as { user_email?: string };
+          if (checkout.user_id && metadata?.user_email) {
+            checkoutUserEmails.set(checkout.user_id, metadata.user_email);
+          }
+        });
+      } catch (err) {
+        console.warn('[Vendor Users] Could not fetch emails from checkouts:', err);
+      }
 
-      // 7. Aggregate data per user
+      // 6. Aggregate data per user
       const userMap = new Map<string, VendorUser>();
 
-      // Initialize users
-      profiles?.forEach(profile => {
-        userMap.set(profile.id, {
-          id: profile.id,
-          email: userEmails.get(profile.id) || `user-${profile.id.slice(0, 8)}`, // Fallback to user ID prefix
-          fullName: profile.full_name,
-          toolsUsed: [],
-          creditsSpent: 0,
-          totalUsages: 0,
-          lastActive: '',
-          firstUsed: '',
-          isSubscribed: false
-        });
-      });
-
-      // Process transactions
+      // Process transactions and create user entries
       transactions?.forEach(transaction => {
-        const user = userMap.get(transaction.user_id);
-        if (!user) return;
+        // Get or create user entry
+        let user = userMap.get(transaction.user_id);
+        
+        if (!user) {
+          // Try to get profile data, or use defaults
+          const profile = profileMap.get(transaction.user_id);
+          // Try to get email from checkouts metadata (fallback)
+          const email = checkoutUserEmails.get(transaction.user_id);
+          
+          user = {
+            id: transaction.user_id,
+            email: email || `User ${transaction.user_id.substring(0, 8)}`,
+            fullName: profile?.full_name || null,
+            toolsUsed: [],
+            creditsSpent: 0,
+            totalUsages: 0,
+            lastActive: '',
+            firstUsed: '',
+            isSubscribed: false
+          };
+          
+          userMap.set(transaction.user_id, user);
+        }
 
         const tool = tools.find(t => t.id === transaction.tool_id);
         if (!tool) return;

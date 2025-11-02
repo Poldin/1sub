@@ -203,37 +203,7 @@ export default function NewProductPage() {
         return;
       }
 
-      let imageUrl = '';
-
-      // Upload image if provided
-      if (imageFile) {
-        const fileExt = imageFile.name.split('.').pop();
-        const fileName = `${user.id}-${Date.now()}.${fileExt}`;
-        const filePath = `product-images/${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from('allfile')
-          .upload(filePath, imageFile, {
-            cacheControl: '3600',
-            upsert: false,
-          });
-
-        if (uploadError) {
-          console.error('Upload error:', uploadError);
-          alert('Failed to upload image: ' + uploadError.message);
-          setIsCreating(false);
-          return;
-        }
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('allfile')
-          .getPublicUrl(filePath);
-
-        imageUrl = publicUrl;
-      }
-
       // Create product
-      // Store everything in pricing_model JSON as per tool_products schema
       const { data: productData, error: insertError } = await supabase
         .from('tool_products')
         .insert({
@@ -241,10 +211,7 @@ export default function NewProductPage() {
           description: formData.description,
           tool_id: toolId,
           is_active: true,
-          pricing_model: {
-            pricing_model: pricingModel,
-            image_url: imageUrl,
-          },
+          pricing_model: pricingModel,
         })
         .select()
         .single();
