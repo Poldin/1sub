@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Menu, Download, Filter } from 'lucide-react';
+import { Menu, Download } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import Sidebar from '../../backoffice/components/Sidebar';
 import ToolSelector from '../components/ToolSelector';
@@ -24,6 +24,11 @@ export default function VendorTransactionsPage() {
   const [userId, setUserId] = useState<string>('');
   const [userRole, setUserRole] = useState<string>('user');
   const [hasTools, setHasTools] = useState(false);
+  
+  // Transaction data states
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -33,6 +38,107 @@ export default function VendorTransactionsPage() {
     // Handled by Sidebar component
   };
   
+  // Fetch transactions data
+  const fetchTransactions = async (vendorId: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const supabase = createClient();
+
+      // 1. Get vendor's tools
+      const { data: tools, error: toolsError } = await supabase
+        .from('tools')
+        .select('id, name')
+        .eq('user_profile_id', vendorId);
+
+      if (toolsError) {
+        throw new Error('Failed to fetch tools');
+      }
+
+      if (!tools || tools.length === 0) {
+        setTransactions([]);
+        setLoading(false);
+        return;
+      }
+
+      const toolIds = tools.map(tool => tool.id);
+      const toolMap = new Map(tools.map(tool => [tool.id, tool.name]));
+
+      // 2. Get vendor's earnings transactions (type='add' means vendor earns credits)
+      const { data: transactionsData, error: transactionsError } = await supabase
+        .from('credit_transactions')
+        .select(`
+          id,
+          credits_amount,
+          created_at,
+          tool_id,
+          metadata
+        `)
+        .eq('user_id', vendorId)
+        .eq('type', 'add')
+        .in('tool_id', toolIds)
+        .order('created_at', { ascending: false });
+
+      if (transactionsError) {
+        throw new Error('Failed to fetch transactions');
+      }
+
+      if (!transactionsData || transactionsData.length === 0) {
+        setTransactions([]);
+        setLoading(false);
+        return;
+      }
+
+      // 3. Get unique buyer IDs from metadata
+      const buyerIds = new Set<string>();
+      transactionsData.forEach(transaction => {
+        const metadata = transaction.metadata as Record<string, unknown> | null;
+        if (metadata?.buyer_id && typeof metadata.buyer_id === 'string') {
+          buyerIds.add(metadata.buyer_id);
+        }
+      });
+
+      // 4. Fetch buyer profiles to get emails
+      const buyerProfiles = new Map<string, string>();
+      if (buyerIds.size > 0) {
+        const { data: profiles, error: profilesError } = await supabase
+          .from('user_profiles')
+          .select('id, email')
+          .in('id', Array.from(buyerIds));
+
+        if (!profilesError && profiles) {
+          profiles.forEach(profile => {
+            buyerProfiles.set(profile.id, profile.email || 'Unknown');
+          });
+        }
+      }
+
+      // 5. Transform transactions to match interface
+      const transformedTransactions: Transaction[] = transactionsData.map(transaction => {
+        const metadata = transaction.metadata as Record<string, unknown> | null;
+        const buyerId = metadata?.buyer_id as string | undefined;
+        const buyerEmail = buyerId ? buyerProfiles.get(buyerId) || 'Unknown User' : 'Unknown User';
+        const toolName = transaction.tool_id ? toolMap.get(transaction.tool_id) || 'Unknown Tool' : 'Unknown Tool';
+
+        return {
+          id: transaction.id,
+          date: transaction.created_at || new Date().toISOString(),
+          user: buyerEmail,
+          tool: toolName,
+          credits: transaction.credits_amount || 0,
+          status: 'completed' as const // All recorded transactions are completed
+        };
+      });
+
+      setTransactions(transformedTransactions);
+    } catch (err) {
+      console.error('Error fetching transactions:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch transactions');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Fetch user data
   useEffect(() => {
     const fetchUserData = async () => {
@@ -64,65 +170,17 @@ export default function VendorTransactionsPage() {
           .eq('user_profile_id', user.id);
         
         setHasTools((toolsData?.length || 0) > 0);
+        
+        // Fetch transactions after user data is loaded
+        fetchTransactions(user.id);
       } catch (err) {
         console.error('Error fetching user data:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch data');
       }
     };
     
     fetchUserData();
   }, []);
-  
-  // Mock transactions data
-  const transactions: Transaction[] = [
-    {
-      id: '1',
-      date: '2024-01-15',
-      user: 'user1@example.com',
-      tool: 'AI Content Generator',
-      credits: 5,
-      status: 'completed'
-    },
-    {
-      id: '2',
-      date: '2024-01-15',
-      user: 'user2@example.com',
-      tool: 'Data Analyzer Pro',
-      credits: 10,
-      status: 'completed'
-    },
-    {
-      id: '3',
-      date: '2024-01-14',
-      user: 'user3@example.com',
-      tool: 'Image Editor',
-      credits: 8,
-      status: 'completed'
-    },
-    {
-      id: '4',
-      date: '2024-01-14',
-      user: 'user4@example.com',
-      tool: 'Video Creator',
-      credits: 15,
-      status: 'pending'
-    },
-    {
-      id: '5',
-      date: '2024-01-13',
-      user: 'user5@example.com',
-      tool: 'SEO Optimizer',
-      credits: 7,
-      status: 'completed'
-    },
-    {
-      id: '6',
-      date: '2024-01-13',
-      user: 'user6@example.com',
-      tool: 'AI Content Generator',
-      credits: 5,
-      status: 'failed'
-    }
-  ];
 
   const filteredTransactions = transactions.filter(transaction => {
     if (filter === 'all') return true;
@@ -134,8 +192,39 @@ export default function VendorTransactionsPage() {
     .reduce((sum, t) => sum + t.credits, 0);
 
   const handleExport = () => {
-    console.log('Exporting transactions...');
-    alert('Transactions exported to CSV!');
+    try {
+      // Create CSV header
+      const headers = ['Date', 'User', 'Tool', 'Credits', 'Status'];
+      const csvRows = [headers.join(',')];
+
+      // Add transaction rows
+      filteredTransactions.forEach(transaction => {
+        const row = [
+          transaction.date,
+          `"${transaction.user}"`,
+          `"${transaction.tool}"`,
+          transaction.credits.toString(),
+          transaction.status
+        ];
+        csvRows.push(row.join(','));
+      });
+
+      // Create blob and download
+      const csvContent = csvRows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      
+      link.setAttribute('href', url);
+      link.setAttribute('download', `transactions-${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error('Error exporting transactions:', err);
+      alert('Failed to export transactions');
+    }
   };
 
   return (
@@ -213,7 +302,9 @@ export default function VendorTransactionsPage() {
           <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
             <h3 className="text-sm font-medium text-[#9ca3af] mb-2">Success Rate</h3>
             <p className="text-2xl font-bold text-[#3ecf8e]">
-              {Math.round((transactions.filter(t => t.status === 'completed').length / transactions.length) * 100)}%
+              {transactions.length > 0 
+                ? Math.round((transactions.filter(t => t.status === 'completed').length / transactions.length) * 100)
+                : 0}%
             </p>
           </div>
         </div>
@@ -225,54 +316,70 @@ export default function VendorTransactionsPage() {
             <p className="text-sm text-[#9ca3af] mt-1">All transactions from your published tools</p>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-[#374151]">
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">User</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Tool</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Credits</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredTransactions.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-[#9ca3af]">
-                      No transactions found
-                    </td>
+            {loading ? (
+              <div className="px-6 py-12 text-center text-[#9ca3af]">
+                Loading transactions...
+              </div>
+            ) : error ? (
+              <div className="px-6 py-12 text-center">
+                <p className="text-red-400 mb-2">Error: {error}</p>
+                <button
+                  onClick={() => userId && fetchTransactions(userId)}
+                  className="px-4 py-2 bg-[#3ecf8e] text-white rounded-lg hover:bg-[#2dd4bf] transition-colors"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : (
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-[#374151]">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">User</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Tool</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Credits</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Status</th>
                   </tr>
-                ) : (
-                  filteredTransactions.map((transaction) => (
-                    <tr key={transaction.id} className="border-b border-[#374151] hover:bg-[#374151]/50">
-                      <td className="px-6 py-4 text-[#9ca3af]">
-                        {new Date(transaction.date).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 text-[#ededed]">
-                        {transaction.user}
-                      </td>
-                      <td className="px-6 py-4 text-[#ededed]">
-                        {transaction.tool}
-                      </td>
-                      <td className="px-6 py-4 text-[#3ecf8e] font-medium">
-                        +{transaction.credits}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${
-                          transaction.status === 'completed' 
-                            ? 'bg-green-500/20 text-green-400'
-                            : transaction.status === 'pending'
-                            ? 'bg-yellow-500/20 text-yellow-400'
-                            : 'bg-red-500/20 text-red-400'
-                        }`}>
-                          {transaction.status}
-                        </span>
+                </thead>
+                <tbody>
+                  {filteredTransactions.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-8 text-center text-[#9ca3af]">
+                        No transactions found
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    filteredTransactions.map((transaction) => (
+                      <tr key={transaction.id} className="border-b border-[#374151] hover:bg-[#374151]/50">
+                        <td className="px-6 py-4 text-[#9ca3af]">
+                          {new Date(transaction.date).toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4 text-[#ededed]">
+                          {transaction.user}
+                        </td>
+                        <td className="px-6 py-4 text-[#ededed]">
+                          {transaction.tool}
+                        </td>
+                        <td className="px-6 py-4 text-[#3ecf8e] font-medium">
+                          +{transaction.credits}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            transaction.status === 'completed' 
+                              ? 'bg-green-500/20 text-green-400'
+                              : transaction.status === 'pending'
+                              ? 'bg-yellow-500/20 text-yellow-400'
+                              : 'bg-red-500/20 text-red-400'
+                          }`}>
+                            {transaction.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
 

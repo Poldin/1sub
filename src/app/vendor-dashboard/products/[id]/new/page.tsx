@@ -232,33 +232,18 @@ export default function NewProductPage() {
         imageUrl = publicUrl;
       }
 
-      // Calculate default price for the product (using first enabled pricing model)
-      let defaultPrice = 0;
-      if (pricingModel.one_time.enabled) {
-        if (pricingModel.one_time.type === 'absolute') {
-          defaultPrice = pricingModel.one_time.price || 0;
-        } else if (pricingModel.one_time.type === 'range') {
-          // Use the minimum price as default for range
-          defaultPrice = pricingModel.one_time.min_price || 0;
-        }
-      } else if (pricingModel.subscription.enabled) {
-        defaultPrice = pricingModel.subscription.price;
-      } else if (pricingModel.usage_based.enabled) {
-        defaultPrice = pricingModel.usage_based.price_per_unit;
-      }
-
       // Create product
+      // Store everything in pricing_model JSON as per tool_products schema
       const { data: productData, error: insertError } = await supabase
-        .from('products')
+        .from('tool_products')
         .insert({
           name: formData.name,
           description: formData.description,
-          price: defaultPrice,
           tool_id: toolId,
           is_active: true,
-          metadata: {
-            image_url: imageUrl,
+          pricing_model: {
             pricing_model: pricingModel,
+            image_url: imageUrl,
           },
         })
         .select()
