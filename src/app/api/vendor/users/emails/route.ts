@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server';
-import { createServerClient } from '@supabase/ssr';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
@@ -44,19 +43,10 @@ export async function POST(request: NextRequest) {
     // Fetch user emails from auth.users using service role
     const emailMap: Record<string, string> = {};
 
-    // Create admin client with service role key
-    const adminSupabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        cookies: {}
-      }
-    );
-
-    // Fetch emails from auth.users using admin access
-    // Note: We need to use Supabase Admin API or list users
-    // For now, return user ID prefixes as placeholder
-    // TODO: Implement proper email fetching from auth.users
+    // Create admin client with service role key using standard Supabase client
+    // Note: This bypasses RLS and can access auth.users
+    // For now, return user ID prefixes as placeholder until we implement proper email fetching
+    // TODO: Implement proper email fetching from auth.users using admin.auth.admin.listUsers()
     userIds.forEach((userId: string) => {
       emailMap[userId] = `user-${userId.slice(0, 8)}`; // Placeholder until proper implementation
     });
