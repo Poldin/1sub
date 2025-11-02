@@ -12,17 +12,14 @@ interface Product {
   id: string;
   name: string;
   description: string;
+  price: number;
   tool_id: string;
   is_active: boolean;
   created_at: string;
-  pricing_model?: {
-    pricing_model?: {
-      one_time?: { enabled: boolean; price?: number; type?: string; min_price?: number; max_price?: number };
-      subscription?: { enabled: boolean; price?: number; interval?: string; trial_days?: number };
-      usage_based?: { enabled: boolean; price_per_unit?: number; unit_name?: string; minimum_units?: number };
-    };
+  metadata?: {
     image_url?: string;
-  } | null;
+    stock?: number;
+  };
 }
 
 export default function ProductsPage() {
@@ -65,7 +62,7 @@ export default function ProductsPage() {
       const supabase = createClient();
       
       const { data, error } = await supabase
-        .from('tool_products')
+        .from('products')
         .select('*')
         .eq('tool_id', toolId)
         .order('created_at', { ascending: false });
@@ -93,7 +90,7 @@ export default function ProductsPage() {
       const supabase = createClient();
       
       const { error } = await supabase
-        .from('tool_products')
+        .from('products')
         .delete()
         .eq('id', productId);
 
@@ -305,10 +302,10 @@ export default function ProductsPage() {
                       className="bg-[#1f2937] rounded-lg border border-[#374151] overflow-hidden hover:border-[#3ecf8e]/50 transition-colors"
                     >
                       {/* Product Image */}
-                      {product.pricing_model?.image_url ? (
+                      {product.metadata?.image_url ? (
                         <div className="w-full h-48 overflow-hidden bg-[#374151]">
                           <img
-                            src={product.pricing_model.image_url}
+                            src={product.metadata.image_url}
                             alt={product.name}
                             className="w-full h-full object-cover"
                           />
@@ -341,20 +338,7 @@ export default function ProductsPage() {
                         <div className="flex items-center gap-2 mb-4">
                           <DollarSign className="w-4 h-4 text-[#3ecf8e]" />
                           <span className="text-xl font-bold text-[#ededed]">
-                            {(() => {
-                              // Extract price from pricing_model
-                              const pm = product.pricing_model?.pricing_model;
-                              if (pm?.one_time?.enabled && pm.one_time.price) {
-                                return `${pm.one_time.price} credits`;
-                              }
-                              if (pm?.subscription?.enabled && pm.subscription.price) {
-                                return `${pm.subscription.price} credits/${pm.subscription.interval || 'month'}`;
-                              }
-                              if (pm?.usage_based?.enabled && pm.usage_based.price_per_unit) {
-                                return `${pm.usage_based.price_per_unit} credits/${pm.usage_based.unit_name || 'unit'}`;
-                              }
-                              return 'Price not set';
-                            })()}
+                            {product.price} credits
                           </span>
                         </div>
 

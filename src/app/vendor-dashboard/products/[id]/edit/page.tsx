@@ -29,12 +29,13 @@ interface Product {
   id: string;
   name: string;
   description: string;
+  price: number;
   tool_id: string;
   is_active: boolean;
-  pricing_model?: {
-    pricing_model?: PricingModel;
+  metadata?: {
     image_url?: string;
-  } | null;
+    pricing_model?: PricingModel;
+  };
 }
 
 export default function EditProductPage() {
@@ -82,7 +83,7 @@ export default function EditProductPage() {
       try {
         const supabase = createClient();
         const { data, error } = await supabase
-          .from('tool_products')
+          .from('products')
           .select('*')
           .eq('id', productId)
           .single();
@@ -101,12 +102,12 @@ export default function EditProductPage() {
           is_active: data.is_active,
         });
 
-        if (data.pricing_model?.image_url) {
-          setImagePreview(data.pricing_model.image_url);
+        if (data.metadata?.image_url) {
+          setImagePreview(data.metadata.image_url);
         }
 
-        if (data.pricing_model?.pricing_model) {
-          setPricingModel(data.pricing_model.pricing_model);
+        if (data.metadata?.pricing_model) {
+          setPricingModel(data.metadata.pricing_model);
         }
 
         // Fetch tool name
@@ -160,7 +161,7 @@ export default function EditProductPage() {
     try {
       const supabase = createClient();
       const { error } = await supabase
-        .from('tool_products')
+        .from('products')
         .delete()
         .eq('id', productId);
 
@@ -235,7 +236,7 @@ export default function EditProductPage() {
         return;
       }
 
-      let imageUrl = product?.pricing_model?.image_url || '';
+      let imageUrl = product?.metadata?.image_url || '';
 
       // Upload new image if provided
       if (imageFile) {
@@ -264,17 +265,27 @@ export default function EditProductPage() {
         imageUrl = publicUrl;
       }
 
+      // Calculate default price for the product (using first enabled pricing model)
+      let defaultPrice = 0;
+      if (pricingModel.one_time.enabled) {
+        defaultPrice = pricingModel.one_time.price;
+      } else if (pricingModel.subscription.enabled) {
+        defaultPrice = pricingModel.subscription.price;
+      } else if (pricingModel.usage_based.enabled) {
+        defaultPrice = pricingModel.usage_based.price_per_unit;
+      }
+
       // Update product
-      // Store everything in pricing_model JSON as per tool_products schema
       const { error: updateError } = await supabase
-        .from('tool_products')
+        .from('products')
         .update({
           name: formData.name,
           description: formData.description,
+          price: defaultPrice,
           is_active: formData.is_active,
-          pricing_model: {
-            pricing_model: pricingModel,
+          metadata: {
             image_url: imageUrl,
+            pricing_model: pricingModel,
           },
         })
         .eq('id', productId);
