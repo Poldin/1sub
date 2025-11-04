@@ -10,8 +10,7 @@ import { X, Star, Users, ExternalLink } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Tool, ToolProduct, ProductPricingModel, DEFAULT_UI_METADATA, DEFAULT_ENGAGEMENT_METRICS, hasProducts } from '@/lib/tool-types';
 import { PricingCard } from './PricingDisplay';
-import { createClient } from '@/lib/supabase/client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 // ============================================================================
 // TYPES
@@ -203,26 +202,7 @@ export default function ToolDialog(props: ToolDialogProps) {
     : { ...props, tool: legacyToTool(props) };
 
   const router = useRouter();
-  const [, setIsAuthenticated] = useState<boolean | null>(null);
   const [isChecking, setIsChecking] = useState(false);
-
-  // Check authentication status
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        setIsAuthenticated(!!user);
-      } catch (error) {
-        console.error('Auth check error:', error);
-        setIsAuthenticated(false);
-      }
-    };
-
-    if (isOpen) {
-      checkAuth();
-    }
-  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -237,21 +217,40 @@ export default function ToolDialog(props: ToolDialogProps) {
   const longDescription = content.long_description || tool.description || '';
 
   // Handle start/launch action
-  const handleStartClick = async () => {
+  const handleStartClick = async (selectedProductId?: string) => {
     setIsChecking(true);
     try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      // Call API to create checkout
+      const response = await fetch('/api/checkout/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tool_id: tool.id,
+          selected_product_id: selectedProductId,
+        }),
+      });
 
-      if (!user) {
-        router.push(`/login?redirect=/backoffice&tool=${tool.id}`);
-      } else {
-        router.push(`/backoffice?highlight=${tool.id}`);
+      if (response.status === 401) {
+        // Not authenticated, redirect to login
+        router.push(`/login?redirect=/credit_checkout/pending&tool=${tool.id}`);
+        return;
       }
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.error || 'Failed to create checkout');
+        setIsChecking(false);
+        return;
+      }
+
+      // Redirect to checkout page
+      router.push(`/credit_checkout/${data.checkout_id}`);
     } catch (error) {
       console.error('Start click error:', error);
-      router.push(`/login?redirect=/backoffice&tool=${tool.id}`);
-    } finally {
+      alert('An error occurred. Please try again.');
       setIsChecking(false);
     }
   };
@@ -420,6 +419,7 @@ export default function ToolDialog(props: ToolDialogProps) {
                   {displayProducts.map((product) => (
                     <PricingCard
                       key={product.id}
+                      id={product.id}
                       name={product.name}
                       description={product.description}
                       pricingModel={product.pricing_model}
@@ -436,7 +436,7 @@ export default function ToolDialog(props: ToolDialogProps) {
             {displayProducts.length === 0 && (
               <div className="px-6 sm:px-8 pb-8">
                 <button
-                  onClick={handleStartClick}
+                  onClick={() => handleStartClick()}
                   disabled={isChecking}
                   className="w-full bg-[#3ecf8e] text-black px-6 py-4 rounded-lg font-bold text-lg hover:bg-[#2dd4bf] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >

@@ -13,7 +13,7 @@ interface PricingBadgeProps {
   description: string;
 }
 
-export function PricingBadge({ label, icon, tooltip, description }: PricingBadgeProps) {
+export function PricingBadge({ icon, tooltip, description }: PricingBadgeProps) {
   return (
     <div className="relative group/badge">
       <div className="bg-[#3ecf8e]/20 text-[#3ecf8e] px-2 py-1 rounded text-xs font-bold cursor-help border border-[#3ecf8e]/30">
@@ -162,15 +162,17 @@ export function PricingSection({ pricingOptions }: PricingSectionProps) {
 // ============================================================================
 
 interface PricingCardProps {
+  id?: string;
   name: string;
   description?: string;
   pricingModel: ProductPricingModel;
   features?: string[];
   isPreferred?: boolean;
-  onSelect?: () => void;
+  onSelect?: (productId?: string) => void;
 }
 
 export function PricingCard({ 
+  id,
   name, 
   description, 
   pricingModel, 
@@ -232,7 +234,7 @@ export function PricingCard({
       {/* CTA Button */}
       {onSelect && (
         <button 
-          onClick={onSelect}
+          onClick={() => onSelect(id)}
           className="w-full bg-[#3ecf8e] text-black px-4 py-3 rounded-md font-bold hover:bg-[#2dd4bf] transition-all flex items-center justify-center gap-2 group mt-4"
         >
           Select Plan

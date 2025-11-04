@@ -206,7 +206,7 @@ export default function ToolCard(props: ToolCardProps) {
 
   return (
     <div
-      className={`group bg-[#1f2937] rounded-lg hover:shadow-2xl transition-all duration-300 cursor-pointer flex flex-col h-full hover:-translate-y-1 relative ${borderClasses}`}
+      className={`group bg-[#1f2937] rounded hover:shadow-2xl transition-all duration-300 cursor-pointer flex flex-col h-full hover:-translate-y-1 relative ${borderClasses}`}
       onClick={handleCardClick}
     >
       {/* Development Stage Badge */}
@@ -229,7 +229,7 @@ export default function ToolCard(props: ToolCardProps) {
         {/* Header: Logo + Name */}
         <div className="flex items-start gap-3 mb-3">
           <div
-            className={`flex-shrink-0 w-12 h-12 rounded-lg bg-gradient-to-br ${uiMeta.gradient} flex items-center justify-center overflow-hidden`}
+            className={`flex-shrink-0 w-12 h-12 rounded bg-gradient-to-br ${uiMeta.gradient} flex items-center justify-center overflow-hidden`}
           >
             {logoUrl ? (
               <img src={logoUrl} alt={tool.name} className="w-full h-full object-cover" />
@@ -265,7 +265,7 @@ export default function ToolCard(props: ToolCardProps) {
         </p>
 
         {/* Preview Image */}
-        <div className="mb-3 rounded-md overflow-hidden bg-[#111111] -mx-4 w-[calc(100%+2rem)] relative">
+        <div className="mb-3 rounded overflow-hidden bg-[#111111] -mx-4 w-[calc(100%+2rem)] relative">
           <img
             src={imageUrl}
             alt={`${tool.name} preview`}
@@ -347,7 +347,7 @@ export default function ToolCard(props: ToolCardProps) {
                   e.stopPropagation();
                   onLaunchClick();
                 }}
-                className="bg-[#3ecf8e] text-black px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#2dd4bf] transition-all flex items-center gap-1 group-hover:gap-2"
+                className="bg-[#3ecf8e] text-black px-3 py-1.5 rounded text-xs font-bold hover:bg-[#2dd4bf] transition-all flex items-center gap-1 group-hover:gap-2"
               >
                 {mode === 'dashboard' ? 'launch' : 'start'}
                 <ExternalLink className="w-3.5 h-3.5" />

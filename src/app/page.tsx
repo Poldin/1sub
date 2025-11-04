@@ -1,167 +1,11 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { Users } from 'lucide-react';
+import { useState } from 'react';
 import Footer from './components/Footer';
-import ToolCard from './components/ToolCard';
-import ToolDialog from './components/ToolDialog';
-import { createClient } from '@/lib/supabase/client';
-import { Tool } from '@/lib/tool-types';
+import ToolsGrid from './components/ToolsGrid';
 
 export default function Home() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [tools, setTools] = useState<Tool[]>([]);
-  const [toolsLoading, setToolsLoading] = useState(true);
-  const [toolsError, setToolsError] = useState<string | null>(null);
-  const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-
-  // Fetch tools from database
-  useEffect(() => {
-    const fetchTools = async () => {
-      try {
-        setToolsLoading(true);
-        setToolsError(null);
-
-        const supabase = createClient();
-        const { data: toolsData, error } = await supabase
-          .from('tools')
-          .select(`
-            *,
-            products:tool_products(*)
-          `)
-          .eq('is_active', true)
-          .order('created_at', { ascending: false });
-
-        if (error) {
-          console.error('Error fetching tools:', error);
-          setToolsError('Failed to load tools');
-          return;
-        }
-
-        setTools(toolsData || []);
-      } catch (err) {
-        console.error('Unexpected error fetching tools:', err);
-        setToolsError('An unexpected error occurred');
-      } finally {
-        setToolsLoading(false);
-      }
-    };
-
-    fetchTools();
-  }, []);
-  
-  // Carousel drag and auto-scroll functionality
-  const carouselRef = useRef<HTMLDivElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [startX, setStartX] = useState(0);
-  const [scrollLeft, setScrollLeft] = useState(0);
-  const [userInteracting, setUserInteracting] = useState(false);
-  const autoScrollIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Filter tools based on search term
-  const filteredTools = tools.filter(tool => {
-    const searchLower = searchTerm.toLowerCase();
-    const matchesName = tool.name.toLowerCase().includes(searchLower);
-    const matchesDescription = tool.description?.toLowerCase().includes(searchLower);
-    const matchesTags = tool.metadata?.ui?.tags?.some(tag => tag.toLowerCase().includes(searchLower));
-    return matchesName || matchesDescription || matchesTags;
-  });
-
-  // Drag to scroll functionality
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (!carouselRef.current) return;
-    setIsDragging(true);
-    setUserInteracting(true);
-    setStartX(e.pageX - carouselRef.current.offsetLeft);
-    setScrollLeft(carouselRef.current.scrollLeft);
-    carouselRef.current.style.cursor = 'grabbing';
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging || !carouselRef.current) return;
-    e.preventDefault();
-    const x = e.pageX - carouselRef.current.offsetLeft;
-    const walk = (x - startX) * 2; // Scroll speed multiplier
-    carouselRef.current.scrollLeft = scrollLeft - walk;
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
-    if (carouselRef.current) {
-      carouselRef.current.style.cursor = 'grab';
-    }
-    // Reset user interaction after 3 seconds
-    setTimeout(() => {
-      setUserInteracting(false);
-    }, 3000);
-  };
-
-  const handleMouseLeave = () => {
-    setIsDragging(false);
-    if (carouselRef.current) {
-      carouselRef.current.style.cursor = 'grab';
-    }
-  };
-
-  // Auto-scroll functionality
-  useEffect(() => {
-    const startAutoScroll = () => {
-      if (autoScrollIntervalRef.current) {
-        clearInterval(autoScrollIntervalRef.current);
-      }
-      
-      autoScrollIntervalRef.current = setInterval(() => {
-        // Only auto-scroll on tablet+ where carousel is visible
-        if (!userInteracting && carouselRef.current && window.innerWidth >= 640) {
-          const carousel = carouselRef.current;
-          const maxScrollLeft = carousel.scrollWidth - carousel.clientWidth;
-          
-          if (carousel.scrollLeft >= maxScrollLeft) {
-            // Reset to beginning when reached the end
-            carousel.scrollTo({ left: 0, behavior: 'smooth' });
-          } else {
-            // Scroll to the right
-            carousel.scrollBy({ left: 344, behavior: 'smooth' }); // w-80 + gap-6
-          }
-        }
-      }, 3000); // Auto-scroll every 3 seconds
-    };
-
-    startAutoScroll();
-
-    return () => {
-      if (autoScrollIntervalRef.current) {
-        clearInterval(autoScrollIntervalRef.current);
-      }
-    };
-  }, [userInteracting]);
-
-  // Handle scroll events to detect user interaction
-  const handleScroll = () => {
-    setUserInteracting(true);
-    setTimeout(() => {
-      setUserInteracting(false);
-    }, 3000);
-  };
-
-  // Handle tool card click to open dialog
-  const handleToolClick = (tool: Tool) => {
-    setSelectedTool(tool);
-    setIsDialogOpen(true);
-  };
-
-  // Handle dialog close
-  const handleDialogClose = () => {
-    setIsDialogOpen(false);
-    setTimeout(() => setSelectedTool(null), 300); // Delay clearing to allow animation
-  };
-
-  // Handle launch/start click
-  const handleLaunchClick = (tool: Tool) => {
-    setSelectedTool(tool);
-    setIsDialogOpen(true);
-  };
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed]">
@@ -282,104 +126,10 @@ export default function Home() {
             </div>
           </div>
           
-          {/* Loading State */}
-          {toolsLoading && (
-            <div className="flex items-center justify-center py-12">
-              <div className="text-center">
-                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#3ecf8e] border-r-transparent"></div>
-                <p className="mt-4 text-[#9ca3af]">Loading tools...</p>
-              </div>
-            </div>
-          )}
-
-          {/* Error State */}
-          {toolsError && !toolsLoading && (
-            <div className="text-center py-12">
-              <p className="text-red-400 mb-2">Error loading tools</p>
-              <p className="text-[#9ca3af] text-sm">{toolsError}</p>
-            </div>
-          )}
-
-          {/* Empty State */}
-          {!toolsLoading && !toolsError && tools.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-[#9ca3af] text-lg">No tools available yet</p>
-              <p className="text-[#6b7280] text-sm mt-2">Check back soon for new tools!</p>
-            </div>
-          )}
-
-          {/* Mobile Carousel */}
-          {!toolsLoading && !toolsError && filteredTools.length > 0 && (
-            <div className="mb-8 mt-12 sm:hidden">
-              <div className="w-full overflow-hidden">
-                <div 
-                  className="flex gap-4 overflow-x-auto pb-4 px-1" 
-                  style={{
-                    scrollbarWidth: 'none',
-                    msOverflowStyle: 'none',
-                    WebkitOverflowScrolling: 'touch'
-                  }}
-                >
-                  {filteredTools.map((tool) => (
-                    <div key={tool.id} className="flex-shrink-0 w-80 min-w-[20rem]">
-                      <ToolCard 
-                        tool={tool} 
-                        mode="marketing"
-                        onViewClick={() => handleToolClick(tool)} 
-                        onLaunchClick={() => handleLaunchClick(tool)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Desktop Carousel */}
-          {!toolsLoading && !toolsError && filteredTools.length > 0 && (
-            <div className="mb-4 mt-4 hidden sm:block">
-              <div 
-                ref={carouselRef}
-                className="flex gap-6 overflow-x-auto py-4 scrollbar-hide cursor-grab select-none" 
-                style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseLeave}
-                onScroll={handleScroll}
-              >
-                {filteredTools.map((tool) => (
-                  <div key={tool.id} className="flex-shrink-0 w-[22rem]">
-                    <ToolCard 
-                      tool={tool} 
-                      mode="marketing"
-                      onViewClick={() => handleToolClick(tool)} 
-                      onLaunchClick={() => handleLaunchClick(tool)}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* All Tools Section */}
-          {!toolsLoading && !toolsError && filteredTools.length > 0 && (
-            <div className="mb-8">
-              <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">All Tools</h2>
-              <div className="flex flex-wrap gap-4 sm:gap-6">
-                {filteredTools.map((tool) => (
-                  <div key={tool.id} className="w-80 sm:w-[22rem]">
-                    <ToolCard 
-                      tool={tool} 
-                      mode="marketing"
-                      onViewClick={() => handleToolClick(tool)} 
-                      onLaunchClick={() => handleLaunchClick(tool)}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          <div className="mb-8">
+            <ToolsGrid searchTerm={searchTerm} />
+          </div>
         </div>
       </section>
 
@@ -509,15 +259,6 @@ export default function Home() {
 
       {/* Footer */}
       <Footer />
-
-      {/* Tool Dialog */}
-      {selectedTool && (
-        <ToolDialog
-          isOpen={isDialogOpen}
-          onClose={handleDialogClose}
-          tool={selectedTool}
-        />
-      )}
     </div>
   );
 }

@@ -1,160 +1,13 @@
 'use client';
 
-import { useState, useRef, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { Menu, User, LogOut, ExternalLink, Briefcase, Check } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import Sidebar from './components/Sidebar';
 import SearchBar from './components/SearchBar';
 import Footer from '@/app/components/Footer';
-
-// Tool type matching database schema
-type Tool = {
-  id: string;
-  name: string;
-  description: string;
-  url: string;
-  credit_cost_per_use?: number; // Legacy support
-  is_active: boolean;
-  user_profile_id?: string;
-  metadata?: {
-    pricing_options?: {
-      one_time?: { enabled: boolean; price: number; description?: string };
-      subscription_monthly?: { enabled: boolean; price: number; description?: string };
-      subscription_yearly?: { enabled: boolean; price: number; description?: string };
-    };
-    icon?: string;
-    category?: string;
-    vendor_id?: string;
-  };
-  products?: Array<{
-    id: string;
-    name: string;
-    description?: string;
-    pricing_model: {
-      one_time?: { enabled: boolean; type: string; price?: number; min_price?: number; max_price?: number };
-      subscription?: { enabled: boolean; price: number; interval: string };
-      usage_based?: { enabled: boolean; price_per_unit: number; unit_name: string };
-    };
-    is_active: boolean;
-    features?: string[];
-    is_preferred?: boolean;
-  }>;
-};
-
-// Helper function to format adoption numbers
-const formatAdoptions = (num: number): string => {
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + 'M';
-  }
-  if (num >= 1000) {
-    return (num / 1000).toFixed(1) + 'K';
-  }
-  return num.toString();
-};
-
-// Helper function to get pricing display text
-const getPricingDisplay = (tool: Tool): string => {
-  // Priority 1: Products (new structure)
-  if (tool.products && tool.products.length > 0) {
-    const activeProducts = tool.products.filter(p => p.is_active);
-    if (activeProducts.length > 0) {
-      const prices: number[] = [];
-      
-      activeProducts.forEach(p => {
-        if (p.pricing_model?.one_time?.enabled) {
-          if (p.pricing_model.one_time.price) {
-            prices.push(p.pricing_model.one_time.price);
-          } else if (p.pricing_model.one_time.min_price !== undefined) {
-            prices.push(p.pricing_model.one_time.min_price);
-          }
-        }
-        if (p.pricing_model?.subscription?.enabled && p.pricing_model.subscription.price) {
-          prices.push(p.pricing_model.subscription.price);
-        }
-        if (p.pricing_model?.usage_based?.enabled && p.pricing_model.usage_based.price_per_unit) {
-          prices.push(p.pricing_model.usage_based.price_per_unit);
-        }
-      });
-      
-      const validPrices = prices.filter(p => p > 0);
-      if (validPrices.length > 0) {
-        const minPrice = Math.min(...validPrices);
-        return activeProducts.length > 1 
-          ? `From ${minPrice} credits` 
-          : `${minPrice} credits`;
-      }
-    }
-  }
-  
-  // Priority 2: pricing_options (old structure)
-  if (tool.metadata?.pricing_options) {
-    const pricingOptions = tool.metadata.pricing_options;
-    const prices: number[] = [];
-    
-    if (pricingOptions.one_time?.enabled && pricingOptions.one_time.price) {
-      prices.push(pricingOptions.one_time.price);
-    }
-    if (pricingOptions.subscription_monthly?.enabled && pricingOptions.subscription_monthly.price) {
-      prices.push(pricingOptions.subscription_monthly.price);
-    }
-    if (pricingOptions.subscription_yearly?.enabled && pricingOptions.subscription_yearly.price) {
-      prices.push(pricingOptions.subscription_yearly.price);
-    }
-    
-    const validPrices = prices.filter(p => p > 0);
-    if (validPrices.length > 1) {
-      return `From ${Math.min(...validPrices)} credits`;
-    } else if (validPrices.length === 1) {
-      return `${validPrices[0]} credits`;
-    } else {
-      return 'Multiple options';
-    }
-  }
-  
-  // Priority 3: Legacy credit_cost_per_use
-  if (tool.credit_cost_per_use && tool.credit_cost_per_use > 0) {
-    return `${tool.credit_cost_per_use} credits`;
-  }
-  
-  return 'Contact vendor';
-};
-
-// Component for tool image with fallback
-function ToolImage({ src, alt, className }: { src: string; alt: string; className?: string }) {
-  const [imgSrc, setImgSrc] = useState<string>(src);
-  const [hasError, setHasError] = useState(false);
-
-  useEffect(() => {
-    setImgSrc(src);
-    setHasError(false);
-  }, [src]);
-
-  const handleError = () => {
-    setHasError(true);
-  };
-
-  if (!src || hasError) {
-    // Fallback to 1sub logo
-    return (
-      <div className={`bg-[#0a0a0a] flex items-center justify-center ${className}`}>
-        <div className="text-center">
-          <span className="text-4xl font-bold text-[#3ecf8e]">1sub</span>
-          <span className="text-4xl font-normal text-[#9ca3af]">.io</span>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <img 
-      src={imgSrc} 
-      alt={alt} 
-      className={`object-cover ${className}`}
-      onError={handleError}
-    />
-  );
-}
+import ToolsGrid from '@/app/components/ToolsGrid';
 
 function BackofficeContent() {
   const router = useRouter();
@@ -163,9 +16,6 @@ function BackofficeContent() {
   const [user, setUser] = useState<{ id: string; fullName: string | null; email: string } | null>(null);
   const [userLoading, setUserLoading] = useState(true);
   const [credits, setCredits] = useState(0); // Keep for internal use (tool purchase logic)
-  const [tools, setTools] = useState<Tool[]>([]);
-  const [toolsLoading, setToolsLoading] = useState(true);
-  const [toolsError, setToolsError] = useState<string | null>(null);
   
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [userRole, setUserRole] = useState<string>('user'); // Change to 'vendor' to test vendor view
@@ -232,63 +82,11 @@ function BackofficeContent() {
     fetchUserData();
   }, [router]);
 
-  // Fetch tools from database
+  // Handle URL params for purchase success and highlighted tools
   useEffect(() => {
-    const fetchTools = async () => {
-      try {
-        setToolsLoading(true);
-        setToolsError(null);
-        
-        const supabase = createClient();
-        
-        const { data: toolsData, error } = await supabase
-          .from('tools')
-          .select(`
-            *,
-            products:tool_products(*)
-          `)
-          .eq('is_active', true)
-          .order('created_at', { ascending: false });
-        
-        if (error) {
-          console.error('Error fetching tools:', error);
-          setToolsError('Failed to load tools from database');
-          setToolsLoading(false);
-          return;
-        }
-        
-        // Filter products to only active ones and add debug logging
-        const toolsWithActiveProducts = (toolsData || []).map(tool => ({
-          ...tool,
-          products: (tool.products || []).filter((p: { is_active?: boolean }) => p.is_active !== false)
-        }));
-        
-        console.log('Fetched tools with products:', toolsWithActiveProducts);
-        console.log('Tool products count:', toolsWithActiveProducts.map((t: { name?: string; products?: unknown[] }) => ({ 
-          name: t.name, 
-          productCount: t.products?.length || 0 
-        })));
-        
-        setTools(toolsWithActiveProducts);
-        setToolsLoading(false);
-        
-      } catch (err) {
-        console.error('Unexpected error fetching tools:', err);
-        setToolsError('An unexpected error occurred');
-        setToolsLoading(false);
-      }
-    };
-    
-    fetchTools();
-    
     // Check if returning from successful purchase
     if (searchParams.get('purchase_success') === 'true') {
       setShowPurchaseSuccess(true);
-      
-      // Refetch tools to show updated data
-      setTimeout(() => {
-        fetchTools();
-      }, 500);
       
       // Hide success message after 5 seconds
       setTimeout(() => {
@@ -331,14 +129,6 @@ function BackofficeContent() {
     }
   };
 
-  // Carousel drag and auto-scroll functionality
-  const carouselRef = useRef<HTMLDivElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [startX, setStartX] = useState(0);
-  const [scrollLeft, setScrollLeft] = useState(0);
-  const [userInteracting, setUserInteracting] = useState(false);
-  const autoScrollIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
   const toggleMenu = () => {
     const newState = !isMenuOpen;
     setIsMenuOpen(newState);
@@ -350,9 +140,19 @@ function BackofficeContent() {
     if (!user) return;
     
     const supabase = createClient();
-    const tool = tools.find(t => t.id === toolId);
     
-    if (!tool) {
+    // Fetch tool details from database
+    const { data: tool, error: fetchError } = await supabase
+      .from('tools')
+      .select(`
+        *,
+        products:tool_products(*)
+      `)
+      .eq('id', toolId)
+      .single();
+    
+    if (fetchError || !tool) {
+      console.error('Error fetching tool:', fetchError);
       alert('Tool not found');
       return;
     }
@@ -372,7 +172,7 @@ function BackofficeContent() {
 
       // Handle tools with products (new unified structure)
       if (hasProducts && tool.products) {
-        const activeProducts = tool.products.filter(p => p.is_active);
+        const activeProducts = tool.products.filter((p: { is_active?: boolean }) => p.is_active);
         
         if (activeProducts.length === 0) {
           alert('This tool has no active products');
@@ -380,7 +180,13 @@ function BackofficeContent() {
         }
 
         // Get minimum price from products to check balance
-        const productPrices = activeProducts.map(p => {
+        const productPrices = activeProducts.map((p: { 
+          pricing_model: {
+            one_time?: { enabled: boolean; price?: number; min_price?: number };
+            subscription?: { enabled: boolean; price: number };
+            usage_based?: { enabled: boolean; price_per_unit: number };
+          }
+        }) => {
           const pm = p.pricing_model;
           if (pm.one_time?.enabled) {
             if (pm.one_time.price) return pm.one_time.price;
@@ -389,7 +195,7 @@ function BackofficeContent() {
           if (pm.subscription?.enabled && pm.subscription.price) return pm.subscription.price;
           if (pm.usage_based?.enabled && pm.usage_based.price_per_unit) return pm.usage_based.price_per_unit;
           return 0;
-        }).filter(price => price > 0);
+        }).filter((price: number) => price > 0);
 
         const cheapestPrice = productPrices.length > 0 ? Math.min(...productPrices) : 0;
 
@@ -440,7 +246,7 @@ function BackofficeContent() {
         if (pricingOptions.subscription_yearly?.enabled) enabledPrices.push(pricingOptions.subscription_yearly.price);
 
         // Get cheapest price to check balance
-        const cheapestPrice = enabledPrices.length > 0 ? Math.min(...enabledPrices) : (tool.credit_cost_per_use || 0);
+        const cheapestPrice = enabledPrices.length > 0 ? Math.min(...enabledPrices) : 0;
 
         // Check if user has enough credits for cheapest option
         if (credits < cheapestPrice) {
@@ -481,126 +287,14 @@ function BackofficeContent() {
 
         router.push(`/credit_checkout/${checkout.id}`);
       } else {
-        // Legacy: Single price tool
-        const toolPrice = tool.credit_cost_per_use || 0;
-
-        if (credits < toolPrice) {
-          router.push(`/buy-credits?needed=${toolPrice}&tool_id=${tool.id}&tool_name=${encodeURIComponent(tool.name)}`);
-          return;
-        }
-
-        const pricingType = toolMetadata?.pricing_type || 'one_time';
-        const subscriptionPeriod = toolMetadata?.subscription_period;
-        const checkoutType = pricingType === 'subscription' ? 'tool_subscription' : 'tool_purchase';
-
-        const { data: checkout, error } = await supabase
-          .from('checkouts')
-          .insert({
-            user_id: user.id,
-            vendor_id: toolMetadata?.vendor_id || tool.user_profile_id || null,
-            credit_amount: toolPrice,
-            type: checkoutType,
-            metadata: {
-              tool_id: tool.id,
-              tool_name: tool.name,
-              tool_url: tool.url, // ✅ Use actual tool URL
-              pricing_type: pricingType,
-              subscription_period: subscriptionPeriod,
-              status: 'pending',
-            },
-          })
-          .select()
-          .single();
-
-        if (error) {
-          console.error('Error creating checkout:', error);
-          alert('Failed to initiate checkout');
-          return;
-        }
-
-        router.push(`/credit_checkout/${checkout.id}`);
+        // No valid pricing found
+        alert('This tool has no valid pricing configured. Please contact the vendor.');
+        return;
       }
     } catch (err) {
       console.error('Checkout creation error:', err);
       alert('An error occurred while creating checkout');
     }
-  };
-
-  // Drag to scroll functionality
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (!carouselRef.current) return;
-    setIsDragging(true);
-    setUserInteracting(true);
-    setStartX(e.pageX - carouselRef.current.offsetLeft);
-    setScrollLeft(carouselRef.current.scrollLeft);
-    carouselRef.current.style.cursor = 'grabbing';
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging || !carouselRef.current) return;
-    e.preventDefault();
-    const x = e.pageX - carouselRef.current.offsetLeft;
-    const walk = (x - startX) * 2; // Scroll speed multiplier
-    carouselRef.current.scrollLeft = scrollLeft - walk;
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
-    if (carouselRef.current) {
-      carouselRef.current.style.cursor = 'grab';
-    }
-    // Reset user interaction after 3 seconds
-    setTimeout(() => {
-      setUserInteracting(false);
-    }, 3000);
-  };
-
-  const handleMouseLeave = () => {
-    setIsDragging(false);
-    if (carouselRef.current) {
-      carouselRef.current.style.cursor = 'grab';
-    }
-  };
-
-  // Auto-scroll functionality
-  useEffect(() => {
-    const startAutoScroll = () => {
-      if (autoScrollIntervalRef.current) {
-        clearInterval(autoScrollIntervalRef.current);
-      }
-      
-      autoScrollIntervalRef.current = setInterval(() => {
-        // Only auto-scroll on tablet+ where carousel is visible
-        if (!userInteracting && carouselRef.current && window.innerWidth >= 640) {
-          const carousel = carouselRef.current;
-          const maxScrollLeft = carousel.scrollWidth - carousel.clientWidth;
-          
-          if (carousel.scrollLeft >= maxScrollLeft) {
-            // Reset to beginning when reached the end
-            carousel.scrollTo({ left: 0, behavior: 'smooth' });
-          } else {
-            // Scroll to the right
-            carousel.scrollBy({ left: 344, behavior: 'smooth' }); // w-80 + gap-6
-          }
-        }
-      }, 3000); // Auto-scroll every 3 seconds
-    };
-
-    startAutoScroll();
-
-    return () => {
-      if (autoScrollIntervalRef.current) {
-        clearInterval(autoScrollIntervalRef.current);
-      }
-    };
-  }, [userInteracting]);
-
-  // Handle scroll events to detect user interaction
-  const handleScroll = () => {
-    setUserInteracting(true);
-    setTimeout(() => {
-      setUserInteracting(false);
-    }, 3000);
   };
 
   if (userLoading) {
@@ -678,8 +372,8 @@ function BackofficeContent() {
         </header>
 
         {/* Content */}
-        <div className="p-3 sm:p-4 lg:p-8 overflow-x-hidden" data-testid="dashboard-content">
-          <div className="max-w-7xl mx-auto">
+        <div className="overflow-x-hidden" data-testid="dashboard-content">
+          <div>
 
             {/* Categories */}
             {/* <div className="mb-8">
@@ -720,7 +414,7 @@ function BackofficeContent() {
 
             {/* Vendor Dashboard Access - Only for vendors */}
             {userRole === 'vendor' && (
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-8">
+              <div className="my-8 px-3 sm:px-4 lg:px-8">
                 <div className="bg-gradient-to-r from-[#3ecf8e]/20 to-[#2dd4bf]/20 border border-[#3ecf8e]/30 rounded-xl p-6">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
@@ -744,175 +438,14 @@ function BackofficeContent() {
               </div>
             )}
 
-            {/* Mobile Carousel */}
-            <div className="mb-8 sm:hidden">
-              <div className="w-full overflow-hidden">
-                {toolsLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3ecf8e]"></div>
-                    <span className="ml-2 text-[#9ca3af]">Loading tools...</span>
-                  </div>
-                ) : toolsError ? (
-                  <div className="text-center py-8 text-red-400">
-                    <p>Error loading tools: {toolsError}</p>
-                  </div>
-                ) : tools.length === 0 ? (
-                  <div className="text-center py-8 text-[#9ca3af]">
-                    <p>No tools available yet</p>
-                    <p className="text-[#6b7280] text-sm mt-2">Check back soon for new tools!</p>
-                  </div>
-                ) : (
-                  <div 
-                    className="flex gap-4 overflow-x-auto pb-4 px-1" 
-                    style={{
-                      scrollbarWidth: 'none',
-                      msOverflowStyle: 'none',
-                      WebkitOverflowScrolling: 'touch'
-                    }}
-                  >
-                  {tools.map((tool) => (
-                    <div 
-                      key={tool.id} 
-                      id={`tool-${tool.id}`}
-                      data-testid="tool-card" 
-                      className={`bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex-shrink-0 w-84 min-w-84 flex flex-col ${
-                        highlightedToolId === tool.id ? 'ring-2 ring-[#3ecf8e] shadow-lg shadow-[#3ecf8e]/50 animate-pulse' : ''
-                      }`}
-                    >
-                        <ToolImage 
-                          src={tool.url} 
-                          alt={tool.name} 
-                          className="h-36 w-full"
-                        />
-                        <div className="p-3 flex flex-col flex-1">
-                          <h3 className="font-bold mb-1 text-base">{tool.name}</h3>
-                          <p className="text-[#9ca3af] text-sm mb-2 line-clamp-2 flex-1">{tool.description}</p>
-                          <div className="flex items-center justify-between mt-auto">
-                            <div className="flex items-center gap-1">
-                              <span className="text-[#3ecf8e] font-bold text-sm">
-                                {tool.metadata?.pricing_options ? 'Multiple options' : `${tool.credit_cost_per_use || 0} credits`}
-                              </span>
-                            </div>
-                            <span className="bg-[#3ecf8e] text-black px-2 py-1 rounded text-sm font-bold">Active</span>
-                          </div>
-                          <button
-                            onClick={() => handleLaunchTool(tool.id)}
-                            className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#3ecf8e] text-black rounded-lg font-medium hover:bg-[#2dd4bf] transition-colors"
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                            Launch Tool
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Desktop Carousel */}
-            <div className="mb-8 hidden sm:block">
-              {!toolsLoading && !toolsError && tools.length > 0 && (
-                <div 
-                  ref={carouselRef}
-                  className="flex gap-6 overflow-x-auto pb-4 scrollbar-hide cursor-grab select-none" 
-                  style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}
-                  onMouseDown={handleMouseDown}
-                  onMouseMove={handleMouseMove}
-                  onMouseUp={handleMouseUp}
-                  onMouseLeave={handleMouseLeave}
-                  onScroll={handleScroll}
-                >
-                  {tools.map((tool) => (
-                    <div 
-                      key={tool.id} 
-                      id={`tool-${tool.id}`}
-                      data-testid="tool-card" 
-                      className={`bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex-shrink-0 w-[22rem] flex flex-col ${
-                        highlightedToolId === tool.id ? 'ring-2 ring-[#3ecf8e] shadow-lg shadow-[#3ecf8e]/50 animate-pulse' : ''
-                      }`}
-                    >
-                      <ToolImage 
-                        src={tool.url} 
-                        alt={tool.name} 
-                        className="h-40 w-full"
-                      />
-                      <div className="p-3 flex flex-col flex-1">
-                        <h3 className="font-bold mb-1">{tool.name}</h3>
-                        <p className="text-[#9ca3af] text-xs mb-2 flex-1">{tool.description}</p>
-                        <div className="flex items-center justify-between mt-auto">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[#3ecf8e] font-bold">
-                              {getPricingDisplay(tool)}
-                            </span>
-                          </div>
-                          <span className="bg-[#3ecf8e] text-black px-2 py-1 rounded text-xs font-bold">Active</span>
-                        </div>
-                        <button
-                          onClick={() => handleLaunchTool(tool.id)}
-                          className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#3ecf8e] text-black rounded-lg font-medium hover:bg-[#2dd4bf] transition-colors"
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                          Launch Tool
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
 
 
             {/* All Tools Section */}
-            <div className="mb-8">
-              <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">All</h2>
-              {toolsLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3ecf8e]"></div>
-                  <span className="ml-2 text-[#9ca3af]">Loading tools...</span>
-                </div>
-              ) : tools.length === 0 ? (
-                <div className="text-center py-8 text-[#9ca3af]">
-                  <p>No tools available</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
-                  {tools.map((tool) => (
-                    <div 
-                      key={tool.id} 
-                      id={`tool-${tool.id}`}
-                      className={`bg-[#1f2937] rounded-lg overflow-hidden hover:shadow-lg hover:shadow-[#3ecf8e]/10 transition-shadow cursor-pointer flex flex-col ${
-                        highlightedToolId === tool.id ? 'ring-2 ring-[#3ecf8e] shadow-lg shadow-[#3ecf8e]/50 animate-pulse' : ''
-                      }`}
-                    >
-                      <ToolImage 
-                        src={tool.url} 
-                        alt={tool.name} 
-                        className="h-32 sm:h-40 w-full"
-                      />
-                      <div className="p-3 flex flex-col flex-1">
-                        <h3 className="font-bold mb-1">{tool.name}</h3>
-                        <p className="text-[#9ca3af] text-xs mb-2 flex-1">{tool.description}</p>
-                        <div className="flex items-center justify-between mt-auto">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[#3ecf8e] font-bold">
-                              {getPricingDisplay(tool)}
-                            </span>
-                          </div>
-                          <span className="bg-[#3ecf8e] text-black px-2 py-1 rounded text-xs font-bold">Active</span>
-                        </div>
-                        <button
-                          onClick={() => handleLaunchTool(tool.id)}
-                          className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#3ecf8e] text-black rounded-lg font-medium hover:bg-[#2dd4bf] transition-colors"
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                          Launch Tool
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+            <div className="my-8 px-2 sm:px-3">
+              <ToolsGrid 
+                onToolLaunch={handleLaunchTool}
+                highlightedToolId={highlightedToolId}
+              />
             </div>
 
           </div>

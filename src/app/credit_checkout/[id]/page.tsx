@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Lock, Check, ExternalLink, Wrench, AlertCircle, Loader2 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
 import { ProductPricingModel } from '@/lib/tool-types';
+import { BuyCreditsDialog } from '../components/BuyCreditsDialog';
 
 interface PricingOption {
   enabled: boolean;
@@ -69,93 +69,74 @@ export default function CreditCheckoutPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedPricing, setSelectedPricing] = useState<string | null>(null);
+  const [toolImageUrl, setToolImageUrl] = useState<string | null>(null);
+  const [toolDescription, setToolDescription] = useState<string | null>(null);
+  const [showAllPlans, setShowAllPlans] = useState(false);
+  const [showBuyCreditsDialog, setShowBuyCreditsDialog] = useState(false);
 
   // Fetch checkout data
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const supabase = createClient();
 
-        // Check authentication
-        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+        // Fetch all checkout data from API
+        const response = await fetch(`/api/checkout/${checkoutId}`);
         
-        if (authError || !authUser) {
+        if (response.status === 401) {
           router.push(`/login?redirect=/credit_checkout/${checkoutId}`);
           return;
         }
 
-        // Fetch checkout record
-        const { data: checkoutData, error: checkoutError } = await supabase
-          .from('checkouts')
-          .select('*')
-          .eq('id', checkoutId)
-          .single();
-
-        if (checkoutError || !checkoutData) {
-          setError('Checkout not found');
+        if (!response.ok) {
+          const data = await response.json();
+          setError(data.error || 'Failed to load checkout');
           setLoading(false);
           return;
         }
 
-        // Verify user owns this checkout
-        if (checkoutData.user_id !== authUser.id) {
-          setError('Unauthorized access to this checkout');
-          setLoading(false);
-          return;
+        const data = await response.json();
+
+        // Set all data from API response
+        setCheckout(data.checkout as CheckoutData);
+        setUser(data.user);
+        setVendor(data.vendor);
+        
+        if (data.tool) {
+          setToolImageUrl(data.tool.logo_url);
+          setToolDescription(data.tool.description);
         }
 
-        setCheckout(checkoutData as CheckoutData);
-
-        // Fetch user profile with credits
-        const response = await fetch('/api/user/profile');
-        if (response.ok) {
-          const userData = await response.json();
-          setUser({
-            id: userData.id,
-            email: userData.email,
-            credits: userData.credits || 0,
-          });
-        }
-
-        // Fetch vendor information if vendor_id exists
-        if (checkoutData.vendor_id) {
-          const { data: vendorData } = await supabase
-            .from('user_profiles')
-            .select('id, full_name')
-            .eq('id', checkoutData.vendor_id)
-            .single();
-
-          if (vendorData) {
-            setVendor(vendorData);
-          }
-        }
-
-        // Auto-select pricing/product if only one option available or if already selected
+        // Auto-select pricing/product with hierarchy:
+        // 1. selected_pricing from metadata (user selected in dialog)
+        // 2. Preferred product (is_preferred = true)
+        // 3. First available product/option
+        const checkoutData = data.checkout;
+        
         if (checkoutData.metadata.selected_pricing) {
+          // Priority 1: User selected a specific plan
           setSelectedPricing(checkoutData.metadata.selected_pricing as string);
         } else if (checkoutData.metadata.products && Array.isArray(checkoutData.metadata.products)) {
-          // Auto-select if only one product
-          if (checkoutData.metadata.products.length === 1) {
+          // For products structure
+          const preferredProduct = checkoutData.metadata.products.find((p: CheckoutProduct) => p.is_preferred);
+          if (preferredProduct) {
+            // Priority 2: Preferred product
+            setSelectedPricing(preferredProduct.id);
+          } else if (checkoutData.metadata.products.length > 0) {
+            // Priority 3: First available product
             setSelectedPricing(checkoutData.metadata.products[0].id);
-          } else {
-            // Auto-select preferred product
-            const preferredProduct = checkoutData.metadata.products.find((p: CheckoutProduct) => p.is_preferred);
-            if (preferredProduct) {
-              setSelectedPricing(preferredProduct.id);
-            }
           }
         } else if (checkoutData.metadata.pricing_options) {
+          // For pricing_options structure
           const options = checkoutData.metadata.pricing_options;
-          const enabledOptions = [
-            options.one_time?.enabled && 'one_time',
-            options.subscription_monthly?.enabled && 'subscription_monthly',
-            options.subscription_yearly?.enabled && 'subscription_yearly',
-          ].filter(Boolean);
           
-          // Auto-select if only one option
-          if (enabledOptions.length === 1) {
-            setSelectedPricing(enabledOptions[0] as string);
+          // Priority 3: First available option
+          if (options.one_time?.enabled) {
+            setSelectedPricing('one_time');
+          } else if (options.subscription_monthly?.enabled) {
+            setSelectedPricing('subscription_monthly');
+          } else if (options.subscription_yearly?.enabled) {
+            setSelectedPricing('subscription_yearly');
           }
         }
 
@@ -356,7 +337,6 @@ export default function CreditCheckoutPage() {
   const isCompleted = checkout.metadata.status === 'completed';
   const balanceAfter = user ? user.credits - selectedPrice : 0;
   const isSubscription = selectedPricing?.includes('subscription') || checkout.type === 'tool_subscription';
-  const pricingType = checkout.metadata.pricing_type || 'one_time';
   const subscriptionPeriod = checkout.metadata.subscription_period || 
     (selectedPricing === 'subscription_monthly' ? 'monthly' : selectedPricing === 'subscription_yearly' ? 'yearly' : null);
 
@@ -393,16 +373,35 @@ export default function CreditCheckoutPage() {
             <div className="space-y-6">
               {/* Tool Header */}
               <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="bg-gradient-to-br from-[#3ecf8e] to-[#2dd4bf] p-3 rounded-lg">
-                    <Wrench className="w-6 h-6 text-white" />
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-[#1f2937] border border-[#374151]">
+                    {toolImageUrl ? (
+                      <img 
+                        src={toolImageUrl} 
+                        alt={checkout.metadata.tool_name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          e.currentTarget.parentElement!.innerHTML = '<div class="w-full h-full bg-gradient-to-br from-[#3ecf8e] to-[#2dd4bf] flex items-center justify-center"><svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div>';
+                        }}
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-[#3ecf8e] to-[#2dd4bf] flex items-center justify-center">
+                        <Wrench className="w-8 h-8 text-white" />
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <h1 className="text-2xl lg:text-3xl font-bold text-[#ededed]">
+                  <div className="flex-1">
+                    <h1 className="text-2xl lg:text-3xl font-bold text-[#ededed] mb-2">
                       {checkout.metadata.tool_name}
                     </h1>
                     {vendor && (
-                      <p className="text-sm text-[#9ca3af] mt-1">by {vendor.full_name}</p>
+                      <p className="text-sm text-[#9ca3af] mb-3">by {vendor.full_name}</p>
+                    )}
+                    {toolDescription && (
+                      <p className="text-sm text-[#d1d5db] leading-relaxed">
+                        {toolDescription}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -440,84 +439,6 @@ export default function CreditCheckoutPage() {
                   </div>
                 </div>
               )}
-
-              {/* What's Included Section */}
-              <div className="bg-[#1f2937]/50 border border-[#374151] rounded-xl p-6">
-                <h2 className="text-lg font-semibold text-[#ededed] mb-4">What&apos;s included</h2>
-                <div className="space-y-3">
-                  <div className="flex items-start gap-3">
-                    <div className="mt-0.5">
-                      <Check className="w-5 h-5 text-[#3ecf8e]" />
-                    </div>
-                    <div>
-                      <p className="text-[#ededed] font-medium">Instant Tool Access</p>
-                      <p className="text-sm text-[#9ca3af] mt-0.5">
-                        Get immediate access to {checkout.metadata.tool_name}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="mt-0.5">
-                      <Check className="w-5 h-5 text-[#3ecf8e]" />
-                    </div>
-                    <div>
-                      <p className="text-[#ededed] font-medium">Secure Connection</p>
-                      <p className="text-sm text-[#9ca3af] mt-0.5">
-                        All transactions are encrypted and secure
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="mt-0.5">
-                      <Check className="w-5 h-5 text-[#3ecf8e]" />
-                    </div>
-                    <div>
-                      <p className="text-[#ededed] font-medium">Transaction History</p>
-                      <p className="text-sm text-[#9ca3af] mt-0.5">
-                        Full record in your dashboard
-                      </p>
-                    </div>
-                  </div>
-                  {vendor && (
-                    <div className="flex items-start gap-3">
-                      <div className="mt-0.5">
-                        <Check className="w-5 h-5 text-[#3ecf8e]" />
-                      </div>
-                      <div>
-                        <p className="text-[#ededed] font-medium">Vendor Support</p>
-                        <p className="text-sm text-[#9ca3af] mt-0.5">
-                          Direct support from {vendor.full_name}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Additional Info */}
-              <div className="bg-[#1f2937]/30 border border-[#374151]/50 rounded-xl p-6">
-                <h3 className="text-base font-semibold text-[#ededed] mb-3">How it works</h3>
-                <ol className="space-y-3 text-sm text-[#9ca3af]">
-                  <li className="flex gap-3">
-                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#3ecf8e]/20 text-[#3ecf8e] flex items-center justify-center text-xs font-bold">1</span>
-                    <span>Confirm your purchase using your credit balance</span>
-                  </li>
-                  <li className="flex gap-3">
-                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#3ecf8e]/20 text-[#3ecf8e] flex items-center justify-center text-xs font-bold">2</span>
-                    <span>Credits are deducted from your account</span>
-                  </li>
-                  <li className="flex gap-3">
-                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#3ecf8e]/20 text-[#3ecf8e] flex items-center justify-center text-xs font-bold">3</span>
-                    <span>Tool opens immediately in a new tab</span>
-                  </li>
-                </ol>
-              </div>
-
-              {/* Security Badge */}
-              <div className="flex items-center gap-2 text-sm text-[#9ca3af] pt-4">
-                <Lock className="w-4 h-4" />
-                <span>Secure checkout powered by 1sub.io</span>
-              </div>
             </div>
           </div>
 
@@ -531,43 +452,131 @@ export default function CreditCheckoutPage() {
                   {/* Products Selection (new structure) */}
                   {hasProducts && !isCompleted && (
                     <div className="space-y-3">
-                      <label className="text-sm font-medium text-[#9ca3af]">Select Product</label>
-                      
-                      {checkout.metadata.products!.map((product: CheckoutProduct) => {
-                        const pm = product.pricing_model;
-                        let priceDisplay = '';
-                        let priceLabel = '';
-                        
-                        if (pm.one_time?.enabled) {
-                          if (pm.one_time.price) {
-                            priceDisplay = pm.one_time.price.toString();
-                            priceLabel = 'credits';
-                          } else if (pm.one_time.min_price && pm.one_time.max_price) {
-                            priceDisplay = `${pm.one_time.min_price}-${pm.one_time.max_price}`;
-                            priceLabel = 'credits';
-                          } else {
-                            priceDisplay = 'Custom';
-                            priceLabel = '';
-                          }
-                        } else if (pm.subscription?.enabled && pm.subscription.price) {
-                          priceDisplay = pm.subscription.price.toString();
-                          priceLabel = `/${pm.subscription.interval === 'year' ? 'yr' : 'mo'}`;
-                        } else if (pm.usage_based?.enabled && pm.usage_based.price_per_unit) {
-                          priceDisplay = pm.usage_based.price_per_unit.toString();
-                          priceLabel = `/${pm.usage_based.unit_name || 'unit'}`;
-                        }
-                        
-                        return (
-                          <button
-                            key={product.id}
-                            type="button"
-                            onClick={() => setSelectedPricing(product.id)}
-                            className={`w-full p-4 rounded-xl border-2 transition-all text-left ${
-                              selectedPricing === product.id
-                                ? 'border-[#3ecf8e] bg-[#3ecf8e]/5 shadow-lg shadow-[#3ecf8e]/10'
-                                : 'border-[#374151] hover:border-[#4b5563] bg-[#0a0a0a]/30'
-                            }`}
-                          >
+                      {!showAllPlans ? (
+                        // Show selected product with option to change
+                        <>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-sm font-medium text-[#9ca3af]">Selected Plan</label>
+                            {checkout.metadata.products!.length > 1 && (
+                              <button
+                                onClick={() => setShowAllPlans(true)}
+                                className="text-xs text-[#3ecf8e] hover:text-[#2dd4bf] font-medium"
+                              >
+                                Change Plan →
+                              </button>
+                            )}
+                          </div>
+                          {checkout.metadata.products!.filter((p: CheckoutProduct) => p.id === selectedPricing).map((product: CheckoutProduct) => {
+                            const pm = product.pricing_model;
+                            let priceDisplay = '';
+                            let priceLabel = '';
+                            
+                            if (pm.one_time?.enabled) {
+                              if (pm.one_time.price) {
+                                priceDisplay = pm.one_time.price.toString();
+                                priceLabel = 'credits';
+                              } else if (pm.one_time.min_price && pm.one_time.max_price) {
+                                priceDisplay = `${pm.one_time.min_price}-${pm.one_time.max_price}`;
+                                priceLabel = 'credits';
+                              } else {
+                                priceDisplay = 'Custom';
+                                priceLabel = '';
+                              }
+                            } else if (pm.subscription?.enabled && pm.subscription.price) {
+                              priceDisplay = pm.subscription.price.toString();
+                              priceLabel = `/${pm.subscription.interval === 'year' ? 'yr' : 'mo'}`;
+                            } else if (pm.usage_based?.enabled && pm.usage_based.price_per_unit) {
+                              priceDisplay = pm.usage_based.price_per_unit.toString();
+                              priceLabel = `/${pm.usage_based.unit_name || 'unit'}`;
+                            }
+                            
+                            return (
+                              <div key={product.id} className="w-full p-4 rounded border-2 border-[#3ecf8e] bg-[#3ecf8e]/5">
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <div className="font-semibold text-[#ededed] mb-1 flex items-center gap-2">
+                                      {product.name}
+                                      {product.is_preferred && (
+                                        <span className="text-xs bg-[#3ecf8e]/20 text-[#3ecf8e] px-2 py-0.5 rounded-full font-medium">
+                                          Recommended
+                                        </span>
+                                      )}
+                                    </div>
+                                    {product.description && (
+                                      <div className="text-xs text-[#9ca3af] mb-2">
+                                        {product.description}
+                                      </div>
+                                    )}
+                                    {product.features && product.features.length > 0 && (
+                                      <div className="mt-2 space-y-1">
+                                        {product.features.map((feature: string, idx: number) => (
+                                          <div key={idx} className="text-xs text-[#9ca3af] flex items-center gap-1">
+                                            <Check className="w-3 h-3 text-[#3ecf8e]" />
+                                            {feature}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="text-lg font-bold text-[#3ecf8e] ml-4">
+                                    {priceDisplay}
+                                    <span className="text-xs text-[#9ca3af] ml-1">{priceLabel}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </>
+                      ) : (
+                        // Show all products to choose from
+                        <>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-sm font-medium text-[#9ca3af]">Choose a Plan</label>
+                            <button
+                              onClick={() => setShowAllPlans(false)}
+                              className="text-xs text-[#9ca3af] hover:text-[#ededed] font-medium"
+                            >
+                              ← Back
+                            </button>
+                          </div>
+                          {checkout.metadata.products!.map((product: CheckoutProduct) => {
+                            const pm = product.pricing_model;
+                            let priceDisplay = '';
+                            let priceLabel = '';
+                            
+                            if (pm.one_time?.enabled) {
+                              if (pm.one_time.price) {
+                                priceDisplay = pm.one_time.price.toString();
+                                priceLabel = 'credits';
+                              } else if (pm.one_time.min_price && pm.one_time.max_price) {
+                                priceDisplay = `${pm.one_time.min_price}-${pm.one_time.max_price}`;
+                                priceLabel = 'credits';
+                              } else {
+                                priceDisplay = 'Custom';
+                                priceLabel = '';
+                              }
+                            } else if (pm.subscription?.enabled && pm.subscription.price) {
+                              priceDisplay = pm.subscription.price.toString();
+                              priceLabel = `/${pm.subscription.interval === 'year' ? 'yr' : 'mo'}`;
+                            } else if (pm.usage_based?.enabled && pm.usage_based.price_per_unit) {
+                              priceDisplay = pm.usage_based.price_per_unit.toString();
+                              priceLabel = `/${pm.usage_based.unit_name || 'unit'}`;
+                            }
+                            
+                            return (
+                              <button
+                                key={product.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedPricing(product.id);
+                                  setShowAllPlans(false);
+                                }}
+                                className={`w-full p-4 rounded-xl border-2 transition-all text-left ${
+                                  selectedPricing === product.id
+                                    ? 'border-[#3ecf8e] bg-[#3ecf8e]/5 shadow-lg shadow-[#3ecf8e]/10'
+                                    : 'border-[#374151] hover:border-[#4b5563] bg-[#0a0a0a]/30'
+                                }`}
+                              >
                             <div className="flex items-center justify-between">
                               <div className="flex-1">
                                 <div className="font-semibold text-[#ededed] mb-1 flex items-center gap-2">
@@ -602,18 +611,103 @@ export default function CreditCheckoutPage() {
                           </button>
                         );
                       })}
+                        </>
+                      )}
                     </div>
                   )}
 
                   {/* Pricing Options (old structure) */}
                   {hasPricingOptions && !isCompleted && !hasProducts && (
                     <div className="space-y-3">
-                      <label className="text-sm font-medium text-[#9ca3af]">Select Plan</label>
-                      
-                      {checkout.metadata.pricing_options?.one_time?.enabled && (
+                      {!showAllPlans ? (
+                        // Show selected plan with option to change
+                        <>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-sm font-medium text-[#9ca3af]">Selected Plan</label>
+                            {Object.values(checkout.metadata.pricing_options || {}).filter(opt => opt?.enabled).length > 1 && (
+                              <button
+                                onClick={() => setShowAllPlans(true)}
+                                className="text-xs text-[#3ecf8e] hover:text-[#2dd4bf] font-medium"
+                              >
+                                Change Plan →
+                              </button>
+                            )}
+                          </div>
+                          
+                          {selectedPricing === 'one_time' && checkout.metadata.pricing_options?.one_time?.enabled && (
+                            <div className="w-full p-4 rounded border-2 border-[#3ecf8e] bg-[#3ecf8e]/5">
+                              <div className="flex items-center justify-between">
+                                <div className="flex-1">
+                                  <div className="font-semibold text-[#ededed] mb-1">One-time Payment</div>
+                                  <div className="text-xs text-[#9ca3af]">
+                                    {checkout.metadata.pricing_options.one_time.description || 'Lifetime access'}
+                                  </div>
+                                </div>
+                                <div className="text-lg font-bold text-[#3ecf8e] ml-4">
+                                  {checkout.metadata.pricing_options.one_time.price}
+                                  <span className="text-xs text-[#9ca3af] ml-1">credits</span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {selectedPricing === 'subscription_monthly' && checkout.metadata.pricing_options?.subscription_monthly?.enabled && (
+                            <div className="w-full p-4 rounded border-2 border-[#3ecf8e] bg-[#3ecf8e]/5">
+                              <div className="flex items-center justify-between">
+                                <div className="flex-1">
+                                  <div className="font-semibold text-[#ededed] mb-1">Monthly</div>
+                                  <div className="text-xs text-[#9ca3af]">
+                                    {checkout.metadata.pricing_options.subscription_monthly.description || 'Billed monthly'}
+                                  </div>
+                                </div>
+                                <div className="text-lg font-bold text-[#3ecf8e] ml-4">
+                                  {checkout.metadata.pricing_options.subscription_monthly.price}
+                                  <span className="text-xs text-[#9ca3af] ml-1">/mo</span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {selectedPricing === 'subscription_yearly' && checkout.metadata.pricing_options?.subscription_yearly?.enabled && (
+                            <div className="w-full p-4 rounded border-2 border-[#3ecf8e] bg-[#3ecf8e]/5">
+                              <div className="flex items-center justify-between">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <div className="font-semibold text-[#ededed]">Yearly</div>
+                                    <span className="text-xs bg-[#3ecf8e]/20 text-[#3ecf8e] px-2 py-0.5 rounded-full font-medium">Best Value</span>
+                                  </div>
+                                  <div className="text-xs text-[#9ca3af]">
+                                    {checkout.metadata.pricing_options.subscription_yearly.description || 'Billed annually'}
+                                  </div>
+                                </div>
+                                <div className="text-lg font-bold text-[#3ecf8e] ml-4">
+                                  {checkout.metadata.pricing_options.subscription_yearly.price}
+                                  <span className="text-xs text-[#9ca3af] ml-1">/yr</span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        // Show all plans to choose from
+                        <>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-sm font-medium text-[#9ca3af]">Choose a Plan</label>
+                            <button
+                              onClick={() => setShowAllPlans(false)}
+                              className="text-xs text-[#9ca3af] hover:text-[#ededed] font-medium"
+                            >
+                              ← Back
+                            </button>
+                          </div>
+                          
+                          {checkout.metadata.pricing_options?.one_time?.enabled && (
                         <button
                           type="button"
-                          onClick={() => setSelectedPricing('one_time')}
+                          onClick={() => {
+                            setSelectedPricing('one_time');
+                            setShowAllPlans(false);
+                          }}
                           className={`w-full p-4 rounded-xl border-2 transition-all text-left ${
                             selectedPricing === 'one_time'
                               ? 'border-[#3ecf8e] bg-[#3ecf8e]/5 shadow-lg shadow-[#3ecf8e]/10'
@@ -638,7 +732,10 @@ export default function CreditCheckoutPage() {
                       {checkout.metadata.pricing_options?.subscription_monthly?.enabled && (
                         <button
                           type="button"
-                          onClick={() => setSelectedPricing('subscription_monthly')}
+                          onClick={() => {
+                            setSelectedPricing('subscription_monthly');
+                            setShowAllPlans(false);
+                          }}
                           className={`w-full p-4 rounded-xl border-2 transition-all text-left ${
                             selectedPricing === 'subscription_monthly'
                               ? 'border-[#3ecf8e] bg-[#3ecf8e]/5 shadow-lg shadow-[#3ecf8e]/10'
@@ -663,7 +760,10 @@ export default function CreditCheckoutPage() {
                       {checkout.metadata.pricing_options?.subscription_yearly?.enabled && (
                         <button
                           type="button"
-                          onClick={() => setSelectedPricing('subscription_yearly')}
+                          onClick={() => {
+                            setSelectedPricing('subscription_yearly');
+                            setShowAllPlans(false);
+                          }}
                           className={`w-full p-4 rounded-xl border-2 transition-all text-left relative ${
                             selectedPricing === 'subscription_yearly'
                               ? 'border-[#3ecf8e] bg-[#3ecf8e]/5 shadow-lg shadow-[#3ecf8e]/10'
@@ -687,39 +787,21 @@ export default function CreditCheckoutPage() {
                           </div>
                         </button>
                       )}
+                        </>
+                      )}
                     </div>
                   )}
 
                   {/* Order Details */}
                   <div className="border-t border-[#374151] pt-6 space-y-4">
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-[#9ca3af]">Subtotal</span>
-                      <span className="text-base font-semibold text-[#ededed]">
-                        {selectedPrice} credits
+                      <span className="text-base font-medium text-[#ededed]">Total</span>
+                      <span className="text-2xl font-bold text-[#3ecf8e]">
+                        {selectedPrice}
+                        <span className="text-sm text-[#9ca3af] ml-1">
+                          {isSubscription && subscriptionPeriod ? `/${subscriptionPeriod === 'monthly' ? 'mo' : 'yr'}` : 'credits'}
+                        </span>
                       </span>
-                    </div>
-                    
-                    {hasPricingOptions && selectedPricing && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-[#9ca3af]">Plan Type</span>
-                        <span className="text-sm text-[#ededed]">
-                          {selectedPricing === 'one_time' ? 'One-time' : 
-                           selectedPricing === 'subscription_monthly' ? 'Monthly' : 
-                           'Yearly'}
-                        </span>
-                      </div>
-                    )}
-
-                    <div className="border-t border-[#374151] pt-4">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-base font-medium text-[#ededed]">Total</span>
-                        <span className="text-2xl font-bold text-[#3ecf8e]">
-                          {selectedPrice}
-                          <span className="text-sm text-[#9ca3af] ml-1">
-                            {isSubscription && subscriptionPeriod ? `/${subscriptionPeriod === 'monthly' ? 'mo' : 'yr'}` : 'credits'}
-                          </span>
-                        </span>
-                      </div>
                     </div>
 
                     {/* Balance Info */}
@@ -744,16 +826,16 @@ export default function CreditCheckoutPage() {
                     <div className="bg-red-400/10 border border-red-400/20 rounded-lg p-4">
                       <div className="flex items-start gap-3">
                         <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-                        <div>
+                        <div className="flex-1">
                           <p className="text-red-400 font-medium text-sm mb-1">Insufficient Credits</p>
                           <p className="text-xs text-[#9ca3af] mb-3">
                             You need {selectedPrice} credits but have {user?.credits.toFixed(2)} credits.
                           </p>
                           <button
-                            onClick={() => router.push('/buy-credits')}
-                            className="text-xs text-[#3ecf8e] hover:text-[#2dd4bf] font-medium underline"
+                            onClick={() => setShowBuyCreditsDialog(true)}
+                            className="bg-[#3ecf8e] text-black px-3 py-1.5 rounded text-xs font-semibold hover:bg-[#2dd4bf] transition-colors w-fit"
                           >
-                            Buy More Credits →
+                            Buy More Credits
                           </button>
                         </div>
                       </div>
@@ -770,7 +852,7 @@ export default function CreditCheckoutPage() {
                   <button
                     onClick={handleConfirmPurchase}
                     disabled={(!hasEnoughCredits && !isCompleted) || isProcessing || (hasPricingOptions && !selectedPricing && !isCompleted)}
-                    className="w-full bg-[#3ecf8e] text-black font-bold py-4 px-6 rounded-xl hover:bg-[#2dd4bf] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#3ecf8e]/20"
+                    className="w-full bg-[#3ecf8e] text-black font-bold py-4 px-6 rounded-xl hover:bg-[#2dd4bf] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
                   >
                     {isProcessing ? (
                       <>
@@ -786,24 +868,15 @@ export default function CreditCheckoutPage() {
                       <span>Select a Plan</span>
                     ) : (
                       <>
-                        <span>Confirm Purchase</span>
+                        <span>confirm and buy</span>
                       </>
                     )}
                   </button>
 
-                  {/* Cancel Link */}
-                  {!isCompleted && (
-                    <button
-                      onClick={() => router.push('/backoffice')}
-                      className="w-full text-center text-sm text-[#9ca3af] hover:text-[#ededed] transition-colors py-2"
-                    >
-                      Cancel and return to dashboard
-                    </button>
-                  )}
-
-                  {/* Checkout ID */}
-                  <div className="text-center text-xs text-[#9ca3af] pt-4 border-t border-[#374151]">
-                    Order ID: {checkout.id.slice(0, 8)}...
+                  {/* Security Badge */}
+                  <div className="flex items-center justify-center gap-2 text-xs text-[#9ca3af] pt-4 border-t border-[#374151]">
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>Secure checkout powered by 1sub.io</span>
                   </div>
                 </div>
               </div>
@@ -811,6 +884,26 @@ export default function CreditCheckoutPage() {
           </div>
         </div>
       </main>
+
+      {/* Buy Credits Dialog */}
+      <BuyCreditsDialog
+        isOpen={showBuyCreditsDialog}
+        onClose={() => setShowBuyCreditsDialog(false)}
+        currentBalance={user?.credits || 0}
+        neededAmount={selectedPrice}
+        onCreditsAdded={async () => {
+          // Refetch user data to update balance
+          try {
+            const response = await fetch(`/api/checkout/${checkoutId}`);
+            if (response.ok) {
+              const data = await response.json();
+              setUser(data.user);
+            }
+          } catch (err) {
+            console.error('Error refreshing balance:', err);
+          }
+        }}
+      />
     </div>
   );
 }
