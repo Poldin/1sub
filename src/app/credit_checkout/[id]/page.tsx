@@ -889,8 +889,9 @@ export default function CreditCheckoutPage() {
       <BuyCreditsDialog
         isOpen={showBuyCreditsDialog}
         onClose={() => setShowBuyCreditsDialog(false)}
-        currentBalance={user?.credits || 0}
-        neededAmount={selectedPrice}
+        currentCredits={user?.credits || 0}
+        currentPlan={{ id: 'starter', name: 'Starter', creditsPerMonth: 50, price: 50 }} // TODO: Get from user subscription
+        maxOverdraft={0} // 0 = locked, >0 = enabled
         onCreditsAdded={async () => {
           // Refetch user data to update balance
           try {
