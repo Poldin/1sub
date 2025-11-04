@@ -424,23 +424,22 @@ export default function Home() {
             <div className="mb-6 flex items-end justify-center gap-1 sm:gap-2 px-4">
               {/* 1% Tier - Smallest */}
               <div className="flex flex-col items-center">
+                <div className="border-2 border-white/80 rounded-lg p-3 sm:p-4 mb-2 w-20 sm:w-24 h-16 sm:h-16 flex flex-col items-center justify-center">
+                  <div className="text-3xl sm:text-4xl font-black text-white opacity-40">1%</div>
+                </div>
+              </div>
+
+            {/* 5% Tier - Smallest */}
+              <div className="flex flex-col items-center">
                 <div className="border-2 border-white/80 rounded-lg p-3 sm:p-4 mb-2 w-20 sm:w-24 h-24 sm:h-28 flex flex-col items-center justify-center">
-                  <div className="text-3xl sm:text-4xl font-black text-white opacity-50">5%</div>
-                  <div className="flex items-center gap-1 mt-1">
-                    <Users className="w-3 h-3 text-green-100" />
-                    <span className="text-xs text-green-100 font-semibold">0-1K</span>
-                  </div>
+                  <div className="text-3xl sm:text-4xl font-black text-white opacity-60">5%</div>
                 </div>
               </div>
               
               {/* 2% Tier - Medium */}
               <div className="flex flex-col items-center">
                 <div className="border-2 border-white/90 rounded-lg p-4 sm:p-6 mb-2 w-24 sm:w-32 h-32 sm:h-40 flex flex-col items-center justify-center">
-                  <div className="text-4xl sm:text-5xl font-black text-white opacity-75">10%</div>
-                  <div className="flex items-center gap-1 mt-1">
-                    <Users className="w-3 h-3 sm:w-4 sm:h-4 text-green-100" />
-                    <span className="text-xs sm:text-sm text-green-100 font-semibold">1K+</span>
-                  </div>
+                  <div className="text-4xl sm:text-5xl font-black text-white opacity-80">10%</div>
                 </div>
               </div>
               
@@ -448,10 +447,6 @@ export default function Home() {
               <div className="flex flex-col items-center">
                 <div className="border-3 border-white rounded-lg p-6 sm:p-8 mb-2 w-28 sm:w-40 h-40 sm:h-52 flex flex-col items-center justify-center">
                   <div className="text-5xl sm:text-7xl font-black text-white opacity-100">15%</div>
-                  <div className="flex items-center gap-1 mt-2">
-                    <Users className="w-4 h-4 sm:w-5 sm:h-5 text-green-100" />
-                    <span className="text-sm sm:text-base text-green-100 font-semibold">10K+</span>
-                  </div>
                 </div>
               </div>
             </div>
