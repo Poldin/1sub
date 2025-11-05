@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { calculateCreditsFromTransactions } from '@/lib/credits';
+import { generateToolAccessToken } from '@/lib/jwt';
 
 export async function POST(request: NextRequest) {
   try {
@@ -307,11 +308,27 @@ export async function POST(request: NextRequest) {
           }
     }
 
-    // 10. Update checkout status to completed
+    // 10. Generate JWT token for tool access
+    let toolAccessToken: string | null = null;
+    try {
+      toolAccessToken = generateToolAccessToken(
+        authUser.id,
+        metadata.tool_id as string,
+        checkout.id
+      );
+    } catch (error) {
+      console.error('Error generating tool access token:', error);
+      // Don't fail the checkout if token generation fails
+    }
+
+    // 11. Update checkout status to completed
+    // FIX: Don't store JWT token in database (security issue)
+    // Tokens are short-lived and should only be transmitted, not persisted
     const updatedMetadata = {
       ...metadata,
       status: 'completed',
       completed_at: new Date().toISOString(),
+      // Removed: tool_access_token storage (security fix)
     };
 
     const { error: updateError } = await supabase
@@ -325,13 +342,14 @@ export async function POST(request: NextRequest) {
       console.error('Checkout update error:', updateError);
     }
 
-    // 11. Return success
+    // 12. Return success
     return NextResponse.json({
       success: true,
       message: checkoutType === 'tool_subscription' 
         ? 'Subscription activated successfully' 
         : 'Purchase completed successfully',
       tool_url: metadata.tool_url,
+      tool_access_token: toolAccessToken, // Include token in response
       new_balance: currentBalance - creditCost,
       is_subscription: checkoutType === 'tool_subscription',
       selected_pricing: selected_pricing || null,

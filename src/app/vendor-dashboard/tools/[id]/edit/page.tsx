@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Menu, ArrowLeft } from 'lucide-react';
+import { Menu, ArrowLeft, Copy } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import Sidebar from '../../../../backoffice/components/Sidebar';
 import Footer from '../../../../components/Footer';
@@ -31,14 +31,14 @@ export default function EditToolPage() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    url: ''
+    toolExternalUrl: ''
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
   const [originalData, setOriginalData] = useState({
     name: '',
     description: '',
-    url: ''
+    toolExternalUrl: ''
   });
   const [hasChanges, setHasChanges] = useState(false);
   
@@ -60,6 +60,7 @@ export default function EditToolPage() {
     const changed = 
       formData.name !== originalData.name ||
       formData.description !== originalData.description ||
+      formData.toolExternalUrl !== originalData.toolExternalUrl ||
       imageFile !== null;
     setHasChanges(changed);
   }, [formData, imageFile, originalData]);
@@ -113,14 +114,28 @@ export default function EditToolPage() {
         }
 
         setTool(toolData);
+        const metadata = (toolData.metadata as Record<string, unknown>) || {};
+        const uiMetadata = (metadata.ui as Record<string, unknown>) || {};
+        
+        // Handle backward compatibility: if url looks like image URL, check metadata
+        let externalUrl = toolData.url || '';
+        if (externalUrl.includes('storage') || externalUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+          // This might be an old image URL, check if we have a proper external URL
+          // For now, we'll prompt the user to update it
+          externalUrl = '';
+        }
+        
         const initialData = {
           name: toolData.name,
           description: toolData.description || '',
-          url: toolData.url
+          toolExternalUrl: externalUrl
         };
         setFormData(initialData);
         setOriginalData(initialData);
-        setImagePreview(toolData.url); // Show current image
+        
+        // Hero image is in metadata.ui.hero_image_url
+        const heroUrl = (uiMetadata.hero_image_url as string) || '';
+        setImagePreview(heroUrl); // Show current hero image
         setIsLoading(false);
       } catch (err) {
         console.error('Error:', err);
@@ -160,9 +175,34 @@ export default function EditToolPage() {
         return;
       }
 
-      let imageUrl = formData.url;
+      // Validate external URL
+      if (!formData.toolExternalUrl || formData.toolExternalUrl.trim() === '') {
+        alert('Please provide an external tool URL');
+        setIsSaving(false);
+        return;
+      }
 
-      // Upload new image if selected
+      // Validate URL format
+      try {
+        const url = new URL(formData.toolExternalUrl);
+        if (!['http:', 'https:'].includes(url.protocol)) {
+          alert('External URL must use HTTP or HTTPS protocol');
+          setIsSaving(false);
+          return;
+        }
+      } catch {
+        alert('Please provide a valid external tool URL (e.g., https://example.com)');
+        setIsSaving(false);
+        return;
+      }
+
+      // Get current metadata
+      const currentMetadata = (tool?.metadata as Record<string, unknown>) || {};
+      const currentUiMetadata = (currentMetadata.ui as Record<string, unknown>) || {};
+      
+      let heroImageUrl = (currentUiMetadata.hero_image_url as string) || '';
+
+      // Upload new hero image if selected
       if (imageFile) {
         const fileExt = imageFile.name.split('.').pop();
         const fileName = `${authUser.id}-${Date.now()}.${fileExt}`;
@@ -187,16 +227,26 @@ export default function EditToolPage() {
           .from('allfile')
           .getPublicUrl(filePath);
 
-        imageUrl = publicUrl;
+        heroImageUrl = publicUrl;
       }
 
-      // Update tool
+      // Update metadata with hero image URL
+      const updatedMetadata = {
+        ...currentMetadata,
+        ui: {
+          ...currentUiMetadata,
+          hero_image_url: heroImageUrl
+        }
+      };
+
+      // Update tool with external URL and updated metadata
       const { error: updateError } = await supabase
         .from('tools')
         .update({
           name: formData.name,
           description: formData.description,
-          url: imageUrl,
+          url: formData.toolExternalUrl, // External tool URL
+          metadata: updatedMetadata, // Hero image in metadata
           updated_at: new Date().toISOString()
         })
         .eq('id', toolId)
@@ -213,11 +263,11 @@ export default function EditToolPage() {
       const updatedData = {
         name: formData.name,
         description: formData.description,
-        url: imageUrl
+        toolExternalUrl: formData.toolExternalUrl
       };
       setOriginalData(updatedData);
       setFormData(updatedData);
-      setImagePreview(imageUrl); // Update preview with new image URL
+      setImagePreview(heroImageUrl); // Update preview with new hero image URL
       setImageFile(null);
       setHasChanges(false);
       setIsSaving(false);
@@ -236,6 +286,11 @@ export default function EditToolPage() {
       ...formData,
       [e.target.name]: e.target.value
     });
+  };
+
+  const handleCopyToolId = () => {
+    navigator.clipboard.writeText(toolId);
+    alert('Tool ID copied to clipboard!');
   };
 
   if (isLoading) {
@@ -301,6 +356,33 @@ export default function EditToolPage() {
             {/* Form: Name, Image & Description */}
             <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
               <h2 className="text-lg font-semibold text-[#ededed] mb-6">Tool Information</h2>
+              
+              {/* Tool ID Display */}
+              <div className="mb-6 p-4 bg-[#374151] rounded-lg border border-[#4b5563]">
+                <label className="block text-sm font-medium text-[#d1d5db] mb-2">
+                  Tool ID
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={toolId}
+                    readOnly
+                    className="flex-1 px-4 py-2 bg-[#0a0a0a] border border-[#4b5563] rounded-lg text-[#ededed] font-mono text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCopyToolId}
+                    className="p-2 bg-[#374151] border border-[#4b5563] rounded-lg hover:bg-[#4b5563] transition-colors"
+                    title="Copy Tool ID"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </button>
+                </div>
+                <p className="text-xs text-[#9ca3af] mt-2">
+                  Use this ID for external tool integration
+                </p>
+              </div>
+
               <form id="tool-form" onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="space-y-6">
                 {/* Name and Image Side by Side */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -322,7 +404,7 @@ export default function EditToolPage() {
 
                   <div>
                     <label htmlFor="image" className="block text-sm font-medium text-[#d1d5db] mb-2">
-                      Tool Image *
+                      Hero Image *
                     </label>
                     <div className="flex items-center gap-3 p-1 border-2 border-[#4b5563] border-dashed rounded-lg hover:border-[#3ecf8e] transition-colors">
                       {imagePreview ? (
@@ -394,6 +476,26 @@ export default function EditToolPage() {
                     placeholder="Generate high-quality content with advanced AI. Perfect for content creators, marketers, and businesses..."
                     required
                   />
+                </div>
+
+                {/* External Tool URL */}
+                <div>
+                  <label htmlFor="toolExternalUrl" className="block text-sm font-medium text-[#d1d5db] mb-2">
+                    External Tool URL *
+                  </label>
+                  <input
+                    type="url"
+                    id="toolExternalUrl"
+                    name="toolExternalUrl"
+                    value={formData.toolExternalUrl}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
+                    placeholder="https://your-tool.com"
+                    required
+                  />
+                  <p className="mt-2 text-sm text-[#9ca3af]">
+                    The URL where users will be redirected after purchasing your tool. Must use HTTP or HTTPS.
+                  </p>
                 </div>
               </form>
             </div>

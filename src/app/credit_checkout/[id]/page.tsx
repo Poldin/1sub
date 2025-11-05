@@ -157,7 +157,15 @@ export default function CreditCheckoutPage() {
     // Check if already completed
     if (checkout.metadata.status === 'completed') {
       // Open tool and redirect
-      window.open(checkout.metadata.tool_url, '_blank');
+      // FIX: Token no longer stored in metadata (security fix)
+      // For repeat access, users need to re-authenticate or purchase again
+      const toolUrl = checkout.metadata.tool_url;
+      
+      if (toolUrl && toolUrl !== 'https://example.com/tool/' && !toolUrl.includes('example.com')) {
+        // Note: No token for already-completed purchases
+        // This is intentional - tokens are single-use and short-lived
+        window.open(toolUrl, '_blank');
+      }
       router.push('/backoffice?purchase_success=true');
       return;
     }
@@ -240,11 +248,16 @@ export default function CreditCheckoutPage() {
         }
       }
 
-      // Open tool URL from checkout metadata
+      // Open tool URL from checkout metadata with token
       const toolUrl = checkout.metadata.tool_url || data.tool_url;
+      const toolAccessToken = data.tool_access_token || null;
       
       if (toolUrl && toolUrl !== 'https://example.com/tool/' && !toolUrl.includes('example.com')) {
-        window.open(toolUrl, '_blank');
+        // Build redirect URL with token if available
+        const redirectUrl = toolAccessToken 
+          ? `${toolUrl}${toolUrl.includes('?') ? '&' : '?'}token=${toolAccessToken}`
+          : toolUrl;
+        window.open(redirectUrl, '_blank');
       } else {
         console.warn('Invalid tool URL:', toolUrl);
         alert('Tool purchased successfully, but URL is not configured. Please contact the vendor.');

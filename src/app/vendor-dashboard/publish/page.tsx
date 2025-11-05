@@ -14,7 +14,8 @@ export default function PublishToolPage() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    icon: ''
+    icon: '',
+    toolExternalUrl: ''
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
@@ -180,6 +181,25 @@ export default function PublishToolPage() {
       return;
     }
 
+    // Validate external URL
+    if (!formData.toolExternalUrl || formData.toolExternalUrl.trim() === '') {
+      alert('Please provide an external tool URL');
+      return;
+    }
+
+    // Validate URL format
+    try {
+      const url = new URL(formData.toolExternalUrl);
+      if (!['http:', 'https:'].includes(url.protocol)) {
+        alert('External URL must use HTTP or HTTPS protocol');
+        return;
+      }
+    } catch {
+      // URL parsing failed - invalid format
+      alert('Please provide a valid external tool URL (e.g., https://example.com)');
+      return;
+    }
+
     setIsPublishing(true);
 
     try {
@@ -245,6 +265,12 @@ export default function PublishToolPage() {
         logoUrl = logoPublicUrl;
       }
 
+      // Generate API key for the tool
+      const { generateApiKey, hashApiKey } = await import('@/lib/api-keys-client');
+      const apiKey = generateApiKey();
+      const apiKeyHash = await hashApiKey(apiKey);
+      const apiKeyCreatedAt = new Date().toISOString();
+
       // Prepare metadata structure
       const metadata: {
         vendor_id: string;
@@ -262,6 +288,9 @@ export default function PublishToolPage() {
           features?: string[];
           use_cases?: string[];
         };
+        api_key_hash?: string;
+        api_key_created_at?: string;
+        api_key_active?: boolean;
       } = {
         vendor_id: authUser.id, // Store vendor_id for checkout and transaction tracking
         ui: {
@@ -277,7 +306,10 @@ export default function PublishToolPage() {
           long_description: contentMetadata.longDescription || undefined,
           features: contentMetadata.features.length > 0 ? contentMetadata.features : undefined,
           use_cases: contentMetadata.useCases.length > 0 ? contentMetadata.useCases : undefined,
-        }
+        },
+        api_key_hash: apiKeyHash,
+        api_key_created_at: apiKeyCreatedAt,
+        api_key_active: true
       };
 
       // Remove undefined values
@@ -296,7 +328,7 @@ export default function PublishToolPage() {
         .insert({
           name: formData.name,
           description: formData.description,
-          url: publicUrl, // Hero image URL
+          url: formData.toolExternalUrl || '', // External tool URL
           is_active: true,
           user_profile_id: authUser.id,
           metadata: metadata
@@ -313,10 +345,13 @@ export default function PublishToolPage() {
       
       console.log('Tool created successfully:', toolData);
       
+      // Show API key to vendor (display once)
+      alert(`Tool created successfully!\n\nYour API key is: ${apiKey}\n\nPlease save this API key - it will not be shown again.`);
+      
       // Redirect to products page to configure pricing via products
       router.push(`/vendor-dashboard/products`);
       
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Error creating tool:', err);
       alert('Failed to create tool');
       setIsPublishing(false);
@@ -489,6 +524,26 @@ export default function PublishToolPage() {
                       placeholder="Generate high-quality content with advanced AI. Perfect for content creators, marketers, and businesses..."
                       required
                     />
+                  </div>
+
+                  {/* External Tool URL */}
+                  <div className="mb-6">
+                    <label htmlFor="toolExternalUrl" className="block text-sm font-medium text-[#d1d5db] mb-2">
+                      External Tool URL *
+                    </label>
+                    <input
+                      type="url"
+                      id="toolExternalUrl"
+                      name="toolExternalUrl"
+                      value={formData.toolExternalUrl}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
+                      placeholder="https://your-tool.com"
+                      required
+                    />
+                    <p className="mt-2 text-sm text-[#9ca3af]">
+                      The URL where users will be redirected after purchasing your tool. Must use HTTP or HTTPS.
+                    </p>
                   </div>
 
                   {/* Long Description */}

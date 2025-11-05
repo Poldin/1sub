@@ -87,6 +87,12 @@ export interface ToolMetadata {
   content?: ContentMetadata;
   vendor_id?: string;
   
+  // API key fields for external tool integration
+  api_key_hash?: string;  // Hashed API key for storage
+  api_key_created_at?: string;  // ISO timestamp
+  api_key_last_used_at?: string;  // ISO timestamp
+  api_key_active?: boolean;  // For revocation
+  
   // Legacy fields for backward compatibility
   icon?: string;
   category?: string;
