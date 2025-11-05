@@ -275,7 +275,7 @@ export default function ToolCard(props: ToolCardProps) {
               (e.target as HTMLImageElement).className = 'w-full h-48 object-contain p-8 opacity-20';
             }}
           />
-          {uiMeta.discount_percentage && uiMeta.discount_percentage > 0 && (
+          {(uiMeta.discount_percentage ?? 0) > 0 && (
             <div className="absolute top-3 right-3 bg-red-500 text-white px-3 py-1.5 rounded-lg shadow-lg">
               <span className="text-lg font-black">-{uiMeta.discount_percentage}%</span>
             </div>

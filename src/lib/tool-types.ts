@@ -254,3 +254,4 @@ export function hasUIMetadata(metadata: ToolMetadata | null): metadata is ToolMe
   return metadata !== null && metadata.ui !== undefined;
 }
 
+

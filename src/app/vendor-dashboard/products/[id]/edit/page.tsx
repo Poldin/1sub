@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowLeft, Upload, Save, Trash2 } from 'lucide-react';
+import { ArrowLeft, Save, Trash2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import Image from 'next/image';
 import { ProductPricingModel } from '@/lib/tool-types';
 
 interface Product {
@@ -31,8 +30,6 @@ export default function EditProductPage() {
     is_active: true,
   });
 
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string>('');
   const [isUpdating, setIsUpdating] = useState(false);
 
   const [pricingModel, setPricingModel] = useState<ProductPricingModel>({
@@ -130,18 +127,6 @@ export default function EditProductPage() {
       fetchProduct();
     }
   }, [productId, router]);
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setImageFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({
@@ -385,61 +370,6 @@ export default function EditProductPage() {
                 <label className="text-sm font-medium text-[#d1d5db]">
                   {formData.is_active ? 'Active' : 'Inactive'}
                 </label>
-              </div>
-
-              {/* Product Image */}
-              <div>
-                <label className="block text-sm font-medium text-[#d1d5db] mb-2">
-                  Product Image
-                </label>
-                <div className="border-2 border-dashed border-[#4b5563] rounded-lg p-6 hover:border-[#3ecf8e] transition-colors">
-                  {imagePreview ? (
-                    <div className="space-y-4">
-                      <div className="relative w-full h-48 rounded-lg overflow-hidden bg-[#374151]">
-                        <Image
-                          src={imagePreview}
-                          alt="Product preview"
-                          fill
-                          className="object-cover"
-                        />
-                      </div>
-                      <label
-                        htmlFor="image-upload"
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-[#374151] text-[#ededed] rounded-lg hover:bg-[#4b5563] transition-colors cursor-pointer font-medium"
-                      >
-                        <Upload className="w-4 h-4" />
-                        Change Image
-                        <input
-                          id="image-upload"
-                          type="file"
-                          accept="image/*"
-                          onChange={handleImageChange}
-                          className="sr-only"
-                        />
-                      </label>
-                    </div>
-                  ) : (
-                    <label
-                      htmlFor="image-upload"
-                      className="flex flex-col items-center cursor-pointer"
-                    >
-                      <Upload className="w-12 h-12 text-[#9ca3af] mb-3" />
-                      <span className="text-sm text-[#d1d5db] font-medium mb-1">
-                        Click to upload product image
-                      </span>
-                      <span className="text-xs text-[#9ca3af]">
-                        PNG, JPG, GIF up to 10MB
-                      </span>
-                      <input
-                        id="image-upload"
-                        type="file"
-                        accept="image/*"
-                        onChange={handleImageChange}
-                        className="sr-only"
-                      />
-                    </label>
-                  )}
-                </div>
               </div>
             </div>
           </div>

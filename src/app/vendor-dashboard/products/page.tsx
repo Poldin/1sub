@@ -334,11 +334,6 @@ export default function ProductsPage() {
                       key={product.id}
                       className="bg-[#1f2937] rounded-lg border border-[#374151] overflow-hidden hover:border-[#3ecf8e]/50 transition-colors"
                     >
-                      {/* Product Image */}
-                      <div className="w-full h-48 bg-gradient-to-br from-[#3ecf8e]/20 to-[#2dd4bf]/20 flex items-center justify-center">
-                        <Package className="w-16 h-16 text-[#3ecf8e]/50" />
-                      </div>
-
                       {/* Product Content */}
                       <div className="p-6">
                         <div className="flex items-start justify-between mb-2">

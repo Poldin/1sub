@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowLeft, Upload, Check } from 'lucide-react';
+import { ArrowLeft, Check } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import Image from 'next/image';
 import PricingModelsSection, { PricingModel } from './PricingModelsSection';
 
 export default function NewProductPage() {
@@ -17,8 +16,6 @@ export default function NewProductPage() {
     description: '',
   });
 
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string>('');
   const [isCreating, setIsCreating] = useState(false);
 
   const [pricingModel, setPricingModel] = useState<PricingModel>({
@@ -110,18 +107,6 @@ export default function NewProductPage() {
       fetchToolName();
     }
   }, [toolId]);
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setImageFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({
@@ -282,37 +267,21 @@ export default function NewProductPage() {
           <div className="grid grid-cols-2 gap-6">
             {/* Left Side: Form Fields */}
             <div className="space-y-6">
-              {/* Product Name and Upload Picture in same row */}
-              <div className="flex gap-3 items-end">
-                <div className="flex-1">
-                  <label htmlFor="name" className="block text-xs font-medium text-[#d1d5db] mb-1">
-                    Product Name *
-                  </label>
-                  <input
-                    type="text"
-                    id="name"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent text-sm"
-                    placeholder="Premium Plan"
-                    required
-                  />
-                </div>
-                <label
-                  htmlFor="image-upload"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#374151] text-[#ededed] rounded-lg hover:bg-[#4b5563] transition-colors cursor-pointer text-sm font-medium border border-[#4b5563] hover:border-[#3ecf8e]"
-                >
-                  <Upload className="w-4 h-4" />
-                  {imagePreview ? 'Change Image' : 'Upload Image'}
-                  <input
-                    id="image-upload"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className="sr-only"
-                  />
+              {/* Product Name */}
+              <div>
+                <label htmlFor="name" className="block text-xs font-medium text-[#d1d5db] mb-1">
+                  Product Name *
                 </label>
+                <input
+                  type="text"
+                  id="name"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent text-sm"
+                  placeholder="Premium Plan"
+                  required
+                />
               </div>
 
               {/* Description */}
@@ -347,25 +316,6 @@ export default function NewProductPage() {
                 <div className="border border-[#4b5563] rounded-lg p-6 bg-[#1a1a1a]">
                   {/* Card Preview */}
                   <div className="bg-[#374151] rounded-lg overflow-hidden">
-                    {/* Image */}
-                    <div className="relative w-full h-48 bg-[#4b5563]">
-                      {imagePreview ? (
-                        <Image
-                          src={imagePreview}
-                          alt="Product preview"
-                          fill
-                          className="object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <div className="text-center">
-                            <Upload className="w-12 h-12 text-[#6b7280] mx-auto mb-2" />
-                            <p className="text-xs text-[#9ca3af]">No image</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    
                     {/* Content */}
                     <div className="p-4">
                       <h3 className="text-lg font-semibold text-[#ededed] mb-2">
