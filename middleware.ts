@@ -3,11 +3,17 @@ import { updateSession } from '@/lib/supabase/middleware';
 import { NextResponse } from 'next/server';
 
 export async function middleware(request: NextRequest) {
+  const path = request.nextUrl.pathname;
+
+  // Allow API routes to handle their own auth to avoid redirecting POSTs like OTP verification
+  if (path.startsWith('/api/')) {
+    return NextResponse.next();
+  }
+
   const { supabaseResponse, user } = await updateSession(request);
 
   // Define public paths that don't require authentication
   const publicPaths = ['/', '/login', '/register', '/waitlist'];
-  const path = request.nextUrl.pathname;
 
   // Check if the current path is public
   const isPublicPath = publicPaths.includes(path);
