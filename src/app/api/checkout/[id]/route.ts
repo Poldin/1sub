@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { calculateCreditsFromTransactions } from '@/lib/credits';
 
 export async function GET(
   request: NextRequest,
@@ -32,6 +33,14 @@ export async function GET(
         { status: 404 }
       );
     }
+
+    console.log('[DEBUG][checkout/get] Request context', {
+      authUserId: authUser.id,
+      authEmail: authUser.email,
+      checkoutId: checkoutId,
+      checkoutUserId: checkoutData.user_id,
+      vendorId: checkoutData.vendor_id,
+    });
 
     // Verify user owns this checkout
     if (checkoutData.user_id !== authUser.id) {
@@ -75,13 +84,20 @@ export async function GET(
     }
 
     // Fetch user profile with credits
-    const { data: profileData } = await supabase
-      .from('user_profiles')
-      .select('credits')
-      .eq('id', authUser.id)
-      .single();
+    // Calculate credits from transactions (source of truth)
+    const { data: creditTransactions, error: creditError } = await supabase
+      .from('credit_transactions')
+      .select('credits_amount, type')
+      .eq('user_id', authUser.id);
 
-    const userCredits = profileData?.credits || 0;
+    if (creditError) {
+      console.error('[ERROR][checkout/get] Failed to fetch credit transactions', {
+        error: creditError,
+        authUserId: authUser.id,
+      });
+    }
+
+    const userCredits = calculateCreditsFromTransactions(creditTransactions || []);
 
     return NextResponse.json({
       checkout: checkoutData,

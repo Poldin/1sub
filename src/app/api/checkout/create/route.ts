@@ -15,6 +15,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log('[DEBUG][checkout/create] Authenticated user', {
+      id: authUser.id,
+      email: authUser.email,
+    });
+
     const body = await request.json();
     const { tool_id, selected_product_id } = body;
 
@@ -86,11 +91,21 @@ export async function POST(request: NextRequest) {
 
       if (error) {
         console.error('Error creating checkout:', error);
+        console.log('[DEBUG][checkout/create] Failed checkout creation', {
+          userId: authUser.id,
+          toolId: tool.id,
+        });
         return NextResponse.json(
           { error: 'Failed to create checkout' },
           { status: 500 }
         );
       }
+
+      console.log('[DEBUG][checkout/create] Checkout created', {
+        checkoutId: checkout.id,
+        checkoutUserId: checkout.user_id,
+        vendorId: checkout.vendor_id,
+      });
 
       return NextResponse.json({ checkout_id: checkout.id });
     }
@@ -133,11 +148,21 @@ export async function POST(request: NextRequest) {
 
       if (error) {
         console.error('Error creating checkout:', error);
+        console.log('[DEBUG][checkout/create] Failed checkout creation (pricing options)', {
+          userId: authUser.id,
+          toolId: tool.id,
+        });
         return NextResponse.json(
           { error: 'Failed to create checkout' },
           { status: 500 }
         );
       }
+
+      console.log('[DEBUG][checkout/create] Checkout created (pricing options)', {
+        checkoutId: checkout.id,
+        checkoutUserId: checkout.user_id,
+        vendorId: checkout.vendor_id,
+      });
 
       return NextResponse.json({ checkout_id: checkout.id });
     }

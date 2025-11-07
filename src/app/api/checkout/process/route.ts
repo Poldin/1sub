@@ -27,6 +27,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log('[DEBUG][checkout/process] Incoming request', {
+      authUserId: authUser.id,
+      authEmail: authUser.email,
+      checkoutId: checkout_id,
+    });
+
     // 1. Fetch checkout record
     const { data: checkout, error: checkoutError } = await supabase
       .from('checkouts')
@@ -41,8 +47,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log('[DEBUG][checkout/process] Checkout record', {
+      checkoutId: checkout.id,
+      checkoutUserId: checkout.user_id,
+      vendorId: checkout.vendor_id,
+      metadataStatus: (checkout.metadata as Record<string, unknown>)?.status,
+    });
+
     // 2. Verify user ownership
     if (checkout.user_id !== authUser.id) {
+      console.warn('[WARN][checkout/process] Auth user mismatch', {
+        authUserId: authUser.id,
+        checkoutUserId: checkout.user_id,
+      });
       return NextResponse.json(
         { error: 'Unauthorized to process this checkout' },
         { status: 403 }
@@ -209,6 +226,10 @@ export async function POST(request: NextRequest) {
 
     if (userTransactionError) {
       console.error('User transaction error:', userTransactionError);
+      console.log('[DEBUG][checkout/process] Failed to insert user transaction', {
+        authUserId: authUser.id,
+        checkoutId: checkout.id,
+      });
       return NextResponse.json(
         { error: 'Failed to process payment' },
         { status: 500 }
@@ -341,6 +362,13 @@ export async function POST(request: NextRequest) {
     if (updateError) {
       console.error('Checkout update error:', updateError);
     }
+
+    console.log('[DEBUG][checkout/process] Purchase complete', {
+      checkoutId: checkout.id,
+      authUserId: authUser.id,
+      newBalance: currentBalance - creditCost,
+      vendorId: checkout.vendor_id,
+    });
 
     // 12. Return success
     return NextResponse.json({

@@ -45,9 +45,12 @@ export async function GET() {
     // Calculate total credits using centralized utility
     const totalCredits = calculateCreditsFromTransactions(transactions || []);
     
-    console.log('Profile API - User ID:', authUser.id);
-    console.log('Profile API - Transactions count:', transactions?.length || 0);
-    console.log('Profile API - Calculated credits:', totalCredits);
+    console.log('[DEBUG][user/profile] Request context', {
+      authUserId: authUser.id,
+      authEmail: authUser.email,
+      transactionsCount: transactions?.length || 0,
+      calculatedCredits: totalCredits,
+    });
 
     return NextResponse.json({
       id: authUser.id,
