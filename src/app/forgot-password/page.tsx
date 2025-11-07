@@ -2,25 +2,39 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
 
 export default function ForgotPasswordPage() {
-  const [step, setStep] = useState<'email' | 'otp' | 'success'>('email');
   const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleEmailSubmit = (e: React.FormEvent) => {
+  const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email) {
-      setStep('otp');
-      // Here you would send password reset OTP to email
-    }
-  };
+    setError(null);
+    setSuccess(false);
 
-  const handleOtpSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (otp) {
-      setStep('success');
-      // Here you would verify OTP and send password reset instructions
+    try {
+      const supabase = createClient();
+      setIsSubmitting(true);
+
+      const redirectTo = `${window.location.origin}/reset-password`;
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo,
+      });
+
+      if (resetError) {
+        setError(resetError.message || 'Failed to send reset email. Please try again.');
+        return;
+      }
+
+      setSuccess(true);
+    } catch (err) {
+      console.error('Forgot password error:', err);
+      setError('An unexpected error occurred. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -42,128 +56,60 @@ export default function ForgotPasswordPage() {
 
         {/* Forgot Password Form */}
         <div className="bg-[#111111] rounded-2xl p-8 shadow-2xl border border-[#374151]">
-          {step === 'email' && (
-            <>
-              <h2 className="text-2xl font-bold mb-4 text-center">forgot password?</h2>
-              <p className="text-[#9ca3af] text-sm text-center mb-6">
-                no worries, we&apos;ll send you reset instructions
-              </p>
-              
-              <form onSubmit={handleEmailSubmit} className="space-y-6">
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-[#d1d5db] mb-2">
-                    email address
-                  </label>
-                  <input
-                    type="email"
-                    id="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1f2937] border border-[#374151] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
-                    placeholder="your@email.com"
-                    required
-                  />
-                </div>
-                
-                <button
-                  type="submit"
-                  className="w-full bg-[#3ecf8e] text-white py-3 px-4 rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors"
-                >
-                  send reset code
-                </button>
-              </form>
-            </>
-          )}
-
-          {step === 'otp' && (
-            <>
-              <div className="text-center mb-6">
-                <h2 className="text-2xl font-bold mb-2">check your email</h2>
-                <p className="text-[#9ca3af] text-sm">
-                  we sent a reset code to <span className="text-[#3ecf8e]">{email}</span>
-                </p>
-              </div>
-              
-              <form onSubmit={handleOtpSubmit} className="space-y-6">
-                <div>
-                  <label htmlFor="otp" className="block text-sm font-medium text-[#d1d5db] mb-2">
-                    reset code
-                  </label>
-                  <input
-                    type="text"
-                    id="otp"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1f2937] border border-[#374151] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent text-center text-xl tracking-widest"
-                    placeholder="000000"
-                    maxLength={6}
-                    required
-                  />
-                </div>
-                
-                <button
-                  type="submit"
-                  className="w-full bg-[#3ecf8e] text-white py-3 px-4 rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors"
-                >
-                  verify code
-                </button>
-                
-                <button
-                  type="button"
-                  onClick={() => setStep('email')}
-                  className="w-full text-[#9ca3af] text-sm hover:text-[#d1d5db] transition-colors"
-                >
-                  ← back to email
-                </button>
-              </form>
-            </>
-          )}
-
-          {step === 'success' && (
-            <div className="text-center">
-              <div className="w-16 h-16 bg-[#3ecf8e] rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-              
-              <h2 className="text-2xl font-bold mb-4">check your email</h2>
-              <p className="text-[#9ca3af] text-sm mb-6">
-                we&apos;ve sent password reset instructions to <span className="text-[#3ecf8e]">{email}</span>
-              </p>
-              
-              <div className="space-y-4">
-                <Link 
-                  href="/login"
-                  className="block w-full bg-[#3ecf8e] text-white py-3 px-4 rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors text-center"
-                >
-                  back to sign in
-                </Link>
-                
-                <button
-                  onClick={() => setStep('email')}
-                  className="w-full text-[#9ca3af] text-sm hover:text-[#d1d5db] transition-colors"
-                >
-                  didn&apos;t receive email? try again
-                </button>
-              </div>
+          <h2 className="text-2xl font-bold mb-4 text-center">forgot password?</h2>
+          <p className="text-[#9ca3af] text-sm text-center mb-6">
+            enter your email and we&apos;ll send you reset instructions
+          </p>
+          
+          <form onSubmit={handleEmailSubmit} className="space-y-6">
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-[#d1d5db] mb-2">
+                email address
+              </label>
+              <input
+                type="email"
+                id="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-3 bg-[#1f2937] border border-[#374151] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
+                placeholder="your@email.com"
+                required
+              />
             </div>
-          )}
+
+            {error && (
+              <div className="text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg p-3">
+                {error}
+              </div>
+            )}
+
+            {success && (
+              <div className="text-sm text-green-400 bg-green-400/10 border border-green-400/20 rounded-lg p-3">
+                Reset instructions sent! Check your email for a link to set a new password.
+              </div>
+            )}
+            
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full bg-[#3ecf8e] text-white py-3 px-4 rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? 'sending...' : 'send reset link'}
+            </button>
+          </form>
 
           {/* Links */}
-          {step !== 'success' && (
-            <div className="mt-6 text-center text-sm">
-              <div className="text-[#9ca3af]">
-                remember your password?{' '}
-                <Link 
-                  href="/login" 
-                  className="text-[#3ecf8e] hover:text-[#2dd4bf] transition-colors font-medium"
-                >
-                  sign in
-                </Link>
-              </div>
+          <div className="mt-6 text-center text-sm">
+            <div className="text-[#9ca3af]">
+              remember your password?{' '}
+              <Link 
+                href="/login" 
+                className="text-[#3ecf8e] hover:text-[#2dd4bf] transition-colors font-medium"
+              >
+                sign in
+              </Link>
             </div>
-          )}
+          </div>
         </div>
 
         {/* Footer */}
