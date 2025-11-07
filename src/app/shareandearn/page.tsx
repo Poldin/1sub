@@ -19,7 +19,10 @@ export default function ShareAndEarnPage() {
   const [hasTools, setHasTools] = useState(false);
 
   const referralCode = 'DEMO123';
-  const referralLink = `https://1sub.io/ref/${referralCode}`;
+  // Use current origin (works for localhost and production)
+  const referralLink = typeof window !== 'undefined' 
+    ? `${window.location.origin}/ref/${referralCode}`
+    : `/ref/${referralCode}`;
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);

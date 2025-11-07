@@ -80,7 +80,7 @@ Call `/api/v1/verify-user` to verify the token and get user info.
 
 ### Base URL
 ```
-https://1sub.io
+https://1sub.vercel.app
 ```
 
 ---
@@ -208,7 +208,7 @@ app.get('/auth/callback', async (req, res) => {
   try {
     // Step 2: Verify token
     const verifyResponse = await axios.post(
-      'https://1sub.io/api/v1/verify-user',
+      'https://1sub.vercel.app/api/v1/verify-user',
       { token },
       { headers: { 'Content-Type': 'application/json' } }
     );
@@ -237,7 +237,7 @@ app.post('/api/generate', async (req, res) => {
   try {
     // Consume credits
     const consumeResponse = await axios.post(
-      'https://1sub.io/api/v1/credits/consume',
+      'https://1sub.vercel.app/api/v1/credits/consume',
       {
         user_id: userId,
         amount: 10,
@@ -304,7 +304,7 @@ def auth_callback():
     try:
         # Step 2: Verify token
         response = requests.post(
-            'https://1sub.io/api/v1/verify-user',
+            'https://1sub.vercel.app/api/v1/verify-user',
             json={'token': token},
             headers={'Content-Type': 'application/json'}
         )
@@ -333,7 +333,7 @@ def generate():
     try:
         # Consume credits
         response = requests.post(
-            'https://1sub.io/api/v1/credits/consume',
+            'https://1sub.vercel.app/api/v1/credits/consume',
             json={
                 'user_id': user_id,
                 'amount': 10,
@@ -395,7 +395,7 @@ async function consumeCreditsWithRetry(data, maxRetries = 3) {
   for (let i = 0; i < maxRetries; i++) {
     try {
       const response = await axios.post(
-        'https://1sub.io/api/v1/credits/consume',
+        'https://1sub.vercel.app/api/v1/credits/consume',
         data,
         {
           headers: {
@@ -559,12 +559,12 @@ Request a test API key from 1sub support for development.
 
 ```bash
 # Test token verification
-curl -X POST https://1sub.io/api/v1/verify-user \
+curl -X POST https://1sub.vercel.app/api/v1/verify-user \
   -H "Content-Type: application/json" \
   -d '{"token":"YOUR_TEST_TOKEN"}'
 
 # Test credit consumption
-curl -X POST https://1sub.io/api/v1/credits/consume \
+curl -X POST https://1sub.vercel.app/api/v1/credits/consume \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -581,10 +581,11 @@ curl -X POST https://1sub.io/api/v1/credits/consume \
 
 Need help? Contact:
 - 📧 Email: support@1sub.io
-- 📚 Documentation: https://1sub.io/docs
+- 📚 Documentation: https://1sub.vercel.app/docs
 - 💬 Discord: https://discord.gg/1sub
 
 ---
 
 **Happy Integrating! 🚀**
+
 
