@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import { getPasswordRequirementStates, validatePassword } from '@/lib/auth/password';
@@ -9,10 +10,14 @@ import { getPasswordRequirementStates, validatePassword } from '@/lib/auth/passw
 type Step = 'email' | 'otp' | 'password' | 'success';
 
 export default function ForgotPasswordPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
   const [emailError, setEmailError] = useState('');
   const [isSubmittingEmail, setIsSubmittingEmail] = useState(false);
+  const [linkError, setLinkError] = useState('');
+  const [isProcessingLink, setIsProcessingLink] = useState(false);
 
   const [otp, setOtp] = useState('');
   const [otpError, setOtpError] = useState('');
@@ -25,6 +30,57 @@ export default function ForgotPasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+
+  const recoveryCode = useMemo(() => searchParams.get('code'), [searchParams]);
+  const recoveryType = useMemo(() => searchParams.get('type'), [searchParams]);
+
+  useEffect(() => {
+    if (!recoveryCode || recoveryType !== 'recovery') {
+      return;
+    }
+
+    let isCancelled = false;
+
+    const handleMagicLink = async () => {
+      setIsProcessingLink(true);
+      setLinkError('');
+
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase.auth.exchangeCodeForSession(recoveryCode);
+
+        if (error || !data.session) {
+          throw error || new Error('Invalid recovery session');
+        }
+
+        if (isCancelled) return;
+
+        await supabase.auth.setSession(data.session);
+        setRecoverySession(data.session);
+        setEmail(data.session.user?.email ?? '');
+        setPassword('');
+        setConfirmPassword('');
+        setStep('password');
+      } catch (err) {
+        console.error('Password recovery link error', err);
+        if (!isCancelled) {
+          setLinkError('Reset link is invalid or has expired. Please request a new code.');
+          setStep('email');
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsProcessingLink(false);
+          router.replace('/forgot-password');
+        }
+      }
+    };
+
+    void handleMagicLink();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [recoveryCode, recoveryType, router]);
 
   useEffect(() => {
     if (step !== 'otp' || resendCooldown <= 0) {
@@ -43,6 +99,7 @@ export default function ForgotPasswordPage() {
     if (!email) return;
 
     setEmailError('');
+    setLinkError('');
     setIsSubmittingEmail(true);
 
     try {
@@ -70,11 +127,12 @@ export default function ForgotPasswordPage() {
   };
 
   const handleResendCode = async () => {
-    if (resendCooldown > 0 || !email) {
+    if (resendCooldown > 0 || !email || isProcessingLink) {
       return;
     }
 
     setEmailError('');
+    setLinkError('');
     setIsSubmittingEmail(true);
 
     try {
@@ -214,6 +272,12 @@ export default function ForgotPasswordPage() {
                   />
                 </div>
                 
+                {linkError && (
+                  <div className="text-red-400 text-sm bg-red-400/10 border border-red-400/20 rounded-lg p-3">
+                    {linkError}
+                  </div>
+                )}
+
                 {emailError && (
                   <div className="text-red-400 text-sm bg-red-400/10 border border-red-400/20 rounded-lg p-3">
                     {emailError}
@@ -222,10 +286,10 @@ export default function ForgotPasswordPage() {
 
                 <button
                   type="submit"
-                  disabled={isSubmittingEmail}
+                  disabled={isSubmittingEmail || isProcessingLink}
                   className="w-full bg-[#3ecf8e] text-white py-3 px-4 rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isSubmittingEmail ? 'sending...' : 'send reset code'}
+                  {isSubmittingEmail || isProcessingLink ? 'sending...' : 'send reset code'}
                 </button>
               </form>
             </>
