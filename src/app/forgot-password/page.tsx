@@ -46,9 +46,10 @@ export default function ForgotPasswordPage() {
     setIsSubmittingEmail(true);
 
     try {
+      const redirectBase = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin;
       const supabase = createClient();
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/forgot-password`,
+        redirectTo: `${redirectBase}/forgot-password`,
       });
 
       if (error) {
@@ -77,9 +78,10 @@ export default function ForgotPasswordPage() {
     setIsSubmittingEmail(true);
 
     try {
+      const redirectBase = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin;
       const supabase = createClient();
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/forgot-password`,
+        redirectTo: `${redirectBase}/forgot-password`,
       });
 
       if (error) {
