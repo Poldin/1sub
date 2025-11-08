@@ -71,15 +71,16 @@ function ForgotPasswordContent() {
         setStep('password');
       } catch (err) {
         console.error('Password recovery link error', err);
+        const message =
+          err instanceof Error ? err.message : 'Reset link is invalid or has expired. Please request a new code.';
         if (!isCancelled) {
           processedRecoveryCodeRef.current = null;
-          setLinkError('Reset link is invalid or has expired. Please request a new code.');
+          setLinkError(message || 'Reset link is invalid or has expired. Please request a new code.');
           setStep('email');
         }
       } finally {
         if (!isCancelled) {
           setIsProcessingLink(false);
-          router.replace('/forgot-password');
         }
       }
     };
