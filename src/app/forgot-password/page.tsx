@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
@@ -9,7 +9,7 @@ import { getPasswordRequirementStates, validatePassword } from '@/lib/auth/passw
 
 type Step = 'email' | 'otp' | 'password' | 'success';
 
-export default function ForgotPasswordPage() {
+function ForgotPasswordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [step, setStep] = useState<Step>('email');
@@ -506,5 +506,22 @@ export default function ForgotPasswordPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ForgotPasswordPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex items-center justify-center px-4">
+          <div className="text-center">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#3ecf8e] border-r-transparent"></div>
+            <p className="mt-4 text-[#9ca3af]">Loading...</p>
+          </div>
+        </div>
+      }
+    >
+      <ForgotPasswordContent />
+    </Suspense>
   );
 }
