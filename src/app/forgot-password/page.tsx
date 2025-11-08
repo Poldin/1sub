@@ -49,9 +49,7 @@ function ForgotPasswordContent() {
     setIsProcessingLink(true);
     setLinkError('');
 
-    const target = new URL('/reset-password', window.location.origin);
-    target.searchParams.set('code', recoveryCode);
-    router.replace(target.toString());
+    router.replace(`/reset-password?code=${encodeURIComponent(recoveryCode)}`);
   }, [searchParams, router]);
 
   useEffect(() => {
