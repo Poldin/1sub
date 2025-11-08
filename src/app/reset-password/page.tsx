@@ -18,7 +18,7 @@ function ResetPasswordContent() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const exchangeCode = async () => {
+    const verifyRecoveryCode = async () => {
       if (!code) {
         setError('Reset link is invalid or missing. Please request a new one.');
         setStatus('error');
@@ -27,24 +27,30 @@ function ResetPasswordContent() {
 
       try {
         const supabase = createClient();
-        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+        const { data, error: verifyError } = await supabase.auth.verifyOtp({
+          type: 'recovery',
+          token_hash: code,
+        });
 
-        if (exchangeError) {
-          console.error('Failed to exchange recovery code:', exchangeError);
-          setError(exchangeError.message || 'Failed to validate reset link. Please try again.');
+        if (verifyError || !data.session) {
+          console.error('Failed to verify recovery code:', verifyError);
+          setError(
+            verifyError?.message || 'Reset link is invalid or has expired. Please request a new code.'
+          );
           setStatus('error');
           return;
         }
 
+        await supabase.auth.setSession(data.session);
         setStatus('ready');
       } catch (err) {
-        console.error('Unexpected error exchanging recovery code:', err);
+        console.error('Unexpected error verifying recovery code:', err);
         setError('An unexpected error occurred. Please try again.');
         setStatus('error');
       }
     };
 
-    exchangeCode();
+    verifyRecoveryCode();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 

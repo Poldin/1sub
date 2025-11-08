@@ -46,50 +46,12 @@ function ForgotPasswordContent() {
     }
 
     processedRecoveryCodeRef.current = recoveryCode;
+    setIsProcessingLink(true);
+    setLinkError('');
 
-    let isCancelled = false;
-
-    const handleMagicLink = async () => {
-      setIsProcessingLink(true);
-      setLinkError('');
-
-      try {
-        const supabase = createClient();
-        const { data, error } = await supabase.auth.exchangeCodeForSession(recoveryCode);
-
-        if (error || !data.session) {
-          throw error || new Error('Invalid recovery session');
-        }
-
-        if (isCancelled) return;
-
-        await supabase.auth.setSession(data.session);
-        setRecoverySession(data.session);
-        setEmail(data.session.user?.email ?? '');
-        setPassword('');
-        setConfirmPassword('');
-        setStep('password');
-      } catch (err) {
-        console.error('Password recovery link error', err);
-        const message =
-          err instanceof Error ? err.message : 'Reset link is invalid or has expired. Please request a new code.';
-        if (!isCancelled) {
-          processedRecoveryCodeRef.current = null;
-          setLinkError(message || 'Reset link is invalid or has expired. Please request a new code.');
-          setStep('email');
-        }
-      } finally {
-        if (!isCancelled) {
-          setIsProcessingLink(false);
-        }
-      }
-    };
-
-    void handleMagicLink();
-
-    return () => {
-      isCancelled = true;
-    };
+    const target = new URL('/reset-password', window.location.origin);
+    target.searchParams.set('code', recoveryCode);
+    router.replace(target.toString());
   }, [searchParams, router]);
 
   useEffect(() => {
