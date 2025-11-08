@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
@@ -31,13 +31,21 @@ function ForgotPasswordContent() {
   const [passwordError, setPasswordError] = useState('');
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
-  const recoveryCode = useMemo(() => searchParams.get('code'), [searchParams]);
-  const recoveryType = useMemo(() => searchParams.get('type'), [searchParams]);
+  const processedRecoveryCodeRef = useRef<string | null>(null);
 
   useEffect(() => {
+    const recoveryCode = searchParams.get('code');
+    const recoveryType = searchParams.get('type');
+
     if (!recoveryCode || recoveryType !== 'recovery') {
       return;
     }
+
+    if (processedRecoveryCodeRef.current === recoveryCode) {
+      return;
+    }
+
+    processedRecoveryCodeRef.current = recoveryCode;
 
     let isCancelled = false;
 
@@ -64,6 +72,7 @@ function ForgotPasswordContent() {
       } catch (err) {
         console.error('Password recovery link error', err);
         if (!isCancelled) {
+          processedRecoveryCodeRef.current = null;
           setLinkError('Reset link is invalid or has expired. Please request a new code.');
           setStep('email');
         }
@@ -80,7 +89,7 @@ function ForgotPasswordContent() {
     return () => {
       isCancelled = true;
     };
-  }, [recoveryCode, recoveryType, router]);
+  }, [searchParams, router]);
 
   useEffect(() => {
     if (step !== 'otp' || resendCooldown <= 0) {
@@ -272,6 +281,12 @@ function ForgotPasswordContent() {
                   />
                 </div>
                 
+                {isProcessingLink && (
+                  <div className="text-[#9ca3af] text-sm bg-[#1f2937] border border-[#374151] rounded-lg p-3">
+                    verifying secure link…
+                  </div>
+                )}
+
                 {linkError && (
                   <div className="text-red-400 text-sm bg-red-400/10 border border-red-400/20 rounded-lg p-3">
                     {linkError}
