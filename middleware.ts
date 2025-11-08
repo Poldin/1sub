@@ -13,7 +13,7 @@ export async function middleware(request: NextRequest) {
   const { supabaseResponse, user } = await updateSession(request);
 
   // Define public paths that don't require authentication
-  const publicPaths = ['/', '/login', '/register', '/waitlist'];
+  const publicPaths = ['/', '/login', '/register', '/waitlist', '/forgot-password'];
 
   // Check if the current path is public
   const isPublicPath = publicPaths.includes(path);
