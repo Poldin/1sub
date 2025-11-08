@@ -1,42 +1,175 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import type { Session } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
+import { getPasswordRequirementStates, validatePassword } from '@/lib/auth/password';
+
+type Step = 'email' | 'otp' | 'password' | 'success';
 
 export default function ForgotPasswordPage() {
+  const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState('');
+  const [isSubmittingEmail, setIsSubmittingEmail] = useState(false);
+
+  const [otp, setOtp] = useState('');
+  const [otpError, setOtpError] = useState('');
+  const [isSubmittingOtp, setIsSubmittingOtp] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  const [recoverySession, setRecoverySession] = useState<Session | null>(null);
+
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+
+  useEffect(() => {
+    if (step !== 'otp' || resendCooldown <= 0) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [step, resendCooldown]);
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setSuccess(false);
+    if (!email) return;
+
+    setEmailError('');
+    setIsSubmittingEmail(true);
 
     try {
       const supabase = createClient();
-      setIsSubmitting(true);
-
-      const redirectTo = `${window.location.origin}/reset-password`;
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo,
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/forgot-password`,
       });
 
-      if (resetError) {
-        setError(resetError.message || 'Failed to send reset email. Please try again.');
+      if (error) {
+        setEmailError(error.message || 'Failed to send reset code. Please try again.');
         return;
       }
 
-      setSuccess(true);
+      setStep('otp');
+      setResendCooldown(60);
+      setOtp('');
+      setOtpError('');
     } catch (err) {
-      console.error('Forgot password error:', err);
-      setError('An unexpected error occurred. Please try again.');
+      console.error('Password reset request failed', err);
+      setEmailError('Failed to send reset code. Please try again later.');
     } finally {
-      setIsSubmitting(false);
+      setIsSubmittingEmail(false);
     }
   };
+
+  const handleResendCode = async () => {
+    if (resendCooldown > 0 || !email) {
+      return;
+    }
+
+    setEmailError('');
+    setIsSubmittingEmail(true);
+
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/forgot-password`,
+      });
+
+      if (error) {
+        setEmailError(error.message || 'Failed to resend code. Please try again.');
+        return;
+      }
+
+      setResendCooldown(60);
+    } catch (err) {
+      console.error('Resend reset code failed', err);
+      setEmailError('Failed to resend code. Please try again later.');
+    } finally {
+      setIsSubmittingEmail(false);
+    }
+  };
+
+  const handleOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!otp || !email) return;
+
+    setOtpError('');
+    setIsSubmittingOtp(true);
+
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase.auth.verifyOtp({
+        email,
+        token: otp,
+        type: 'recovery',
+      });
+
+      if (error || !data.session) {
+        setOtpError(error?.message || 'Invalid or expired code. Please try again.');
+        return;
+      }
+
+      await supabase.auth.setSession(data.session);
+      setRecoverySession(data.session);
+      setStep('password');
+    } catch (err) {
+      console.error('OTP verification failed', err);
+      setOtpError('Unable to verify code. Please try again later.');
+    } finally {
+      setIsSubmittingOtp(false);
+    }
+  };
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError('');
+
+    const validationMessage = validatePassword(password);
+    if (validationMessage) {
+      setPasswordError(validationMessage);
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setPasswordError('Passwords do not match');
+      return;
+    }
+
+    if (!recoverySession) {
+      setPasswordError('Recovery session expired. Please restart the process.');
+      setStep('email');
+      return;
+    }
+
+    setIsUpdatingPassword(true);
+
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.updateUser({ password });
+
+      if (error) {
+        setPasswordError(error.message || 'Failed to update password. Please try again.');
+        return;
+      }
+
+      await supabase.auth.signOut();
+      setStep('success');
+    } catch (err) {
+      console.error('Password update failed', err);
+      setPasswordError('Unable to update password. Please try again later.');
+    } finally {
+      setIsUpdatingPassword(false);
+    }
+  };
+
+  const passwordStates = getPasswordRequirementStates(password);
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex items-center justify-center px-4">
@@ -56,60 +189,247 @@ export default function ForgotPasswordPage() {
 
         {/* Forgot Password Form */}
         <div className="bg-[#111111] rounded-2xl p-8 shadow-2xl border border-[#374151]">
-          <h2 className="text-2xl font-bold mb-4 text-center">forgot password?</h2>
-          <p className="text-[#9ca3af] text-sm text-center mb-6">
-            enter your email and we&apos;ll send you reset instructions
-          </p>
-          
-          <form onSubmit={handleEmailSubmit} className="space-y-6">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-[#d1d5db] mb-2">
-                email address
-              </label>
-              <input
-                type="email"
-                id="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 bg-[#1f2937] border border-[#374151] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
-                placeholder="your@email.com"
-                required
-              />
+          {step === 'email' && (
+            <>
+              <h2 className="text-2xl font-bold mb-4 text-center">forgot password?</h2>
+              <p className="text-[#9ca3af] text-sm text-center mb-6">
+                no worries, we&apos;ll send you reset instructions
+              </p>
+              
+              <form onSubmit={handleEmailSubmit} className="space-y-6">
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-[#d1d5db] mb-2">
+                    email address
+                  </label>
+                  <input
+                    type="email"
+                    id="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full px-4 py-3 bg-[#1f2937] border border-[#374151] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
+                    placeholder="your@email.com"
+                    required
+                  />
+                </div>
+                
+                {emailError && (
+                  <div className="text-red-400 text-sm bg-red-400/10 border border-red-400/20 rounded-lg p-3">
+                    {emailError}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isSubmittingEmail}
+                  className="w-full bg-[#3ecf8e] text-white py-3 px-4 rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmittingEmail ? 'sending...' : 'send reset code'}
+                </button>
+              </form>
+            </>
+          )}
+
+          {step === 'otp' && (
+            <>
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold mb-2">check your email</h2>
+                <p className="text-[#9ca3af] text-sm">
+                  we sent a reset code to <span className="text-[#3ecf8e]">{email}</span>
+                </p>
+              </div>
+              
+              <form onSubmit={handleOtpSubmit} className="space-y-6">
+                <div>
+                  <label htmlFor="otp" className="block text-sm font-medium text-[#d1d5db] mb-2">
+                    reset code
+                  </label>
+                  <input
+                    type="text"
+                    id="otp"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    className="w-full px-4 py-3 bg-[#1f2937] border border-[#374151] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent text-center text-xl tracking-widest"
+                    placeholder="000000"
+                    maxLength={6}
+                    required
+                  />
+                </div>
+                
+                {otpError && (
+                  <div className="text-red-400 text-sm bg-red-400/10 border border-red-400/20 rounded-lg p-3">
+                    {otpError}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isSubmittingOtp}
+                  className="w-full bg-[#3ecf8e] text-white py-3 px-4 rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmittingOtp ? 'verifying...' : 'verify code'}
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep('email');
+                    setOtp('');
+                    setOtpError('');
+                    setResendCooldown(0);
+                    setRecoverySession(null);
+                  }}
+                  className="w-full text-[#9ca3af] text-sm hover:text-[#d1d5db] transition-colors"
+                >
+                  ← back to email
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleResendCode}
+                  disabled={resendCooldown > 0 || isSubmittingEmail}
+                  className="w-full text-[#3ecf8e] text-sm hover:text-[#2dd4bf] transition-colors disabled:opacity-50"
+                >
+                  {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend code'}
+                </button>
+              </form>
+            </>
+          )}
+
+          {step === 'password' && (
+            <form onSubmit={handlePasswordSubmit} className="space-y-6">
+              <div className="text-center">
+                <h2 className="text-2xl font-bold mb-2">set new password</h2>
+                <p className="text-[#9ca3af] text-sm">
+                  choose a strong password to secure your account
+                </p>
+              </div>
+
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-[#d1d5db] mb-2">
+                  new password
+                </label>
+                <input
+                  type="password"
+                  id="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-4 py-3 bg-[#1f2937] border border-[#374151] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="confirmPassword" className="block text-sm font-medium text-[#d1d5db] mb-2">
+                  confirm password
+                </label>
+                <input
+                  type="password"
+                  id="confirmPassword"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full px-4 py-3 bg-[#1f2937] border border-[#374151] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+
+              <div className="text-xs text-[#9ca3af] bg-[#1f2937] rounded-lg p-3 border border-[#374151]">
+                <p className="mb-1 font-medium text-[#d1d5db]">Password requirements:</p>
+                <ul className="space-y-1">
+                  <li className={`flex items-center ${passwordStates.hasMinLength ? 'text-[#3ecf8e]' : 'text-[#9ca3af]'}`}>
+                    <span className="mr-2">{passwordStates.hasMinLength ? '✓' : '○'}</span>
+                    At least 8 characters
+                  </li>
+                  <li className={`flex items-center ${passwordStates.hasUpperCase ? 'text-[#3ecf8e]' : 'text-[#9ca3af]'}`}>
+                    <span className="mr-2">{passwordStates.hasUpperCase ? '✓' : '○'}</span>
+                    One uppercase letter
+                  </li>
+                  <li className={`flex items-center ${passwordStates.hasLowerCase ? 'text-[#3ecf8e]' : 'text-[#9ca3af]'}`}>
+                    <span className="mr-2">{passwordStates.hasLowerCase ? '✓' : '○'}</span>
+                    One lowercase letter
+                  </li>
+                  <li className={`flex items-center ${passwordStates.hasNumber ? 'text-[#3ecf8e]' : 'text-[#9ca3af]'}`}>
+                    <span className="mr-2">{passwordStates.hasNumber ? '✓' : '○'}</span>
+                    One number
+                  </li>
+                  <li className={`flex items-center ${passwordStates.hasSpecialChar ? 'text-[#3ecf8e]' : 'text-[#9ca3af]'}`}>
+                    <span className="mr-2">{passwordStates.hasSpecialChar ? '✓' : '○'}</span>
+                    One special character
+                  </li>
+                </ul>
+              </div>
+
+              {passwordError && (
+                <div className="text-red-400 text-sm bg-red-400/10 border border-red-400/20 rounded-lg p-3">
+                  {passwordError}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={isUpdatingPassword}
+                className="w-full bg-[#3ecf8e] text-white py-3 px-4 rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isUpdatingPassword ? 'updating...' : 'update password'}
+              </button>
+            </form>
+          )}
+
+          {step === 'success' && (
+            <div className="text-center">
+              <div className="w-16 h-16 bg-[#3ecf8e] rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              
+              <h2 className="text-2xl font-bold mb-4">check your email</h2>
+              <p className="text-[#9ca3af] text-sm mb-6">
+                your password has been updated successfully. you can now sign in with your new password.
+              </p>
+              
+              <div className="space-y-4">
+                <Link 
+                  href="/login"
+                  className="block w-full bg-[#3ecf8e] text-white py-3 px-4 rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors text-center"
+                >
+                  back to sign in
+                </Link>
+                
+                <button
+                  onClick={() => {
+                    setStep('email');
+                    setEmail('');
+                    setOtp('');
+                    setOtpError('');
+                    setResendCooldown(0);
+                    setRecoverySession(null);
+                    setPassword('');
+                    setConfirmPassword('');
+                  }}
+                  className="w-full text-[#9ca3af] text-sm hover:text-[#d1d5db] transition-colors"
+                >
+                  reset another password
+                </button>
+              </div>
             </div>
-
-            {error && (
-              <div className="text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg p-3">
-                {error}
-              </div>
-            )}
-
-            {success && (
-              <div className="text-sm text-green-400 bg-green-400/10 border border-green-400/20 rounded-lg p-3">
-                Reset instructions sent! Check your email for a link to set a new password.
-              </div>
-            )}
-            
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full bg-[#3ecf8e] text-white py-3 px-4 rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSubmitting ? 'sending...' : 'send reset link'}
-            </button>
-          </form>
+          )}
 
           {/* Links */}
-          <div className="mt-6 text-center text-sm">
-            <div className="text-[#9ca3af]">
-              remember your password?{' '}
-              <Link 
-                href="/login" 
-                className="text-[#3ecf8e] hover:text-[#2dd4bf] transition-colors font-medium"
-              >
-                sign in
-              </Link>
+          {step !== 'success' && (
+            <div className="mt-6 text-center text-sm">
+              <div className="text-[#9ca3af]">
+                remember your password?{' '}
+                <Link 
+                  href="/login" 
+                  className="text-[#3ecf8e] hover:text-[#2dd4bf] transition-colors font-medium"
+                >
+                  sign in
+                </Link>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Footer */}

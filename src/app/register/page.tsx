@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { getPasswordRequirementStates, validatePassword } from '@/lib/auth/password';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -82,31 +83,6 @@ export default function RegisterPage() {
     }
   };
 
-  const validatePassword = (password: string) => {
-    const minLength = 8;
-    const hasUpperCase = /[A-Z]/.test(password);
-    const hasLowerCase = /[a-z]/.test(password);
-    const hasNumbers = /\d/.test(password);
-    const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
-
-    if (password.length < minLength) {
-      return 'Password must be at least 8 characters long';
-    }
-    if (!hasUpperCase) {
-      return 'Password must contain at least one uppercase letter';
-    }
-    if (!hasLowerCase) {
-      return 'Password must contain at least one lowercase letter';
-    }
-    if (!hasNumbers) {
-      return 'Password must contain at least one number';
-    }
-    if (!hasSpecialChar) {
-      return 'Password must contain at least one special character';
-    }
-    return '';
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordError('');
@@ -165,6 +141,8 @@ export default function RegisterPage() {
       setPasswordError('');
     }
   };
+
+  const passwordStates = getPasswordRequirementStates(formData.password);
 
   // Show loading state while checking authentication
   if (checking) {
@@ -266,24 +244,24 @@ export default function RegisterPage() {
                 <div className="text-xs text-[#9ca3af] bg-[#1f2937] rounded-lg p-3 border border-[#374151]">
                   <p className="mb-1 font-medium text-[#d1d5db]">Password requirements:</p>
                   <ul className="space-y-1">
-                    <li className={`flex items-center ${formData.password.length >= 8 ? 'text-[#3ecf8e]' : 'text-[#9ca3af]'}`}>
-                      <span className="mr-2">{formData.password.length >= 8 ? '✓' : '○'}</span>
+                    <li className={`flex items-center ${passwordStates.hasMinLength ? 'text-[#3ecf8e]' : 'text-[#9ca3af]'}`}>
+                      <span className="mr-2">{passwordStates.hasMinLength ? '✓' : '○'}</span>
                       At least 8 characters
                     </li>
-                    <li className={`flex items-center ${/[A-Z]/.test(formData.password) ? 'text-[#3ecf8e]' : 'text-[#9ca3af]'}`}>
-                      <span className="mr-2">{/[A-Z]/.test(formData.password) ? '✓' : '○'}</span>
+                    <li className={`flex items-center ${passwordStates.hasUpperCase ? 'text-[#3ecf8e]' : 'text-[#9ca3af]'}`}>
+                      <span className="mr-2">{passwordStates.hasUpperCase ? '✓' : '○'}</span>
                       One uppercase letter
                     </li>
-                    <li className={`flex items-center ${/[a-z]/.test(formData.password) ? 'text-[#3ecf8e]' : 'text-[#9ca3af]'}`}>
-                      <span className="mr-2">{/[a-z]/.test(formData.password) ? '✓' : '○'}</span>
+                    <li className={`flex items-center ${passwordStates.hasLowerCase ? 'text-[#3ecf8e]' : 'text-[#9ca3af]'}`}>
+                      <span className="mr-2">{passwordStates.hasLowerCase ? '✓' : '○'}</span>
                       One lowercase letter
                     </li>
-                    <li className={`flex items-center ${/\d/.test(formData.password) ? 'text-[#3ecf8e]' : 'text-[#9ca3af]'}`}>
-                      <span className="mr-2">{/\d/.test(formData.password) ? '✓' : '○'}</span>
+                    <li className={`flex items-center ${passwordStates.hasNumber ? 'text-[#3ecf8e]' : 'text-[#9ca3af]'}`}>
+                      <span className="mr-2">{passwordStates.hasNumber ? '✓' : '○'}</span>
                       One number
                     </li>
-                    <li className={`flex items-center ${/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(formData.password) ? 'text-[#3ecf8e]' : 'text-[#9ca3af]'}`}>
-                      <span className="mr-2">{/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(formData.password) ? '✓' : '○'}</span>
+                    <li className={`flex items-center ${passwordStates.hasSpecialChar ? 'text-[#3ecf8e]' : 'text-[#9ca3af]'}`}>
+                      <span className="mr-2">{passwordStates.hasSpecialChar ? '✓' : '○'}</span>
                       One special character
                     </li>
                   </ul>
