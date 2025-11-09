@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Users } from 'lucide-react';
 import Footer from './components/Footer';
 import ToolCard from './components/ToolCard';
+import ToolCardSkeleton from './components/ToolCardSkeleton';
 import ToolDialog from './components/ToolDialog';
 import PricingExplainer from './components/PricingExplainer';
 import TrustIndicators from './components/TrustIndicators';
@@ -259,9 +260,6 @@ export default function Home() {
         <PricingExplainer />
       </section>
 
-      {/* Trust Indicators & Social Proof */}
-      <TrustIndicators />
-
       {/* Tools Showcase */}
       <section className="section-padding bg-[#0a0a0a]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -359,11 +357,21 @@ export default function Home() {
                       WebkitOverflowScrolling: 'touch'
                     }}
                   >
-                    {filteredTools.map((tool) => (
-                      <div key={tool.id} className="flex-shrink-0 w-80 min-w-[20rem]">
-                        <ToolCard tool={tool} mode="marketing" onViewClick={() => handleToolClick(tool)} onLaunchClick={() => handleToolClick(tool)} />
-                      </div>
-                    ))}
+                    {loading ? (
+                      <>
+                        {[...Array(3)].map((_, index) => (
+                          <div key={`skeleton-mobile-${index}`} className="flex-shrink-0 w-80 min-w-[20rem]">
+                            <ToolCardSkeleton />
+                          </div>
+                        ))}
+                      </>
+                    ) : (
+                      filteredTools.map((tool, index) => (
+                        <div key={tool.id} className="flex-shrink-0 w-80 min-w-[20rem]">
+                          <ToolCard tool={tool} mode="marketing" onViewClick={() => handleToolClick(tool)} onLaunchClick={() => handleToolClick(tool)} priority={index < 3} />
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               </div>
@@ -380,11 +388,21 @@ export default function Home() {
                   onMouseLeave={handleMouseLeave}
                   onScroll={handleScroll}
                 >
-                  {filteredTools.map((tool) => (
-                    <div key={tool.id} className="flex-shrink-0 w-[22rem]">
-                      <ToolCard tool={tool} mode="marketing" onViewClick={() => handleToolClick(tool)} onLaunchClick={() => handleToolClick(tool)} />
-                    </div>
-                  ))}
+                  {loading ? (
+                    <>
+                      {[...Array(4)].map((_, index) => (
+                        <div key={`skeleton-desktop-${index}`} className="flex-shrink-0 w-[22rem]">
+                          <ToolCardSkeleton />
+                        </div>
+                      ))}
+                    </>
+                  ) : (
+                    filteredTools.map((tool, index) => (
+                      <div key={tool.id} className="flex-shrink-0 w-[22rem]">
+                        <ToolCard tool={tool} mode="marketing" onViewClick={() => handleToolClick(tool)} onLaunchClick={() => handleToolClick(tool)} priority={index < 4} />
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
 
@@ -392,11 +410,21 @@ export default function Home() {
               <div className="mb-8">
                 <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">All Tools</h2>
                 <div className="flex flex-wrap gap-4 sm:gap-6 justify-center">
-                  {filteredTools.map((tool) => (
-                    <div key={tool.id} className="w-80 sm:w-[22rem]">
-                      <ToolCard tool={tool} mode="marketing" onViewClick={() => handleToolClick(tool)} onLaunchClick={() => handleToolClick(tool)} />
-                    </div>
-                  ))}
+                  {loading ? (
+                    <>
+                      {[...Array(6)].map((_, index) => (
+                        <div key={`skeleton-all-${index}`} className="w-80 sm:w-[22rem]">
+                          <ToolCardSkeleton />
+                        </div>
+                      ))}
+                    </>
+                  ) : (
+                    filteredTools.map((tool) => (
+                      <div key={tool.id} className="w-80 sm:w-[22rem]">
+                        <ToolCard tool={tool} mode="marketing" onViewClick={() => handleToolClick(tool)} onLaunchClick={() => handleToolClick(tool)} />
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </>
@@ -567,6 +595,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Trust Indicators & Social Proof */}
+      <TrustIndicators />
 
       {/* Footer */}
       <Footer />

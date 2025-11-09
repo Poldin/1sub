@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, Shield, Users, Zap } from 'lucide-react';
+import { Check, Shield, Star, Users, Zap } from 'lucide-react';
 import AnimatedSection from './AnimatedSection';
 import AnimatedCounter from './AnimatedCounter';
 
@@ -12,20 +12,20 @@ export default function TrustIndicators() {
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
           <AnimatedSection delay={0} direction="up">
             <div className="bg-[#1f2937] border border-[#374151] rounded-xl p-6 text-center hover:border-[#3ecf8e] transition-all hover:scale-105">
-              <Users className="w-10 h-10 text-[#3ecf8e] mx-auto mb-3" />
+              <Star className="w-10 h-10 text-[#3ecf8e] mx-auto mb-3" />
               <div className="text-3xl font-bold text-[#ededed] mb-1">
-                <AnimatedCounter value={1000} suffix="+" />
+                <AnimatedCounter value={96} suffix="%" />
               </div>
-              <div className="text-[#9ca3af] text-sm">active users</div>
+              <div className="text-[#9ca3af] text-sm">customer satisfaction rating</div>
             </div>
           </AnimatedSection>
           <AnimatedSection delay={0.1} direction="up">
             <div className="bg-[#1f2937] border border-[#374151] rounded-xl p-6 text-center hover:border-[#3ecf8e] transition-all hover:scale-105">
-              <Zap className="w-10 h-10 text-[#3ecf8e] mx-auto mb-3" />
+              <Users className="w-10 h-10 text-[#3ecf8e] mx-auto mb-3" />
               <div className="text-3xl font-bold text-[#ededed] mb-1">
-                <AnimatedCounter value={150} suffix="+" />
+                <AnimatedCounter value={280} suffix="+" />
               </div>
-              <div className="text-[#9ca3af] text-sm">tools available</div>
+              <div className="text-[#9ca3af] text-sm">active subscribers</div>
             </div>
           </AnimatedSection>
           <AnimatedSection delay={0.2} direction="up">

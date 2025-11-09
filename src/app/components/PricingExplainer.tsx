@@ -1,6 +1,6 @@
 'use client';
 
-import { Calculator, Zap } from 'lucide-react';
+import { Calculator, Layers, Zap } from 'lucide-react';
 
 export default function PricingExplainer() {
   return (
@@ -20,7 +20,7 @@ export default function PricingExplainer() {
         <div className="bg-[#1f2937] border border-[#374151] rounded-xl p-6 hover:border-[#3ecf8e] transition-colors">
           <div className="flex items-center gap-3 mb-4">
             <div className="p-3 bg-[#3ecf8e]/10 rounded-lg">
-              <Zap className="w-6 h-6 text-[#3ecf8e]" />
+              <Layers className="w-6 h-6 text-[#3ecf8e]" />
             </div>
             <h3 className="text-xl font-bold">how it works</h3>
           </div>

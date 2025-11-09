@@ -1,6 +1,7 @@
 'use client';
 
 import { X, Star, Users, ExternalLink, Check } from 'lucide-react';
+import Image from 'next/image';
 import { Tool, DEFAULT_UI_METADATA, DEFAULT_ENGAGEMENT_METRICS, hasProducts } from '@/lib/tool-types';
 import { PricingCard } from './PricingDisplay';
 
@@ -204,12 +205,14 @@ export default function ToolDialog(props: ToolDialogProps) {
           <div className="p-6 sm:p-8 pb-4">
             <div className="flex items-start gap-4 mb-4">
               {/* Logo */}
-              <div className={`flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center overflow-hidden shadow-lg`}>
+              <div className={`flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center overflow-hidden shadow-lg relative`}>
                 {logoUrl ? (
-                  <img 
+                  <Image 
                     src={logoUrl} 
                     alt={tool.name}
-                    className="w-full h-full object-cover"
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 640px) 64px, 80px"
                   />
                 ) : (
                   <div className="text-4xl sm:text-5xl">
@@ -283,11 +286,21 @@ export default function ToolDialog(props: ToolDialogProps) {
           {/* Hero Image */}
           <div className="px-6 sm:px-8 mb-6">
             <div className="w-full h-64 sm:h-80 overflow-hidden bg-[#111111] relative rounded-lg">
-              <img 
-                src={imageUrl || '/favicon.ico'} 
-                alt={`${tool.name} preview`}
-                className={`w-full h-full ${imageUrl ? 'object-cover' : 'object-contain p-12 opacity-20'}`}
-              />
+              {imageUrl && imageUrl !== '/favicon.ico' ? (
+                <Image 
+                  src={imageUrl} 
+                  alt={`${tool.name} preview`}
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 640px) 100vw, 672px"
+                  placeholder="blur"
+                  blurDataURL="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mM8dv16PQAGwgK75n6TaAAAAABJRU5ErkJggg=="
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center opacity-20">
+                  <div className="text-8xl">{emoji || '🔧'}</div>
+                </div>
+              )}
             </div>
           </div>
 
