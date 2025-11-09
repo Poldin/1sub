@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Trash2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
 interface Tool {
@@ -14,9 +14,19 @@ interface ToolSelectorProps {
   userId: string;
   currentToolId?: string;
   onToolChange?: (toolId: string, toolName: string) => void;
+  onToolsFetched?: (tools: Tool[]) => void;
+  onDeleteTool?: (tool: Tool) => void;
+  refreshToken?: number;
 }
 
-export default function ToolSelector({ userId, currentToolId, onToolChange }: ToolSelectorProps) {
+export default function ToolSelector({
+  userId,
+  currentToolId,
+  onToolChange,
+  onToolsFetched,
+  onDeleteTool,
+  refreshToken = 0,
+}: ToolSelectorProps) {
   const router = useRouter();
   const [tools, setTools] = useState<Tool[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -34,21 +44,33 @@ export default function ToolSelector({ userId, currentToolId, onToolChange }: To
           .eq('user_profile_id', userId)
           .order('created_at', { ascending: false });
 
-        if (!error && data && data.length > 0) {
+        if (!error && data) {
           setTools(data);
-          
+          onToolsFetched?.(data);
+
+          if (data.length === 0) {
+            setSelectedToolId('');
+            localStorage.removeItem('selectedToolId');
+            return;
+          }
+
           // Priority: currentToolId > localStorage > first tool
-          if (currentToolId) {
-            setSelectedToolId(currentToolId);
-            localStorage.setItem('selectedToolId', currentToolId);
+          let initialToolId: string | null = null;
+
+          if (currentToolId && data.some(tool => tool.id === currentToolId)) {
+            initialToolId = currentToolId;
           } else {
             const savedToolId = localStorage.getItem('selectedToolId');
-            // Check if saved tool still exists
             const toolExists = savedToolId && data.some(tool => tool.id === savedToolId);
-            setSelectedToolId(toolExists ? savedToolId : data[0].id);
-            // Update localStorage if we're using the first tool
-            if (!toolExists) {
-              localStorage.setItem('selectedToolId', data[0].id);
+            initialToolId = toolExists ? savedToolId! : data[0].id;
+          }
+
+          if (initialToolId) {
+            setSelectedToolId(initialToolId);
+            localStorage.setItem('selectedToolId', initialToolId);
+            const initialTool = data.find(tool => tool.id === initialToolId);
+            if (initialTool && onToolChange) {
+              onToolChange(initialTool.id, initialTool.name);
             }
           }
         }
@@ -60,7 +82,7 @@ export default function ToolSelector({ userId, currentToolId, onToolChange }: To
     };
 
     fetchTools();
-  }, [userId, currentToolId]);
+  }, [userId, currentToolId, refreshToken]);
 
   const handleToolChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value;
@@ -80,27 +102,44 @@ export default function ToolSelector({ userId, currentToolId, onToolChange }: To
     }
   };
 
+  const selectedTool = useMemo(() => {
+    if (!selectedToolId) return null;
+    return tools.find(tool => tool.id === selectedToolId) || null;
+  }, [selectedToolId, tools]);
+
   if (isLoading || tools.length === 0) {
     return null;
   }
 
   return (
-    <div className="relative">
-      <select
-        value={selectedToolId}
-        onChange={handleToolChange}
-        className="appearance-none bg-[#1f2937] border border-[#374151] text-[#ededed] text-sm rounded-lg px-3 py-1.5 pr-8 focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent hover:bg-[#374151] transition-colors cursor-pointer min-w-[180px]"
-      >
-        {tools.map((tool) => (
-          <option key={tool.id} value={tool.id}>
-            {tool.name}
+    <div className="flex items-center gap-2">
+      <div className="relative">
+        <select
+          value={selectedToolId}
+          onChange={handleToolChange}
+          className="appearance-none bg-[#1f2937] border border-[#374151] text-[#ededed] text-sm rounded-lg px-3 py-1.5 pr-8 focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent hover:bg-[#374151] transition-colors cursor-pointer min-w-[200px]"
+        >
+          {tools.map((tool) => (
+            <option key={tool.id} value={tool.id}>
+              {tool.name}
+            </option>
+          ))}
+          <option value="create-new" className="text-[#3ecf8e] font-semibold">
+            + Create New Tool
           </option>
-        ))}
-        <option value="create-new" className="text-[#3ecf8e] font-semibold">
-          + Create New Tool
-        </option>
-      </select>
-      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9ca3af] pointer-events-none" />
+        </select>
+        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9ca3af] pointer-events-none" />
+      </div>
+      {selectedTool && (
+        <button
+          type="button"
+          onClick={() => onDeleteTool?.(selectedTool)}
+          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-red-300 border border-red-500/50 rounded-lg hover:bg-red-500/10 transition-colors"
+        >
+          <Trash2 className="w-4 h-4" />
+          Delete
+        </button>
+      )}
     </div>
   );
 }
