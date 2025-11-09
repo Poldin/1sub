@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { useState } from 'react';
 import { Tool } from '@/lib/tool-types';
+import { useTools } from '@/hooks/useTools';
 import ToolCard from './ToolCard';
 import ToolDialog from './ToolDialog';
 
@@ -10,49 +10,27 @@ interface ToolsGridProps {
   onToolLaunch?: (toolId: string) => void;
   highlightedToolId?: string | null;
   searchTerm?: string;
+  tools?: Tool[]; // Optional: allow passing tools directly
+  loading?: boolean;
+  error?: string | null;
 }
 
-export default function ToolsGrid({ onToolLaunch, highlightedToolId, searchTerm = '' }: ToolsGridProps) {
-  const [tools, setTools] = useState<Tool[]>([]);
-  const [toolsLoading, setToolsLoading] = useState(true);
-  const [toolsError, setToolsError] = useState<string | null>(null);
+export default function ToolsGrid({ 
+  onToolLaunch, 
+  highlightedToolId, 
+  searchTerm = '',
+  tools: externalTools,
+  loading: externalLoading,
+  error: externalError
+}: ToolsGridProps) {
+  // Use provided tools or fetch internally
+  const internalData = useTools();
+  const tools = externalTools ?? internalData.tools;
+  const toolsLoading = externalLoading ?? internalData.loading;
+  const toolsError = externalError ?? internalData.error;
+  
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-
-  // Fetch tools from database
-  useEffect(() => {
-    const fetchTools = async () => {
-      try {
-        setToolsLoading(true);
-        setToolsError(null);
-
-        const supabase = createClient();
-        const { data: toolsData, error } = await supabase
-          .from('tools')
-          .select(`
-            *,
-            products:tool_products(*)
-          `)
-          .eq('is_active', true)
-          .order('created_at', { ascending: false });
-
-        if (error) {
-          console.error('Error fetching tools:', error);
-          setToolsError('Failed to load tools');
-          return;
-        }
-
-        setTools(toolsData || []);
-      } catch (err) {
-        console.error('Unexpected error fetching tools:', err);
-        setToolsError('An unexpected error occurred');
-      } finally {
-        setToolsLoading(false);
-      }
-    };
-
-    fetchTools();
-  }, []);
 
   // Filter tools based on search term
   const filteredTools = tools.filter(tool => {
@@ -125,10 +103,10 @@ export default function ToolsGrid({ onToolLaunch, highlightedToolId, searchTerm 
 
   return (
     <>
-      <div className="flex flex-wrap gap-3 sm:gap-4">
+      <div className="flex flex-wrap gap-4 sm:gap-6">
         {filteredTools.map((tool) => (
-          <div 
-            key={tool.id} 
+          <div
+            key={tool.id}
             id={`tool-${tool.id}`}
             className="w-80 sm:w-[22rem]"
           >

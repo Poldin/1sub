@@ -7,6 +7,8 @@
  */
 
 import { Users, Star, ExternalLink } from 'lucide-react';
+import Image from 'next/image';
+import { useEffect, useMemo, useState } from 'react';
 import { Tool, ToolProduct, DEFAULT_UI_METADATA, DEFAULT_ENGAGEMENT_METRICS, hasProducts, hasPricingOptions } from '@/lib/tool-types';
 import { PricingSection } from './PricingDisplay';
 
@@ -54,6 +56,7 @@ export interface LegacyToolCardProps {
   ctaLabel?: string;
   onClick?: () => void;
   onViewClick?: () => void;
+  priority?: boolean;
 }
 
 // New props format (unified)
@@ -63,6 +66,7 @@ export interface UnifiedToolCardProps {
   onViewClick?: () => void;
   onLaunchClick?: () => void;
   isHighlighted?: boolean;
+  priority?: boolean;
 }
 
 // Combined props type
@@ -79,6 +83,30 @@ function isUnifiedProps(props: ToolCardProps): props is UnifiedToolCardProps {
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
+
+const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.svg', '.ico'];
+
+const isLikelyImageUrl = (url?: string | null): boolean => {
+  if (!url) return false;
+
+  const lowerUrl = url.toLowerCase();
+
+  if (lowerUrl.startsWith('data:image/')) {
+    return true;
+  }
+
+  if (lowerUrl.startsWith('/')) {
+    return IMAGE_EXTENSIONS.some((ext) => lowerUrl.endsWith(ext));
+  }
+
+  try {
+    const parsed = new URL(url);
+    const pathname = parsed.pathname.toLowerCase();
+    return IMAGE_EXTENSIONS.some((ext) => pathname.endsWith(ext));
+  } catch {
+    return false;
+  }
+};
 
 const formatAdoptions = (num: number): string => {
   if (num >= 1000000) {
@@ -165,7 +193,7 @@ function legacyToTool(props: LegacyToolCardProps): Tool {
 
 export default function ToolCard(props: ToolCardProps) {
   // Normalize props to unified format
-  const { tool, mode, onViewClick, onLaunchClick, isHighlighted } = isUnifiedProps(props)
+  const { tool, mode, onViewClick, onLaunchClick, isHighlighted, priority } = isUnifiedProps(props)
     ? props
     : {
         tool: legacyToTool(props),
@@ -173,17 +201,43 @@ export default function ToolCard(props: ToolCardProps) {
         onViewClick: props.onViewClick,
         onLaunchClick: props.onViewClick || props.onClick,
         isHighlighted: false,
+        priority: props.priority || false,
       };
 
-  // Extract metadata with defaults
-  const uiMeta = { ...DEFAULT_UI_METADATA, ...tool.metadata?.ui };
-  const engagement = { ...DEFAULT_ENGAGEMENT_METRICS, ...tool.metadata?.engagement };
-  const pricingOptions = tool.metadata?.pricing_options;
+  // Extract metadata with defaults (memoized to avoid recalculation)
+  const uiMeta = useMemo(
+    () => ({ ...DEFAULT_UI_METADATA, ...tool.metadata?.ui }),
+    [tool.metadata?.ui]
+  );
+  const engagement = useMemo(
+    () => ({ ...DEFAULT_ENGAGEMENT_METRICS, ...tool.metadata?.engagement }),
+    [tool.metadata?.engagement]
+  );
+  const pricingOptions = useMemo(
+    () => tool.metadata?.pricing_options,
+    [tool.metadata?.pricing_options]
+  );
 
-  // Determine which image to show
-  const imageUrl = uiMeta.hero_image_url || tool.url;
-  const logoUrl = uiMeta.logo_url;
-  const emoji = uiMeta.emoji;
+  // Determine which image to show (memoized)
+  const imageUrl = useMemo(() => uiMeta.hero_image_url || tool.url, [uiMeta.hero_image_url, tool.url]);
+  const hasHeroImage = useMemo(() => isLikelyImageUrl(imageUrl), [imageUrl]);
+  const logoUrl = useMemo(() => uiMeta.logo_url, [uiMeta.logo_url]);
+  const hasLogoImage = useMemo(() => isLikelyImageUrl(logoUrl), [logoUrl]);
+  const emoji = useMemo(() => uiMeta.emoji, [uiMeta.emoji]);
+
+  const [heroImageError, setHeroImageError] = useState(false);
+  const [logoImageError, setLogoImageError] = useState(false);
+
+  const canShowHeroImage = hasHeroImage && !heroImageError;
+  const canShowLogoImage = hasLogoImage && !logoImageError;
+
+  useEffect(() => {
+    setHeroImageError(false);
+  }, [imageUrl]);
+
+  useEffect(() => {
+    setLogoImageError(false);
+  }, [logoUrl]);
 
   // Handle card click (except for buttons)
   const handleCardClick = (e: React.MouseEvent) => {
@@ -192,26 +246,29 @@ export default function ToolCard(props: ToolCardProps) {
     if (onViewClick) onViewClick();
   };
 
-  // Border styling based on development stage and highlight
-  let borderClasses = 'border';
-  if (isHighlighted) {
-    borderClasses += ' border-[#3ecf8e] shadow-lg shadow-[#3ecf8e]/50 animate-pulse';
-  } else if (uiMeta.development_stage === 'alpha') {
-    borderClasses += ' border-2 border-purple-500 hover:border-purple-400 hover:shadow-purple-500/30';
-  } else if (uiMeta.development_stage === 'beta') {
-    borderClasses += ' border-2 border-blue-500 hover:border-blue-400 hover:shadow-blue-500/30';
-  } else {
-    borderClasses += ' border-[#374151] hover:border-[#3ecf8e]/50 hover:shadow-[#3ecf8e]/20';
-  }
+  // Border styling based on development stage and highlight (memoized)
+  const borderClasses = useMemo(() => {
+    let classes = 'border';
+    if (isHighlighted) {
+      classes += ' border-[#3ecf8e] shadow-lg shadow-[#3ecf8e]/50 animate-pulse';
+    } else if (uiMeta.development_stage === 'alpha') {
+      classes += ' border-2 border-purple-500 hover:border-purple-400 hover:shadow-purple-500/30';
+    } else if (uiMeta.development_stage === 'beta') {
+      classes += ' border-2 border-blue-500 hover:border-blue-400 hover:shadow-blue-500/30';
+    } else {
+      classes += ' border-[#374151] hover:border-[#3ecf8e]/50 hover:shadow-[#3ecf8e]/20';
+    }
+    return classes;
+  }, [isHighlighted, uiMeta.development_stage]);
 
   return (
     <div
-      className={`group bg-[#1f2937] rounded hover:shadow-2xl transition-all duration-300 cursor-pointer flex flex-col h-full hover:-translate-y-1 relative ${borderClasses}`}
+      className={`group bg-[#1f2937] rounded-xl tool-card-hover cursor-pointer flex flex-col h-full relative ${borderClasses}`}
       onClick={handleCardClick}
     >
       {/* Development Stage Badge */}
       {uiMeta.development_stage && (
-        <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
+        <div className="absolute top-2 left-1/2 transform -translate-x-1/2 z-10">
           <span
             className={`px-3 py-1 rounded-full text-xs font-bold uppercase shadow-lg ${
               uiMeta.development_stage === 'alpha'
@@ -225,16 +282,27 @@ export default function ToolCard(props: ToolCardProps) {
       )}
 
       {/* Content Section */}
-      <div className="p-4 flex flex-col flex-1 overflow-hidden">
+      <div className={`p-4 flex flex-col flex-1 overflow-hidden ${uiMeta.development_stage ? 'pt-10' : ''}`}>
         {/* Header: Logo + Name */}
         <div className="flex items-start gap-3 mb-3">
           <div
-            className={`flex-shrink-0 w-12 h-12 rounded bg-gradient-to-br ${uiMeta.gradient} flex items-center justify-center overflow-hidden`}
+            className={`flex-shrink-0 w-12 h-12 rounded-lg bg-gradient-to-br ${uiMeta.gradient} flex items-center justify-center overflow-hidden relative`}
           >
-            {logoUrl ? (
-              <img src={logoUrl} alt={tool.name} className="w-full h-full object-cover" />
-            ) : (
+            {canShowLogoImage ? (
+              <Image 
+                src={logoUrl as string} 
+                alt={tool.name} 
+                fill
+                className="object-cover"
+                sizes="48px"
+                onError={() => setLogoImageError(true)}
+              />
+            ) : emoji ? (
               <div className="text-2xl">{emoji}</div>
+            ) : (
+              <div className="text-lg font-semibold text-[#ededed]">
+                {tool.name.slice(0, 1).toUpperCase()}
+              </div>
             )}
           </div>
 
@@ -264,19 +332,32 @@ export default function ToolCard(props: ToolCardProps) {
           {tool.description}
         </p>
 
-        {/* Preview Image */}
-        <div className="mb-3 rounded overflow-hidden bg-[#111111] -mx-4 w-[calc(100%+2rem)] relative">
-          <img
-            src={imageUrl}
-            alt={`${tool.name} preview`}
-            className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = '/favicon.ico';
-              (e.target as HTMLImageElement).className = 'w-full h-48 object-contain p-8 opacity-20';
-            }}
-          />
+        {/* Preview Image - Large, full width with gradient overlay on hover */}
+        <div className="mb-3 rounded-md overflow-hidden bg-[#111111] -mx-4 w-[calc(100%+2rem)] relative aspect-video">
+          <div className="relative overflow-hidden w-full h-full">
+            {canShowHeroImage ? (
+              <Image
+                src={imageUrl as string}
+                alt={`${tool.name} preview`}
+                fill
+                className="object-cover tool-card-image"
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                placeholder="blur"
+                blurDataURL="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mM8dv16PQAGwgK75n6TaAAAAABJRU5ErkJggg=="
+                priority={priority}
+                loading={priority ? undefined : 'lazy'}
+                onError={() => setHeroImageError(true)}
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center opacity-20">
+                <div className="text-6xl">{emoji || '🔧'}</div>
+              </div>
+            )}
+            {/* Gradient Overlay on Hover */}
+            <div className="absolute inset-0 bg-gradient-to-t from-[#1f2937]/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          </div>
           {(uiMeta.discount_percentage ?? 0) > 0 && (
-            <div className="absolute top-3 right-3 bg-red-500 text-white px-3 py-1.5 rounded-lg shadow-lg">
+            <div className="absolute top-3 right-3 bg-gradient-to-r from-red-500 to-red-600 text-white px-3 py-1.5 rounded-lg shadow-lg animate-pulse-glow">
               <span className="text-lg font-black">-{uiMeta.discount_percentage}%</span>
             </div>
           )}
@@ -316,13 +397,13 @@ export default function ToolCard(props: ToolCardProps) {
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1">
               <Star className="w-4 h-4 text-[#3ecf8e] fill-[#3ecf8e]" />
-              <span className="text-[#ededed] font-bold text-sm">{engagement.rating.toFixed(1)}</span>
+              <span className="text-[#ededed] font-bold text-sm">{engagement.rating?.toFixed(1) ?? '4.5'}</span>
             </div>
 
             <div className="flex items-center gap-1">
               <Users className="w-4 h-4 text-[#9ca3af]" />
               <span className="text-[#9ca3af] font-medium text-sm">
-                {formatAdoptions(engagement.adoption_count)}
+                {formatAdoptions(engagement.adoption_count ?? 0)}
               </span>
             </div>
           </div>
@@ -347,7 +428,7 @@ export default function ToolCard(props: ToolCardProps) {
                   e.stopPropagation();
                   onLaunchClick();
                 }}
-                className="bg-[#3ecf8e] text-black px-3 py-1.5 rounded text-xs font-bold hover:bg-[#2dd4bf] transition-all flex items-center gap-1 group-hover:gap-2"
+                className="bg-[#3ecf8e] text-black px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#2dd4bf] transition-all flex items-center gap-1 group-hover:gap-2"
               >
                 {mode === 'dashboard' ? 'launch' : 'start'}
                 <ExternalLink className="w-3.5 h-3.5" />
@@ -359,3 +440,5 @@ export default function ToolCard(props: ToolCardProps) {
     </div>
   );
 }
+
+        {/* Pricing Section */}

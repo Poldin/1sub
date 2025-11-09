@@ -15,7 +15,20 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: '**.supabase.co',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.wikipedia.org',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.wikimedia.org',
+      },
     ],
+    formats: ['image/avif', 'image/webp'],
   },
   eslint: {
     // Don't fail build on lint warnings (only errors)
