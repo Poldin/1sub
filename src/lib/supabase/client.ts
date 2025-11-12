@@ -73,6 +73,21 @@ export function createClient() {
         const error = event.reason;
         if (error && typeof error === 'object') {
           const errorMessage = error.message || error.toString();
+          const errorName = error.name || '';
+          
+          // Handle "Auth session missing!" error - this is expected when user is not logged in
+          if (
+            errorMessage.includes('Auth session missing!') ||
+            errorMessage.includes('Auth session missing') ||
+            errorName === 'AuthSessionMissingError' ||
+            errorMessage.includes('Session missing')
+          ) {
+            // This is a normal case when user is not logged in, silently ignore it
+            event.preventDefault();
+            return;
+          }
+          
+          // Handle refresh token errors
           if (
             errorMessage.includes('Refresh Token') ||
             errorMessage.includes('refresh_token') ||
@@ -96,6 +111,59 @@ export function createClient() {
 }
 
 /**
+ * Safely get user from Supabase, handling "Auth session missing!" errors gracefully
+ * Returns { user: null, error: null } when user is not logged in (no session)
+ */
+export async function safeGetUser(supabase: ReturnType<typeof createClient>) {
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser();
+    
+    // If there's an error, check if it's a "session missing" error
+    if (error) {
+      const errorMessage = error.message || '';
+      const errorName = error.name || '';
+      
+      // Handle "Auth session missing!" error - this is expected when user is not logged in
+      if (
+        errorMessage.includes('Auth session missing!') ||
+        errorMessage.includes('Auth session missing') ||
+        errorName === 'AuthSessionMissingError' ||
+        errorMessage.includes('Session missing')
+      ) {
+        // User is not logged in, which is fine - return null user with no error
+        return { user: null, error: null };
+      }
+      
+      // For other errors, return them as-is
+      return { user: null, error };
+    }
+    
+    return { user, error: null };
+  } catch (err) {
+    // Handle errors that might be thrown (like "Auth session missing!")
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    const errorName = err instanceof Error ? err.name : '';
+    
+    // Handle "Auth session missing!" error - this is expected when user is not logged in
+    if (
+      errorMessage.includes('Auth session missing!') ||
+      errorMessage.includes('Auth session missing') ||
+      errorName === 'AuthSessionMissingError' ||
+      errorMessage.includes('Session missing')
+    ) {
+      // User is not logged in, which is fine - return null user with no error
+      return { user: null, error: null };
+    }
+    
+    // For other errors, wrap them in an error object
+    return { 
+      user: null, 
+      error: err instanceof Error ? err : new Error(String(err))
+    };
+  }
+}
+
+/**
  * Helper function to handle auth errors, particularly refresh token errors
  * Clears the session if the error is related to invalid refresh tokens
  */
@@ -110,6 +178,19 @@ export async function handleAuthError(
     : typeof error === 'string' 
     ? error 
     : String(error);
+  
+  const errorName = error instanceof Error ? error.name : '';
+  
+  // Check if it's a "session missing" error - this is expected when user is not logged in
+  if (
+    errorMessage.includes('Auth session missing!') ||
+    errorMessage.includes('Auth session missing') ||
+    errorName === 'AuthSessionMissingError' ||
+    errorMessage.includes('Session missing')
+  ) {
+    // This is a normal case when user is not logged in, no need to handle it
+    return true; // Error was handled (silently ignored)
+  }
   
   // Check if it's a refresh token error
   if (

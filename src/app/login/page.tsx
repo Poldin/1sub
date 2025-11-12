@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { createClient, safeGetUser } from '@/lib/supabase/client';
 
 function LoginForm() {
   const router = useRouter();
@@ -27,16 +27,27 @@ function LoginForm() {
     const checkUser = async () => {
       try {
         const supabase = createClient();
-        const { data: { user }, error } = await supabase.auth.getUser();
+        // Use safeGetUser to handle "Auth session missing!" errors gracefully
+        const { user, error } = await safeGetUser(supabase);
         
-        // If there's a refresh token error, clear the session and stay on login page
+        // If there's an error (not a session missing error), handle it
         if (error) {
-          if (error.message?.includes('Refresh Token') || error.message?.includes('refresh_token')) {
+          const errorMessage = error.message || '';
+          const errorName = error.name || '';
+          
+          // Handle refresh token errors
+          if (
+            errorMessage.includes('Refresh Token') || 
+            errorMessage.includes('refresh_token') ||
+            errorMessage.includes('Invalid Refresh Token') ||
+            errorMessage.includes('Refresh Token Not Found')
+          ) {
             // Clear invalid session
             await supabase.auth.signOut({ scope: 'local' });
             setChecking(false);
             return;
           }
+          
           // For other errors, just log and continue
           console.error('Error checking user:', error);
           setChecking(false);
@@ -53,33 +64,12 @@ function LoginForm() {
           }
           return;
         }
+        
+        // No user and no error (session missing is handled by safeGetUser)
+        setChecking(false);
       } catch (err) {
-        console.error('Error checking user:', err);
-        // If it's a refresh token error, clear session
-        if (err instanceof Error && (
-          err.message.includes('Refresh Token') || 
-          err.message.includes('refresh_token') ||
-          err.message.includes('Invalid Refresh Token') ||
-          err.message.includes('Refresh Token Not Found')
-        )) {
-          try {
-            const supabase = createClient();
-            await supabase.auth.signOut({ scope: 'local' });
-            // Clear cookies manually
-            if (typeof document !== 'undefined') {
-              document.cookie.split(';').forEach((cookie) => {
-                const cookieName = cookie.split('=')[0].trim();
-                if (cookieName.includes('sb-') || cookieName.includes('supabase') || cookieName.includes('auth-token')) {
-                  document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-                  document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
-                }
-              });
-            }
-          } catch (signOutError) {
-            console.error('Error signing out:', signOutError);
-          }
-        }
-      } finally {
+        // This should not happen with safeGetUser, but handle it just in case
+        console.error('Unexpected error checking user:', err);
         setChecking(false);
       }
     };

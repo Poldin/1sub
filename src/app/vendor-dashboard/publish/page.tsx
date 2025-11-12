@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Menu, X, Plus } from 'lucide-react';
+import { Menu, X, Plus, BookOpen, ExternalLink, AlertCircle, HelpCircle } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import Sidebar from '../../backoffice/components/Sidebar';
 import Footer from '../../components/Footer';
@@ -427,6 +427,28 @@ export default function PublishToolPage() {
             {/* Left Column: Forms */}
             <div className="space-y-6">
               <form id="tool-form" onSubmit={handleSubmit} className="space-y-6">
+                {/* Integration Guide Banner */}
+                <div className="bg-gradient-to-r from-[#3ecf8e]/10 to-[#2dd4bf]/10 border border-[#3ecf8e]/30 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <BookOpen className="w-6 h-6 text-[#3ecf8e] mt-1 flex-shrink-0" />
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-[#ededed] mb-1">New to Tool Integration?</h3>
+                      <p className="text-sm text-[#d1d5db] mb-3">
+                        After publishing your tool, you&apos;ll receive an API key. Check out our integration guide to learn how to connect your tool to 1SUB, verify users, and consume credits.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => router.push('/vendor-dashboard/integration')}
+                        className="flex items-center gap-2 bg-[#3ecf8e] hover:bg-[#2dd4bf] text-white px-4 py-2 rounded-lg font-semibold transition-colors text-sm"
+                      >
+                        <BookOpen className="w-4 h-4" />
+                        View Integration Guide
+                        <ExternalLink className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Basic Information */}
                 <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
                   <h2 className="text-lg font-semibold text-[#ededed] mb-6">Basic Information</h2>
@@ -528,8 +550,19 @@ export default function PublishToolPage() {
 
                   {/* External Tool URL */}
                   <div className="mb-6">
-                    <label htmlFor="toolExternalUrl" className="block text-sm font-medium text-[#d1d5db] mb-2">
+                    <label htmlFor="toolExternalUrl" className="block text-sm font-medium text-[#d1d5db] mb-2 flex items-center gap-2">
                       External Tool URL *
+                      <div className="group relative">
+                        <HelpCircle className="w-4 h-4 text-[#9ca3af] cursor-help" />
+                        <div className="absolute left-0 top-6 w-80 bg-[#111111] border border-[#374151] rounded-lg p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                          <p className="text-xs text-[#d1d5db] mb-2">
+                            This is where users will be redirected after purchasing credits for your tool. They&apos;ll receive a JWT token in the URL parameter.
+                          </p>
+                          <p className="text-xs text-[#9ca3af]">
+                            Example: <code className="text-[#3ecf8e]">https://your-tool.com/auth/callback</code>
+                          </p>
+                        </div>
+                      </div>
                     </label>
                     <input
                       type="url"
@@ -538,12 +571,28 @@ export default function PublishToolPage() {
                       value={formData.toolExternalUrl}
                       onChange={handleInputChange}
                       className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
-                      placeholder="https://your-tool.com"
+                      placeholder="https://your-tool.com/auth/callback"
                       required
                     />
-                    <p className="mt-2 text-sm text-[#9ca3af]">
-                      The URL where users will be redirected after purchasing your tool. Must use HTTP or HTTPS.
-                    </p>
+                    <div className="mt-3 bg-[#111111] border border-[#374151] rounded-lg p-3">
+                      <div className="flex items-start gap-2 mb-2">
+                        <AlertCircle className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
+                        <div className="text-sm text-[#d1d5db]">
+                          <strong className="text-blue-400">How it works:</strong>
+                        </div>
+                      </div>
+                      <ol className="text-xs text-[#9ca3af] space-y-1 ml-6 list-decimal">
+                        <li>User purchases credits for your tool on 1SUB</li>
+                        <li>User is redirected to this URL with a JWT token: <code className="text-[#3ecf8e]">?token=eyJhbGci...</code></li>
+                        <li>Your tool verifies the token via the 1SUB API</li>
+                        <li>User can now use your tool&apos;s features</li>
+                      </ol>
+                      <div className="mt-2 pt-2 border-t border-[#374151]">
+                        <p className="text-xs text-[#9ca3af]">
+                          <strong>Requirements:</strong> Must use HTTPS (or HTTP for localhost testing)
+                        </p>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Long Description */}

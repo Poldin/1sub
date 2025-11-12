@@ -18,7 +18,8 @@ import {
   DollarSign,
   LayoutDashboard,
   ExternalLink,
-  Package
+  Package,
+  BookOpen
 } from 'lucide-react';
 import { getUserCreditsClient } from '@/lib/credits';
 
@@ -198,6 +199,16 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
                       >
                         <Key className="w-4 h-4 text-[#3ecf8e]" />
                         <span>API</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          router.push('/vendor-dashboard/integration');
+                          onClose();
+                        }}
+                        className="w-full flex items-center gap-3 p-2 rounded hover:bg-[#374151] transition-colors text-[#d1d5db] text-sm"
+                      >
+                        <BookOpen className="w-4 h-4 text-[#3ecf8e]" />
+                        <span>Integration Guide</span>
                       </button>
                     </div>
                   )}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Menu, Key, Copy, RefreshCw } from 'lucide-react';
+import { Menu, Key, Copy, RefreshCw, AlertCircle, BookOpen, ExternalLink } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import Sidebar from '../../backoffice/components/Sidebar';
 import ToolSelector from '../components/ToolSelector';
@@ -110,7 +110,20 @@ export default function VendorAPIPage() {
     // Show masked key (last 4 chars)
     const maskedKey = `sk-tool-••••${apiKeyHash.slice(-4)}`;
     navigator.clipboard.writeText(maskedKey);
-    alert('API key reference copied to clipboard! Note: The original key cannot be retrieved. Use "Regenerate" to create a new key.');
+    
+    // Create a better notification
+    const notification = document.createElement('div');
+    notification.className = 'fixed top-4 right-4 bg-[#3ecf8e] text-white px-4 py-3 rounded-lg shadow-lg z-50 flex items-center gap-2';
+    notification.innerHTML = `
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+      </svg>
+      <span>Key reference copied!</span>
+    `;
+    document.body.appendChild(notification);
+    setTimeout(() => {
+      notification.remove();
+    }, 3000);
   };
 
   const handleRegenerateKey = async (toolId: string) => {
@@ -163,8 +176,13 @@ export default function VendorAPIPage() {
           : key
       ));
 
-      // Show new API key to user (only once)
-      alert(`API key regenerated successfully!\n\nYour new API key is: ${newApiKey}\n\nPlease save this key - it will not be shown again.`);
+      // Show new API key to user (only once) - Using a custom modal would be better, but alert works for now
+      const shouldCopy = confirm(`API key regenerated successfully!\n\nYour new API key is:\n\n${newApiKey}\n\n⚠️ IMPORTANT: Save this key now! It will not be shown again.\n\nClick OK to copy to clipboard, or Cancel to close.`);
+      
+      if (shouldCopy) {
+        navigator.clipboard.writeText(newApiKey);
+        alert('API key copied to clipboard! Make sure to save it in a secure location.');
+      }
     } catch (error) {
       console.error('Error regenerating API key:', error);
       alert('Failed to regenerate API key. Please try again.');
@@ -222,6 +240,40 @@ export default function VendorAPIPage() {
         </header>
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Important Notice */}
+        <div className="bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/30 rounded-lg p-4 mb-6">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-yellow-500 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <h3 className="font-semibold text-yellow-500 mb-1">Important: API Key Security</h3>
+              <p className="text-sm text-[#d1d5db] mb-2">
+                Your API key is shown only once when generated. If you lose it, you&apos;ll need to regenerate a new one. 
+                Store it securely in your environment variables and never expose it in client-side code.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Integration Guide Link */}
+        <div className="bg-[#1f2937] border border-[#374151] rounded-lg p-4 mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <BookOpen className="w-5 h-5 text-[#3ecf8e]" />
+              <div>
+                <h3 className="font-semibold text-[#ededed]">Need Help Integrating?</h3>
+                <p className="text-sm text-[#9ca3af]">View our comprehensive integration guide with code examples</p>
+              </div>
+            </div>
+            <Link
+              href="/vendor-dashboard/integration"
+              className="flex items-center gap-2 bg-[#3ecf8e] hover:bg-[#2dd4bf] text-white px-4 py-2 rounded-lg font-semibold transition-colors whitespace-nowrap"
+            >
+              View Guide
+              <ExternalLink className="w-4 h-4" />
+            </Link>
+          </div>
+        </div>
+
         {/* API Keys Section */}
         <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151] mb-8">
           <h2 className="text-lg font-semibold text-[#ededed] mb-6">Your Tool API Keys</h2>
@@ -305,9 +357,16 @@ export default function VendorAPIPage() {
                     </button>
                   </div>
                   
-                  <p className="text-xs text-[#9ca3af] mt-2">
-                    Note: The original API key cannot be retrieved. Use &quot;Regenerate&quot; to create a new key if needed.
-                  </p>
+                  <div className="bg-[#111111] border border-[#4b5563] rounded p-3 mt-2">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-yellow-500 mt-0.5 flex-shrink-0" />
+                      <p className="text-xs text-[#9ca3af]">
+                        The original API key cannot be retrieved. Only the reference (last 4 characters) is shown. 
+                        Use &quot;Regenerate&quot; to create a new key if you lost the original. 
+                        <strong className="text-yellow-500"> This will invalidate the old key.</strong>
+                      </p>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
