@@ -182,9 +182,9 @@ export default function ProductsPage() {
           // Set initial tool selection
           if (toolsData.length > 0) {
             const savedToolId = localStorage.getItem('selectedToolId');
-            const toolExists = savedToolId && toolsData.some(tool => tool.id === savedToolId);
+            const toolExists = savedToolId && toolsData.some((tool: { id: string; name: string }) => tool.id === savedToolId);
             const initialToolId = toolExists ? savedToolId : toolsData[0].id;
-            const initialTool = toolsData.find(tool => tool.id === initialToolId);
+            const initialTool = toolsData.find((tool: { id: string; name: string }) => tool.id === initialToolId);
             
             setSelectedToolId(initialToolId);
             setSelectedToolName(initialTool?.name || '');

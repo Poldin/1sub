@@ -67,7 +67,7 @@ export default function VendorUsersPage() {
         setUsers([]);
         return;
       }
-      const toolIds = tools.map(tool => tool.id);
+      const toolIds = tools.map((tool: { id: string; name: string }) => tool.id);
 
       // 2. Get credit transactions for these tools
       const { data: transactions, error: transactionsError } = await supabase
@@ -100,7 +100,7 @@ export default function VendorUsersPage() {
       }
 
       // 4. Get unique user IDs
-      const userIds = [...new Set(transactions?.map(t => t.user_id).filter(id => id) || [])];
+      const userIds = [...new Set(transactions?.map((t: { user_id: string; tool_id: string; credits_amount: number | null; created_at: string }) => t.user_id).filter((id: string | undefined) => id) || [])];
       
       if (userIds.length === 0) {
         setUsers([]);
@@ -148,7 +148,7 @@ export default function VendorUsersPage() {
           .select('user_id, metadata')
           .in('tool_id', toolIds);
         
-        checkoutsData?.forEach(checkout => {
+        checkoutsData?.forEach((checkout: { user_id: string; metadata: unknown | null }) => {
           const metadata = checkout.metadata as { user_email?: string };
           if (checkout.user_id && metadata?.user_email) {
             checkoutUserEmails.set(checkout.user_id, metadata.user_email);
@@ -162,7 +162,7 @@ export default function VendorUsersPage() {
       const userMap = new Map<string, VendorUser>();
 
       // Process transactions and create user entries
-      transactions?.forEach(transaction => {
+      transactions?.forEach((transaction: { user_id: string; tool_id: string; credits_amount: number | null; created_at: string }) => {
         // Get or create user entry
         let user = userMap.get(transaction.user_id);
         
@@ -187,7 +187,7 @@ export default function VendorUsersPage() {
           userMap.set(transaction.user_id, user);
         }
 
-        const tool = tools.find(t => t.id === transaction.tool_id);
+        const tool = tools.find((t: { id: string; name: string }) => t.id === transaction.tool_id);
         if (!tool) return;
 
         // Add credits spent

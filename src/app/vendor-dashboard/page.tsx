@@ -175,24 +175,24 @@ export default function VendorDashboard() {
       if (!toolsData) return;
 
       const totalTools = toolsData.length;
-      const activeTools = toolsData.filter(tool => tool.is_active).length;
+      const activeTools = toolsData.filter((tool: { id: string; is_active: boolean }) => tool.is_active).length;
 
       // Get total users across all tool subscriptions
       const { data: subscriptionsData } = await supabase
         .from('tool_subscriptions')
         .select('user_id')
-        .in('tool_id', toolsData.map(tool => tool.id));
+        .in('tool_id', toolsData.map((tool: { id: string; is_active: boolean }) => tool.id));
 
-      const uniqueUsers = new Set(subscriptionsData?.map(sub => sub.user_id) || []).size;
+      const uniqueUsers = new Set(subscriptionsData?.map((sub: { user_id: string }) => sub.user_id) || []).size;
 
       // Get total revenue from credit transactions
       const { data: transactionsData } = await supabase
         .from('credit_transactions')
         .select('credits_amount')
-        .in('tool_id', toolsData.map(tool => tool.id))
+        .in('tool_id', toolsData.map((tool: { id: string; is_active: boolean }) => tool.id))
         .eq('type', 'tool_usage');
 
-      const totalRevenue = transactionsData?.reduce((sum, transaction) => 
+      const totalRevenue = transactionsData?.reduce((sum: number, transaction: { credits_amount: number | null }) => 
         sum + (transaction.credits_amount || 0), 0) || 0;
 
       setVendorStats({
@@ -219,7 +219,7 @@ export default function VendorDashboard() {
         .eq('type', 'tool_usage');
 
       const usageCount = transactionsData?.length || 0;
-      const revenue = transactionsData?.reduce((sum, transaction) => 
+      const revenue = transactionsData?.reduce((sum: number, transaction: { credits_amount: number | null }) => 
         sum + (transaction.credits_amount || 0), 0) || 0;
 
       // Get active subscribers
@@ -286,7 +286,7 @@ export default function VendorDashboard() {
         if (!error && toolsData) {
           setToolsCount(toolsData.length);
           setHasTools(toolsData.length > 0);
-          const mappedTools = toolsData.map(tool => ({
+          const mappedTools = toolsData.map((tool: { id: string; name: string }) => ({
             id: tool.id,
             name: tool.name,
           }));
@@ -295,9 +295,9 @@ export default function VendorDashboard() {
           // Set initial tool selection
           if (toolsData.length > 0) {
             const savedToolId = localStorage.getItem('selectedToolId');
-            const toolExists = savedToolId && toolsData.some(tool => tool.id === savedToolId);
+            const toolExists = savedToolId && toolsData.some((tool: { id: string; name: string }) => tool.id === savedToolId);
             const initialToolId = toolExists ? savedToolId : toolsData[0].id;
-            const initialTool = toolsData.find(tool => tool.id === initialToolId);
+            const initialTool = toolsData.find((tool: { id: string; name: string }) => tool.id === initialToolId);
             
             setSelectedToolId(initialToolId);
             setSelectedToolName(initialTool?.name || '');

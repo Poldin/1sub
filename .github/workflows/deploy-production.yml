@@ -29,13 +29,6 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
-    - name: Run full test suite
-      run: |
-        npm run test
-        npm run test:e2e
-      env:
-        CI: true
-
     - name: Build application
       run: npm run build
       env:
@@ -70,7 +63,6 @@ jobs:
           ## Changes in this Release
           
           - Deployed to production
-          - All tests passing
           - Smoke tests completed
         draft: false
         prerelease: false

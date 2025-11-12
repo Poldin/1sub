@@ -16,6 +16,12 @@ interface ToolApiKey {
   isActive: boolean;
 }
 
+interface ToolWithMetadata {
+  id: string;
+  name: string;
+  metadata: Record<string, unknown> | null;
+}
+
 export default function VendorAPIPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [toolApiKeys, setToolApiKeys] = useState<ToolApiKey[]>([]);
@@ -74,11 +80,11 @@ export default function VendorAPIPage() {
 
         if (!toolsError && tools) {
           const apiKeys: ToolApiKey[] = tools
-            .filter(tool => {
+            .filter((tool: ToolWithMetadata) => {
               const metadata = (tool.metadata as Record<string, unknown>) || {};
               return !!metadata.api_key_hash; // Only show tools with API keys
             })
-            .map(tool => {
+            .map((tool: ToolWithMetadata) => {
               const metadata = (tool.metadata as Record<string, unknown>) || {};
               return {
                 toolId: tool.id,

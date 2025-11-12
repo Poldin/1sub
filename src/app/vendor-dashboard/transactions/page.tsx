@@ -143,7 +143,7 @@ export default function VendorTransactionsPage() {
       
           // Enrich transactions with tool and buyer information
       const enrichedTransactions = await Promise.all(
-        (transactionData || []).map(async (tx) => {
+        (transactionData || []).map(async (tx: { id: string; created_at: string; credits_amount: number | null; reason: string | null; tool_id: string | null; checkout_id: string | null; metadata: unknown | null }) => {
           let toolName = null;
           const buyerEmail = null;
           let buyerName = null;
@@ -166,8 +166,8 @@ export default function VendorTransactionsPage() {
           }
           
           // Get buyer information from metadata or checkout
-          const metadata = tx.metadata || {};
-          let buyerId = metadata.buyer_id;
+          const metadata = (tx.metadata as Record<string, unknown> | null) || {};
+          let buyerId = (metadata as Record<string, unknown>).buyer_id as string | undefined;
           
           // If no buyer_id in metadata, try to get from checkout
           if (!buyerId && tx.checkout_id) {
@@ -233,7 +233,7 @@ export default function VendorTransactionsPage() {
         
         console.log('[Vendor Transactions] Recent checkouts with vendor_id:', {
           count: checkoutsData?.length || 0,
-          checkouts: checkoutsData?.map(c => ({
+          checkouts: checkoutsData?.map((c: { id: string; vendor_id: string; metadata: unknown | null }) => ({
             id: c.id,
             vendor_id: c.vendor_id,
             tool_name: (c.metadata as { tool_name?: string })?.tool_name,

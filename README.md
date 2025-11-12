@@ -29,25 +29,29 @@ The platform uses a simplified token system where tokens are only used at trust 
 
 ## Environment Variables
 
-Create a `.env.local` file in the root directory with the following variables:
+Create a `.env.local` file in the root directory and fill in your actual values:
 
-```bash
-# Supabase Configuration
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+   ```bash
+   # Supabase Configuration
+   # Get these from: https://supabase.com/dashboard/project/_/settings/api
+   NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+   SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 
-# JWT Configuration
-JWT_SECRET=your_jwt_secret_key
+   # JWT Configuration
+   # Generate a secure random string
+   JWT_SECRET=your_jwt_secret_key
 
-# Email Configuration (for waitlist notifications)
-ADMIN_EMAIL=your-admin@email.com
-RESEND_API_KEY=your_resend_api_key
+   # Email Configuration (for waitlist notifications)
+   ADMIN_EMAIL=your-admin@email.com
+   RESEND_API_KEY=your_resend_api_key
 
-# Stripe Configuration (for future payments)
-STRIPE_SECRET_KEY=your_stripe_secret_key
-STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
-```
+   # Stripe Configuration (for future payments)
+   STRIPE_SECRET_KEY=your_stripe_secret_key
+   STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
+   ```
+
+**Important:** The `.env.local` file is gitignored and should never be committed. Make sure to set these environment variables in your deployment platform (Vercel, etc.) as well.
 
 ## Getting Started
 

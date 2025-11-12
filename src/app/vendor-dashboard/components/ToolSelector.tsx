@@ -57,18 +57,18 @@ export default function ToolSelector({
           // Priority: currentToolId > localStorage > first tool
           let initialToolId: string | null = null;
 
-          if (currentToolId && data.some(tool => tool.id === currentToolId)) {
+          if (currentToolId && data.some((tool: Tool) => tool.id === currentToolId)) {
             initialToolId = currentToolId;
           } else {
             const savedToolId = localStorage.getItem('selectedToolId');
-            const toolExists = savedToolId && data.some(tool => tool.id === savedToolId);
+            const toolExists = savedToolId && data.some((tool: Tool) => tool.id === savedToolId);
             initialToolId = toolExists ? savedToolId! : data[0].id;
           }
 
           if (initialToolId) {
             setSelectedToolId(initialToolId);
             localStorage.setItem('selectedToolId', initialToolId);
-            const initialTool = data.find(tool => tool.id === initialToolId);
+            const initialTool = data.find((tool: Tool) => tool.id === initialToolId);
             if (initialTool && onToolChange) {
               onToolChange(initialTool.id, initialTool.name);
             }
@@ -95,7 +95,7 @@ export default function ToolSelector({
       setSelectedToolId(value);
       
       // Find the tool name and call the callback
-      const selectedTool = tools.find(tool => tool.id === value);
+      const selectedTool = tools.find((tool: Tool) => tool.id === value);
       if (selectedTool && onToolChange) {
         onToolChange(value, selectedTool.name);
       }
@@ -104,7 +104,7 @@ export default function ToolSelector({
 
   const selectedTool = useMemo(() => {
     if (!selectedToolId) return null;
-    return tools.find(tool => tool.id === selectedToolId) || null;
+    return tools.find((tool: Tool) => tool.id === selectedToolId) || null;
   }, [selectedToolId, tools]);
 
   if (isLoading || tools.length === 0) {

@@ -27,7 +27,21 @@ function LoginForm() {
     const checkUser = async () => {
       try {
         const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user }, error } = await supabase.auth.getUser();
+        
+        // If there's a refresh token error, clear the session and stay on login page
+        if (error) {
+          if (error.message?.includes('Refresh Token') || error.message?.includes('refresh_token')) {
+            // Clear invalid session
+            await supabase.auth.signOut({ scope: 'local' });
+            setChecking(false);
+            return;
+          }
+          // For other errors, just log and continue
+          console.error('Error checking user:', error);
+          setChecking(false);
+          return;
+        }
         
         if (user) {
           // User is already logged in, redirect
@@ -41,6 +55,30 @@ function LoginForm() {
         }
       } catch (err) {
         console.error('Error checking user:', err);
+        // If it's a refresh token error, clear session
+        if (err instanceof Error && (
+          err.message.includes('Refresh Token') || 
+          err.message.includes('refresh_token') ||
+          err.message.includes('Invalid Refresh Token') ||
+          err.message.includes('Refresh Token Not Found')
+        )) {
+          try {
+            const supabase = createClient();
+            await supabase.auth.signOut({ scope: 'local' });
+            // Clear cookies manually
+            if (typeof document !== 'undefined') {
+              document.cookie.split(';').forEach((cookie) => {
+                const cookieName = cookie.split('=')[0].trim();
+                if (cookieName.includes('sb-') || cookieName.includes('supabase') || cookieName.includes('auth-token')) {
+                  document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+                  document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
+                }
+              });
+            }
+          } catch (signOutError) {
+            console.error('Error signing out:', signOutError);
+          }
+        }
       } finally {
         setChecking(false);
       }

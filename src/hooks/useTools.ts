@@ -18,6 +18,7 @@ interface UseToolsReturn {
 async function fetchTools(): Promise<Tool[]> {
   try {
     const supabase = createClient();
+    
     const { data: toolsData, error: fetchError } = await supabase
       .from('tools')
       .select(`
@@ -28,12 +29,54 @@ async function fetchTools(): Promise<Tool[]> {
       .order('created_at', { ascending: false });
 
     if (fetchError) {
+      // Check if it's a refresh token error
+      const errorMessage = fetchError.message || fetchError.toString() || '';
+      if (
+        errorMessage.includes('Refresh Token') ||
+        errorMessage.includes('refresh_token') ||
+        errorMessage.includes('Invalid Refresh Token') ||
+        errorMessage.includes('Refresh Token Not Found')
+      ) {
+        console.warn('Invalid refresh token detected in fetchTools, clearing session');
+        // Clear session and cookies
+        try {
+          await supabase.auth.signOut({ scope: 'local' });
+        } catch (signOutError) {
+          // Ignore sign out errors
+        }
+        // Return empty array instead of throwing
+        return [];
+      }
+      
       console.error('Error fetching tools:', fetchError);
       throw new Error(`Failed to load tools: ${fetchError.message}`);
     }
 
     return toolsData || [];
   } catch (err) {
+    // Check if it's a refresh token error (including AuthApiError)
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    const errorName = err && typeof err === 'object' && 'name' in err ? String(err.name) : '';
+    
+    if (
+      errorName === 'AuthApiError' ||
+      errorMessage.includes('Refresh Token') ||
+      errorMessage.includes('refresh_token') ||
+      errorMessage.includes('Invalid Refresh Token') ||
+      errorMessage.includes('Refresh Token Not Found')
+    ) {
+      console.warn('Refresh token error in fetchTools, clearing session and returning empty array');
+      // Try to clear session - use the helper from client.ts if available
+      try {
+        const supabase = createClient();
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch (clearError) {
+        // Ignore errors - cookies will be cleared by the global handler
+      }
+      // Return empty array instead of throwing to prevent UI errors
+      return [];
+    }
+    
     console.error('Unexpected error in fetchTools:', err);
     throw err;
   }
