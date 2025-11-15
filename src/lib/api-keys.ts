@@ -36,7 +36,7 @@ export async function updateApiKeyLastUsed(
 
     if (fetchError || !tool) {
       // Silently fail - last_used_at is not critical
-      console.warn(`Could not update API key last used for tool ${toolId}: Tool not found`);
+      console.warn('[API Keys] Could not update API key last used: Tool not found');
       return;
     }
 
@@ -53,11 +53,11 @@ export async function updateApiKeyLastUsed(
       .eq('id', toolId);
 
     if (updateError) {
-      console.warn(`Could not update API key last used for tool ${toolId}:`, updateError.message);
+      console.warn('[API Keys] Could not update API key last used:', updateError.message);
     }
   } catch (error) {
     // Silently fail - this is a non-critical operation
-    console.warn(`Error updating API key last used for tool ${toolId}:`, error);
+    console.warn('[API Keys] Error updating API key last used:', error);
   }
 }
 
@@ -97,13 +97,8 @@ export async function findToolByApiKeyHash(apiKeyHash: string): Promise<string |
 /**
  * Find a tool by verifying an API key
  * 
- * OPTIMIZATION: This function queries all tools which is inefficient.
- * For production, consider:
- * 1. Creating a separate api_keys table with indexed tool_id
- * 2. Using PostgreSQL's crypt() function to compare hashes in database
- * 3. Implementing caching with short TTL
- * 
- * Current implementation limits to active tools only to reduce scope.
+ * OPTIMIZED: Uses dedicated api_keys table with indexed lookup for fast authentication.
+ * Only performs bcrypt comparison for keys matching the prefix, avoiding full table scan.
  * 
  * @param apiKey - The plain API key to verify
  * @returns Tool ID and metadata if found and verified, null otherwise
@@ -116,40 +111,35 @@ export async function findToolByApiKey(apiKey: string): Promise<{
 } | null> {
   const supabase = await createClient();
 
-  // OPTIMIZATION: Only query active tools with API keys to reduce scope
-  // In production, this should use a dedicated api_keys table or better indexing
-  const { data: tools, error } = await supabase
-    .from('tools')
-    .select('id, name, is_active, metadata')
-    .eq('is_active', true)  // Only check active tools
-    .not('metadata', 'is', null)
-    .limit(100);  // Add safety limit to prevent DoS
+  // Extract key prefix for indexed lookup (first 8 chars)
+  const keyPrefix = apiKey.substring(0, 8);
+
+  // Query api_keys table using RPC function for optimized lookup
+  // This uses an index on key_prefix instead of scanning all tools
+  const { data: candidates, error } = await supabase
+    .rpc('validate_api_key_hash', { p_key_prefix: keyPrefix });
 
   if (error) {
-    throw new Error(`Failed to query tools: ${error.message}`);
+    console.error('[API Keys] Error querying api_keys table:', error);
+    throw new Error(`Failed to query API keys: ${error.message}`);
   }
 
-  if (!tools || tools.length === 0) {
+  if (!candidates || candidates.length === 0) {
     return null;
   }
 
-  // Find tool with matching API key hash
-  // Note: This still does bcrypt comparisons in a loop, but limited to active tools only
-  for (const tool of tools) {
-    const metadata = tool.metadata as Record<string, unknown>;
-    const storedHash = metadata?.api_key_hash as string | undefined;
-    
-    // Check if API key is active before doing expensive bcrypt comparison
-    if (!storedHash || (metadata?.api_key_active as boolean | undefined) === false) {
-      continue;
-    }
-    
-    if (await verifyApiKey(apiKey, storedHash)) {
+  // Verify the full API key hash with bcrypt
+  // Only one or few candidates to check (much faster than looping all tools)
+  for (const candidate of candidates) {
+    if (await verifyApiKey(apiKey, candidate.key_hash)) {
+      // Update last_used_at timestamp
+      await supabase.rpc('update_api_key_usage', { p_tool_id: candidate.tool_id });
+
       return {
-        toolId: tool.id,
-        toolName: tool.name,
-        isActive: tool.is_active,
-        metadata: metadata
+        toolId: candidate.tool_id,
+        toolName: candidate.tool_name,
+        isActive: candidate.is_active,
+        metadata: {}, // API keys table doesn't store metadata
       };
     }
   }

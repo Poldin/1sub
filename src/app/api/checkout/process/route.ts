@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
-import { calculateCreditsFromTransactions } from '@/lib/credits';
+import { getCurrentBalance, addCredits, subtractCredits } from '@/lib/credits-service';
 import { generateToolAccessToken } from '@/lib/jwt';
 
 export async function POST(request: NextRequest) {
@@ -27,11 +27,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[DEBUG][checkout/process] Incoming request', {
-      authUserId: authUser.id,
-      authEmail: authUser.email,
-      checkoutId: checkout_id,
-    });
+    // Sensitive data removed from logs - use audit logs for security events
 
     // 1. Fetch checkout record
     const { data: checkout, error: checkoutError } = await supabase
@@ -47,19 +43,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[DEBUG][checkout/process] Checkout record', {
-      checkoutId: checkout.id,
-      checkoutUserId: checkout.user_id,
-      vendorId: checkout.vendor_id,
-      metadataStatus: (checkout.metadata as Record<string, unknown>)?.status,
-    });
+    // Sensitive data removed from logs
 
     // 2. Verify user ownership
     if (checkout.user_id !== authUser.id) {
-      console.warn('[WARN][checkout/process] Auth user mismatch', {
-        authUserId: authUser.id,
-        checkoutUserId: checkout.user_id,
-      });
+      console.warn('[WARN][checkout/process] Auth user mismatch - unauthorized checkout access attempt');
       return NextResponse.json(
         { error: 'Unauthorized to process this checkout' },
         { status: 403 }
@@ -74,14 +62,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 4. Check if checkout is already completed
+    // 4. IDEMPOTENCY CHECK: Check if checkout is already completed
     const metadata = checkout.metadata as Record<string, unknown>;
     if (metadata?.status === 'completed') {
+      // Return existing result (idempotent)
       return NextResponse.json(
-        { error: 'Checkout already completed', tool_url: metadata.tool_url },
-        { status: 400 }
+        { 
+          success: true,
+          message: 'Checkout already completed',
+          tool_url: metadata.tool_url,
+          is_duplicate: true,
+        },
+        { status: 200 }
       );
     }
+
+    // Check for idempotency key in metadata
+    const idempotencyKey = metadata?.idempotency_key as string | undefined;
 
     // 5. Determine credit cost and checkout type from selected pricing
     let creditCost = checkout.credit_amount || 0;
@@ -171,102 +168,65 @@ export async function POST(request: NextRequest) {
       }).eq('id', checkout_id);
     }
 
-    // 6. Fetch user's current credit balance
-    const { data: transactions, error: transactionsError } = await supabase
-      .from('credit_transactions')
-      .select('credits_amount, type')
-      .eq('user_id', authUser.id);
-
-    if (transactionsError) {
-      return NextResponse.json(
-        { error: 'Failed to fetch user balance' },
-        { status: 500 }
-      );
-    }
-
-    // Calculate current balance using centralized utility
-    const currentBalance = calculateCreditsFromTransactions(transactions || []);
-
-    // 7. Verify user has enough credits
-    if (currentBalance < creditCost) {
-      return NextResponse.json(
-        { 
-          error: 'Insufficient credits',
-          current_balance: currentBalance,
-          required: creditCost
-        },
-        { status: 400 }
-      );
-    }
-
-    // 8. Determine transaction reason based on checkout type
+    // 6. Determine transaction reason based on checkout type
     let transactionReason = `Tool purchase: ${metadata.tool_name}`;
     if (checkoutType === 'tool_subscription') {
       transactionReason = `Subscription payment: ${metadata.tool_name} (${billingPeriod || 'monthly'})`;
     }
 
-    // 9. Create user transaction (spend credits)
-    const { error: userTransactionError } = await supabase
-      .from('credit_transactions')
-      .insert({
-        user_id: authUser.id,
-        checkout_id: checkout.id,
-        tool_id: metadata.tool_id,
-        credits_amount: creditCost,
-        type: 'subtract',
-        reason: transactionReason,
-        balance_after: currentBalance - creditCost,
-        metadata: {
-          tool_name: metadata.tool_name,
-          tool_url: metadata.tool_url,
-          checkout_type: checkoutType,
-          selected_pricing: selected_pricing || null,
-        },
-      });
+    // 7. ATOMIC OPERATION: Subtract credits from user using credit service
+    // This automatically checks for sufficient balance and handles idempotency
+    const userTransactionResult = await subtractCredits({
+      userId: authUser.id,
+      amount: creditCost,
+      reason: transactionReason,
+      idempotencyKey: idempotencyKey || `checkout-${checkout.id}-user`,
+      checkoutId: checkout.id,
+      toolId: metadata.tool_id as string,
+      metadata: {
+        tool_name: metadata.tool_name,
+        tool_url: metadata.tool_url,
+        checkout_type: checkoutType,
+        selected_pricing: selected_pricing || null,
+      },
+    });
 
-    if (userTransactionError) {
-      console.error('User transaction error:', userTransactionError);
-      console.log('[DEBUG][checkout/process] Failed to insert user transaction', {
-        authUserId: authUser.id,
-        checkoutId: checkout.id,
-      });
+    if (!userTransactionResult.success) {
+      console.error('User transaction failed:', userTransactionResult.error);
       return NextResponse.json(
-        { error: 'Failed to process payment' },
-        { status: 500 }
+        { 
+          error: userTransactionResult.error || 'Failed to process payment',
+          current_balance: userTransactionResult.balanceBefore,
+          required: creditCost
+        },
+        { status: userTransactionResult.error === 'Insufficient credits' ? 400 : 500 }
       );
     }
 
-    // 10. Create vendor transaction (earn credits) if vendor exists
+    // Transaction success logged via audit system
+
+    // 8. ATOMIC OPERATION: Add credits to vendor using credit service
+    // This ensures atomicity and proper balance tracking
     let vendorTransactionWarning = null;
+    let vendorTransactionResult = null;
+
     if (checkout.vendor_id) {
-      // Fetch vendor's current balance
-      const { data: vendorTransactions } = await supabase
-        .from('credit_transactions')
-        .select('credits_amount, type')
-        .eq('user_id', checkout.vendor_id);
+      vendorTransactionResult = await addCredits({
+        userId: checkout.vendor_id,
+        amount: creditCost,
+        reason: `Tool sale: ${metadata.tool_name}`,
+        idempotencyKey: idempotencyKey || `checkout-${checkout.id}-vendor`,
+        checkoutId: checkout.id,
+        toolId: metadata.tool_id as string,
+        metadata: {
+          buyer_id: authUser.id,
+          tool_name: metadata.tool_name,
+        },
+      });
 
-      // Calculate vendor balance using centralized utility
-      const vendorBalance = calculateCreditsFromTransactions(vendorTransactions || []);
-
-      const { error: vendorTransactionError } = await supabase
-        .from('credit_transactions')
-        .insert({
-          user_id: checkout.vendor_id,
-          checkout_id: checkout.id,
-          tool_id: metadata.tool_id,
-          credits_amount: creditCost,
-          type: 'add',
-          reason: `Tool sale: ${metadata.tool_name}`,
-          balance_after: vendorBalance + creditCost,
-          metadata: {
-            buyer_id: authUser.id,
-            tool_name: metadata.tool_name,
-          },
-        });
-
-      if (vendorTransactionError) {
+      if (!vendorTransactionResult.success) {
         console.error('CRITICAL: Vendor transaction creation failed:', {
-          error: vendorTransactionError,
+          error: vendorTransactionResult.error,
           vendor_id: checkout.vendor_id,
           checkout_id: checkout.id,
           tool_id: metadata.tool_id,
@@ -275,8 +235,16 @@ export async function POST(request: NextRequest) {
           buyer_id: authUser.id,
         });
         vendorTransactionWarning = 'Vendor earnings may not have been recorded. Please contact support.';
-        // Note: User transaction already created, this is a critical issue
-        // In production, this should be handled with proper transaction rollback
+        
+        // NOTE: In a traditional ACID database, we would rollback the user transaction here.
+        // With Supabase, we log this as a critical error for manual intervention.
+        // Future improvement: Implement a compensation table to track failed vendor transactions
+      } else {
+        console.log('[DEBUG][checkout/process] Vendor transaction successful', {
+          transactionId: vendorTransactionResult.transactionId,
+          balanceBefore: vendorTransactionResult.balanceBefore,
+          balanceAfter: vendorTransactionResult.balanceAfter,
+        });
       }
     } else {
       console.warn('Checkout processed without vendor_id:', {
@@ -286,7 +254,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 11. Create subscription record if this is a subscription checkout
+    // 9. Create subscription record if this is a subscription checkout
     if (checkoutType === 'tool_subscription' && billingPeriod) {
       // Calculate next billing date
       const nextBillingDate = new Date();
@@ -315,18 +283,20 @@ export async function POST(request: NextRequest) {
           },
         });
 
-          if (subError) {
-            console.error('CRITICAL: Failed to create subscription:', subError);
-            console.error('Subscription data:', {
-              user_id: authUser.id,
-              tool_id: metadata.tool_id,
-              vendor_id: checkout.vendor_id,
-              credit_price: creditCost,
-              billing_period: billingPeriod,
-            });
-            
-            // TODO: Store in failed_subscriptions table for manual review
-          }
+      if (subError) {
+        console.error('CRITICAL: Failed to create subscription:', subError);
+        console.error('Subscription data:', {
+          user_id: authUser.id,
+          tool_id: metadata.tool_id,
+          vendor_id: checkout.vendor_id,
+          credit_price: creditCost,
+          billing_period: billingPeriod,
+        });
+        
+        // TODO: Store in failed_subscriptions table for manual review
+        // NOTE: Credits have already been deducted, but subscription wasn't created
+        // This requires manual intervention
+      }
     }
 
     // 10. Generate JWT token for tool access
@@ -342,14 +312,15 @@ export async function POST(request: NextRequest) {
       // Don't fail the checkout if token generation fails
     }
 
-    // 11. Update checkout status to completed
-    // FIX: Don't store JWT token in database (security issue)
-    // Tokens are short-lived and should only be transmitted, not persisted
+    // 11. Update checkout status to completed (IDEMPOTENT)
+    // Store idempotency key in metadata to prevent duplicate processing
     const updatedMetadata = {
       ...metadata,
       status: 'completed',
       completed_at: new Date().toISOString(),
-      // Removed: tool_access_token storage (security fix)
+      idempotency_key: idempotencyKey || `checkout-${checkout.id}`,
+      user_transaction_id: userTransactionResult.transactionId,
+      vendor_transaction_id: vendorTransactionResult?.transactionId,
     };
 
     const { error: updateError } = await supabase
@@ -361,12 +332,14 @@ export async function POST(request: NextRequest) {
 
     if (updateError) {
       console.error('Checkout update error:', updateError);
+      // Don't fail the transaction if metadata update fails
+      // The transaction has already been processed successfully
     }
 
     console.log('[DEBUG][checkout/process] Purchase complete', {
       checkoutId: checkout.id,
       authUserId: authUser.id,
-      newBalance: currentBalance - creditCost,
+      newBalance: userTransactionResult.balanceAfter,
       vendorId: checkout.vendor_id,
     });
 
@@ -378,7 +351,7 @@ export async function POST(request: NextRequest) {
         : 'Purchase completed successfully',
       tool_url: metadata.tool_url,
       tool_access_token: toolAccessToken, // Include token in response
-      new_balance: currentBalance - creditCost,
+      new_balance: userTransactionResult.balanceAfter,
       is_subscription: checkoutType === 'tool_subscription',
       selected_pricing: selected_pricing || null,
       vendor_warning: vendorTransactionWarning || undefined,
@@ -392,4 +365,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

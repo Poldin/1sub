@@ -9,6 +9,8 @@
  * - Input validation (UUID, amounts, etc.)
  * - Security audit logging
  * - Authentication failure tracking
+ * - Idempotency support via idempotency_key
+ * - Uses improved consume_credits RPC with atomic operations
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -81,7 +83,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Find tool by API key
-    // FIX: Now returns tool data directly, avoiding duplicate database query
     const toolData = await findToolByApiKey(apiKey);
     if (!toolData) {
       // Track authentication failures for security monitoring
@@ -92,7 +93,7 @@ export async function POST(request: NextRequest) {
 
       logApiKeyAuth({
         success: false,
-        apiKey: apiKey,
+        apiKey: apiKey.substring(0, 8) + '...',
         reason: 'Invalid API key',
         ip: clientIp
       });
@@ -119,7 +120,7 @@ export async function POST(request: NextRequest) {
     // Log successful authentication
     logApiKeyAuth({
       success: true,
-      apiKey: apiKey,
+      apiKey: apiKey.substring(0, 8) + '...',
       toolId: toolData.toolId,
       toolName: toolData.toolName,
       ip: clientIp
@@ -129,7 +130,7 @@ export async function POST(request: NextRequest) {
     const toolId = toolData.toolId;
     const metadata = toolData.metadata;
 
-    // Verify tool is active (already checked in findToolByApiKey, but double-check)
+    // Verify tool is active
     if (!toolData.isActive) {
       return NextResponse.json(
         {
@@ -140,7 +141,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify API key is active in metadata (already checked in findToolByApiKey)
+    // Verify API key is active in metadata
     if ((metadata.api_key_active as boolean | undefined) === false) {
       return NextResponse.json(
         {
@@ -175,90 +176,24 @@ export async function POST(request: NextRequest) {
 
     const { user_id, amount, reason, idempotency_key } = validation.data;
 
-    // Check for duplicate idempotency key
-    const { data: existingTransaction, error: checkError } = await supabase
-      .from('credit_transactions')
-      .select('id')
-      .eq('user_id', user_id)
-      .eq('metadata->>idempotency_key', idempotency_key)
-      .single();
-
-    if (checkError && checkError.code !== 'PGRST116') {
-      // PGRST116 is "not found" which is expected for new transactions
-      console.error('Error checking idempotency:', checkError);
-    }
-
-    if (existingTransaction) {
-      return NextResponse.json(
-        {
-          error: 'Duplicate request',
-          message: 'This request has already been processed (duplicate idempotency_key)',
-        },
-        { status: 409 }
-      );
-    }
-
-    // Get user's current balance
-    // OPTIMIZATION: Use balance_after from latest transaction instead of calculating from all
-    const { data: latestBalance, error: balanceError } = await supabase
-      .from('credit_transactions')
-      .select('balance_after')
-      .eq('user_id', user_id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    let currentBalance = 0;
-    
-    if (balanceError) {
-      // If no transactions found (code PGRST116), balance is 0
-      if (balanceError.code === 'PGRST116') {
-        currentBalance = 0;
-      } else {
-        // Other errors should fail the request
-        console.error('Error fetching balance:', balanceError);
-        return NextResponse.json(
-          {
-            error: 'Internal server error',
-            message: 'Failed to fetch user balance',
-          },
-          { status: 500 }
-        );
-      }
-    } else {
-      currentBalance = latestBalance?.balance_after ?? 0;
-    }
-
-    // Check if user has sufficient credits
-    if (currentBalance < amount) {
-      logInsufficientCredits({
-        userId: user_id,
-        toolId: toolId,
-        required: amount,
-        available: currentBalance,
-        ip: clientIp
-      });
-
-      return NextResponse.json(
-        {
-          error: 'Insufficient credits',
-          message: 'User does not have sufficient credits',
-          current_balance: currentBalance,
-          required: amount,
-          shortfall: amount - currentBalance,
-        },
-        { status: 400 }
-      );
-    }
-
-    // Consume credits using RPC function
-    const { error: consumeError } = await supabase.rpc(
+    // Consume credits using improved RPC function with atomic operations
+    // The RPC now handles:
+    // - Idempotency checking
+    // - Row-level locking to prevent race conditions
+    // - Balance validation
+    // - Atomic balance_after calculation
+    const { data: result, error: consumeError } = await supabase.rpc(
       'consume_credits',
       {
         p_user_id: user_id,
         p_amount: amount,
         p_reason: reason,
         p_idempotency_key: idempotency_key,
+        p_tool_id: toolId,
+        p_metadata: {
+          tool_name: toolData.toolName,
+          api_consumption: true,
+        }
       }
     );
 
@@ -273,27 +208,60 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get new balance after deduction
-    const { data: newTransactions } = await supabase
-      .from('credit_transactions')
-      .select('balance_after')
-      .eq('user_id', user_id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+    // Handle RPC response
+    const rpcResult = result as {
+      success: boolean;
+      transaction_id?: string;
+      balance_before: number;
+      balance_after: number;
+      is_duplicate?: boolean;
+      error?: string;
+      required?: number;
+    };
 
-    const newBalance =
-      newTransactions?.balance_after ?? currentBalance - amount;
+    if (!rpcResult.success) {
+      // Handle specific errors from RPC
+      if (rpcResult.error === 'Insufficient credits') {
+        logInsufficientCredits({
+          userId: user_id,
+          toolId: toolId,
+          required: amount,
+          available: rpcResult.balance_before,
+          ip: clientIp
+        });
 
-    // Get transaction ID from the consume_credits result or latest transaction
-    const { data: latestTransaction } = await supabase
-      .from('credit_transactions')
-      .select('id')
-      .eq('user_id', user_id)
-      .eq('metadata->>idempotency_key', idempotency_key)
-      .single();
+        return NextResponse.json(
+          {
+            error: 'Insufficient credits',
+            message: 'User does not have sufficient credits',
+            current_balance: rpcResult.balance_before,
+            required: amount,
+            shortfall: amount - rpcResult.balance_before,
+          },
+          { status: 400 }
+        );
+      }
 
-    const transactionId = latestTransaction?.id || null;
+      // Other errors
+      return NextResponse.json(
+        {
+          error: 'Failed to consume credits',
+          message: rpcResult.error || 'Unknown error',
+        },
+        { status: 500 }
+      );
+    }
+
+    // Handle duplicate request (idempotency)
+    if (rpcResult.is_duplicate) {
+      return NextResponse.json({
+        success: true,
+        new_balance: rpcResult.balance_after,
+        transaction_id: rpcResult.transaction_id,
+        is_duplicate: true,
+        message: 'This request has already been processed',
+      });
+    }
 
     // Update API key last used timestamp
     try {
@@ -309,19 +277,20 @@ export async function POST(request: NextRequest) {
       toolId: toolId,
       toolName: toolData.toolName,
       amount: amount,
-      balanceBefore: currentBalance,
-      balanceAfter: newBalance,
+      balanceBefore: rpcResult.balance_before,
+      balanceAfter: rpcResult.balance_after,
       reason: reason,
-      transactionId: transactionId || undefined,
+      transactionId: rpcResult.transaction_id,
       ip: clientIp
     });
 
     // Return success response
     return NextResponse.json({
       success: true,
-      new_balance: newBalance,
-      transaction_id: transactionId,
+      new_balance: rpcResult.balance_after,
+      transaction_id: rpcResult.transaction_id,
     });
+
   } catch (error) {
     // Handle JSON parsing errors
     if (error instanceof SyntaxError) {
@@ -345,4 +314,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

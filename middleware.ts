@@ -1,12 +1,27 @@
 import { type NextRequest } from 'next/server';
 import { updateSession } from '@/lib/supabase/middleware';
 import { NextResponse } from 'next/server';
+import { isPublicApiRoute, verifyApiAuth } from '@/lib/auth/api-middleware';
 
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
-  // Allow API routes to handle their own auth to avoid redirecting POSTs like OTP verification
+  // Handle API routes with authentication
   if (path.startsWith('/api/')) {
+    // Public API routes don't need authentication
+    if (isPublicApiRoute(path)) {
+      return NextResponse.next();
+    }
+
+    // Protected API routes require authentication
+    const user = await verifyApiAuth(request);
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized', message: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     return NextResponse.next();
   }
 

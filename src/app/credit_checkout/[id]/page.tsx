@@ -73,6 +73,12 @@ export default function CreditCheckoutPage() {
   const [toolDescription, setToolDescription] = useState<string | null>(null);
   const [showAllPlans, setShowAllPlans] = useState(false);
   const [showBuyCreditsDialog, setShowBuyCreditsDialog] = useState(false);
+  const [purchaseSuccess, setPurchaseSuccess] = useState(false);
+  const [purchaseData, setPurchaseData] = useState<{
+    toolUrl: string;
+    toolAccessToken: string | null;
+    isSubscription: boolean;
+  } | null>(null);
 
   // Fetch checkout data
   useEffect(() => {
@@ -248,20 +254,17 @@ export default function CreditCheckoutPage() {
         }
       }
 
-      // Open tool URL from checkout metadata with token
+      // Store purchase data and show success state
       const toolUrl = checkout.metadata.tool_url || data.tool_url;
       const toolAccessToken = data.tool_access_token || null;
       
-      if (toolUrl && toolUrl !== 'https://example.com/tool/' && !toolUrl.includes('example.com')) {
-        // Build redirect URL with token if available
-        const redirectUrl = toolAccessToken 
-          ? `${toolUrl}${toolUrl.includes('?') ? '&' : '?'}token=${toolAccessToken}`
-          : toolUrl;
-        window.open(redirectUrl, '_blank');
-      } else {
-        console.warn('Invalid tool URL:', toolUrl);
-        alert('Tool purchased successfully, but URL is not configured. Please contact the vendor.');
-      }
+      setPurchaseData({
+        toolUrl,
+        toolAccessToken,
+        isSubscription: data.is_subscription || false,
+      });
+      setPurchaseSuccess(true);
+      setIsProcessing(false);
       
       // Update local state immediately
       setCheckout(prev => prev ? {
@@ -269,10 +272,13 @@ export default function CreditCheckoutPage() {
         metadata: { ...prev.metadata, status: 'completed', completed_at: new Date().toISOString() }
       } : null);
       
-      // Redirect to backoffice
-      setTimeout(() => {
-        router.push('/backoffice?purchase_success=true');
-      }, 1000);
+      // Auto-open tool if URL is valid
+      if (toolUrl && toolUrl !== 'https://example.com/tool/' && !toolUrl.includes('example.com')) {
+        const redirectUrl = toolAccessToken 
+          ? `${toolUrl}${toolUrl.includes('?') ? '&' : '?'}token=${toolAccessToken}`
+          : toolUrl;
+        window.open(redirectUrl, '_blank');
+      }
 
     } catch (err) {
       console.error('Purchase error:', err);
@@ -352,6 +358,103 @@ export default function CreditCheckoutPage() {
   const isSubscription = selectedPricing?.includes('subscription') || checkout.type === 'tool_subscription';
   const subscriptionPeriod = checkout.metadata.subscription_period || 
     (selectedPricing === 'subscription_monthly' ? 'monthly' : selectedPricing === 'subscription_yearly' ? 'yearly' : null);
+
+  const handleLaunchTool = () => {
+    if (!purchaseData) return;
+    
+    const { toolUrl, toolAccessToken } = purchaseData;
+    if (toolUrl && toolUrl !== 'https://example.com/tool/' && !toolUrl.includes('example.com')) {
+      const redirectUrl = toolAccessToken 
+        ? `${toolUrl}${toolUrl.includes('?') ? '&' : '?'}token=${toolAccessToken}`
+        : toolUrl;
+      window.open(redirectUrl, '_blank');
+    }
+  };
+
+  // Success Modal
+  if (purchaseSuccess && purchaseData) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex items-center justify-center p-4">
+        <div className="max-w-lg w-full">
+          {/* Success Card */}
+          <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-8 shadow-2xl">
+            {/* Success Icon */}
+            <div className="flex justify-center mb-6">
+              <div className="bg-green-400/20 p-4 rounded-full">
+                <Check className="w-12 h-12 text-green-400" />
+              </div>
+            </div>
+
+            {/* Success Message */}
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-bold text-[#ededed] mb-2">
+                {purchaseData.isSubscription ? 'Subscription Activated!' : 'Purchase Successful!'}
+              </h2>
+              <p className="text-[#9ca3af]">
+                {purchaseData.isSubscription 
+                  ? `You now have access to ${checkout.metadata.tool_name}. Your subscription will auto-renew.`
+                  : `You now have access to ${checkout.metadata.tool_name}.`
+                }
+              </p>
+            </div>
+
+            {/* Updated Balance */}
+            <div className="bg-[#0a0a0a]/50 rounded-lg p-4 mb-6 border border-[#374151]">
+              <div className="flex justify-between items-center">
+                <span className="text-[#9ca3af]">Updated Balance:</span>
+                <span className="text-[#3ecf8e] font-semibold text-lg">{user?.credits.toFixed(2) || 0} credits</span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-3">
+              {purchaseData.toolUrl && 
+               purchaseData.toolUrl !== 'https://example.com/tool/' && 
+               !purchaseData.toolUrl.includes('example.com') && (
+                <button
+                  onClick={handleLaunchTool}
+                  className="w-full bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] text-black px-6 py-4 rounded-lg font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                >
+                  <ExternalLink className="w-5 h-5" />
+                  Launch {checkout.metadata.tool_name}
+                </button>
+              )}
+              <button
+                onClick={() => router.push('/backoffice?purchase_success=true')}
+                className="w-full bg-[#374151] text-[#ededed] px-6 py-4 rounded-lg font-semibold hover:bg-[#4b5563] transition-colors"
+              >
+                Return to Dashboard
+              </button>
+            </div>
+
+            {/* Tool opened notification */}
+            {purchaseData.toolUrl && 
+             purchaseData.toolUrl !== 'https://example.com/tool/' && 
+             !purchaseData.toolUrl.includes('example.com') && (
+              <p className="text-xs text-[#9ca3af] text-center mt-4">
+                The tool has been opened in a new tab. If it didn&apos;t open, click the button above.
+              </p>
+            )}
+          </div>
+
+          {/* Additional Info */}
+          {purchaseData.isSubscription && (
+            <div className="mt-4 text-center">
+              <p className="text-sm text-[#9ca3af]">
+                Manage your subscription from{' '}
+                <button 
+                  onClick={() => router.push('/profile')}
+                  className="text-[#3ecf8e] hover:underline"
+                >
+                  your profile
+                </button>
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed]">

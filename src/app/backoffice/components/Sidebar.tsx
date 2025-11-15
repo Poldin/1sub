@@ -257,7 +257,7 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
 
         {/* Credits Display */}
         <div className="p-4 border-t border-[#374151]">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-3">
             <div className="flex-1"></div>
             <div className="font-bold text-[#3ecf8e]" data-testid="credit-balance">
               <span className="font-thin text-[#9ca3af]">credits </span>{credits?.toFixed(2) || '0.00'}
@@ -275,6 +275,16 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
               </button>
             </div>
           </div>
+          {/* Subscribe Button */}
+          <button
+            onClick={() => {
+              router.push('/subscribe');
+              onClose();
+            }}
+            className="w-full bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] text-black px-4 py-2.5 rounded-lg font-semibold hover:opacity-90 transition-opacity text-sm"
+          >
+            Subscribe for Monthly Credits
+          </button>
         </div>
       </aside>
     </>

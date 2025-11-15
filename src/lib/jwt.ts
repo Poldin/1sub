@@ -7,10 +7,22 @@
 
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || '';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 if (!JWT_SECRET) {
-  console.warn('JWT_SECRET is not set. Token generation will fail.');
+  throw new Error(
+    'JWT_SECRET environment variable is required but not set. ' +
+    'Please add JWT_SECRET to your .env.local file. ' +
+    'Generate a secure secret with: openssl rand -base64 32'
+  );
+}
+
+// Validate JWT_SECRET is strong enough (minimum 32 characters)
+if (JWT_SECRET.length < 32) {
+  throw new Error(
+    'JWT_SECRET must be at least 32 characters long for security. ' +
+    'Generate a secure secret with: openssl rand -base64 32'
+  );
 }
 
 export interface ToolAccessTokenPayload {

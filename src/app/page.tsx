@@ -278,6 +278,7 @@ export default function Home() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full px-6 py-4 pl-14 bg-[#1f2937] border-2 border-[#374151] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-[#3ecf8e] text-[#ededed] text-lg transition-all group-hover:border-[#3ecf8e]/50"
+                suppressHydrationWarning
               />
               <div className="absolute left-5 top-1/2 -translate-y-1/2 text-[#9ca3af] group-focus-within:text-[#3ecf8e] transition-colors">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -297,7 +298,7 @@ export default function Home() {
             </div>
             
             {/* Category Pills */}
-            <div className="flex flex-wrap justify-center gap-2">
+            <div className="flex flex-wrap justify-center gap-2" suppressHydrationWarning>
               {['AI', 'Design', 'Analytics', 'Video', 'Marketing', 'Code'].map((category) => (
                 <button
                   key={category}
@@ -307,6 +308,7 @@ export default function Home() {
                       ? 'bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] text-white shadow-lg shadow-[#3ecf8e]/30 scale-105'
                       : 'bg-[#1f2937] border border-[#374151] text-[#d1d5db] hover:bg-[#374151] hover:border-[#3ecf8e] hover:text-[#3ecf8e] hover:scale-105'
                   }`}
+                  suppressHydrationWarning
                 >
                   {category}
                   <span className={`ml-1 transition-opacity duration-300 ${

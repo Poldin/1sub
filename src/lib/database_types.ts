@@ -381,8 +381,18 @@ export type Database = {
           p_idempotency_key: string
           p_reason: string
           p_user_id: string
+          p_tool_id?: string
+          p_metadata?: Json
         }
-        Returns: Json
+        Returns: {
+          success: boolean
+          transaction_id?: string
+          balance_before: number
+          balance_after: number
+          is_duplicate?: boolean
+          error?: string
+          required?: number
+        }
       }
       get_admin_audit_logs: {
         Args: {
