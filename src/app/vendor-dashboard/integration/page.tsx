@@ -169,7 +169,7 @@ export default function IntegrationGuidePage() {
         
         {/* Overview Section */}
         <div className="bg-gradient-to-r from-[#3ecf8e]/10 to-[#2dd4bf]/10 border border-[#3ecf8e]/30 rounded-xl p-6 mb-8">
-          <h2 className="text-2xl font-bold mb-4">🚀 Welcome to 1SUB Integration</h2>
+          <h2 className="text-2xl font-bold mb-4">Welcome to 1SUB Integration</h2>
           <p className="text-[#d1d5db] mb-4">
             Integrating with 1SUB allows you to monetize your tool through our credit system. 
             Users purchase credits on our platform and use them on your tool, while you earn revenue for each transaction.
@@ -198,34 +198,129 @@ export default function IntegrationGuidePage() {
             </div>
           </div>
         </div>
-
-        {/* Quick Start */}
+        
+        {/* Quick Checklist Section */}
         <section className="mb-8">
-          <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-            <Zap className="w-6 h-6 text-[#3ecf8e]" />
-            Quick Start (3 Steps)
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-[#1f2937] border border-[#374151] rounded-lg p-6">
-              <div className="w-10 h-10 bg-[#3ecf8e] rounded-full flex items-center justify-center font-bold text-[#111111] mb-4">
-                1
+          <div className="bg-[#1f2937] border border-[#374151] rounded-lg p-6">
+            <h2 className="text-2xl font-bold mb-4 text-[#ededed]">📋 Quick Setup Checklist</h2>
+            <p className="text-[#9ca3af] mb-6">
+              Follow these steps to fully integrate your tool with 1SUB. Each step is essential for a working integration.
+            </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Step 1: Publish Tool */}
+              <div className="bg-[#111111] border border-[#374151] rounded-lg p-4 hover:border-[#3ecf8e]/50 transition-colors">
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-8 h-8 bg-[#3ecf8e] rounded-full flex items-center justify-center font-bold text-[#111111] flex-shrink-0">
+                    1
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-[#ededed] mb-1">Publish Your Tool</h3>
+                    <p className="text-xs text-[#9ca3af]">Create tool listing and get API key</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => router.push('/vendor-dashboard/publish')}
+                  className="w-full px-3 py-2 bg-[#374151] hover:bg-[#4b5563] text-[#ededed] rounded text-sm font-medium transition-colors"
+                >
+                  Go to Publish Tool
+                </button>
               </div>
-              <h3 className="font-semibold mb-2">Publish Your Tool</h3>
-              <p className="text-sm text-[#9ca3af]">Create your tool listing on 1SUB and get your unique API key</p>
-            </div>
-            <div className="bg-[#1f2937] border border-[#374151] rounded-lg p-6">
-              <div className="w-10 h-10 bg-[#3ecf8e] rounded-full flex items-center justify-center font-bold text-[#111111] mb-4">
-                2
+
+              {/* Step 2: Set External URL */}
+              <div className="bg-[#111111] border border-[#374151] rounded-lg p-4 hover:border-[#3ecf8e]/50 transition-colors">
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-8 h-8 bg-[#3ecf8e] rounded-full flex items-center justify-center font-bold text-[#111111] flex-shrink-0">
+                    2
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-[#ededed] mb-1">Set External URL</h3>
+                    <p className="text-xs text-[#9ca3af]">Where users will be redirected</p>
+                  </div>
+                </div>
+                <a
+                  href="#step-3"
+                  className="block w-full px-3 py-2 bg-[#374151] hover:bg-[#4b5563] text-[#ededed] rounded text-sm font-medium transition-colors text-center"
+                >
+                  View Instructions
+                </a>
               </div>
-              <h3 className="font-semibold mb-2">Verify Users</h3>
-              <p className="text-sm text-[#9ca3af]">Accept JWT tokens from 1SUB and verify them via our API</p>
-            </div>
-            <div className="bg-[#1f2937] border border-[#374151] rounded-lg p-6">
-              <div className="w-10 h-10 bg-[#3ecf8e] rounded-full flex items-center justify-center font-bold text-[#111111] mb-4">
-                3
+
+              {/* Step 3: Configure Products */}
+              <div className="bg-[#111111] border border-[#374151] rounded-lg p-4 hover:border-[#3ecf8e]/50 transition-colors">
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-8 h-8 bg-[#3ecf8e] rounded-full flex items-center justify-center font-bold text-[#111111] flex-shrink-0">
+                    3
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-[#ededed] mb-1">Configure Pricing</h3>
+                    <p className="text-xs text-[#9ca3af]">Set up products and credit packages</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => router.push('/vendor-dashboard/products')}
+                  className="w-full px-3 py-2 bg-[#374151] hover:bg-[#4b5563] text-[#ededed] rounded text-sm font-medium transition-colors"
+                >
+                  Go to Products
+                </button>
               </div>
-              <h3 className="font-semibold mb-2">Consume Credits</h3>
-              <p className="text-sm text-[#9ca3af]">Deduct credits when users use features of your tool</p>
+
+              {/* Step 4: Get API Key */}
+              <div className="bg-[#111111] border border-[#374151] rounded-lg p-4 hover:border-[#3ecf8e]/50 transition-colors">
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-8 h-8 bg-[#3ecf8e] rounded-full flex items-center justify-center font-bold text-[#111111] flex-shrink-0">
+                    4
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-[#ededed] mb-1">Secure API Key</h3>
+                    <p className="text-xs text-[#9ca3af]">Store in environment variables</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => router.push('/vendor-dashboard/api')}
+                  className="w-full px-3 py-2 bg-[#374151] hover:bg-[#4b5563] text-[#ededed] rounded text-sm font-medium transition-colors"
+                >
+                  View API Keys
+                </button>
+              </div>
+
+              {/* Step 5: Verify Users */}
+              <div className="bg-[#111111] border border-[#374151] rounded-lg p-4 hover:border-[#3ecf8e]/50 transition-colors">
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-8 h-8 bg-[#3ecf8e] rounded-full flex items-center justify-center font-bold text-[#111111] flex-shrink-0">
+                    5
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-[#ededed] mb-1">Verify Users</h3>
+                    <p className="text-xs text-[#9ca3af]">Implement token verification</p>
+                  </div>
+                </div>
+                <a
+                  href="#step-6"
+                  className="block w-full px-3 py-2 bg-[#374151] hover:bg-[#4b5563] text-[#ededed] rounded text-sm font-medium transition-colors text-center"
+                >
+                  View Instructions
+                </a>
+              </div>
+
+              {/* Step 6: Consume Credits */}
+              <div className="bg-[#111111] border border-[#374151] rounded-lg p-4 hover:border-[#3ecf8e]/50 transition-colors">
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-8 h-8 bg-[#3ecf8e] rounded-full flex items-center justify-center font-bold text-[#111111] flex-shrink-0">
+                    6
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-[#ededed] mb-1">Consume Credits</h3>
+                    <p className="text-xs text-[#9ca3af]">Deduct credits for feature usage</p>
+                  </div>
+                </div>
+                <a
+                  href="#step-7"
+                  className="block w-full px-3 py-2 bg-[#374151] hover:bg-[#4b5563] text-[#ededed] rounded text-sm font-medium transition-colors text-center"
+                >
+                  View Instructions
+                </a>
+              </div>
             </div>
           </div>
         </section>
@@ -361,7 +456,7 @@ ONESUB_API_KEY=sk-tool-xxxxxxxxxxxx`}
           </div>
 
           {/* Step 3 */}
-          <div className="mb-6">
+          <div id="step-3" className="mb-6">
             <div className="bg-[#1f2937] border border-[#374151] rounded-lg p-6">
               <div className="flex items-start gap-4 mb-4">
                 <div className="w-10 h-10 bg-[#3ecf8e] rounded-full flex items-center justify-center font-bold text-[#111111] flex-shrink-0">
@@ -453,7 +548,7 @@ if not token:
           </div>
 
           {/* Step 6 */}
-          <div className="mb-6">
+          <div id="step-6" className="mb-6">
             <div className="bg-[#1f2937] border border-[#374151] rounded-lg p-6">
               <div className="flex items-start gap-4 mb-4">
                 <div className="w-10 h-10 bg-[#3ecf8e] rounded-full flex items-center justify-center font-bold text-[#111111] flex-shrink-0">
@@ -553,7 +648,7 @@ def verify_user_token(token):
           </div>
 
           {/* Step 7 */}
-          <div className="mb-6">
+          <div id="step-7" className="mb-6">
             <div className="bg-[#1f2937] border border-[#374151] rounded-lg p-6">
               <div className="flex items-start gap-4 mb-4">
                 <div className="w-10 h-10 bg-[#3ecf8e] rounded-full flex items-center justify-center font-bold text-[#111111] flex-shrink-0">
