@@ -1,14 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { getPasswordRequirementStates, validatePassword } from '@/lib/auth/password';
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectUrl = searchParams.get('redirect');
+  
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -32,7 +35,12 @@ export default function RegisterPage() {
         const { data: { user } } = await supabase.auth.getUser();
         
         if (user) {
-          router.push('/backoffice');
+          // If user is already logged in and there's a redirect, go there
+          if (redirectUrl) {
+            router.push(redirectUrl);
+          } else {
+            router.push('/backoffice');
+          }
           return;
         }
       } catch (err) {
@@ -43,7 +51,7 @@ export default function RegisterPage() {
     };
 
     checkUser();
-  }, [router]);
+  }, [router, redirectUrl]);
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,9 +79,13 @@ export default function RegisterPage() {
       }
 
       setSuccess(true);
-      // Redirect to login after verification
+      // Redirect to specified URL or login after verification
       setTimeout(() => {
-        router.push('/login');
+        if (redirectUrl) {
+          router.push(redirectUrl);
+        } else {
+          router.push('/login');
+        }
       }, 2000);
     } catch (err) {
       setOtpError('An unexpected error occurred. Please try again.');
@@ -376,5 +388,20 @@ export default function RegisterPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex items-center justify-center px-4">
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#3ecf8e] border-r-transparent"></div>
+          <p className="mt-4 text-[#9ca3af]">loading...</p>
+        </div>
+      </div>
+    }>
+      <RegisterForm />
+    </Suspense>
   );
 }

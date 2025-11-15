@@ -1,12 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
 
 interface FormData {
-  name: string;
-  email: string;
   company: string;
   website?: string;
   description: string;
@@ -15,14 +14,51 @@ interface FormData {
 export default function VendorApplyPage() {
   const router = useRouter();
   const [formData, setFormData] = useState<FormData>({
-    name: '',
-    email: '',
     company: '',
     website: '',
     description: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<{ id: string; email: string; fullName: string | null } | null>(null);
+
+  // Check authentication
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const supabase = createClient();
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+
+        if (!authUser) {
+          // Redirect to register with return URL
+          router.push('/register?redirect=/vendors/apply');
+          return;
+        }
+
+        // Fetch user profile
+        const response = await fetch('/api/user/profile');
+        if (!response.ok) {
+          router.push('/register?redirect=/vendors/apply');
+          return;
+        }
+
+        const profileData = await response.json();
+        setUser({
+          id: profileData.id,
+          email: profileData.email,
+          fullName: profileData.fullName
+        });
+      } catch (error) {
+        console.error('Auth check error:', error);
+        router.push('/register?redirect=/vendors/apply');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkAuth();
+  }, [router]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -47,7 +83,7 @@ export default function VendorApplyPage() {
 
       if (response.ok) {
         setMessage({ type: 'success', text: 'Application submitted successfully! We\'ll review your application and get back to you soon.' });
-        setFormData({ name: '', email: '', company: '', website: '', description: '' });
+        setFormData({ company: '', website: '', description: '' });
         // Redirect after a delay
         setTimeout(() => {
           router.push('/vendors');
@@ -61,6 +97,18 @@ export default function VendorApplyPage() {
       setIsSubmitting(false);
     }
   };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex items-center justify-center px-4">
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#3ecf8e] border-r-transparent"></div>
+          <p className="mt-4 text-[#9ca3af]">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex justify-center px-4 py-12">
@@ -78,39 +126,16 @@ export default function VendorApplyPage() {
         <div className="bg-[#111111] rounded-2xl p-8 shadow-2xl border border-[#374151]">
           <h2 className="text-2xl font-bold mb-6 text-center">apply to become a vendor</h2>
           
+          {/* User Info Display */}
+          {user && (
+            <div className="mb-6 p-4 bg-[#1f2937] border border-[#374151] rounded-lg">
+              <p className="text-sm text-[#9ca3af] mb-2">Applying as:</p>
+              <p className="text-[#ededed] font-medium">{user.fullName || 'User'}</p>
+              <p className="text-sm text-[#9ca3af]">{user.email}</p>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium text-[#d1d5db] mb-2">
-                full name *
-              </label>
-              <input
-                type="text"
-                id="name"
-                name="name"
-                value={formData.name}
-                onChange={handleInputChange}
-                className="w-full px-4 py-3 bg-[#1f2937] border border-[#374151] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
-                placeholder="John Doe"
-                required
-              />
-            </div>
-
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-[#d1d5db] mb-2">
-                email address *
-              </label>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                className="w-full px-4 py-3 bg-[#1f2937] border border-[#374151] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
-                placeholder="your@email.com"
-                required
-              />
-            </div>
-
             <div>
               <label htmlFor="company" className="block text-sm font-medium text-[#d1d5db] mb-2">
                 company name *

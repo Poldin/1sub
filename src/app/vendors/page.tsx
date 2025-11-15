@@ -43,10 +43,10 @@ export default function VendorsPage() {
           </p>
           
           <a
-            href="/register"
+            href="/vendors/apply"
             className="btn-secondary text-sm sm:text-base px-2"
           >
-            get started today
+            apply to become a vendor
           </a>
         </div>
       </section>
@@ -572,10 +572,10 @@ export default function VendorsPage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <a
-              href="/register"
+              href="/vendors/apply"
               className="btn-secondary text-sm sm:text-base"
             >
-              sign up and submit your tool
+              apply to become a vendor
             </a>
           </div>
         </div>
