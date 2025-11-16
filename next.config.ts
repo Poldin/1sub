@@ -30,11 +30,6 @@ const nextConfig: NextConfig = {
     ],
     formats: ['image/avif', 'image/webp'],
   },
-  eslint: {
-    // Don't fail build on lint warnings (only errors)
-    // Warnings are pre-existing in other files, not from new vendor integration code
-    ignoreDuringBuilds: false,
-  },
   typescript: {
     // Don't fail build on TypeScript errors (we want to catch these)
     ignoreBuildErrors: false,
