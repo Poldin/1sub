@@ -326,6 +326,17 @@ export default function ProductsPage() {
                     <Plus className="w-5 h-5" />
                     Create First Product
                   </button>
+                  <div className="mt-6 pt-6 border-t border-[#374151]">
+                    <p className="text-sm text-[#9ca3af] mb-3">
+                      Need help connecting your tool to 1SUB?
+                    </p>
+                    <button
+                      onClick={() => router.push('/vendor-dashboard/integration')}
+                      className="text-[#3ecf8e] hover:text-[#2dd4bf] text-sm font-medium transition-colors"
+                    >
+                      View Integration Guide →
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

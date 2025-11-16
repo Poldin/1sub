@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { secureLog } from '@/lib/secure-logger';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[DEBUG][checkout/create] Authenticated user', {
+    secureLog.debug('[DEBUG][checkout/create] Authenticated user', {
       id: authUser.id,
       email: authUser.email,
     });
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest) {
 
       if (error) {
         console.error('Error creating checkout:', error);
-        console.log('[DEBUG][checkout/create] Failed checkout creation', {
+        secureLog.debug('[DEBUG][checkout/create] Failed checkout creation', {
           userId: authUser.id,
           toolId: tool.id,
         });
@@ -101,7 +102,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      console.log('[DEBUG][checkout/create] Checkout created', {
+      secureLog.debug('[DEBUG][checkout/create] Checkout created', {
         checkoutId: checkout.id,
         checkoutUserId: checkout.user_id,
         vendorId: checkout.vendor_id,
@@ -148,7 +149,7 @@ export async function POST(request: NextRequest) {
 
       if (error) {
         console.error('Error creating checkout:', error);
-        console.log('[DEBUG][checkout/create] Failed checkout creation (pricing options)', {
+        secureLog.debug('[DEBUG][checkout/create] Failed checkout creation (pricing options)', {
           userId: authUser.id,
           toolId: tool.id,
         });
@@ -158,7 +159,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      console.log('[DEBUG][checkout/create] Checkout created (pricing options)', {
+      secureLog.debug('[DEBUG][checkout/create] Checkout created (pricing options)', {
         checkoutId: checkout.id,
         checkoutUserId: checkout.user_id,
         vendorId: checkout.vendor_id,

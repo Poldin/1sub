@@ -1,3 +1,49 @@
+# Node/Next.js
+node_modules/
+.next/
+out/
+.turbo/
+coverage/
+.vercel/
+
+# OS/editor junk
+.DS_Store
+Thumbs.db
+*.swp
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build artifacts
+dist/
+
+# Supabase/local database artifacts
+supabase/
+*.sqlite
+*.db
+
+# Local binaries
+stripe.exe
+
+# Project-specific docs to ignore (keep README.md)
+API_ENDPOINTS_REFERENCE.md
+CREDIT_SYSTEM_IMPLEMENTATION_SUMMARY.md
+IMPLEMENTATION_NOTES.md
+PHASE1_IMPLEMENTATION_SUMMARY.md
+SECURITY_HARDENING_SUMMARY.md
+STRIPE_SETUP.md
+TOOL_VERIFICATION_API.md
+TOOL_VERIFICATION_IMPLEMENTATION_SUMMARY.md
+TOOL_VERIFICATION_QUICKSTART.md
+
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies

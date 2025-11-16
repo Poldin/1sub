@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Menu, Key, Copy, RefreshCw, AlertCircle, BookOpen, ExternalLink } from 'lucide-react';
+import { Menu, Key, Copy, RefreshCw, AlertCircle, BookOpen, ExternalLink, Webhook, Link as LinkIcon, Eye, EyeOff, Save, Check } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import Sidebar from '../../backoffice/components/Sidebar';
 import ToolSelector from '../components/ToolSelector';
@@ -31,6 +31,15 @@ export default function VendorAPIPage() {
   const [userId, setUserId] = useState<string>('');
   const [userRole, setUserRole] = useState<string>('user');
   const [hasTools, setHasTools] = useState(false);
+  
+  // Webhook configuration states
+  const [selectedToolForConfig, setSelectedToolForConfig] = useState<string>('');
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [webhookSecret, setWebhookSecret] = useState('');
+  const [showWebhookSecret, setShowWebhookSecret] = useState(false);
+  const [redirectUri, setRedirectUri] = useState('');
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [configSaved, setConfigSaved] = useState(false);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -194,6 +203,91 @@ export default function VendorAPIPage() {
   const maskApiKey = (hash: string) => {
     // Show last 4 characters of hash
     return `sk-tool-••••${hash.slice(-4)}`;
+  };
+
+  const generateWebhookSecret = () => {
+    const array = new Uint8Array(32);
+    crypto.getRandomValues(array);
+    return 'whsec_' + Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+  };
+
+  const handleGenerateWebhookSecret = () => {
+    const newSecret = generateWebhookSecret();
+    setWebhookSecret(newSecret);
+  };
+
+  const handleSelectToolForConfig = async (toolId: string) => {
+    setSelectedToolForConfig(toolId);
+    setConfigSaved(false);
+    
+    // Load existing configuration
+    try {
+      const supabase = createClient();
+      const { data: apiKeyData, error } = await supabase
+        .from('api_keys')
+        .select('metadata')
+        .eq('tool_id', toolId)
+        .single();
+      
+      if (!error && apiKeyData && apiKeyData.metadata) {
+        const metadata = apiKeyData.metadata as Record<string, unknown>;
+        setWebhookUrl((metadata.webhook_url as string) || '');
+        setWebhookSecret((metadata.webhook_secret as string) || '');
+        setRedirectUri((metadata.redirect_uri as string) || '');
+      } else {
+        // Clear form
+        setWebhookUrl('');
+        setWebhookSecret('');
+        setRedirectUri('');
+      }
+    } catch (error) {
+      console.error('Error loading configuration:', error);
+    }
+  };
+
+  const handleSaveConfiguration = async () => {
+    if (!selectedToolForConfig) return;
+    
+    setSavingConfig(true);
+    setConfigSaved(false);
+    
+    try {
+      const supabase = createClient();
+      
+      // Get current metadata
+      const { data: apiKeyData, error: fetchError } = await supabase
+        .from('api_keys')
+        .select('metadata')
+        .eq('tool_id', selectedToolForConfig)
+        .single();
+      
+      if (fetchError) {
+        throw new Error('Failed to fetch API key metadata');
+      }
+      
+      const metadata = (apiKeyData?.metadata as Record<string, unknown>) || {};
+      metadata.webhook_url = webhookUrl || null;
+      metadata.webhook_secret = webhookSecret || null;
+      metadata.redirect_uri = redirectUri || null;
+      
+      // Update metadata
+      const { error: updateError } = await supabase
+        .from('api_keys')
+        .update({ metadata })
+        .eq('tool_id', selectedToolForConfig);
+      
+      if (updateError) {
+        throw new Error('Failed to save configuration');
+      }
+      
+      setConfigSaved(true);
+      setTimeout(() => setConfigSaved(false), 3000);
+    } catch (error) {
+      console.error('Error saving configuration:', error);
+      alert('Failed to save configuration. Please try again.');
+    } finally {
+      setSavingConfig(false);
+    }
   };
 
   return (
@@ -389,6 +483,183 @@ export default function VendorAPIPage() {
               {`}`}
             </code>
           </div>
+        </div>
+
+        {/* Tool Verification API Configuration */}
+        <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151] mb-8">
+          <div className="flex items-center gap-2 mb-6">
+            <Webhook className="w-5 h-5 text-[#3ecf8e]" />
+            <h2 className="text-lg font-semibold text-[#ededed]">Tool Verification API Configuration</h2>
+          </div>
+          
+          <p className="text-sm text-[#9ca3af] mb-4">
+            Configure webhook and redirect settings for the new subscription verification API. 
+            <Link href="/vendor-dashboard/integration" className="text-[#3ecf8e] hover:underline ml-1">
+              Learn more →
+            </Link>
+          </p>
+
+          {/* Tool Selection */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-[#ededed] mb-2">
+              Select Tool to Configure
+            </label>
+            <select
+              value={selectedToolForConfig}
+              onChange={(e) => handleSelectToolForConfig(e.target.value)}
+              className="w-full px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e]"
+            >
+              <option value="">-- Select a tool --</option>
+              {toolApiKeys.map((toolKey) => (
+                <option key={toolKey.toolId} value={toolKey.toolId}>
+                  {toolKey.toolName}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {selectedToolForConfig && (
+            <div className="space-y-4">
+              {/* Redirect URI */}
+              <div>
+                <label className="block text-sm font-medium text-[#ededed] mb-2">
+                  <div className="flex items-center gap-2">
+                    <LinkIcon className="w-4 h-4 text-[#3ecf8e]" />
+                    Redirect URI (JWT Flow)
+                  </div>
+                </label>
+                <input
+                  type="url"
+                  value={redirectUri}
+                  onChange={(e) => setRedirectUri(e.target.value)}
+                  placeholder="https://yourtool.com/auth/callback"
+                  className="w-full px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e]"
+                />
+                <p className="text-xs text-[#9ca3af] mt-1">
+                  Where users are redirected after subscribing, with a signed JWT token
+                </p>
+              </div>
+
+              {/* Webhook URL */}
+              <div>
+                <label className="block text-sm font-medium text-[#ededed] mb-2">
+                  <div className="flex items-center gap-2">
+                    <Webhook className="w-4 h-4 text-[#3ecf8e]" />
+                    Webhook URL
+                  </div>
+                </label>
+                <input
+                  type="url"
+                  value={webhookUrl}
+                  onChange={(e) => setWebhookUrl(e.target.value)}
+                  placeholder="https://yourtool.com/webhooks/1sub"
+                  className="w-full px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e]"
+                />
+                <p className="text-xs text-[#9ca3af] mt-1">
+                  Endpoint to receive subscription lifecycle events (activated, canceled, updated)
+                </p>
+              </div>
+
+              {/* Webhook Secret */}
+              <div>
+                <label className="block text-sm font-medium text-[#ededed] mb-2">
+                  <div className="flex items-center gap-2">
+                    <Key className="w-4 h-4 text-[#3ecf8e]" />
+                    Webhook Secret
+                  </div>
+                </label>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 relative">
+                    <input
+                      type={showWebhookSecret ? 'text' : 'password'}
+                      value={webhookSecret}
+                      onChange={(e) => setWebhookSecret(e.target.value)}
+                      placeholder="whsec_••••••••"
+                      className="w-full px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] font-mono text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowWebhookSecret(!showWebhookSecret)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9ca3af] hover:text-[#ededed]"
+                    >
+                      {showWebhookSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleGenerateWebhookSecret}
+                    className="px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg hover:bg-[#4b5563] transition-colors text-sm whitespace-nowrap"
+                  >
+                    Generate
+                  </button>
+                  {webhookSecret && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(webhookSecret);
+                        alert('Webhook secret copied to clipboard!');
+                      }}
+                      className="p-2 bg-[#374151] border border-[#4b5563] rounded-lg hover:bg-[#4b5563] transition-colors"
+                      title="Copy secret"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-[#9ca3af] mt-1">
+                  Used to verify webhook signatures (HMAC-SHA256). Store this securely in your tool.
+                </p>
+              </div>
+
+              {/* Save Button */}
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={handleSaveConfiguration}
+                  disabled={savingConfig}
+                  className="flex items-center gap-2 bg-[#3ecf8e] hover:bg-[#2dd4bf] text-black px-6 py-2 rounded-lg font-semibold transition-colors disabled:opacity-50"
+                >
+                  {savingConfig ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : configSaved ? (
+                    <>
+                      <Check className="w-4 h-4" />
+                      Saved!
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      Save Configuration
+                    </>
+                  )}
+                </button>
+                
+                {configSaved && (
+                  <span className="text-sm text-[#3ecf8e]">Configuration saved successfully!</span>
+                )}
+              </div>
+
+              {/* Info Box */}
+              <div className="bg-[#111111] border border-[#4b5563] rounded p-3 mt-4">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
+                  <div className="text-xs text-[#9ca3af]">
+                    <p className="mb-2"><strong className="text-blue-400">New Verification API:</strong></p>
+                    <ul className="space-y-1 ml-4 list-disc">
+                      <li><strong>Redirect URI:</strong> Users are sent here with a JWT after subscribing</li>
+                      <li><strong>Webhook URL:</strong> Receives real-time subscription events</li>
+                      <li><strong>Webhook Secret:</strong> Verifies authenticity of webhook requests</li>
+                    </ul>
+                    <p className="mt-2">
+                      See the <Link href="/vendor-dashboard/integration" className="text-[#3ecf8e] hover:underline">integration guide</Link> for implementation details.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Security Notes */}

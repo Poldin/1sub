@@ -491,6 +491,29 @@ export default function VendorDashboard() {
             </>
           ) : (
             <>
+              {/* Integration Guide Banner */}
+              <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-lg p-4 mb-6">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-blue-500/20 rounded-lg flex-shrink-0">
+                    <Settings className="w-5 h-5 text-blue-400" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-[#ededed] mb-1">Need Help Connecting Your Tool?</h3>
+                    <p className="text-sm text-[#d1d5db] mb-3">
+                      Check out our comprehensive integration guide with step-by-step instructions and code examples.
+                    </p>
+                    <button
+                      onClick={() => router.push('/vendor-dashboard/integration')}
+                      className="inline-flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors text-sm"
+                    >
+                      <Settings className="w-4 h-4" />
+                      View Integration Guide
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               <div className="flex items-center gap-6 mb-6">
                 <div className="flex items-center gap-2">
                   <Settings className="w-4 h-4 text-[#3ecf8e]" />
