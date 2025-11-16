@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
       line_items: [
         {
           price_data: {
-            currency: 'usd',
+            currency: 'eur',
             product_data: {
               name: selectedPackage.name,
               description: `Purchase ${selectedPackage.credits} credits for the 1sub platform`,

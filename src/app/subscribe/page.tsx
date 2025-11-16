@@ -237,7 +237,7 @@ function SubscribePageContent() {
                 {/* Price */}
                 <div className="mb-6">
                   <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-bold text-[#ededed]">${price.toFixed(0)}</span>
+                    <span className="text-4xl font-bold text-[#ededed]">€{price.toFixed(0)}</span>
                     <span className="text-[#9ca3af]">{period}</span>
                   </div>
                   {savings && (
@@ -245,7 +245,7 @@ function SubscribePageContent() {
                   )}
                   {billingPeriod === 'yearly' && (
                     <p className="text-xs text-[#9ca3af] mt-1">
-                      Billed ${plan.yearlyPrice} annually
+                      Billed €{plan.yearlyPrice} annually
                     </p>
                   )}
                 </div>

@@ -10,8 +10,8 @@ export interface PlatformSubscriptionPlan {
   name: string;
   description: string;
   creditsPerMonth: number;
-  price: number; // Monthly price in USD
-  yearlyPrice: number; // Yearly price in USD (discounted)
+  price: number; // Monthly price in EUR
+  yearlyPrice: number; // Yearly price in EUR (discounted)
   stripePriceIdMonthly?: string; // Stripe Price ID for monthly billing
   stripePriceIdYearly?: string; // Stripe Price ID for yearly billing
   features: string[];
