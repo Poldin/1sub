@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Users } from 'lucide-react';
 import Footer from './components/Footer';
 import ToolCard from './components/ToolCard';
@@ -27,15 +27,20 @@ export default function Home() {
   const [userInteracting, setUserInteracting] = useState(false);
   const autoScrollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Filter tools based on search term
-  const filteredTools = tools.filter(tool => {
-    if (!searchTerm) return true;
+  // Filter tools based on search term - MEMOIZED per evitare ricalcoli
+  const filteredTools = useMemo(() => {
+    if (!searchTerm) return tools;
     const searchLower = searchTerm.toLowerCase();
-    const matchesName = tool.name.toLowerCase().includes(searchLower);
-    const matchesDescription = tool.description?.toLowerCase().includes(searchLower);
-    const matchesTags = tool.metadata?.ui?.tags?.some(tag => tag.toLowerCase().includes(searchLower));
-    return matchesName || matchesDescription || matchesTags;
-  });
+    return tools.filter(tool => {
+      const matchesName = tool.name.toLowerCase().includes(searchLower);
+      const matchesDescription = tool.description?.toLowerCase().includes(searchLower);
+      const matchesTags = tool.metadata?.ui?.tags?.some(tag => tag.toLowerCase().includes(searchLower));
+      return matchesName || matchesDescription || matchesTags;
+    });
+  }, [tools, searchTerm]);
+
+  // Carousel tools - limitiamo a 12 per performance
+  const carouselTools = useMemo(() => filteredTools.slice(0, 12), [filteredTools]);
 
   // Drag to scroll functionality
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -114,17 +119,17 @@ export default function Home() {
     }, 3000);
   };
 
-  // Handle tool card click to open dialog
-  const handleToolClick = (tool: Tool) => {
+  // Handle tool card click to open dialog - MEMOIZED callback
+  const handleToolClick = useCallback((tool: Tool) => {
     setSelectedTool(tool);
     setIsDialogOpen(true);
-  };
+  }, []);
 
-  // Handle dialog close
-  const handleDialogClose = () => {
+  // Handle dialog close - MEMOIZED callback
+  const handleDialogClose = useCallback(() => {
     setIsDialogOpen(false);
     setTimeout(() => setSelectedTool(null), 300); // Delay clearing to allow animation
-  };
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] pb-20 sm:pb-0">
@@ -368,7 +373,7 @@ export default function Home() {
                         ))}
                       </>
                     ) : (
-                      filteredTools.map((tool, index) => (
+                      carouselTools.map((tool, index) => (
                         <div key={tool.id} className="flex-shrink-0 w-80 min-w-[20rem]">
                           <ToolCard tool={tool} mode="marketing" onViewClick={() => handleToolClick(tool)} onLaunchClick={() => handleToolClick(tool)} priority={index < 3} />
                         </div>
@@ -378,7 +383,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Desktop Carousel */}
+              {/* Desktop Carousel - mostra solo prime 12 card per performance */}
               <div className="mb-4 mt-4 hidden sm:block -mx-6 lg:-mx-8">
                 <div 
                   ref={carouselRef}
@@ -399,7 +404,7 @@ export default function Home() {
                       ))}
                     </>
                   ) : (
-                    filteredTools.map((tool, index) => (
+                    carouselTools.map((tool, index) => (
                       <div key={tool.id} className="flex-shrink-0 w-[22rem]">
                         <ToolCard tool={tool} mode="marketing" onViewClick={() => handleToolClick(tool)} onLaunchClick={() => handleToolClick(tool)} priority={index < 4} />
                       </div>

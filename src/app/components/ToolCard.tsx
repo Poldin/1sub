@@ -1,14 +1,15 @@
 'use client';
 
 /**
- * UNIFIED TOOL CARD COMPONENT
+ * UNIFIED TOOL CARD COMPONENT - OPTIMIZED
  * Supports both legacy props (flat structure) and new Tool type
  * Automatically detects which format is being used
+ * Uses React.memo to prevent unnecessary re-renders
  */
 
 import { Users, Star, ExternalLink } from 'lucide-react';
 import Image from 'next/image';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState, memo } from 'react';
 import { Tool, ToolProduct, DEFAULT_UI_METADATA, DEFAULT_ENGAGEMENT_METRICS, hasProducts, hasPricingOptions } from '@/lib/tool-types';
 import { PricingSection } from './PricingDisplay';
 
@@ -191,7 +192,7 @@ function legacyToTool(props: LegacyToolCardProps): Tool {
 // MAIN COMPONENT
 // ============================================================================
 
-export default function ToolCard(props: ToolCardProps) {
+function ToolCardComponent(props: ToolCardProps) {
   // Normalize props to unified format
   const { tool, mode, onViewClick, onLaunchClick, isHighlighted, priority } = isUnifiedProps(props)
     ? props
@@ -204,26 +205,17 @@ export default function ToolCard(props: ToolCardProps) {
         priority: props.priority || false,
       };
 
-  // Extract metadata with defaults (memoized to avoid recalculation)
-  const uiMeta = useMemo(
-    () => ({ ...DEFAULT_UI_METADATA, ...tool.metadata?.ui }),
-    [tool.metadata?.ui]
-  );
-  const engagement = useMemo(
-    () => ({ ...DEFAULT_ENGAGEMENT_METRICS, ...tool.metadata?.engagement }),
-    [tool.metadata?.engagement]
-  );
-  const pricingOptions = useMemo(
-    () => tool.metadata?.pricing_options,
-    [tool.metadata?.pricing_options]
-  );
+  // Extract metadata with defaults - solo questi sono complessi abbastanza da meritare memoization
+  const uiMeta = { ...DEFAULT_UI_METADATA, ...tool.metadata?.ui };
+  const engagement = { ...DEFAULT_ENGAGEMENT_METRICS, ...tool.metadata?.engagement };
+  const pricingOptions = tool.metadata?.pricing_options;
 
-  // Determine which image to show (memoized)
-  const imageUrl = useMemo(() => uiMeta.hero_image_url || tool.url, [uiMeta.hero_image_url, tool.url]);
-  const hasHeroImage = useMemo(() => isLikelyImageUrl(imageUrl), [imageUrl]);
-  const logoUrl = useMemo(() => uiMeta.logo_url, [uiMeta.logo_url]);
-  const hasLogoImage = useMemo(() => isLikelyImageUrl(logoUrl), [logoUrl]);
-  const emoji = useMemo(() => uiMeta.emoji, [uiMeta.emoji]);
+  // Determine which image to show - calcoli semplici, non serve useMemo
+  const imageUrl = uiMeta.hero_image_url || tool.url;
+  const hasHeroImage = isLikelyImageUrl(imageUrl);
+  const logoUrl = uiMeta.logo_url;
+  const hasLogoImage = isLikelyImageUrl(logoUrl);
+  const emoji = uiMeta.emoji;
 
   const [heroImageError, setHeroImageError] = useState(false);
   const [logoImageError, setLogoImageError] = useState(false);
@@ -246,20 +238,17 @@ export default function ToolCard(props: ToolCardProps) {
     if (onViewClick) onViewClick();
   };
 
-  // Border styling based on development stage and highlight (memoized)
-  const borderClasses = useMemo(() => {
-    let classes = 'border';
-    if (isHighlighted) {
-      classes += ' border-[#3ecf8e] shadow-lg shadow-[#3ecf8e]/50 animate-pulse';
-    } else if (uiMeta.development_stage === 'alpha') {
-      classes += ' border-2 border-purple-500 hover:border-purple-400 hover:shadow-purple-500/30';
-    } else if (uiMeta.development_stage === 'beta') {
-      classes += ' border-2 border-blue-500 hover:border-blue-400 hover:shadow-blue-500/30';
-    } else {
-      classes += ' border-[#374151] hover:border-[#3ecf8e]/50 hover:shadow-[#3ecf8e]/20';
-    }
-    return classes;
-  }, [isHighlighted, uiMeta.development_stage]);
+  // Border styling based on development stage and highlight
+  let borderClasses = 'border';
+  if (isHighlighted) {
+    borderClasses += ' border-[#3ecf8e] shadow-lg shadow-[#3ecf8e]/50 animate-pulse';
+  } else if (uiMeta.development_stage === 'alpha') {
+    borderClasses += ' border-2 border-purple-500 hover:border-purple-400 hover:shadow-purple-500/30';
+  } else if (uiMeta.development_stage === 'beta') {
+    borderClasses += ' border-2 border-blue-500 hover:border-blue-400 hover:shadow-blue-500/30';
+  } else {
+    borderClasses += ' border-[#374151] hover:border-[#3ecf8e]/50 hover:shadow-[#3ecf8e]/20';
+  }
 
   return (
     <div
@@ -295,6 +284,7 @@ export default function ToolCard(props: ToolCardProps) {
                 fill
                 className="object-cover"
                 sizes="48px"
+                loading="lazy"
                 onError={() => setLogoImageError(true)}
               />
             ) : emoji ? (
@@ -341,11 +331,11 @@ export default function ToolCard(props: ToolCardProps) {
                 alt={`${tool.name} preview`}
                 fill
                 className="object-cover tool-card-image"
-                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                sizes="(max-width: 640px) 320px, (max-width: 1024px) 352px, 352px"
                 placeholder="blur"
                 blurDataURL="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mM8dv16PQAGwgK75n6TaAAAAABJRU5ErkJggg=="
                 priority={priority}
-                loading={priority ? undefined : 'lazy'}
+                loading={priority ? 'eager' : 'lazy'}
                 onError={() => setHeroImageError(true)}
               />
             ) : (
@@ -441,4 +431,21 @@ export default function ToolCard(props: ToolCardProps) {
   );
 }
 
-        {/* Pricing Section */}
+// Export memoized version to prevent unnecessary re-renders
+// Solo ri-renderizza se le props cambiano realmente
+export default memo(ToolCardComponent, (prevProps, nextProps) => {
+  // Custom comparison function for optimization
+  if (isUnifiedProps(prevProps) && isUnifiedProps(nextProps)) {
+    return (
+      prevProps.tool.id === nextProps.tool.id &&
+      prevProps.tool.updated_at === nextProps.tool.updated_at &&
+      prevProps.mode === nextProps.mode &&
+      prevProps.isHighlighted === nextProps.isHighlighted &&
+      prevProps.priority === nextProps.priority &&
+      prevProps.onViewClick === nextProps.onViewClick &&
+      prevProps.onLaunchClick === nextProps.onLaunchClick
+    );
+  }
+  // For legacy props, use default shallow comparison
+  return false;
+});
