@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { calculateCreditsFromTransactions } from '@/lib/credits';
+import { secureLog } from '@/lib/secure-logger';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: checkoutId } = await params;
+    const { id: checkoutId } = await context.params;
     const supabase = await createClient();
 
     // Check authentication
@@ -34,7 +35,7 @@ export async function GET(
       );
     }
 
-    console.log('[DEBUG][checkout/get] Request context', {
+    secureLog.debug('[DEBUG][checkout/get] Request context', {
       authUserId: authUser.id,
       authEmail: authUser.email,
       checkoutId: checkoutId,

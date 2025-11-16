@@ -107,3 +107,4 @@ export function getMonthlyEquivalent(planId: string, billingPeriod: 'monthly' | 
   return billingPeriod === 'monthly' ? plan.price : plan.yearlyPrice / 12;
 }
 
+

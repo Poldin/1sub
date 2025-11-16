@@ -256,6 +256,150 @@ export type Database = {
           },
         ]
       }
+      tool_user_links: {
+        Row: {
+          id: string
+          tool_id: string
+          onesub_user_id: string
+          tool_user_id: string
+          link_method: string
+          linked_at: string
+          last_verified_at: string | null
+          metadata: Json | null
+        }
+        Insert: {
+          id?: string
+          tool_id: string
+          onesub_user_id: string
+          tool_user_id: string
+          link_method: string
+          linked_at?: string
+          last_verified_at?: string | null
+          metadata?: Json | null
+        }
+        Update: {
+          id?: string
+          tool_id?: string
+          onesub_user_id?: string
+          tool_user_id?: string
+          link_method?: string
+          linked_at?: string
+          last_verified_at?: string | null
+          metadata?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tool_user_links_tool_id_fkey"
+            columns: ["tool_id"]
+            isOneToOne: false
+            referencedRelation: "tools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tool_user_links_onesub_user_id_fkey"
+            columns: ["onesub_user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tool_link_codes: {
+        Row: {
+          id: string
+          code: string
+          tool_id: string
+          onesub_user_id: string
+          created_at: string
+          expires_at: string
+          used_at: string | null
+          is_used: boolean
+          tool_user_id: string | null
+          metadata: Json | null
+        }
+        Insert: {
+          id?: string
+          code: string
+          tool_id: string
+          onesub_user_id: string
+          created_at?: string
+          expires_at: string
+          used_at?: string | null
+          is_used?: boolean
+          tool_user_id?: string | null
+          metadata?: Json | null
+        }
+        Update: {
+          id?: string
+          code?: string
+          tool_id?: string
+          onesub_user_id?: string
+          created_at?: string
+          expires_at?: string
+          used_at?: string | null
+          is_used?: boolean
+          tool_user_id?: string | null
+          metadata?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tool_link_codes_tool_id_fkey"
+            columns: ["tool_id"]
+            isOneToOne: false
+            referencedRelation: "tools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tool_link_codes_onesub_user_id_fkey"
+            columns: ["onesub_user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jwks_keys: {
+        Row: {
+          id: string
+          kid: string
+          key_type: string
+          algorithm: string
+          public_key: string
+          private_key_ref: string | null
+          created_at: string
+          expires_at: string | null
+          is_active: boolean
+          is_primary: boolean
+          metadata: Json | null
+        }
+        Insert: {
+          id?: string
+          kid: string
+          key_type: string
+          algorithm: string
+          public_key: string
+          private_key_ref?: string | null
+          created_at?: string
+          expires_at?: string | null
+          is_active?: boolean
+          is_primary?: boolean
+          metadata?: Json | null
+        }
+        Update: {
+          id?: string
+          kid?: string
+          key_type?: string
+          algorithm?: string
+          public_key?: string
+          private_key_ref?: string | null
+          created_at?: string
+          expires_at?: string | null
+          is_active?: boolean
+          is_primary?: boolean
+          metadata?: Json | null
+        }
+        Relationships: []
+      }
       tools: {
         Row: {
           created_at: string | null
