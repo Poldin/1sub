@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentBalance, addCredits, subtractCredits } from '@/lib/credits-service';
 import { generateToolAccessToken } from '@/lib/jwt';
+import { notifySubscriptionActivated } from '@/lib/tool-webhooks';
 
 export async function POST(request: NextRequest) {
   try {
@@ -296,6 +297,21 @@ export async function POST(request: NextRequest) {
         // TODO: Store in failed_subscriptions table for manual review
         // NOTE: Credits have already been deducted, but subscription wasn't created
         // This requires manual intervention
+      } else {
+        // Send webhook notification for subscription activation
+        try {
+          const creditsRemaining = userTransactionResult.balanceAfter;
+          await notifySubscriptionActivated(
+            metadata.tool_id as string,
+            authUser.id,
+            billingPeriod,
+            nextBillingDate.toISOString(),
+            creditsRemaining
+          );
+        } catch (webhookError) {
+          // Don't fail the checkout if webhook fails
+          console.error('[Webhook] Failed to send subscription.activated webhook:', webhookError);
+        }
       }
     }
 

@@ -14,6 +14,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { getCurrentBalance, subtractCredits, addCredits } from '@/lib/credits-service';
+import { notifySubscriptionUpdated } from '@/lib/tool-webhooks';
 
 // Initialize Supabase (service role for cron job)
 function getSupabaseClient() {
@@ -270,6 +271,21 @@ async function processSubscriptionRenewal(
       balanceAfter: newBalance,
       nextBillingDate: nextBillingDate.toISOString(),
     });
+
+    // Send webhook notification for subscription update
+    try {
+      await notifySubscriptionUpdated(
+        toolId,
+        userId,
+        billingPeriod,
+        'active',
+        nextBillingDate.toISOString(),
+        newBalance
+      );
+    } catch (webhookError) {
+      // Don't fail the renewal if webhook fails
+      console.error(`[Webhook] Failed to send subscription.updated webhook for subscription ${subscriptionId}:`, webhookError);
+    }
 
     return {
       success: true,

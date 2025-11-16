@@ -10,7 +10,7 @@
  * - Rate limiting (100 requests per minute per tool)
  * - Input validation
  * - Security audit logging
- * - Support for oneSubUserId or emailSha256 lookup
+ * - Support for oneSubUserId, toolUserId, or emailSha256 lookup
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -118,14 +118,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { oneSubUserId, emailSha256 } = body;
+    const { oneSubUserId, toolUserId, emailSha256 } = body;
 
-    // Must provide either oneSubUserId or emailSha256
-    if (!oneSubUserId && !emailSha256) {
+    // Must provide at least one identifier
+    if (!oneSubUserId && !toolUserId && !emailSha256) {
       return NextResponse.json<APIError>(
         {
           error: 'Invalid request',
-          message: 'Either oneSubUserId or emailSha256 is required',
+          message: 'Either oneSubUserId, toolUserId, or emailSha256 is required',
         },
         { status: 422 }
       );
@@ -140,6 +140,29 @@ export async function POST(request: NextRequest) {
     if (oneSubUserId) {
       // Preferred: Direct user ID lookup
       resolvedUserId = oneSubUserId;
+    } else if (toolUserId) {
+      // Second preference: Lookup via tool_user_links
+      const { data: linkData, error: linkError } = await supabase
+        .from('tool_user_links')
+        .select('onesub_user_id')
+        .eq('tool_id', toolData.toolId)
+        .eq('tool_user_id', toolUserId)
+        .maybeSingle();
+
+      if (linkError) {
+        console.error('[Verify Subscription] Error querying tool_user_links:', linkError);
+        return NextResponse.json<APIError>(
+          {
+            error: 'Internal error',
+            message: 'Failed to resolve user from tool user ID',
+          },
+          { status: 500 }
+        );
+      }
+
+      if (linkData) {
+        resolvedUserId = linkData.onesub_user_id;
+      }
     } else if (emailSha256) {
       // Fallback: Email hash lookup
       // Query auth.users to find user by email hash
@@ -297,4 +320,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
 

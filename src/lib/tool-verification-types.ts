@@ -59,6 +59,7 @@ export interface JWKSKey {
 // Verify Subscription Request
 export interface VerifySubscriptionRequest {
   oneSubUserId?: string;
+  toolUserId?: string;
   emailSha256?: string;
 }
 
@@ -162,4 +163,5 @@ export interface APIError {
   message: string;
   details?: unknown;
 }
+
 

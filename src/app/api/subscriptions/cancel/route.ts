@@ -13,6 +13,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { notifySubscriptionCanceled } from '@/lib/tool-webhooks';
 
 export async function POST(request: NextRequest) {
   try {
@@ -114,6 +115,19 @@ export async function POST(request: NextRequest) {
       toolId: subscription.tool_id,
       cancelledAt: now,
     });
+
+    // Send webhook notification for subscription cancellation
+    try {
+      await notifySubscriptionCanceled(
+        subscription.tool_id,
+        authUser.id,
+        subscription.billing_period || 'monthly',
+        subscription.next_billing_date || now
+      );
+    } catch (webhookError) {
+      // Don't fail the cancellation if webhook fails
+      console.error('[Webhook] Failed to send subscription.canceled webhook:', webhookError);
+    }
 
     return NextResponse.json({
       success: true,
