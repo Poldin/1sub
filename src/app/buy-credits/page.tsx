@@ -10,7 +10,7 @@ import { loadStripe } from '@stripe/stripe-js';
 // Initialize Stripe
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
-// Credit packages with prices
+// Credit packages with prices (in EUR)
 const CREDIT_PACKAGES = [
   { key: '100', credits: 100, price: 10.00, name: 'Starter Pack', popular: false },
   { key: '500', credits: 500, price: 45.00, name: 'Pro Pack', popular: true, savings: '10% off' },
@@ -238,7 +238,7 @@ function BuyCreditsContent() {
                   {pkg.savings && (
                     <div className="text-xs text-[#3ecf8e] mb-3 font-semibold">{pkg.savings}</div>
                   )}
-                  <div className="text-xl font-bold text-[#ededed] mb-4">${pkg.price.toFixed(2)}</div>
+                  <div className="text-xl font-bold text-[#ededed] mb-4">€{pkg.price.toFixed(2)}</div>
                   <button
                     onClick={() => handlePurchase(pkg.key)}
                     disabled={processingPackage !== null}

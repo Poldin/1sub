@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
     // For production, you should create these prices in Stripe dashboard
     // and store the IDs in the plan configuration
     const stripePriceData: Stripe.Checkout.SessionCreateParams.LineItem['price_data'] = {
-      currency: 'usd',
+      currency: 'eur',
       product_data: {
         name: `1sub ${plan.name} Plan`,
         description: `${plan.creditsPerMonth} credits per ${billingPeriod === 'monthly' ? 'month' : 'year'}`,
