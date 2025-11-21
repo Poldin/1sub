@@ -271,6 +271,25 @@ export async function POST(request: NextRequest) {
       console.error('Error updating API key last used:', error);
     }
 
+    // Check for low credit warnings and send webhooks
+    const LOW_CREDIT_THRESHOLD = 10; // Credits
+    const newBalance = rpcResult.balance_after;
+
+    try {
+      if (newBalance === 0) {
+        // Credits depleted - send webhook
+        const { notifyUserCreditDepleted } = await import('@/lib/tool-webhooks');
+        await notifyUserCreditDepleted(toolId, user_id);
+      } else if (newBalance <= LOW_CREDIT_THRESHOLD && rpcResult.balance_before > LOW_CREDIT_THRESHOLD) {
+        // Credits fell below threshold - send webhook
+        const { notifyUserCreditLow } = await import('@/lib/tool-webhooks');
+        await notifyUserCreditLow(toolId, user_id, newBalance, LOW_CREDIT_THRESHOLD);
+      }
+    } catch (webhookError) {
+      // Don't fail the request if webhook fails
+      console.error('[Webhook] Failed to send credit status webhook:', webhookError);
+    }
+
     // Log successful credit consumption
     logCreditConsumption({
       userId: user_id,

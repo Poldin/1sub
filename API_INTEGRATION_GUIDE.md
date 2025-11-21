@@ -126,7 +126,53 @@ Content-Type: application/json
 
 ---
 
-### 2. Consume Credits
+### 2. Refresh Access Token
+
+**Endpoint:** `POST /api/v1/refresh-token`
+
+**Purpose:** Refresh an expired access token using a valid refresh token
+
+**Headers:**
+```
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "refresh_token": "eyJhbGciOiJIUzI1NiIs..."
+}
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "access_token": "eyJhbGciOiJIUzI1NiIs...",
+  "expires_at": "2025-11-05T16:30:00.000Z",
+  "token_type": "Bearer"
+}
+```
+
+**Error Response (401 - Expired):**
+```json
+{
+  "error": "Refresh token expired",
+  "message": "Your session has expired. Please re-authenticate."
+}
+```
+
+**Rate Limit:** 30 requests per minute per IP
+
+**Important Notes:**
+- Refresh tokens are valid for 7 days
+- Access tokens expire after 1 hour
+- Store refresh tokens securely
+- Implement automatic token refresh before expiration
+
+---
+
+### 3. Consume Credits
 
 **Endpoint:** `POST /api/v1/credits/consume`
 

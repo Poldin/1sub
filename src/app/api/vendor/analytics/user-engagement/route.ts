@@ -1,5 +1,12 @@
+/**
+ * API Endpoint: /api/vendor/analytics/user-engagement
+ * 
+ * Get user engagement metrics for a tool
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { getUserEngagementMetrics } from '@/lib/analytics-engine';
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,7 +32,6 @@ export async function GET(request: NextRequest) {
     const toolId = searchParams.get('toolId');
     const startDateStr = searchParams.get('startDate');
     const endDateStr = searchParams.get('endDate');
-    const interval = (searchParams.get('interval') as 'hour' | 'day' | 'week' | 'month') || 'day';
 
     if (!toolId) {
       return NextResponse.json({ error: 'Tool ID is required' }, { status: 400 });
@@ -46,19 +52,17 @@ export async function GET(request: NextRequest) {
     const endDate = endDateStr ? new Date(endDateStr) : new Date();
     const startDate = startDateStr ? new Date(startDateStr) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-    // Get timeseries data
-    const { getToolUsageTimeseries } = await import('@/lib/analytics-engine');
-    const data = await getToolUsageTimeseries(toolId, startDate, endDate, interval);
+    // Get engagement metrics
+    const metrics = await getUserEngagementMetrics(toolId, startDate, endDate);
 
     return NextResponse.json({
       success: true,
-      data,
-      interval,
+      metrics,
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
     });
   } catch (error) {
-    console.error('Timeseries analytics error:', error);
+    console.error('User engagement analytics error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

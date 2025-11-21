@@ -263,4 +263,31 @@ export function logInsufficientCredits(params: {
   });
 }
 
+/**
+ * Log token refresh attempt
+ */
+export function logTokenRefresh(params: {
+  success: boolean;
+  userId?: string;
+  toolId?: string;
+  checkoutId?: string;
+  ip?: string;
+  reason?: string;
+}) {
+  logAuditEvent({
+    timestamp: new Date().toISOString(),
+    event: 'token_refresh',
+    severity: params.success ? 'info' : 'warning',
+    details: {
+      success: params.success,
+      userId: params.userId,
+      toolId: params.toolId,
+      checkoutId: params.checkoutId,
+      reason: params.reason
+    },
+    ip: params.ip,
+    userId: params.userId
+  });
+}
+
 
