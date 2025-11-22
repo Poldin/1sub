@@ -13,7 +13,6 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { getCurrentBalance, subtractCredits, addCredits } from '@/lib/credits-service';
 
 // Initialize Supabase (service role for cron job)
 function getSupabaseClient() {
@@ -163,7 +162,7 @@ async function processSubscriptionRenewal(
     const idempotencyKey = `subscription-renewal-${subscriptionId}-${now.toISOString()}`;
 
     // Deduct credits from user
-    const { data: userTransaction, error: userTransactionError } = await supabase
+    const { error: userTransactionError } = await supabase
       .from('credit_transactions')
       .insert({
         user_id: userId,

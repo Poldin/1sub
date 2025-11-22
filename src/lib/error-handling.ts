@@ -5,7 +5,7 @@
  * across the entire application.
  */
 
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 
 export interface ApiError {
   code: string;
@@ -191,9 +191,9 @@ function mapSupabaseErrorCode(code: string): number {
  * Async error wrapper for route handlers
  */
 export function asyncHandler(
-  handler: (request: any, context?: any) => Promise<NextResponse>
+  handler: (request: NextRequest, context?: { params?: Record<string, string> }) => Promise<NextResponse>
 ) {
-  return async (request: any, context?: any) => {
+  return async (request: NextRequest, context?: { params?: Record<string, string> }) => {
     try {
       return await handler(request, context);
     } catch (error) {

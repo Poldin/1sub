@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
       `token-refresh:${clientIp}`,
       {
         limit: 30,
-        window: 60 * 1000, // 1 minute
+        windowMs: 60 * 1000, // 1 minute
       }
     );
 

@@ -157,14 +157,13 @@ export async function getAllVendorApplications(filters?: {
     }
 
     // Get user emails from auth
-    const userIds = data?.map((app: any) => app.user_id) || [];
     const { data: authUsers } = await supabase.auth.admin.listUsers();
     
     const userEmailMap = new Map(
       authUsers?.users.map(u => [u.id, u.email]) || []
     );
 
-    const applicationsWithEmail = data?.map((app: any) => ({
+    const applicationsWithEmail = data?.map((app: VendorApplication & { user_profile: { id: string; full_name: string | null } | null }) => ({
       ...app,
       user_profile: {
         ...app.user_profile,

@@ -6,6 +6,7 @@
  */
 
 import jwt from 'jsonwebtoken';
+import { generateToolAccessToken } from './jwt';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || JWT_SECRET;
@@ -13,6 +14,9 @@ const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || JWT_SECRET;
 if (!JWT_SECRET || !REFRESH_TOKEN_SECRET) {
   throw new Error('JWT_SECRET and REFRESH_TOKEN_SECRET environment variables are required');
 }
+
+// Type assertion: after the check above, we know these are strings
+const REFRESH_TOKEN_SECRET_SAFE: string = REFRESH_TOKEN_SECRET;
 
 export interface RefreshTokenPayload {
   userId: string;
@@ -49,7 +53,7 @@ export function generateRefreshToken(
     type: 'refresh',
   };
 
-  const token = jwt.sign(payload, REFRESH_TOKEN_SECRET, {
+  const token = jwt.sign(payload, REFRESH_TOKEN_SECRET_SAFE, {
     expiresIn: '7d', // Refresh token lasts 7 days
     algorithm: 'HS256',
   });
@@ -67,7 +71,7 @@ export function verifyRefreshToken(
   token: string
 ): RefreshTokenPayload & { exp: number } {
   try {
-    const decoded = jwt.verify(token, REFRESH_TOKEN_SECRET, {
+    const decoded = jwt.verify(token, REFRESH_TOKEN_SECRET_SAFE, {
       algorithms: ['HS256'],
     }) as RefreshTokenPayload & { exp: number; iat: number };
 
@@ -105,9 +109,6 @@ export function generateTokenPair(
   toolId: string,
   checkoutId: string
 ): TokenPair {
-  // Import here to avoid circular dependency
-  const { generateToolAccessToken } = require('./jwt');
-  
   const accessToken = generateToolAccessToken(userId, toolId, checkoutId);
   const refreshToken = generateRefreshToken(userId, toolId, checkoutId);
 
@@ -137,9 +138,6 @@ export async function refreshAccessToken(refreshToken: string): Promise<{
   // Verify the refresh token
   const decoded = verifyRefreshToken(refreshToken);
 
-  // Import here to avoid circular dependency
-  const { generateToolAccessToken } = require('./jwt');
-  
   // Generate new access token
   const accessToken = generateToolAccessToken(
     decoded.userId,
@@ -181,13 +179,20 @@ export function isTokenExpiringSoon(token: string): boolean {
  * @param refreshToken - The refresh token
  * @returns True if tokens are valid and match
  */
+interface DecodedTokenPayload {
+  userId?: string;
+  toolId?: string;
+  checkoutId?: string;
+  type?: string;
+}
+
 export function validateTokenPair(
   accessToken: string,
   refreshToken: string
 ): boolean {
   try {
-    const accessDecoded = jwt.decode(accessToken) as any;
-    const refreshDecoded = jwt.decode(refreshToken) as any;
+    const accessDecoded = jwt.decode(accessToken) as DecodedTokenPayload | null;
+    const refreshDecoded = jwt.decode(refreshToken) as DecodedTokenPayload | null;
 
     if (!accessDecoded || !refreshDecoded) return false;
 
