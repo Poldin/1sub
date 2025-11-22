@@ -19,7 +19,8 @@ import {
   LayoutDashboard,
   ExternalLink,
   Package,
-  BookOpen
+  BookOpen,
+  CreditCard
 } from 'lucide-react';
 import { getCurrentBalanceClient } from '@/lib/credits';
 
@@ -190,6 +191,16 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
                       >
                         <DollarSign className="w-4 h-4 text-[#3ecf8e]" />
                         <span>Transactions</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          router.push('/vendor-dashboard/payouts');
+                          onClose();
+                        }}
+                        className="w-full flex items-center gap-3 p-2 rounded hover:bg-[#374151] transition-colors text-[#d1d5db] text-sm"
+                      >
+                        <CreditCard className="w-4 h-4 text-[#3ecf8e]" />
+                        <span>Payouts</span>
                       </button>
                       <button
                         onClick={() => {

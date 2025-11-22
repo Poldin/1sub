@@ -615,6 +615,94 @@ export type Database = {
           },
         ]
       }
+      vendor_payouts: {
+        Row: {
+          id: string
+          vendor_id: string
+          credits_amount: number
+          euro_amount: number
+          status: string
+          scheduled_date: string | null
+          processed_at: string | null
+          stripe_transfer_id: string | null
+          metadata: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          vendor_id: string
+          credits_amount: number
+          euro_amount: number
+          status?: string
+          scheduled_date?: string | null
+          processed_at?: string | null
+          stripe_transfer_id?: string | null
+          metadata?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          vendor_id?: string
+          credits_amount?: number
+          euro_amount?: number
+          status?: string
+          scheduled_date?: string | null
+          processed_at?: string | null
+          stripe_transfer_id?: string | null
+          metadata?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_payouts_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendor_stripe_accounts: {
+        Row: {
+          id: string
+          vendor_id: string
+          stripe_account_id: string
+          account_status: string
+          onboarding_completed: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          vendor_id: string
+          stripe_account_id: string
+          account_status?: string
+          onboarding_completed?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          vendor_id?: string
+          stripe_account_id?: string
+          account_status?: string
+          onboarding_completed?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_stripe_accounts_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: true
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
