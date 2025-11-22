@@ -114,36 +114,92 @@ export async function findToolByApiKey(apiKey: string): Promise<{
   // Extract key prefix for indexed lookup (first 8 chars)
   const keyPrefix = apiKey.substring(0, 8);
 
-  // Query api_keys table using RPC function for optimized lookup
-  // This uses an index on key_prefix instead of scanning all tools
-  const { data: candidates, error } = await supabase
-    .rpc('validate_api_key_hash', { p_key_prefix: keyPrefix });
+  try {
+    // Query api_keys table using RPC function for optimized lookup
+    // This uses an index on key_prefix instead of scanning all tools
+    const { data: candidates, error } = await supabase
+      .rpc('validate_api_key_hash', { p_key_prefix: keyPrefix });
 
-  if (error) {
-    console.error('[API Keys] Error querying api_keys table:', error);
-    throw new Error(`Failed to query API keys: ${error.message}`);
-  }
+    if (error) {
+      console.error('[API Keys] Error querying api_keys table:', error);
+      
+      // FALLBACK: If RPC function doesn't exist, try direct table query
+      console.log('[API Keys] Attempting fallback to direct table query...');
+      const { data: fallbackCandidates, error: fallbackError } = await supabase
+        .from('api_keys')
+        .select('tool_id, key_hash, is_active')
+        .eq('key_prefix', keyPrefix)
+        .eq('is_active', true);
 
-  if (!candidates || candidates.length === 0) {
-    return null;
-  }
+      if (fallbackError) {
+        console.error('[API Keys] Fallback query also failed:', fallbackError);
+        throw new Error(`Failed to query API keys: ${error.message}`);
+      }
 
-  // Verify the full API key hash with bcrypt
-  // Only one or few candidates to check (much faster than looping all tools)
-  for (const candidate of candidates) {
-    if (await verifyApiKey(apiKey, candidate.key_hash)) {
-      // Update last_used_at timestamp
-      await supabase.rpc('update_api_key_usage', { p_tool_id: candidate.tool_id });
+      if (!fallbackCandidates || fallbackCandidates.length === 0) {
+        return null;
+      }
 
-      return {
-        toolId: candidate.tool_id,
-        toolName: candidate.tool_name,
-        isActive: candidate.is_active,
-        metadata: {}, // API keys table doesn't store metadata
-      };
+      // Verify with fallback data
+      for (const candidate of fallbackCandidates) {
+        if (await verifyApiKey(apiKey, candidate.key_hash)) {
+          // Get tool name from tools table
+          const { data: tool } = await supabase
+            .from('tools')
+            .select('name, metadata, is_active')
+            .eq('id', candidate.tool_id)
+            .single();
+
+          if (!tool) continue;
+
+          // Update last_used_at timestamp (best effort)
+          await supabase
+            .from('api_keys')
+            .update({ last_used_at: new Date().toISOString() })
+            .eq('tool_id', candidate.tool_id)
+            .then(() => {}, () => {}); // Ignore errors
+
+          return {
+            toolId: candidate.tool_id,
+            toolName: tool.name,
+            isActive: tool.is_active && candidate.is_active,
+            metadata: (tool.metadata as Record<string, unknown>) || {},
+          };
+        }
+      }
+
+      return null;
     }
-  }
 
-  return null;
+    if (!candidates || candidates.length === 0) {
+      return null;
+    }
+
+    // Verify the full API key hash with bcrypt
+    // Only one or few candidates to check (much faster than looping all tools)
+    for (const candidate of candidates) {
+      if (await verifyApiKey(apiKey, candidate.key_hash)) {
+        // Update last_used_at timestamp (best effort, don't fail if it errors)
+        try {
+          await supabase.rpc('update_api_key_usage', { p_tool_id: candidate.tool_id });
+        } catch (updateError) {
+          console.error('[API Keys] Failed to update last_used_at:', updateError);
+          // Continue anyway - this is not critical
+        }
+
+        return {
+          toolId: candidate.tool_id,
+          toolName: candidate.tool_name,
+          isActive: candidate.is_active,
+          metadata: candidate.metadata || {},
+        };
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error('[API Keys] Unexpected error in findToolByApiKey:', error);
+    throw error;
+  }
 }
 

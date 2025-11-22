@@ -12,11 +12,11 @@ import ToolsGrid from '@/app/components/ToolsGrid';
 function BackofficeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  
+
   const [user, setUser] = useState<{ id: string; fullName: string | null; email: string } | null>(null);
   const [userLoading, setUserLoading] = useState(true);
   const [credits, setCredits] = useState(0); // Keep for internal use (tool purchase logic)
-  
+
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [userRole, setUserRole] = useState<string>('user'); // Change to 'vendor' to test vendor view
   const [showPurchaseSuccess, setShowPurchaseSuccess] = useState(false);
@@ -87,12 +87,12 @@ function BackofficeContent() {
     // Check if returning from successful purchase
     if (searchParams.get('purchase_success') === 'true') {
       setShowPurchaseSuccess(true);
-      
+
       // Hide success message after 5 seconds
       setTimeout(() => {
         setShowPurchaseSuccess(false);
       }, 5000);
-      
+
       // Clean up URL
       window.history.replaceState({}, '', '/backoffice');
     }
@@ -101,7 +101,7 @@ function BackofficeContent() {
     const highlightParam = searchParams.get('highlight');
     if (highlightParam) {
       setHighlightedToolId(highlightParam);
-      
+
       // Scroll to highlighted tool after a brief delay
       setTimeout(() => {
         const element = document.getElementById(`tool-${highlightParam}`);
@@ -109,7 +109,7 @@ function BackofficeContent() {
           element.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
       }, 500);
-      
+
       // Remove highlight after 3 seconds
       setTimeout(() => {
         setHighlightedToolId(null);
@@ -136,11 +136,11 @@ function BackofficeContent() {
     localStorage.setItem('sidebarOpen', String(newState));
   };
 
-  const handleLaunchTool = async (toolId: string) => {
+  const handleLaunchTool = async (toolId: string, selectedProductId?: string) => {
     if (!user) return;
-    
+
     const supabase = createClient();
-    
+
     // Fetch tool details from database
     const { data: tool, error: fetchError } = await supabase
       .from('tools')
@@ -150,7 +150,7 @@ function BackofficeContent() {
       `)
       .eq('id', toolId)
       .single();
-    
+
     if (fetchError || !tool) {
       console.error('Error fetching tool:', fetchError);
       alert('Tool not found');
@@ -159,10 +159,10 @@ function BackofficeContent() {
 
     try {
       const toolMetadata = tool.metadata as Record<string, unknown>;
-      
+
       // Check if tool has products (new structure)
       const hasProducts = Array.isArray(tool.products) && tool.products.length > 0;
-      
+
       // Check if tool has pricing_options in metadata (old structure)
       const pricingOptions = toolMetadata?.pricing_options as {
         one_time?: { enabled: boolean; price: number; description?: string };
@@ -173,14 +173,14 @@ function BackofficeContent() {
       // Handle tools with products (new unified structure)
       if (hasProducts && tool.products) {
         const activeProducts = tool.products.filter((p: { is_active?: boolean }) => p.is_active);
-        
+
         if (activeProducts.length === 0) {
           alert('This tool has no active products');
           return;
         }
 
         // Get minimum price from products to check balance
-        const productPrices = activeProducts.map((p: { 
+        const productPrices = activeProducts.map((p: {
           pricing_model: {
             one_time?: { enabled: boolean; price?: number; min_price?: number };
             subscription?: { enabled: boolean; price: number };
@@ -225,6 +225,7 @@ function BackofficeContent() {
               tool_url: tool.url,
               products: activeProducts, // Pass products to checkout
               status: 'pending',
+              selected_pricing: selectedProductId, // Auto-select the chosen product
             },
           })
           .select()
@@ -274,6 +275,7 @@ function BackofficeContent() {
               tool_url: tool.url, // ✅ Use actual tool URL
               pricing_options: pricingOptions,
               status: 'pending',
+              selected_pricing: selectedProductId, // Auto-select if provided
             },
           })
           .select()
@@ -323,60 +325,60 @@ function BackofficeContent() {
         </div>
       )}
 
-    <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex overflow-x-hidden">
-      {/* Sidebar Component */}
-      <Sidebar 
-        isOpen={isMenuOpen} 
-        onClose={toggleMenu}
-        userId={user?.id || ''}
-        userRole={userRole}
-        hasTools={hasTools}
-      />
+      <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex overflow-x-hidden">
+        {/* Sidebar Component */}
+        <Sidebar
+          isOpen={isMenuOpen}
+          onClose={toggleMenu}
+          userId={user?.id || ''}
+          userRole={userRole}
+          hasTools={hasTools}
+        />
 
-      {/* Main Content Area */}
-      <main className={`
+        {/* Main Content Area */}
+        <main className={`
         flex-1 min-w-0 transition-all duration-300 ease-in-out overflow-x-hidden
         ${isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'}
       `}>
-        {/* Top Bar con Hamburger */}
-        <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-50">
-          <div className="flex items-center justify-center gap-2 p-2 sm:p-3 min-w-0 lg:justify-between">
-            {/* Hamburger Button */}
-            <button
-              onClick={toggleMenu}
-              className="p-2 rounded-lg hover:bg-[#374151] transition-colors flex-shrink-0"
-            >
-              <Menu className="w-6 h-6 sm:w-6 sm:h-6" />
-            </button>
-            
-            {/* Search Bar Component */}
-            <SearchBar />
-            
-            {/* Profile Button with Logout */}
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-2 p-2 bg-[#1f2937] hover:bg-[#374151] rounded-lg transition-colors flex-shrink-0" data-testid="user-menu">
-                <User className="w-4 h-4 text-[#3ecf8e]" />
-                <span className="hidden lg:block text-sm font-medium text-[#ededed]">
-                  {user?.fullName || user?.email || 'profile'}
-                </span>
-              </div>
+          {/* Top Bar con Hamburger */}
+          <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-50">
+            <div className="flex items-center justify-center gap-2 p-2 sm:p-3 min-w-0 lg:justify-between">
+              {/* Hamburger Button */}
               <button
-                onClick={handleLogout}
-                className="flex items-center justify-center p-2 bg-red-600/20 hover:bg-red-600/30 rounded-lg transition-colors flex-shrink-0"
-                title="Logout"
+                onClick={toggleMenu}
+                className="p-2 rounded-lg hover:bg-[#374151] transition-colors flex-shrink-0"
               >
-                <LogOut className="w-4 h-4 text-red-400" />
+                <Menu className="w-6 h-6 sm:w-6 sm:h-6" />
               </button>
+
+              {/* Search Bar Component */}
+              <SearchBar />
+
+              {/* Profile Button with Logout */}
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 p-2 bg-[#1f2937] hover:bg-[#374151] rounded-lg transition-colors flex-shrink-0" data-testid="user-menu">
+                  <User className="w-4 h-4 text-[#3ecf8e]" />
+                  <span className="hidden lg:block text-sm font-medium text-[#ededed]">
+                    {user?.fullName || user?.email || 'profile'}
+                  </span>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center justify-center p-2 bg-red-600/20 hover:bg-red-600/30 rounded-lg transition-colors flex-shrink-0"
+                  title="Logout"
+                >
+                  <LogOut className="w-4 h-4 text-red-400" />
+                </button>
+              </div>
             </div>
-          </div>
-        </header>
+          </header>
 
-        {/* Content */}
-        <div className="overflow-x-hidden" data-testid="dashboard-content">
-          <div>
+          {/* Content */}
+          <div className="overflow-x-hidden" data-testid="dashboard-content">
+            <div>
 
-            {/* Categories */}
-            {/* <div className="mb-8">
+              {/* Categories */}
+              {/* <div className="mb-8">
               <h2 className="text-2xl font-bold mb-4">Categories</h2>
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 <div className="bg-[#1f2937] hover:bg-[#374151] rounded-lg p-4 cursor-pointer transition-colors group">
@@ -412,49 +414,49 @@ function BackofficeContent() {
               </div>
             </div> */}
 
-            {/* Vendor Dashboard Access - Only for vendors */}
-            {userRole === 'vendor' && (
-              <div className="my-8 px-3 sm:px-4 lg:px-8">
-                <div className="bg-gradient-to-r from-[#3ecf8e]/20 to-[#2dd4bf]/20 border border-[#3ecf8e]/30 rounded-xl p-6">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className="bg-[#3ecf8e] p-3 rounded-lg">
-                        <Briefcase className="w-6 h-6 text-white" />
+              {/* Vendor Dashboard Access - Only for vendors */}
+              {userRole === 'vendor' && (
+                <div className="my-8 px-3 sm:px-4 lg:px-8">
+                  <div className="bg-gradient-to-r from-[#3ecf8e]/20 to-[#2dd4bf]/20 border border-[#3ecf8e]/30 rounded-xl p-6">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        <div className="bg-[#3ecf8e] p-3 rounded-lg">
+                          <Briefcase className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-xl font-bold text-[#ededed]">Vendor Dashboard</h3>
+                          <p className="text-[#9ca3af]">Manage your tools, view analytics, and track earnings</p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="text-xl font-bold text-[#ededed]">Vendor Dashboard</h3>
-                        <p className="text-[#9ca3af]">Manage your tools, view analytics, and track earnings</p>
-                      </div>
+                      <button
+                        onClick={() => router.push('/vendor-dashboard')}
+                        className="bg-[#3ecf8e] hover:bg-[#2dd4bf] text-white px-6 py-3 rounded-lg font-semibold transition-colors flex items-center gap-2 whitespace-nowrap"
+                      >
+                        Go to Dashboard
+                        <ExternalLink className="w-4 h-4" />
+                      </button>
                     </div>
-                    <button
-                      onClick={() => router.push('/vendor-dashboard')}
-                      className="bg-[#3ecf8e] hover:bg-[#2dd4bf] text-white px-6 py-3 rounded-lg font-semibold transition-colors flex items-center gap-2 whitespace-nowrap"
-                    >
-                      Go to Dashboard
-                      <ExternalLink className="w-4 h-4" />
-                    </button>
                   </div>
                 </div>
+              )}
+
+
+
+              {/* All Tools Section */}
+              <div className="my-8 px-2 sm:px-3">
+                <ToolsGrid
+                  onToolLaunch={handleLaunchTool}
+                  highlightedToolId={highlightedToolId}
+                />
               </div>
-            )}
 
-
-
-            {/* All Tools Section */}
-            <div className="my-8 px-2 sm:px-3">
-              <ToolsGrid 
-                onToolLaunch={handleLaunchTool}
-                highlightedToolId={highlightedToolId}
-              />
             </div>
-
           </div>
-        </div>
 
-        {/* Footer */}
-        <Footer />
-      </main>
-    </div>
+          {/* Footer */}
+          <Footer />
+        </main>
+      </div>
     </>
   );
 }

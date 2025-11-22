@@ -15,9 +15,9 @@ interface ToolsGridProps {
   error?: string | null;
 }
 
-export default function ToolsGrid({ 
-  onToolLaunch, 
-  highlightedToolId, 
+export default function ToolsGrid({
+  onToolLaunch,
+  highlightedToolId,
   searchTerm = '',
   tools: externalTools,
   loading: externalLoading,
@@ -28,7 +28,7 @@ export default function ToolsGrid({
   const tools = externalTools ?? internalData.tools;
   const toolsLoading = externalLoading ?? internalData.loading;
   const toolsError = externalError ?? internalData.error;
-  
+
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
@@ -127,6 +127,7 @@ export default function ToolsGrid({
           isOpen={isDialogOpen}
           onClose={handleDialogClose}
           tool={selectedTool}
+          onToolLaunch={onToolLaunch}
         />
       )}
     </>

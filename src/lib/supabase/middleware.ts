@@ -25,7 +25,7 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value));
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           supabaseResponse = NextResponse.next({
             request,
           });
@@ -50,14 +50,17 @@ export async function updateSession(request: NextRequest) {
     // If there's an auth error (like invalid refresh token), clear the session
     if (error) {
       const errorMessage = error.message || error.toString();
+      const errorName = error.name || '';
       
       // Check if it's a refresh token error
-      if (
+      const isRefreshTokenError = 
         errorMessage.includes('Refresh Token') ||
         errorMessage.includes('refresh_token') ||
         errorMessage.includes('Invalid Refresh Token') ||
-        errorMessage.includes('Refresh Token Not Found')
-      ) {
+        errorMessage.includes('Refresh Token Not Found') ||
+        errorName === 'AuthApiError' && errorMessage.includes('refresh');
+      
+      if (isRefreshTokenError) {
         // Create a response to clear cookies
         const response = NextResponse.next({ request });
         
@@ -90,7 +93,7 @@ export async function updateSession(request: NextRequest) {
             }
           });
         } catch (urlError) {
-          console.error('Error parsing Supabase URL:', urlError);
+          // Silently ignore URL parsing errors
         }
 
         // Try to sign out (this might fail, but that's ok)
@@ -100,18 +103,42 @@ export async function updateSession(request: NextRequest) {
           // Ignore sign out errors - we've already cleared cookies
         }
 
+        // Return null user without logging - this is expected when refresh token is invalid
         return { supabaseResponse: response, user: null };
       }
 
-      // For other auth errors, log but continue
-      console.error('Auth error in middleware:', errorMessage);
+      // For other auth errors, only log if it's not a session missing error
+      const isSessionMissingError = 
+        errorMessage.includes('Auth session missing!') ||
+        errorMessage.includes('Auth session missing') ||
+        errorName === 'AuthSessionMissingError' ||
+        errorMessage.includes('Session missing');
+      
+      if (!isSessionMissingError) {
+        // Only log non-session-missing errors
+        console.error('Auth error in middleware:', errorMessage);
+      }
+      
       return { supabaseResponse, user: null };
     }
 
     return { supabaseResponse, user };
   } catch (error) {
-    // Handle any unexpected errors
-    console.error('Unexpected error in updateSession:', error);
+    // Handle any unexpected errors, but check if it's a refresh token error
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorName = error instanceof Error ? error.name : '';
+    
+    const isRefreshTokenError = 
+      errorMessage.includes('Refresh Token') ||
+      errorMessage.includes('refresh_token') ||
+      errorMessage.includes('Invalid Refresh Token') ||
+      errorMessage.includes('Refresh Token Not Found');
+    
+    if (!isRefreshTokenError) {
+      // Only log non-refresh-token errors
+      console.error('Unexpected error in updateSession:', error);
+    }
+    
     return { supabaseResponse, user: null };
   }
 }

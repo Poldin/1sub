@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Menu, ArrowLeft, Copy } from 'lucide-react';
+import { Menu, Copy, Plus, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import Sidebar from '../../../../backoffice/components/Sidebar';
 import Footer from '../../../../components/Footer';
@@ -22,12 +22,12 @@ export default function EditToolPage() {
   const router = useRouter();
   const params = useParams();
   const toolId = params.id as string;
-  
+
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [tool, setTool] = useState<Tool | null>(null);
-  
+
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -35,13 +35,47 @@ export default function EditToolPage() {
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
+
+  // UI Metadata fields
+  const [uiMetadata, setUiMetadata] = useState({
+    emoji: '🔧',
+    logoUrl: '',
+    logoFile: null as File | null,
+    tags: [] as string[],
+    tagInput: '',
+    category: '',
+    developmentStage: '' as 'alpha' | 'beta' | '',
+    discountPercentage: 0
+  });
+
+  // Common emoji options for tools
+  const emojiOptions = ['🔧', '⚙️', '🛠️', '🎨', '💡', '🚀', '📊', '🤖', '💻', '🎯', '📱', '🌐', '🔍', '📝', '🎬', '🎵', '💰', '📈', '🔐', '🎮', '🏗️', '🧪', '📚', '🎭'];
+
+  // Content Metadata fields
+  const [contentMetadata, setContentMetadata] = useState({
+    longDescription: '',
+    features: [] as string[],
+    featureInput: '',
+    useCases: [] as string[],
+    useCaseInput: ''
+  });
+
   const [originalData, setOriginalData] = useState({
     name: '',
     description: '',
-    toolExternalUrl: ''
+    toolExternalUrl: '',
+    emoji: '🔧',
+    logoUrl: '',
+    tags: [] as string[],
+    category: '',
+    developmentStage: '' as 'alpha' | 'beta' | '',
+    discountPercentage: 0,
+    longDescription: '',
+    features: [] as string[],
+    useCases: [] as string[]
   });
   const [hasChanges, setHasChanges] = useState(false);
-  
+
   // States for unified Sidebar
   const [userId, setUserId] = useState<string>('');
   const [userRole, setUserRole] = useState<string>('user');
@@ -50,20 +84,29 @@ export default function EditToolPage() {
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
   };
-  
+
   const handleShareAndEarnClick = () => {
     // Handled by Sidebar component
   };
 
   // Check if form has changes
   useEffect(() => {
-    const changed = 
+    const changed =
       formData.name !== originalData.name ||
       formData.description !== originalData.description ||
       formData.toolExternalUrl !== originalData.toolExternalUrl ||
-      imageFile !== null;
+      imageFile !== null ||
+      uiMetadata.emoji !== originalData.emoji ||
+      uiMetadata.logoFile !== null ||
+      JSON.stringify(uiMetadata.tags) !== JSON.stringify(originalData.tags) ||
+      uiMetadata.category !== originalData.category ||
+      uiMetadata.developmentStage !== originalData.developmentStage ||
+      uiMetadata.discountPercentage !== originalData.discountPercentage ||
+      contentMetadata.longDescription !== originalData.longDescription ||
+      JSON.stringify(contentMetadata.features) !== JSON.stringify(originalData.features) ||
+      JSON.stringify(contentMetadata.useCases) !== JSON.stringify(originalData.useCases);
     setHasChanges(changed);
-  }, [formData, imageFile, originalData]);
+  }, [formData, imageFile, uiMetadata, contentMetadata, originalData]);
 
   // Fetch tool data
   useEffect(() => {
@@ -71,32 +114,32 @@ export default function EditToolPage() {
       try {
         const supabase = createClient();
         const { data: { user }, error: authError } = await supabase.auth.getUser();
-        
+
         if (authError || !user) {
           alert('You must be logged in');
           router.push('/login');
           return;
         }
-        
+
         setUserId(user.id);
-        
+
         // Fetch user profile data
         const { data: profileData } = await supabase
           .from('user_profiles')
           .select('role')
           .eq('id', user.id)
           .single();
-        
+
         if (profileData) {
           setUserRole(profileData.role || 'user');
         }
-        
+
         // Check if user has tools
         const { data: toolsData } = await supabase
           .from('tools')
           .select('id')
           .eq('user_profile_id', user.id);
-        
+
         setHasTools((toolsData?.length || 0) > 0);
 
         const { data: toolData, error: fetchError } = await supabase
@@ -115,27 +158,60 @@ export default function EditToolPage() {
 
         setTool(toolData);
         const metadata = (toolData.metadata as Record<string, unknown>) || {};
-        const uiMetadata = (metadata.ui as Record<string, unknown>) || {};
-        
+        const uiMeta = (metadata.ui as Record<string, unknown>) || {};
+        const contentMeta = (metadata.content as Record<string, unknown>) || {};
+
         // Handle backward compatibility: if url looks like image URL, check metadata
         let externalUrl = toolData.url || '';
         if (externalUrl.includes('storage') || externalUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
-          // This might be an old image URL, check if we have a proper external URL
-          // For now, we'll prompt the user to update it
           externalUrl = '';
         }
-        
-        const initialData = {
+
+        const initialFormData = {
           name: toolData.name,
           description: toolData.description || '',
           toolExternalUrl: externalUrl
         };
-        setFormData(initialData);
-        setOriginalData(initialData);
-        
+
+        const initialUiMetadata = {
+          emoji: (uiMeta.emoji as string) || '🔧',
+          logoUrl: (uiMeta.logo_url as string) || '',
+          logoFile: null,
+          tags: (uiMeta.tags as string[]) || [],
+          tagInput: '',
+          category: (uiMeta.category as string) || '',
+          developmentStage: (uiMeta.development_stage as 'alpha' | 'beta') || '' as 'alpha' | 'beta' | '',
+          discountPercentage: (uiMeta.discount_percentage as number) || 0
+        };
+
+        const initialContentMetadata = {
+          longDescription: (contentMeta.long_description as string) || '',
+          features: (contentMeta.features as string[]) || [],
+          featureInput: '',
+          useCases: (contentMeta.use_cases as string[]) || [],
+          useCaseInput: ''
+        };
+
+        setFormData(initialFormData);
+        setUiMetadata(initialUiMetadata);
+        setContentMetadata(initialContentMetadata);
+
+        setOriginalData({
+          ...initialFormData,
+          emoji: initialUiMetadata.emoji,
+          logoUrl: initialUiMetadata.logoUrl,
+          tags: [...initialUiMetadata.tags],
+          category: initialUiMetadata.category,
+          developmentStage: initialUiMetadata.developmentStage,
+          discountPercentage: initialUiMetadata.discountPercentage,
+          longDescription: initialContentMetadata.longDescription,
+          features: [...initialContentMetadata.features],
+          useCases: [...initialContentMetadata.useCases]
+        });
+
         // Hero image is in metadata.ui.hero_image_url
-        const heroUrl = (uiMetadata.hero_image_url as string) || '';
-        setImagePreview(heroUrl); // Show current hero image
+        const heroUrl = (uiMeta.hero_image_url as string) || '';
+        setImagePreview(heroUrl);
         setIsLoading(false);
       } catch (err) {
         console.error('Error:', err);
@@ -151,7 +227,6 @@ export default function EditToolPage() {
     const file = e.target.files?.[0];
     if (file) {
       setImageFile(file);
-      // Create preview
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result as string);
@@ -160,15 +235,78 @@ export default function EditToolPage() {
     }
   };
 
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setUiMetadata({ ...uiMetadata, logoFile: file });
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setUiMetadata(prev => ({ ...prev, logoUrl: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleAddTag = () => {
+    if (uiMetadata.tagInput.trim() && !uiMetadata.tags.includes(uiMetadata.tagInput.trim())) {
+      setUiMetadata({
+        ...uiMetadata,
+        tags: [...uiMetadata.tags, uiMetadata.tagInput.trim()],
+        tagInput: ''
+      });
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setUiMetadata({
+      ...uiMetadata,
+      tags: uiMetadata.tags.filter(tag => tag !== tagToRemove)
+    });
+  };
+
+  const handleAddFeature = () => {
+    if (contentMetadata.featureInput.trim() && !contentMetadata.features.includes(contentMetadata.featureInput.trim())) {
+      setContentMetadata({
+        ...contentMetadata,
+        features: [...contentMetadata.features, contentMetadata.featureInput.trim()],
+        featureInput: ''
+      });
+    }
+  };
+
+  const handleRemoveFeature = (featureToRemove: string) => {
+    setContentMetadata({
+      ...contentMetadata,
+      features: contentMetadata.features.filter(feature => feature !== featureToRemove)
+    });
+  };
+
+  const handleAddUseCase = () => {
+    if (contentMetadata.useCaseInput.trim() && !contentMetadata.useCases.includes(contentMetadata.useCaseInput.trim())) {
+      setContentMetadata({
+        ...contentMetadata,
+        useCases: [...contentMetadata.useCases, contentMetadata.useCaseInput.trim()],
+        useCaseInput: ''
+      });
+    }
+  };
+
+  const handleRemoveUseCase = (useCaseToRemove: string) => {
+    setContentMetadata({
+      ...contentMetadata,
+      useCases: contentMetadata.useCases.filter(useCase => useCase !== useCaseToRemove)
+    });
+  };
+
   const handleSubmit = async () => {
     if (!hasChanges) return;
-    
+
     setIsSaving(true);
 
     try {
       const supabase = createClient();
       const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-      
+
       if (authError || !authUser) {
         alert('You must be logged in');
         setIsSaving(false);
@@ -199,8 +337,9 @@ export default function EditToolPage() {
       // Get current metadata
       const currentMetadata = (tool?.metadata as Record<string, unknown>) || {};
       const currentUiMetadata = (currentMetadata.ui as Record<string, unknown>) || {};
-      
+
       let heroImageUrl = (currentUiMetadata.hero_image_url as string) || '';
+      let logoUrl = uiMetadata.logoUrl;
 
       // Upload new hero image if selected
       if (imageFile) {
@@ -222,7 +361,6 @@ export default function EditToolPage() {
           return;
         }
 
-        // Get public URL
         const { data: { publicUrl } } = supabase.storage
           .from('allfile')
           .getPublicUrl(filePath);
@@ -230,50 +368,107 @@ export default function EditToolPage() {
         heroImageUrl = publicUrl;
       }
 
-      // Update metadata with hero image URL
+      // Upload new logo if selected
+      if (uiMetadata.logoFile) {
+        const logoExt = uiMetadata.logoFile.name.split('.').pop();
+        const logoFileName = `${authUser.id}-logo-${Date.now()}.${logoExt}`;
+        const logoFilePath = `tool-logos/${logoFileName}`;
+
+        const { error: logoUploadError } = await supabase.storage
+          .from('allfile')
+          .upload(logoFilePath, uiMetadata.logoFile, {
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (logoUploadError) {
+          console.error('Logo upload error:', logoUploadError);
+          alert('Failed to upload logo: ' + logoUploadError.message);
+          setIsSaving(false);
+          return;
+        }
+
+        const { data: { publicUrl: logoPublicUrl } } = supabase.storage
+          .from('allfile')
+          .getPublicUrl(logoFilePath);
+
+        logoUrl = logoPublicUrl;
+      }
+
+      // Update metadata with all fields
       const updatedMetadata = {
         ...currentMetadata,
         ui: {
           ...currentUiMetadata,
-          hero_image_url: heroImageUrl
+          emoji: uiMetadata.emoji || undefined,
+          hero_image_url: heroImageUrl,
+          logo_url: logoUrl || undefined,
+          tags: uiMetadata.tags.length > 0 ? uiMetadata.tags : undefined,
+          category: uiMetadata.category || undefined,
+          development_stage: uiMetadata.developmentStage ? (uiMetadata.developmentStage as 'alpha' | 'beta') : null,
+          discount_percentage: uiMetadata.discountPercentage > 0 ? uiMetadata.discountPercentage : undefined,
+        },
+        content: {
+          long_description: contentMetadata.longDescription || undefined,
+          features: contentMetadata.features.length > 0 ? contentMetadata.features : undefined,
+          use_cases: contentMetadata.useCases.length > 0 ? contentMetadata.useCases : undefined,
         }
       };
 
-      // Update tool with external URL and updated metadata
+      // Remove undefined values
+      Object.keys(updatedMetadata.ui).forEach(key => {
+        const typedKey = key as keyof typeof updatedMetadata.ui;
+        if (updatedMetadata.ui[typedKey] === undefined) delete updatedMetadata.ui[typedKey];
+      });
+      Object.keys(updatedMetadata.content).forEach(key => {
+        const typedKey = key as keyof typeof updatedMetadata.content;
+        if (updatedMetadata.content[typedKey] === undefined) delete updatedMetadata.content[typedKey];
+      });
+
+      // Update tool with all data
       const { error: updateError } = await supabase
         .from('tools')
         .update({
           name: formData.name,
           description: formData.description,
-          url: formData.toolExternalUrl, // External tool URL
-          metadata: updatedMetadata, // Hero image in metadata
+          url: formData.toolExternalUrl,
+          metadata: updatedMetadata,
           updated_at: new Date().toISOString()
         })
         .eq('id', toolId)
         .eq('user_profile_id', authUser.id);
-      
+
       if (updateError) {
         console.error('Update error:', updateError);
         alert(`Failed to update tool: ${updateError.message}`);
         setIsSaving(false);
         return;
       }
-      
+
       // Update original data to reflect saved state
-      const updatedData = {
+      const updatedOriginalData = {
         name: formData.name,
         description: formData.description,
-        toolExternalUrl: formData.toolExternalUrl
+        toolExternalUrl: formData.toolExternalUrl,
+        emoji: uiMetadata.emoji,
+        logoUrl: logoUrl,
+        tags: [...uiMetadata.tags],
+        category: uiMetadata.category,
+        developmentStage: uiMetadata.developmentStage,
+        discountPercentage: uiMetadata.discountPercentage,
+        longDescription: contentMetadata.longDescription,
+        features: [...contentMetadata.features],
+        useCases: [...contentMetadata.useCases]
       };
-      setOriginalData(updatedData);
-      setFormData(updatedData);
-      setImagePreview(heroImageUrl); // Update preview with new hero image URL
+      setOriginalData(updatedOriginalData);
+      setImagePreview(heroImageUrl);
       setImageFile(null);
+      setUiMetadata(prev => ({ ...prev, logoFile: null }));
       setHasChanges(false);
       setIsSaving(false);
-      
+
       alert('Tool updated successfully!');
-      
+
     } catch (err) {
       console.error('Error updating tool:', err);
       alert('Failed to update tool');
@@ -285,6 +480,20 @@ export default function EditToolPage() {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
+    });
+  };
+
+  const handleUiMetadataChange = (field: string, value: string | number | 'alpha' | 'beta' | File | null) => {
+    setUiMetadata({
+      ...uiMetadata,
+      [field]: value
+    });
+  };
+
+  const handleContentMetadataChange = (field: string, value: string | string[]) => {
+    setContentMetadata({
+      ...contentMetadata,
+      [field]: value
     });
   };
 
@@ -307,8 +516,8 @@ export default function EditToolPage() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex overflow-x-hidden">
       {/* Unified Sidebar */}
-      <Sidebar 
-        isOpen={isMenuOpen} 
+      <Sidebar
+        isOpen={isMenuOpen}
         onClose={toggleMenu}
         onShareAndEarnClick={handleShareAndEarnClick}
         userId={userId}
@@ -332,13 +541,13 @@ export default function EditToolPage() {
               >
                 <Menu className="w-6 h-6" />
               </button>
-              
+
               {/* Tool Selector with current tool selected */}
               {userId && (
                 <ToolSelector userId={userId} currentToolId={toolId} />
               )}
             </div>
-            
+
             {/* Right: Save Button */}
             <button
               onClick={handleSubmit}
@@ -353,163 +562,469 @@ export default function EditToolPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
 
           <div className="grid gap-6 grid-cols-1 lg:grid-cols-[2fr_1fr]">
-            {/* Form: Name, Image & Description */}
-            <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
-              <h2 className="text-lg font-semibold text-[#ededed] mb-6">Tool Information</h2>
-              
-              {/* Tool ID Display */}
-              <div className="mb-6 p-4 bg-[#374151] rounded-lg border border-[#4b5563]">
-                <label className="block text-sm font-medium text-[#d1d5db] mb-2">
-                  Tool ID
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={toolId}
-                    readOnly
-                    className="flex-1 px-4 py-2 bg-[#0a0a0a] border border-[#4b5563] rounded-lg text-[#ededed] font-mono text-sm"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleCopyToolId}
-                    className="p-2 bg-[#374151] border border-[#4b5563] rounded-lg hover:bg-[#4b5563] transition-colors"
-                    title="Copy Tool ID"
-                  >
-                    <Copy className="w-4 h-4" />
-                  </button>
-                </div>
-                <p className="text-xs text-[#9ca3af] mt-2">
-                  Use this ID for external tool integration
-                </p>
-              </div>
+            {/* Left Column: Forms */}
+            <div className="space-y-6">
+              {/* Basic Information */}
+              <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
+                <h2 className="text-lg font-semibold text-[#ededed] mb-6">Basic Information</h2>
 
-              <form id="tool-form" onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="space-y-6">
-                {/* Name and Image Side by Side */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label htmlFor="name" className="block text-sm font-medium text-[#d1d5db] mb-2">
-                      Tool Name *
-                    </label>
+                {/* Tool ID Display */}
+                <div className="mb-6 p-4 bg-[#374151] rounded-lg border border-[#4b5563]">
+                  <label className="block text-sm font-medium text-[#d1d5db] mb-2">
+                    Tool ID
+                  </label>
+                  <div className="flex items-center gap-2">
                     <input
                       type="text"
-                      id="name"
-                      name="name"
-                      value={formData.name}
+                      value={toolId}
+                      readOnly
+                      className="flex-1 px-4 py-2 bg-[#0a0a0a] border border-[#4b5563] rounded-lg text-[#ededed] font-mono text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCopyToolId}
+                      className="p-2 bg-[#374151] border border-[#4b5563] rounded-lg hover:bg-[#4b5563] transition-colors"
+                      title="Copy Tool ID"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <p className="text-xs text-[#9ca3af] mt-2">
+                    Use this ID for external tool integration
+                  </p>
+                </div>
+
+                <form id="tool-form" onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="space-y-6">
+                  {/* Name and Image Side by Side */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label htmlFor="name" className="block text-sm font-medium text-[#d1d5db] mb-2">
+                        Tool Name *
+                      </label>
+                      <input
+                        type="text"
+                        id="name"
+                        name="name"
+                        value={formData.name}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
+                        placeholder="AI Content Generator"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="image" className="block text-sm font-medium text-[#d1d5db] mb-2">
+                        Hero Image *
+                      </label>
+                      <div className="flex items-center gap-3 p-1 border-2 border-[#4b5563] border-dashed rounded-lg hover:border-[#3ecf8e] transition-colors">
+                        {imagePreview ? (
+                          <>
+                            <img src={imagePreview} alt="Preview" className="h-10 w-10 object-cover rounded-lg flex-shrink-0" />
+                            <label
+                              htmlFor="file-upload"
+                              className="relative cursor-pointer rounded-md font-medium text-[#3ecf8e] hover:text-[#2dd4bf] text-sm"
+                            >
+                              <span>Change image</span>
+                              <input
+                                id="file-upload"
+                                name="file-upload"
+                                type="file"
+                                accept="image/*"
+                                className="sr-only"
+                                onChange={handleImageChange}
+                              />
+                            </label>
+                          </>
+                        ) : (
+                          <>
+                            <svg
+                              className="h-10 w-10 text-[#9ca3af] flex-shrink-0"
+                              stroke="currentColor"
+                              fill="none"
+                              viewBox="0 0 48 48"
+                              aria-hidden="true"
+                            >
+                              <path
+                                d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                                strokeWidth={2}
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                            <label
+                              htmlFor="file-upload"
+                              className="relative cursor-pointer rounded-md font-medium text-[#3ecf8e] hover:text-[#2dd4bf] text-sm"
+                            >
+                              <span>Upload image</span>
+                              <input
+                                id="file-upload"
+                                name="file-upload"
+                                type="file"
+                                accept="image/*"
+                                className="sr-only"
+                                onChange={handleImageChange}
+                              />
+                            </label>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Description - Full Width Below */}
+                  <div>
+                    <label htmlFor="description" className="block text-sm font-medium text-[#d1d5db] mb-2">
+                      Short Description *
+                    </label>
+                    <textarea
+                      id="description"
+                      name="description"
+                      value={formData.description}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
-                      placeholder="AI Content Generator"
+                      rows={4}
+                      className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent resize-y"
+                      placeholder="Generate high-quality content with advanced AI. Perfect for content creators, marketers, and businesses..."
                       required
                     />
                   </div>
 
+                  {/* External Tool URL */}
                   <div>
-                    <label htmlFor="image" className="block text-sm font-medium text-[#d1d5db] mb-2">
-                      Hero Image *
+                    <label htmlFor="toolExternalUrl" className="block text-sm font-medium text-[#d1d5db] mb-2">
+                      External Tool URL *
                     </label>
-                    <div className="flex items-center gap-3 p-1 border-2 border-[#4b5563] border-dashed rounded-lg hover:border-[#3ecf8e] transition-colors">
-                      {imagePreview ? (
-                        <>
-                          <img src={imagePreview} alt="Preview" className="h-10 w-10 object-cover rounded-lg flex-shrink-0" />
+                    <input
+                      type="url"
+                      id="toolExternalUrl"
+                      name="toolExternalUrl"
+                      value={formData.toolExternalUrl}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
+                      placeholder="https://your-tool.com"
+                      required
+                    />
+                    <p className="mt-2 text-sm text-[#9ca3af]">
+                      The URL where users will be redirected after purchasing your tool. Must use HTTP or HTTPS.
+                    </p>
+                  </div>
+
+                  {/* Long Description */}
+                  <div>
+                    <label htmlFor="longDescription" className="block text-sm font-medium text-[#d1d5db] mb-2">
+                      Long Description
+                    </label>
+                    <textarea
+                      id="longDescription"
+                      name="longDescription"
+                      value={contentMetadata.longDescription}
+                      onChange={(e) => handleContentMetadataChange('longDescription', e.target.value)}
+                      rows={6}
+                      className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent resize-y"
+                      placeholder="Provide a detailed description of your tool. This will be shown in the tool detail view..."
+                    />
+                  </div>
+                </form>
+              </div>
+
+              {/* UI Metadata */}
+              <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
+                <h2 className="text-lg font-semibold text-[#ededed] mb-6">Visual & Display</h2>
+
+                <div className="space-y-6">
+                  {/* Emoji and Logo */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-[#d1d5db] mb-2">
+                        Emoji
+                      </label>
+                      <div className="space-y-3">
+                        {/* Selected Emoji Display */}
+                        <div className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-2xl text-center min-h-[3rem] flex items-center justify-center">
+                          {uiMetadata.emoji || '🔧'}
+                        </div>
+
+                        {/* Emoji Picker Grid */}
+                        <div className="grid grid-cols-6 gap-2 max-h-48 overflow-y-auto p-2 bg-[#374151] rounded-lg border border-[#4b5563]">
+                          {emojiOptions.map((emoji) => (
+                            <button
+                              key={emoji}
+                              type="button"
+                              onClick={() => handleUiMetadataChange('emoji', emoji)}
+                              className={`text-2xl p-2 rounded-lg transition-colors hover:bg-[#4b5563] ${uiMetadata.emoji === emoji
+                                  ? 'bg-[#3ecf8e] text-black ring-2 ring-[#3ecf8e]'
+                                  : 'hover:scale-110'
+                                }`}
+                              title={`Select ${emoji}`}
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Custom Emoji Input (fallback) */}
+                        <div>
+                          <label className="block text-xs text-[#9ca3af] mb-1">
+                            Or enter custom emoji:
+                          </label>
+                          <input
+                            type="text"
+                            value={uiMetadata.emoji}
+                            onChange={(e) => handleUiMetadataChange('emoji', e.target.value)}
+                            className="w-full px-3 py-2 bg-[#2d3748] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent text-center"
+                            placeholder="Type emoji here"
+                            maxLength={2}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label htmlFor="logo" className="block text-sm font-medium text-[#d1d5db] mb-2">
+                        Logo (Alternative to Emoji)
+                      </label>
+                      <div className="flex items-center gap-3 p-1 border-2 border-[#4b5563] border-dashed rounded-lg hover:border-[#3ecf8e] transition-colors">
+                        {uiMetadata.logoUrl ? (
+                          <>
+                            <img src={uiMetadata.logoUrl} alt="Logo preview" className="h-10 w-10 object-cover rounded-lg flex-shrink-0" />
+                            <label
+                              htmlFor="logo-upload"
+                              className="relative cursor-pointer rounded-md font-medium text-[#3ecf8e] hover:text-[#2dd4bf] text-sm"
+                            >
+                              <span>Change logo</span>
+                              <input
+                                id="logo-upload"
+                                type="file"
+                                accept="image/*"
+                                className="sr-only"
+                                onChange={handleLogoChange}
+                              />
+                            </label>
+                          </>
+                        ) : (
                           <label
-                            htmlFor="file-upload"
+                            htmlFor="logo-upload"
                             className="relative cursor-pointer rounded-md font-medium text-[#3ecf8e] hover:text-[#2dd4bf] text-sm"
                           >
-                            <span>Change image</span>
+                            <span>Upload logo</span>
                             <input
-                              id="file-upload"
-                              name="file-upload"
+                              id="logo-upload"
                               type="file"
                               accept="image/*"
                               className="sr-only"
-                              onChange={handleImageChange}
+                              onChange={handleLogoChange}
                             />
                           </label>
-                        </>
-                      ) : (
-                        <>
-                          <svg
-                            className="h-10 w-10 text-[#9ca3af] flex-shrink-0"
-                            stroke="currentColor"
-                            fill="none"
-                            viewBox="0 0 48 48"
-                            aria-hidden="true"
-                          >
-                            <path
-                              d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
-                              strokeWidth={2}
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                          <label
-                            htmlFor="file-upload"
-                            className="relative cursor-pointer rounded-md font-medium text-[#3ecf8e] hover:text-[#2dd4bf] text-sm"
-                          >
-                            <span>Upload image</span>
-                            <input
-                              id="file-upload"
-                              name="file-upload"
-                              type="file"
-                              accept="image/*"
-                              className="sr-only"
-                              onChange={handleImageChange}
-                            />
-                          </label>
-                        </>
-                      )}
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Description - Full Width Below */}
-                <div>
-                  <label htmlFor="description" className="block text-sm font-medium text-[#d1d5db] mb-2">
-                    Tool Description *
-                  </label>
-                  <textarea
-                    id="description"
-                    name="description"
-                    value={formData.description}
-                    onChange={handleInputChange}
-                    rows={10}
-                    className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent resize-y"
-                    placeholder="Generate high-quality content with advanced AI. Perfect for content creators, marketers, and businesses..."
-                    required
-                  />
-                </div>
+                  {/* Tags */}
+                  <div>
+                    <label htmlFor="tags" className="block text-sm font-medium text-[#d1d5db] mb-2">
+                      Tags
+                    </label>
+                    <div className="flex gap-2 mb-2">
+                      <input
+                        type="text"
+                        id="tags"
+                        value={uiMetadata.tagInput}
+                        onChange={(e) => handleUiMetadataChange('tagInput', e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
+                        className="flex-1 px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
+                        placeholder="Add a tag and press Enter"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddTag}
+                        className="px-4 py-2 bg-[#3ecf8e] text-black rounded-lg hover:bg-[#2dd4bf] transition-colors font-semibold"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+                    {uiMetadata.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {uiMetadata.tags.map((tag, index) => (
+                          <span
+                            key={index}
+                            className="inline-flex items-center gap-1 px-3 py-1 bg-[#374151] text-[#d1d5db] rounded-lg text-sm"
+                          >
+                            {tag}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveTag(tag)}
+                              className="hover:text-red-400"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
 
-                {/* External Tool URL */}
-                <div>
-                  <label htmlFor="toolExternalUrl" className="block text-sm font-medium text-[#d1d5db] mb-2">
-                    External Tool URL *
-                  </label>
-                  <input
-                    type="url"
-                    id="toolExternalUrl"
-                    name="toolExternalUrl"
-                    value={formData.toolExternalUrl}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
-                    placeholder="https://your-tool.com"
-                    required
-                  />
-                  <p className="mt-2 text-sm text-[#9ca3af]">
-                    The URL where users will be redirected after purchasing your tool. Must use HTTP or HTTPS.
-                  </p>
+                  {/* Category and Development Stage */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label htmlFor="category" className="block text-sm font-medium text-[#d1d5db] mb-2">
+                        Category
+                      </label>
+                      <input
+                        type="text"
+                        id="category"
+                        name="category"
+                        value={uiMetadata.category}
+                        onChange={(e) => handleUiMetadataChange('category', e.target.value)}
+                        className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
+                        placeholder="AI, Marketing, Design, etc."
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="developmentStage" className="block text-sm font-medium text-[#d1d5db] mb-2">
+                        Development Stage
+                      </label>
+                      <select
+                        id="developmentStage"
+                        name="developmentStage"
+                        value={uiMetadata.developmentStage}
+                        onChange={(e) => handleUiMetadataChange('developmentStage', e.target.value)}
+                        className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
+                      >
+                        <option value="">None</option>
+                        <option value="alpha">Alpha</option>
+                        <option value="beta">Beta</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Discount Percentage */}
+                  <div>
+                    <label htmlFor="discountPercentage" className="block text-sm font-medium text-[#d1d5db] mb-2">
+                      Discount Percentage (Optional)
+                    </label>
+                    <input
+                      type="number"
+                      id="discountPercentage"
+                      name="discountPercentage"
+                      value={uiMetadata.discountPercentage || ''}
+                      onChange={(e) => handleUiMetadataChange('discountPercentage', parseInt(e.target.value) || 0)}
+                      min="0"
+                      max="100"
+                      className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
+                      placeholder="0"
+                    />
+                  </div>
                 </div>
-              </form>
+              </div>
+
+              {/* Content Metadata */}
+              <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
+                <h2 className="text-lg font-semibold text-[#ededed] mb-6">Content Details</h2>
+
+                <div className="space-y-6">
+                  {/* Features */}
+                  <div>
+                    <label htmlFor="features" className="block text-sm font-medium text-[#d1d5db] mb-2">
+                      Features
+                    </label>
+                    <div className="flex gap-2 mb-2">
+                      <input
+                        type="text"
+                        id="features"
+                        value={contentMetadata.featureInput}
+                        onChange={(e) => handleContentMetadataChange('featureInput', e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddFeature())}
+                        className="flex-1 px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
+                        placeholder="Add a feature and press Enter"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddFeature}
+                        className="px-4 py-2 bg-[#3ecf8e] text-black rounded-lg hover:bg-[#2dd4bf] transition-colors font-semibold"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+                    {contentMetadata.features.length > 0 && (
+                      <ul className="space-y-2">
+                        {contentMetadata.features.map((feature, index) => (
+                          <li
+                            key={index}
+                            className="inline-flex items-center gap-2 px-3 py-1 bg-[#374151] text-[#d1d5db] rounded-lg text-sm mr-2 mb-2"
+                          >
+                            {feature}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveFeature(feature)}
+                              className="hover:text-red-400"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  {/* Use Cases */}
+                  <div>
+                    <label htmlFor="useCases" className="block text-sm font-medium text-[#d1d5db] mb-2">
+                      Use Cases
+                    </label>
+                    <div className="flex gap-2 mb-2">
+                      <input
+                        type="text"
+                        id="useCases"
+                        value={contentMetadata.useCaseInput}
+                        onChange={(e) => handleContentMetadataChange('useCaseInput', e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddUseCase())}
+                        className="flex-1 px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
+                        placeholder="Add a use case and press Enter"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddUseCase}
+                        className="px-4 py-2 bg-[#3ecf8e] text-black rounded-lg hover:bg-[#2dd4bf] transition-colors font-semibold"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+                    {contentMetadata.useCases.length > 0 && (
+                      <ul className="space-y-2">
+                        {contentMetadata.useCases.map((useCase, index) => (
+                          <li
+                            key={index}
+                            className="inline-flex items-center gap-2 px-3 py-1 bg-[#374151] text-[#d1d5db] rounded-lg text-sm mr-2 mb-2"
+                          >
+                            {useCase}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveUseCase(useCase)}
+                              className="hover:text-red-400"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* Preview */}
+            {/* Right Column: Preview */}
             <div className="rounded-lg overflow-hidden">
               <div className="bg-[#1f2937] rounded-lg overflow-hidden border border-[#374151]">
                 {/* Image - Full Width at Top */}
                 <div className="w-full h-48 bg-gradient-to-br from-[#3ecf8e]/20 to-[#2dd4bf]/20 flex items-center justify-center overflow-hidden">
                   {imagePreview ? (
-                    <img 
-                      src={imagePreview} 
-                      alt={formData.name || 'Tool preview'} 
-                      className="w-full h-full object-cover" 
+                    <img
+                      src={imagePreview}
+                      alt={formData.name || 'Tool preview'}
+                      className="w-full h-full object-cover"
                     />
                   ) : (
                     <div className="text-center">
@@ -546,4 +1061,3 @@ export default function EditToolPage() {
     </div>
   );
 }
-

@@ -125,7 +125,11 @@ export interface ToolAccessJWTClaims {
 export type WebhookEventType = 
   | 'subscription.activated' 
   | 'subscription.canceled' 
-  | 'subscription.updated';
+  | 'subscription.updated'
+  | 'user.credit_low'
+  | 'user.credit_depleted'
+  | 'user.session_expired'
+  | 'tool.status_changed';
 
 export interface WebhookPayload {
   id: string;
@@ -133,11 +137,16 @@ export interface WebhookPayload {
   created: number;
   data: {
     oneSubUserId: string;
-    planId: string;
-    status: SubscriptionStatus;
-    currentPeriodEnd: string;
-    quantity: number;
+    planId?: string;
+    status?: SubscriptionStatus;
+    currentPeriodEnd?: string;
+    quantity?: number;
     creditsRemaining?: number;
+    creditBalance?: number;
+    threshold?: number;
+    toolId?: string;
+    toolStatus?: boolean;
+    sessionExpiredAt?: string;
   };
 }
 

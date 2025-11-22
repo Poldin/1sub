@@ -315,16 +315,26 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 10. Generate JWT token for tool access
+    // 10. Generate JWT tokens for tool access (both access and refresh)
     let toolAccessToken: string | null = null;
+    let refreshToken: string | null = null;
+    let accessTokenExpiresAt: string | null = null;
+    let refreshTokenExpiresAt: string | null = null;
+    
     try {
-      toolAccessToken = generateToolAccessToken(
+      const { generateTokenPair } = await import('@/lib/token-refresh');
+      const tokens = generateTokenPair(
         authUser.id,
         metadata.tool_id as string,
         checkout.id
       );
+      
+      toolAccessToken = tokens.accessToken;
+      refreshToken = tokens.refreshToken;
+      accessTokenExpiresAt = tokens.accessTokenExpiresAt;
+      refreshTokenExpiresAt = tokens.refreshTokenExpiresAt;
     } catch (error) {
-      console.error('Error generating tool access token:', error);
+      console.error('Error generating tool access tokens:', error);
       // Don't fail the checkout if token generation fails
     }
 
@@ -359,14 +369,17 @@ export async function POST(request: NextRequest) {
       vendorId: checkout.vendor_id,
     });
 
-    // 12. Return success
+    // 12. Return success with both tokens
     return NextResponse.json({
       success: true,
       message: checkoutType === 'tool_subscription' 
         ? 'Subscription activated successfully' 
         : 'Purchase completed successfully',
       tool_url: metadata.tool_url,
-      tool_access_token: toolAccessToken, // Include token in response
+      tool_access_token: toolAccessToken, // Include access token in response
+      refresh_token: refreshToken, // Include refresh token for session renewal
+      access_token_expires_at: accessTokenExpiresAt,
+      refresh_token_expires_at: refreshTokenExpiresAt,
       new_balance: userTransactionResult.balanceAfter,
       is_subscription: checkoutType === 'tool_subscription',
       selected_pricing: selected_pricing || null,

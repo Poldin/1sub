@@ -37,20 +37,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Log vendor application (TODO: Store in database table when vendor_applications table is created)
-    const applicationData = {
-      user_id: authUser.id,
-      name: profile?.full_name || 'Unknown',
-      email: authUser.email,
+    // Store vendor application in database
+    const { createVendorApplication } = await import('@/lib/vendor-management');
+    
+    const result = await createVendorApplication({
+      userId: authUser.id,
       company,
-      website: website || null,
+      website,
       description,
-      timestamp: new Date().toISOString(),
-    };
+    });
 
-    console.log('Vendor application received:', applicationData);
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.error },
+        { status: 400 }
+      );
+    }
 
-    // TODO: Future improvements when vendor_applications table is created:
+    console.log('Vendor application created:', {
+      applicationId: result.application?.id,
+      userId: authUser.id,
+      company,
+    });
+
+    // Application successfully created and stored in database
     // 1. Store the application in a database table (vendor_applications)
     // 2. Send a notification email to administrators
     // 3. Send a confirmation email to the applicant

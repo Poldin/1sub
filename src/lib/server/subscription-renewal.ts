@@ -13,18 +13,17 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { getCurrentBalance, subtractCredits, addCredits } from '@/lib/credits-service';
 import { notifySubscriptionUpdated } from '@/lib/tool-webhooks';
 
 // Initialize Supabase (service role for cron job)
 function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  
+
   if (!supabaseUrl || !supabaseKey) {
     throw new Error('Supabase environment variables are not configured');
   }
-  
+
   return createClient(supabaseUrl, supabaseKey);
 }
 
@@ -65,7 +64,7 @@ interface BatchRenewalResult {
  */
 function calculateNextBillingDate(currentDate: Date, billingPeriod: string): Date {
   const nextDate = new Date(currentDate);
-  
+
   switch (billingPeriod.toLowerCase()) {
     case 'daily':
       nextDate.setDate(nextDate.getDate() + 1);
@@ -83,7 +82,7 @@ function calculateNextBillingDate(currentDate: Date, billingPeriod: string): Dat
       // Default to monthly
       nextDate.setMonth(nextDate.getMonth() + 1);
   }
-  
+
   return nextDate;
 }
 
@@ -164,7 +163,7 @@ async function processSubscriptionRenewal(
     const idempotencyKey = `subscription-renewal-${subscriptionId}-${now.toISOString()}`;
 
     // Deduct credits from user
-    const { data: userTransaction, error: userTransactionError } = await supabase
+    const { error: userTransactionError } = await supabase
       .from('credit_transactions')
       .insert({
         user_id: userId,
@@ -186,7 +185,7 @@ async function processSubscriptionRenewal(
 
     if (userTransactionError) {
       console.error(`[Subscription Renewal] Failed to deduct credits for subscription ${subscriptionId}:`, userTransactionError);
-      
+
       // Mark as failed and schedule retry
       await supabase
         .from('tool_subscriptions')
@@ -298,7 +297,7 @@ async function processSubscriptionRenewal(
 
   } catch (error) {
     console.error(`[Subscription Renewal] Unexpected error processing subscription ${subscriptionId}:`, error);
-    
+
     // Mark subscription as failed
     try {
       await supabase
@@ -368,7 +367,7 @@ export async function processSubscriptionRenewals(limit: number = 100): Promise<
     for (const subscription of subscriptions) {
       const result = await processSubscriptionRenewal(subscription as Subscription, supabase);
       results.push(result);
-      
+
       // Small delay between processing to avoid overwhelming the database
       await new Promise(resolve => setTimeout(resolve, 100));
     }
@@ -445,7 +444,7 @@ export async function retryFailedSubscriptionRenewals(limit: number = 50): Promi
     for (const subscription of subscriptions) {
       const result = await processSubscriptionRenewal(subscription as Subscription, supabase);
       results.push(result);
-      
+
       // Small delay between processing
       await new Promise(resolve => setTimeout(resolve, 100));
     }

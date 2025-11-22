@@ -504,6 +504,111 @@ export type Database = {
         }
         Relationships: []
       }
+      vendor_applications: {
+        Row: {
+          company: string
+          created_at: string
+          description: string
+          id: string
+          metadata: Json | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          updated_at: string
+          user_id: string
+          website: string | null
+        }
+        Insert: {
+          company: string
+          created_at?: string
+          description: string
+          id?: string
+          metadata?: Json | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+          website?: string | null
+        }
+        Update: {
+          company?: string
+          created_at?: string
+          description?: string
+          id?: string
+          metadata?: Json | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+          website?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_applications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_applications_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      usage_logs: {
+        Row: {
+          created_at: string
+          credits_consumed: number
+          id: string
+          metadata: Json | null
+          status: string
+          tool_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          credits_consumed: number
+          id?: string
+          metadata?: Json | null
+          status: string
+          tool_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          credits_consumed?: number
+          id?: string
+          metadata?: Json | null
+          status?: string
+          tool_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "usage_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "usage_logs_tool_id_fkey"
+            columns: ["tool_id"]
+            isOneToOne: false
+            referencedRelation: "tools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -572,6 +677,63 @@ export type Database = {
       increment_balance: {
         Args: { p_amount: number; p_user_id: string }
         Returns: undefined
+      }
+      validate_api_key_hash: {
+        Args: { p_key_prefix: string }
+        Returns: {
+          tool_id: string
+          key_hash: string
+          tool_name: string
+          is_active: boolean
+          metadata: Json
+        }[]
+      }
+      update_api_key_usage: {
+        Args: { p_tool_id: string }
+        Returns: undefined
+      }
+      process_vendor_application: {
+        Args: {
+          p_application_id: string
+          p_new_status: string
+          p_reviewer_id: string
+          p_rejection_reason?: string
+        }
+        Returns: {
+          success: boolean
+          message: string
+          user_id: string | null
+        }[]
+      }
+      get_tool_analytics: {
+        Args: {
+          p_tool_id: string
+          p_start_date?: string
+          p_end_date?: string
+        }
+        Returns: {
+          total_uses: number
+          total_credits_consumed: number
+          unique_users: number
+          success_rate: number
+          avg_credits_per_use: number
+        }[]
+      }
+      get_user_credit_history: {
+        Args: {
+          p_user_id: string
+          p_limit?: number
+          p_offset?: number
+        }
+        Returns: {
+          transaction_id: string
+          credits_amount: number
+          balance_after: number
+          type: string
+          reason: string
+          tool_name: string | null
+          created_at: string
+        }[]
       }
       log_admin_action: {
         Args: {

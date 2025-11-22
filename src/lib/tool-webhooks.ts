@@ -230,3 +230,62 @@ export async function notifySubscriptionUpdated(
   });
 }
 
+/**
+ * Notify tool when user credits are low
+ */
+export async function notifyUserCreditLow(
+  toolId: string,
+  oneSubUserId: string,
+  creditBalance: number,
+  threshold: number
+): Promise<boolean> {
+  return sendToolWebhook(toolId, 'user.credit_low', {
+    oneSubUserId,
+    creditBalance,
+    threshold,
+  });
+}
+
+/**
+ * Notify tool when user credits are depleted
+ */
+export async function notifyUserCreditDepleted(
+  toolId: string,
+  oneSubUserId: string
+): Promise<boolean> {
+  return sendToolWebhook(toolId, 'user.credit_depleted', {
+    oneSubUserId,
+    creditBalance: 0,
+  });
+}
+
+/**
+ * Notify tool when user session expires
+ */
+export async function notifyUserSessionExpired(
+  toolId: string,
+  oneSubUserId: string,
+  sessionExpiredAt: string
+): Promise<boolean> {
+  return sendToolWebhook(toolId, 'user.session_expired', {
+    oneSubUserId,
+    sessionExpiredAt,
+  });
+}
+
+/**
+ * Notify tool when tool status changes
+ */
+export async function notifyToolStatusChanged(
+  toolId: string,
+  toolStatus: boolean
+): Promise<boolean> {
+  return sendToolWebhook(toolId, 'tool.status_changed', {
+    oneSubUserId: 'system', // System event, not user-specific
+    toolId,
+    toolStatus,
+  });
+}
+
+
+

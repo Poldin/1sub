@@ -69,6 +69,8 @@ export function createClient() {
 
     // Also set up global error handler for unhandled auth errors
     if (typeof window !== 'undefined') {
+      // Set up unhandled rejection handler early to catch errors before they're logged
+      // Use capture phase to catch errors as early as possible
       window.addEventListener('unhandledrejection', (event) => {
         const error = event.reason;
         if (error && typeof error === 'object') {
@@ -87,14 +89,15 @@ export function createClient() {
             return;
           }
           
-          // Handle refresh token errors
+          // Handle refresh token errors - suppress console logging
           if (
             errorMessage.includes('Refresh Token') ||
             errorMessage.includes('refresh_token') ||
             errorMessage.includes('Invalid Refresh Token') ||
-            errorMessage.includes('Refresh Token Not Found')
+            errorMessage.includes('Refresh Token Not Found') ||
+            (errorName === 'AuthApiError' && errorMessage.includes('refresh'))
           ) {
-            console.warn('Caught unhandled refresh token error, clearing session');
+            // Silently clear session without logging
             clearAuthCookies();
             clientInstance?.auth.signOut({ scope: 'local' }).catch(() => {
               // Ignore errors
@@ -103,7 +106,7 @@ export function createClient() {
             event.preventDefault();
           }
         }
-      });
+      }, true); // Use capture phase to catch errors early
     }
   }
 
@@ -111,14 +114,14 @@ export function createClient() {
 }
 
 /**
- * Safely get user from Supabase, handling "Auth session missing!" errors gracefully
- * Returns { user: null, error: null } when user is not logged in (no session)
+ * Safely get user from Supabase, handling "Auth session missing!" and refresh token errors gracefully
+ * Returns { user: null, error: null } when user is not logged in (no session) or refresh token is invalid
  */
 export async function safeGetUser(supabase: ReturnType<typeof createClient>) {
   try {
     const { data: { user }, error } = await supabase.auth.getUser();
     
-    // If there's an error, check if it's a "session missing" error
+    // If there's an error, check if it's a "session missing" or refresh token error
     if (error) {
       const errorMessage = error.message || '';
       const errorName = error.name || '';
@@ -134,13 +137,31 @@ export async function safeGetUser(supabase: ReturnType<typeof createClient>) {
         return { user: null, error: null };
       }
       
+      // Handle refresh token errors - clear session and return null user with no error
+      if (
+        errorMessage.includes('Refresh Token') ||
+        errorMessage.includes('refresh_token') ||
+        errorMessage.includes('Invalid Refresh Token') ||
+        errorMessage.includes('Refresh Token Not Found')
+      ) {
+        // Clear invalid session silently
+        try {
+          await supabase.auth.signOut({ scope: 'local' });
+        } catch {
+          // Ignore sign out errors
+        }
+        clearAuthCookies();
+        // Return null user with no error to indicate user is not logged in
+        return { user: null, error: null };
+      }
+      
       // For other errors, return them as-is
       return { user: null, error };
     }
     
     return { user, error: null };
   } catch (err) {
-    // Handle errors that might be thrown (like "Auth session missing!")
+    // Handle errors that might be thrown (like "Auth session missing!" or refresh token errors)
     const errorMessage = err instanceof Error ? err.message : String(err);
     const errorName = err instanceof Error ? err.name : '';
     
@@ -152,6 +173,24 @@ export async function safeGetUser(supabase: ReturnType<typeof createClient>) {
       errorMessage.includes('Session missing')
     ) {
       // User is not logged in, which is fine - return null user with no error
+      return { user: null, error: null };
+    }
+    
+    // Handle refresh token errors - clear session and return null user with no error
+    if (
+      errorMessage.includes('Refresh Token') ||
+      errorMessage.includes('refresh_token') ||
+      errorMessage.includes('Invalid Refresh Token') ||
+      errorMessage.includes('Refresh Token Not Found')
+    ) {
+      // Clear invalid session silently
+      try {
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch {
+        // Ignore sign out errors
+      }
+      clearAuthCookies();
+      // Return null user with no error to indicate user is not logged in
       return { user: null, error: null };
     }
     

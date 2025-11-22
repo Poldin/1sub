@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Menu, Settings, Plus, BarChart3, TrendingUp, DollarSign, Users, Rocket, ArrowRight } from 'lucide-react';
+import { Menu, Settings, Plus, BarChart3, TrendingUp, DollarSign, Users, Rocket, ArrowRight, Edit } from 'lucide-react';
 import Sidebar from '../backoffice/components/Sidebar';
 import Footer from '../components/Footer';
 import { createClient } from '@/lib/supabase/client';
@@ -16,7 +16,7 @@ type ToolSummary = {
 export default function VendorDashboard() {
   const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  
+
   // User data states
   const [user, setUser] = useState<{ id: string; fullName: string | null; email: string } | null>(null);
   const [userLoading, setUserLoading] = useState(true);
@@ -165,7 +165,7 @@ export default function VendorDashboard() {
   const fetchVendorAnalytics = async (vendorId: string) => {
     try {
       const supabase = createClient();
-      
+
       // Get all tools for vendor
       const { data: toolsData } = await supabase
         .from('tools')
@@ -192,7 +192,7 @@ export default function VendorDashboard() {
         .in('tool_id', toolsData.map((tool: { id: string; is_active: boolean }) => tool.id))
         .eq('type', 'tool_usage');
 
-      const totalRevenue = transactionsData?.reduce((sum: number, transaction: { credits_amount: number | null }) => 
+      const totalRevenue = transactionsData?.reduce((sum: number, transaction: { credits_amount: number | null }) =>
         sum + (transaction.credits_amount || 0), 0) || 0;
 
       setVendorStats({
@@ -210,7 +210,7 @@ export default function VendorDashboard() {
   const fetchToolAnalytics = async (toolId: string) => {
     try {
       const supabase = createClient();
-      
+
       // Get usage count (credit transactions for this tool)
       const { data: transactionsData } = await supabase
         .from('credit_transactions')
@@ -219,7 +219,7 @@ export default function VendorDashboard() {
         .eq('type', 'tool_usage');
 
       const usageCount = transactionsData?.length || 0;
-      const revenue = transactionsData?.reduce((sum: number, transaction: { credits_amount: number | null }) => 
+      const revenue = transactionsData?.reduce((sum: number, transaction: { credits_amount: number | null }) =>
         sum + (transaction.credits_amount || 0), 0) || 0;
 
       // Get active subscribers
@@ -235,8 +235,8 @@ export default function VendorDashboard() {
       // For now, using mock data - will be replaced with real calculation
       const currentMonthRevenue = revenue;
       const previousMonthRevenue = revenue * 0.85; // Mock: assume 15% growth
-      const revenueGrowth = previousMonthRevenue > 0 
-        ? ((currentMonthRevenue - previousMonthRevenue) / previousMonthRevenue) * 100 
+      const revenueGrowth = previousMonthRevenue > 0
+        ? ((currentMonthRevenue - previousMonthRevenue) / previousMonthRevenue) * 100
         : 0;
 
       setToolStats({
@@ -291,17 +291,17 @@ export default function VendorDashboard() {
             name: tool.name,
           }));
           setTools(mappedTools);
-          
+
           // Set initial tool selection
           if (toolsData.length > 0) {
             const savedToolId = localStorage.getItem('selectedToolId');
             const toolExists = savedToolId && toolsData.some((tool: { id: string; name: string }) => tool.id === savedToolId);
             const initialToolId = toolExists ? savedToolId : toolsData[0].id;
             const initialTool = toolsData.find((tool: { id: string; name: string }) => tool.id === initialToolId);
-            
+
             setSelectedToolId(initialToolId);
             setSelectedToolName(initialTool?.name || '');
-            
+
             // Fetch analytics
             fetchVendorAnalytics(data.id);
             fetchToolAnalytics(initialToolId);
@@ -341,9 +341,8 @@ export default function VendorDashboard() {
       />
 
       <main
-        className={`flex-1 min-w-0 transition-all duration-300 ease-in-out overflow-x-hidden ${
-          isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'
-        }`}
+        className={`flex-1 min-w-0 transition-all duration-300 ease-in-out overflow-x-hidden ${isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'
+          }`}
       >
         <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-30 overflow-x-hidden border-b border-[#374151]">
           <div className="flex items-center justify-between flex-wrap gap-3 p-2 sm:p-3">
@@ -362,7 +361,6 @@ export default function VendorDashboard() {
                   currentToolId={selectedToolId}
                   onToolChange={handleToolChange}
                   onToolsFetched={handleToolsFetched}
-                  onDeleteTool={handleDeleteToolRequest}
                   refreshToken={toolRefreshToken}
                 />
               )}
@@ -380,6 +378,19 @@ export default function VendorDashboard() {
                 >
                   <Plus className="w-4 h-4" />
                   Create New Tool
+                </button>
+
+                <button
+                  onClick={() => {
+                    if (selectedToolId) {
+                      router.push(`/vendor-dashboard/tools/${selectedToolId}/edit`);
+                    }
+                  }}
+                  disabled={!selectedToolId}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Edit className="w-4 h-4" />
+                  Edit Tool
                 </button>
 
                 <button
@@ -491,28 +502,6 @@ export default function VendorDashboard() {
             </>
           ) : (
             <>
-              {/* Integration Guide Banner */}
-              <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-lg p-4 mb-6">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-blue-500/20 rounded-lg flex-shrink-0">
-                    <Settings className="w-5 h-5 text-blue-400" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-[#ededed] mb-1">Need Help Connecting Your Tool?</h3>
-                    <p className="text-sm text-[#d1d5db] mb-3">
-                      Check out our comprehensive integration guide with step-by-step instructions and code examples.
-                    </p>
-                    <button
-                      onClick={() => router.push('/vendor-dashboard/integration')}
-                      className="inline-flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors text-sm"
-                    >
-                      <Settings className="w-4 h-4" />
-                      View Integration Guide
-                      <ArrowRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
 
               <div className="flex items-center gap-6 mb-6">
                 <div className="flex items-center gap-2">
@@ -600,13 +589,12 @@ export default function VendorDashboard() {
                         <div className="ml-4">
                           <p className="text-sm text-[#9ca3af]">Revenue Growth</p>
                           <p
-                            className={`text-2xl font-bold ${
-                              toolStats.revenueGrowth > 0
-                                ? 'text-green-400'
-                                : toolStats.revenueGrowth < 0
+                            className={`text-2xl font-bold ${toolStats.revenueGrowth > 0
+                              ? 'text-green-400'
+                              : toolStats.revenueGrowth < 0
                                 ? 'text-red-400'
                                 : 'text-[#ededed]'
-                            }`}
+                              }`}
                           >
                             {toolStats.revenueGrowth > 0 ? '+' : ''}
                             {toolStats.revenueGrowth.toFixed(1)}%
