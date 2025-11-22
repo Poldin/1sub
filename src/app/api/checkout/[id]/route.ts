@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { calculateCreditsFromTransactions } from '@/lib/credits';
+import { getCurrentBalance } from '@/lib/credits-service';
 import { secureLog } from '@/lib/secure-logger';
 
 export async function GET(
@@ -85,20 +85,8 @@ export async function GET(
     }
 
     // Fetch user profile with credits
-    // Calculate credits from transactions (source of truth)
-    const { data: creditTransactions, error: creditError } = await supabase
-      .from('credit_transactions')
-      .select('credits_amount, type')
-      .eq('user_id', authUser.id);
-
-    if (creditError) {
-      console.error('[ERROR][checkout/get] Failed to fetch credit transactions', {
-        error: creditError,
-        authUserId: authUser.id,
-      });
-    }
-
-    const userCredits = calculateCreditsFromTransactions(creditTransactions || []);
+    // Use getCurrentBalance for consistent balance calculation (matches checkout process)
+    const userCredits = await getCurrentBalance(authUser.id);
 
     return NextResponse.json({
       checkout: checkoutData,

@@ -21,7 +21,7 @@ import {
   Package,
   BookOpen
 } from 'lucide-react';
-import { getUserCreditsClient } from '@/lib/credits';
+import { getCurrentBalanceClient } from '@/lib/credits';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -45,12 +45,13 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
     }
   }, []);
 
-  // Fetch credits independently - Calculate from credit_transactions (source of truth)
+  // Fetch credits independently using unified balance method
+  // Uses balance_after from latest transaction for consistency with checkout
   useEffect(() => {
     const fetchCredits = async () => {
       if (!userId) return;
 
-      const totalCredits = await getUserCreditsClient(userId);
+      const totalCredits = await getCurrentBalanceClient(userId);
       if (totalCredits !== null) {
         setCredits(totalCredits);
       }

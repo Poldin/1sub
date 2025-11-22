@@ -204,11 +204,8 @@ export default function CreditCheckoutPage() {
       }
     }
 
-    // Check sufficient credits
-    if (user.credits < selectedPrice) {
-      setError(`Insufficient credits. You need ${selectedPrice} credits but only have ${user.credits}.`);
-      return;
-    }
+    // Remove client-side balance check - let backend handle it atomically
+    // This prevents race conditions and ensures accurate balance validation
 
     setIsProcessing(true);
     setError(null);
@@ -228,7 +225,31 @@ export default function CreditCheckoutPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || 'Purchase failed');
+        // Enhanced error handling with balance refresh
+        if (data.error === 'Insufficient credits') {
+          // Refresh balance to show user the current state
+          try {
+            const balanceResponse = await fetch(`/api/checkout/${checkoutId}`);
+            if (balanceResponse.ok) {
+              const balanceData = await balanceResponse.json();
+              setUser(balanceData.user);
+              
+              // Show detailed error with shortfall information
+              const shortfall = data.shortfall || (data.required - data.current_balance);
+              setError(
+                `Insufficient credits. You need ${data.required} credits but have ${balanceData.user.credits.toFixed(2)} credits. ` +
+                `You're short by ${shortfall.toFixed(2)} credits.`
+              );
+            } else {
+              setError(data.error || 'Purchase failed due to insufficient credits');
+            }
+          } catch (refreshError) {
+            console.error('Error refreshing balance:', refreshError);
+            setError(data.error || 'Purchase failed due to insufficient credits');
+          }
+        } else {
+          setError(data.error || 'Purchase failed');
+        }
         setIsProcessing(false);
         return;
       }

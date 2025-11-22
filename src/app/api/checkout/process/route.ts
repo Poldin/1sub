@@ -175,36 +175,76 @@ export async function POST(request: NextRequest) {
       transactionReason = `Subscription payment: ${metadata.tool_name} (${billingPeriod || 'monthly'})`;
     }
 
-    // 7. ATOMIC OPERATION: Subtract credits from user using credit service
-    // This automatically checks for sufficient balance and handles idempotency
-    const userTransactionResult = await subtractCredits({
-      userId: authUser.id,
-      amount: creditCost,
-      reason: transactionReason,
-      idempotencyKey: idempotencyKey || `checkout-${checkout.id}-user`,
-      checkoutId: checkout.id,
-      toolId: metadata.tool_id as string,
-      metadata: {
-        tool_name: metadata.tool_name,
-        tool_url: metadata.tool_url,
-        checkout_type: checkoutType,
-        selected_pricing: selected_pricing || null,
-      },
-    });
+    // 7. ATOMIC OPERATION: Subtract credits from user using RPC with row-level locking
+    // This prevents race conditions and ensures atomic balance checks and deductions
+    const { data: consumeResult, error: consumeError } = await supabase
+      .rpc('consume_credits', {
+        p_user_id: authUser.id,
+        p_amount: creditCost,
+        p_reason: transactionReason,
+        p_idempotency_key: idempotencyKey || `checkout-${checkout.id}-user`,
+        p_tool_id: metadata.tool_id as string,
+        p_metadata: {
+          tool_name: metadata.tool_name,
+          tool_url: metadata.tool_url,
+          checkout_type: checkoutType,
+          selected_pricing: selected_pricing || null,
+          checkout_id: checkout.id,
+        }
+      });
+
+    if (consumeError) {
+      console.error('Credit consumption RPC error:', consumeError);
+      return NextResponse.json(
+        { 
+          error: 'Failed to process payment',
+          details: consumeError.message
+        },
+        { status: 500 }
+      );
+    }
+
+    // Parse RPC result
+    const userTransactionResult = consumeResult as {
+      success: boolean;
+      transaction_id?: string;
+      balance_before: number;
+      balance_after: number;
+      is_duplicate?: boolean;
+      error?: string;
+      required?: number;
+    };
 
     if (!userTransactionResult.success) {
       console.error('User transaction failed:', userTransactionResult.error);
+      
+      // Calculate shortfall for better error messaging
+      const shortfall = userTransactionResult.error === 'Insufficient credits' 
+        ? (userTransactionResult.required || creditCost) - userTransactionResult.balance_before
+        : 0;
+      
       return NextResponse.json(
         { 
           error: userTransactionResult.error || 'Failed to process payment',
-          current_balance: userTransactionResult.balanceBefore,
-          required: creditCost
+          current_balance: userTransactionResult.balance_before,
+          required: creditCost,
+          shortfall: shortfall > 0 ? shortfall : undefined
         },
         { status: userTransactionResult.error === 'Insufficient credits' ? 400 : 500 }
       );
     }
 
+    // Map RPC result to expected format for backward compatibility
+    const mappedUserResult = {
+      success: true,
+      transactionId: userTransactionResult.transaction_id,
+      balanceBefore: userTransactionResult.balance_before,
+      balanceAfter: userTransactionResult.balance_after,
+    };
+
     // Transaction success logged via audit system
+    // Use mapped result for compatibility with rest of the code
+    const userTransactionResultCompat = mappedUserResult;
 
     // 8. ATOMIC OPERATION: Add credits to vendor using credit service
     // This ensures atomicity and proper balance tracking
@@ -300,7 +340,7 @@ export async function POST(request: NextRequest) {
       } else {
         // Send webhook notification for subscription activation
         try {
-          const creditsRemaining = userTransactionResult.balanceAfter;
+          const creditsRemaining = userTransactionResultCompat.balanceAfter;
           await notifySubscriptionActivated(
             metadata.tool_id as string,
             authUser.id,
@@ -345,7 +385,7 @@ export async function POST(request: NextRequest) {
       status: 'completed',
       completed_at: new Date().toISOString(),
       idempotency_key: idempotencyKey || `checkout-${checkout.id}`,
-      user_transaction_id: userTransactionResult.transactionId,
+      user_transaction_id: userTransactionResultCompat.transactionId,
       vendor_transaction_id: vendorTransactionResult?.transactionId,
     };
 
@@ -365,7 +405,7 @@ export async function POST(request: NextRequest) {
     console.log('[DEBUG][checkout/process] Purchase complete', {
       checkoutId: checkout.id,
       authUserId: authUser.id,
-      newBalance: userTransactionResult.balanceAfter,
+      newBalance: userTransactionResultCompat.balanceAfter,
       vendorId: checkout.vendor_id,
     });
 
@@ -380,7 +420,7 @@ export async function POST(request: NextRequest) {
       refresh_token: refreshToken, // Include refresh token for session renewal
       access_token_expires_at: accessTokenExpiresAt,
       refresh_token_expires_at: refreshTokenExpiresAt,
-      new_balance: userTransactionResult.balanceAfter,
+      new_balance: userTransactionResultCompat.balanceAfter,
       is_subscription: checkoutType === 'tool_subscription',
       selected_pricing: selected_pricing || null,
       vendor_warning: vendorTransactionWarning || undefined,

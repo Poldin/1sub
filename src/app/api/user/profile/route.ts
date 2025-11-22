@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import { calculateCreditsFromTransactions } from '@/lib/credits';
+import { getCurrentBalance } from '@/lib/credits-service';
 
 export async function GET() {
   try {
@@ -31,19 +31,9 @@ export async function GET() {
       );
     }
 
-    // Fetch all credit transactions
-    const { data: transactions, error: transactionsError } = await supabase
-      .from('credit_transactions')
-      .select('credits_amount, type')
-      .eq('user_id', authUser.id);
-
-    if (transactionsError) {
-      console.error('Error fetching credit transactions:', transactionsError);
-      // Continue without credits if there's an error
-    }
-
-    // Calculate total credits using centralized utility
-    const totalCredits = calculateCreditsFromTransactions(transactions || []);
+    // Get current balance using unified credit service
+    // This uses balance_after from latest transaction for consistency and performance
+    const totalCredits = await getCurrentBalance(authUser.id);
     
     // Sensitive user data removed from logs
 
