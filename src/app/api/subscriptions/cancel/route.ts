@@ -102,9 +102,9 @@ export async function POST(request: NextRequest) {
         resource_id: subscription_id,
         metadata: {
           tool_id: subscription.tool_id,
-          vendor_id: subscription.vendor_id,
-          credit_price: subscription.credit_price,
-          billing_period: subscription.billing_period,
+          vendor_id: (subscription.metadata as Record<string, unknown>)?.vendor_id || null,
+          credits_per_period: subscription.credits_per_period,
+          period: subscription.period,
           cancelled_at: now,
         }
       });
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
       await notifySubscriptionCanceled(
         subscription.tool_id,
         authUser.id,
-        subscription.billing_period || 'monthly',
+        subscription.period || 'monthly',
         subscription.next_billing_date || now
       );
     } catch (webhookError) {
