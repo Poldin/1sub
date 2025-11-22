@@ -31,10 +31,9 @@ interface Subscription {
   id: string;
   user_id: string;
   tool_id: string;
-  vendor_id: string;
   status: string;
-  credit_price: number;
-  billing_period: string;
+  credits_per_period: number;
+  period: string;
   next_billing_date: string;
   last_billing_date: string | null;
   failed_renewal_count: number;
@@ -97,11 +96,13 @@ async function processSubscriptionRenewal(
     id: subscriptionId,
     user_id: userId,
     tool_id: toolId,
-    vendor_id: vendorId,
-    credit_price: creditPrice,
-    billing_period: billingPeriod,
+    credits_per_period: creditPrice,
+    period: billingPeriod,
     metadata,
   } = subscription;
+  
+  // Extract vendor_id from metadata if available
+  const vendorId = metadata?.vendor_id as string | undefined;
 
   try {
     console.log(`[Subscription Renewal] Processing subscription ${subscriptionId}`, {

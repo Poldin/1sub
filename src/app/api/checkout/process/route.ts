@@ -175,6 +175,15 @@ export async function POST(request: NextRequest) {
       transactionReason = `Subscription payment: ${metadata.tool_name} (${billingPeriod || 'monthly'})`;
     }
 
+    // 6.5. Pre-check balance for better error messages (non-blocking, RPC will do final check)
+    const preCheckBalance = await getCurrentBalance(authUser.id);
+    console.log('[DEBUG][checkout/process] Pre-check balance:', {
+      userId: authUser.id,
+      balance: preCheckBalance,
+      creditCost,
+      hasEnough: preCheckBalance >= creditCost
+    });
+
     // 7. ATOMIC OPERATION: Subtract credits from user using RPC with row-level locking
     // This prevents race conditions and ensures atomic balance checks and deductions
     const { data: consumeResult, error: consumeError } = await supabase
@@ -204,8 +213,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Parse RPC result
-    const userTransactionResult = consumeResult as {
+    // Check if result is null or undefined
+    if (!consumeResult) {
+      console.error('Credit consumption RPC returned null/undefined result', {
+        userId: authUser.id,
+        creditCost,
+        checkoutId: checkout.id
+      });
+      return NextResponse.json(
+        { 
+          error: 'Failed to process payment',
+          details: 'No result returned from credit consumption service'
+        },
+        { status: 500 }
+      );
+    }
+
+    // Parse RPC result - handle both direct object and JSONB string
+    let userTransactionResult: {
       success: boolean;
       transaction_id?: string;
       balance_before: number;
@@ -215,20 +240,72 @@ export async function POST(request: NextRequest) {
       required?: number;
     };
 
+    // If result is a string (JSONB), parse it
+    if (typeof consumeResult === 'string') {
+      try {
+        userTransactionResult = JSON.parse(consumeResult);
+      } catch (parseError) {
+        console.error('Failed to parse RPC result as JSON:', parseError, {
+          rawResult: consumeResult,
+          userId: authUser.id,
+          creditCost
+        });
+        return NextResponse.json(
+          { 
+            error: 'Failed to process payment',
+            details: 'Invalid response format from credit service'
+          },
+          { status: 500 }
+        );
+      }
+    } else {
+      userTransactionResult = consumeResult as typeof userTransactionResult;
+    }
+
+    // Log the result for debugging
+    console.log('[DEBUG][checkout/process] Credit consumption result:', {
+      success: userTransactionResult.success,
+      balance_before: userTransactionResult.balance_before,
+      balance_after: userTransactionResult.balance_after,
+      error: userTransactionResult.error,
+      required: userTransactionResult.required,
+      creditCost,
+      userId: authUser.id
+    });
+
     if (!userTransactionResult.success) {
-      console.error('User transaction failed:', userTransactionResult.error);
+      console.error('User transaction failed:', {
+        error: userTransactionResult.error,
+        balance_before: userTransactionResult.balance_before,
+        required: userTransactionResult.required || creditCost,
+        creditCost,
+        userId: authUser.id,
+        checkoutId: checkout.id,
+        preCheckBalance
+      });
       
       // Calculate shortfall for better error messaging
       const shortfall = userTransactionResult.error === 'Insufficient credits' 
         ? (userTransactionResult.required || creditCost) - userTransactionResult.balance_before
         : 0;
       
+      // If there's a discrepancy between pre-check and RPC balance, log it
+      if (preCheckBalance !== undefined && preCheckBalance !== userTransactionResult.balance_before) {
+        console.warn('[WARN][checkout/process] Balance discrepancy detected:', {
+          preCheckBalance,
+          rpcBalance: userTransactionResult.balance_before,
+          difference: preCheckBalance - userTransactionResult.balance_before,
+          userId: authUser.id
+        });
+      }
+      
       return NextResponse.json(
         { 
           error: userTransactionResult.error || 'Failed to process payment',
           current_balance: userTransactionResult.balance_before,
           required: creditCost,
-          shortfall: shortfall > 0 ? shortfall : undefined
+          shortfall: shortfall > 0 ? shortfall : undefined,
+          pre_check_balance: preCheckBalance !== undefined ? preCheckBalance : undefined
         },
         { status: userTransactionResult.error === 'Insufficient credits' ? 400 : 500 }
       );
@@ -305,39 +382,57 @@ export async function POST(request: NextRequest) {
         nextBillingDate.setFullYear(nextBillingDate.getFullYear() + 1);
       }
 
-      const { error: subError } = await supabase
+      // Map billingPeriod to period format (monthly/yearly -> monthly/yearly)
+      const period = billingPeriod === 'yearly' ? 'yearly' : 'monthly';
+      
+      const { data: createdSub, error: subError } = await supabase
         .from('tool_subscriptions')
         .insert({
           user_id: authUser.id,
-          tool_id: metadata.tool_id,
-          vendor_id: checkout.vendor_id,
+          tool_id: metadata.tool_id as string,
+          checkout_id: checkout.id,
           status: 'active',
-          credit_price: creditCost,
-          billing_period: billingPeriod,
-          started_at: new Date().toISOString(),
+          credits_per_period: creditCost,
+          period: period,
           next_billing_date: nextBillingDate.toISOString(),
           last_billing_date: new Date().toISOString(),
           metadata: {
             tool_name: metadata.tool_name,
+            vendor_id: checkout.vendor_id,
             initial_checkout_id: checkout.id,
             selected_pricing,
           },
-        });
+        })
+        .select()
+        .single();
 
       if (subError) {
-        console.error('CRITICAL: Failed to create subscription:', subError);
-        console.error('Subscription data:', {
+        console.error('CRITICAL: Failed to create subscription:', {
+          error: subError,
+          message: subError.message,
+          details: subError.details,
+          hint: subError.hint,
+          code: subError.code,
+        });
+        console.error('Subscription data that failed:', {
           user_id: authUser.id,
           tool_id: metadata.tool_id,
           vendor_id: checkout.vendor_id,
-          credit_price: creditCost,
-          billing_period: billingPeriod,
+          credits_per_period: creditCost,
+          period: billingPeriod,
+          checkout_id: checkout.id,
         });
         
         // TODO: Store in failed_subscriptions table for manual review
         // NOTE: Credits have already been deducted, but subscription wasn't created
         // This requires manual intervention
       } else {
+        console.log('[DEBUG][checkout/process] Subscription created successfully:', {
+          subscriptionId: createdSub?.id,
+          userId: authUser.id,
+          toolId: metadata.tool_id,
+          status: createdSub?.status,
+        });
         // Send webhook notification for subscription activation
         try {
           const creditsRemaining = userTransactionResultCompat.balanceAfter;
