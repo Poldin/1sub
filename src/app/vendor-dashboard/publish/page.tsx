@@ -15,7 +15,8 @@ export default function PublishToolPage() {
     name: '',
     description: '',
     icon: '',
-    toolExternalUrl: ''
+    toolExternalUrl: '',
+    customPricingEmail: ''
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
@@ -291,6 +292,7 @@ export default function PublishToolPage() {
         api_key_hash?: string;
         api_key_created_at?: string;
         api_key_active?: boolean;
+        custom_pricing_email?: string;
       } = {
         vendor_id: authUser.id, // Store vendor_id for checkout and transaction tracking
         ui: {
@@ -309,7 +311,8 @@ export default function PublishToolPage() {
         },
         api_key_hash: apiKeyHash,
         api_key_created_at: apiKeyCreatedAt,
-        api_key_active: true
+        api_key_active: true,
+        custom_pricing_email: formData.customPricingEmail || undefined
       };
 
       // Remove undefined values
@@ -609,6 +612,36 @@ export default function PublishToolPage() {
                       className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent resize-y"
                       placeholder="Provide a detailed description of your tool. This will be shown in the tool detail view..."
                     />
+                  </div>
+
+                  {/* Custom Pricing Contact Email */}
+                  <div className="mb-6">
+                    <label htmlFor="customPricingEmail" className="block text-sm font-medium text-[#d1d5db] mb-2 flex items-center gap-2">
+                      Custom Pricing Contact Email (Optional)
+                      <div className="group relative">
+                        <HelpCircle className="w-4 h-4 text-[#9ca3af] cursor-help" />
+                        <div className="absolute left-0 top-6 w-80 bg-[#111111] border border-[#374151] rounded-lg p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                          <p className="text-xs text-[#d1d5db] mb-2">
+                            Email address for users to contact you about custom pricing plans. This serves as a fallback when individual products don&apos;t specify their own contact email.
+                          </p>
+                          <p className="text-xs text-[#9ca3af]">
+                            Example: <code className="text-[#3ecf8e]">sales@your-company.com</code>
+                          </p>
+                        </div>
+                      </div>
+                    </label>
+                    <input
+                      type="email"
+                      id="customPricingEmail"
+                      name="customPricingEmail"
+                      value={formData.customPricingEmail}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
+                      placeholder="sales@your-company.com"
+                    />
+                    <p className="text-xs text-[#9ca3af] mt-2">
+                      This email will be used for &quot;Contact for Custom Pricing&quot; products if they don&apos;t specify their own contact email.
+                    </p>
                   </div>
                 </div>
 

@@ -160,6 +160,8 @@ export type Database = {
           name: string | null
           pricing_model: Json | null
           tool_id: string | null
+          is_custom_plan: boolean | null
+          contact_email: string | null
         }
         Insert: {
           created_at?: string
@@ -169,6 +171,8 @@ export type Database = {
           name?: string | null
           pricing_model?: Json | null
           tool_id?: string | null
+          is_custom_plan?: boolean | null
+          contact_email?: string | null
         }
         Update: {
           created_at?: string
@@ -178,6 +182,8 @@ export type Database = {
           name?: string | null
           pricing_model?: Json | null
           tool_id?: string | null
+          is_custom_plan?: boolean | null
+          contact_email?: string | null
         }
         Relationships: [
           {

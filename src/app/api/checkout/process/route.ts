@@ -91,15 +91,26 @@ export async function POST(request: NextRequest) {
       const products = metadata.products as Array<{
         id: string;
         name: string;
+        is_custom_plan?: boolean;
         pricing_model: {
           one_time?: { enabled: boolean; type?: string; price?: number; min_price?: number; max_price?: number };
           subscription?: { enabled: boolean; price: number; interval: 'day' | 'week' | 'month' | 'year'; trial_days?: number };
           usage_based?: { enabled: boolean; price_per_unit: number; unit_name: string; minimum_units?: number };
+          custom_plan?: { enabled: boolean; contact_email?: string };
         };
       }>;
       
       const selectedProduct = products.find(p => p.id === selected_pricing);
       if (selectedProduct) {
+        // Check if this is a custom plan product
+        const isCustomPlan = selectedProduct.is_custom_plan || selectedProduct.pricing_model.custom_plan?.enabled;
+        if (isCustomPlan) {
+          return NextResponse.json(
+            { error: 'This product requires custom pricing. Please contact the vendor directly.' },
+            { status: 400 }
+          );
+        }
+
         const pm = selectedProduct.pricing_model;
         
         // Determine price and checkout type from product pricing model

@@ -179,14 +179,45 @@ function BackofficeContent() {
           return;
         }
 
-        // Get minimum price from products to check balance
+        // Check if selected product is a custom plan
+        if (selectedProductId) {
+          const selectedProduct = activeProducts.find((p: { id: string }) => p.id === selectedProductId);
+          if (selectedProduct) {
+            const isCustomPlan = (selectedProduct as { is_custom_plan?: boolean }).is_custom_plan || 
+                                 (selectedProduct as { pricing_model?: { custom_plan?: { enabled: boolean } } }).pricing_model?.custom_plan?.enabled;
+            if (isCustomPlan) {
+              // Get contact email from product or tool metadata
+              const contactEmail = (selectedProduct as { contact_email?: string }).contact_email || 
+                                   (selectedProduct as { pricing_model?: { custom_plan?: { contact_email?: string } } }).pricing_model?.custom_plan?.contact_email ||
+                                   (toolMetadata?.custom_pricing_email as string);
+              
+              if (contactEmail) {
+                const subject = encodeURIComponent(`Inquiry about ${(selectedProduct as { name: string }).name}`);
+                const body = encodeURIComponent(`Hi,\n\nI'm interested in learning more about the "${(selectedProduct as { name: string }).name}" plan and would like to discuss custom pricing.\n\nThank you!`);
+                window.location.href = `mailto:${contactEmail}?subject=${subject}&body=${body}`;
+              } else {
+                alert('This product requires custom pricing. Please contact the vendor directly for a quote.');
+              }
+              return;
+            }
+          }
+        }
+
+        // Get minimum price from products to check balance (excluding custom plans)
         const productPrices = activeProducts.map((p: {
+          id: string;
+          is_custom_plan?: boolean;
           pricing_model: {
             one_time?: { enabled: boolean; price?: number; min_price?: number };
             subscription?: { enabled: boolean; price: number };
             usage_based?: { enabled: boolean; price_per_unit: number };
+            custom_plan?: { enabled: boolean };
           }
         }) => {
+          // Skip custom plans in price calculation
+          const isCustomPlan = p.is_custom_plan || p.pricing_model.custom_plan?.enabled;
+          if (isCustomPlan) return 0;
+
           const pm = p.pricing_model;
           if (pm.one_time?.enabled) {
             if (pm.one_time.price) return pm.one_time.price;

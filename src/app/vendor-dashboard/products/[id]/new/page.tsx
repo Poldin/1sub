@@ -36,6 +36,10 @@ export default function NewProductPage() {
       unit_name: '',
       minimum_units: 0,
     },
+    custom_plan: {
+      enabled: false,
+      contact_email: '',
+    },
   });
 
   const [toolName, setToolName] = useState<string>('');
@@ -50,7 +54,8 @@ export default function NewProductPage() {
     // Check if at least one pricing model is enabled
     const hasAnyPricing = pricingModel.one_time.enabled || 
                           pricingModel.subscription.enabled || 
-                          pricingModel.usage_based.enabled;
+                          pricingModel.usage_based.enabled ||
+                          pricingModel.custom_plan.enabled;
 
     if (!hasAnyPricing) {
       return false;
@@ -80,6 +85,8 @@ export default function NewProductPage() {
         return false;
       }
     }
+
+    // Custom plan is always valid when enabled (email is optional)
 
     return true;
   };
@@ -130,7 +137,8 @@ export default function NewProductPage() {
     // Check if at least one pricing model is enabled
     const hasAnyPricing = pricingModel.one_time.enabled || 
                           pricingModel.subscription.enabled || 
-                          pricingModel.usage_based.enabled;
+                          pricingModel.usage_based.enabled ||
+                          pricingModel.custom_plan.enabled;
 
     if (!hasAnyPricing) {
       alert('Please enable at least one pricing model');
@@ -176,6 +184,8 @@ export default function NewProductPage() {
       }
     }
 
+    // Custom plan validation (email is optional, will fall back to tool-level email)
+
     setIsCreating(true);
 
     try {
@@ -197,6 +207,8 @@ export default function NewProductPage() {
           tool_id: toolId,
           is_active: true,
           pricing_model: pricingModel,
+          is_custom_plan: pricingModel.custom_plan.enabled,
+          contact_email: pricingModel.custom_plan.enabled ? pricingModel.custom_plan.contact_email || null : null,
         })
         .select()
         .single();
@@ -354,7 +366,19 @@ export default function NewProductPage() {
                             <span className="text-[#9ca3af] ml-2">per {pricingModel.usage_based.unit_name || 'unit'}</span>
                           </div>
                         )}
-                        {!pricingModel.one_time.enabled && !pricingModel.subscription.enabled && !pricingModel.usage_based.enabled && (
+                        {pricingModel.custom_plan.enabled && (
+                          <div className="text-sm text-[#d1d5db] mt-1">
+                            <span className="text-[#3ecf8e] font-semibold text-lg">
+                              Contact for Custom Pricing
+                            </span>
+                            {pricingModel.custom_plan.contact_email && (
+                              <p className="text-xs text-[#9ca3af] mt-1">
+                                {pricingModel.custom_plan.contact_email}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                        {!pricingModel.one_time.enabled && !pricingModel.subscription.enabled && !pricingModel.usage_based.enabled && !pricingModel.custom_plan.enabled && (
                           <p className="text-sm text-[#9ca3af]">No pricing model selected</p>
                         )}
                       </div>

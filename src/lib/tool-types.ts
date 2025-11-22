@@ -93,6 +93,9 @@ export interface ToolMetadata {
   api_key_last_used_at?: string;  // ISO timestamp
   api_key_active?: boolean;  // For revocation
   
+  // Custom pricing contact email (fallback for products without specific contact email)
+  custom_pricing_email?: string;
+  
   // Legacy fields for backward compatibility
   icon?: string;
   category?: string;
@@ -124,6 +127,10 @@ export interface ProductPricingModel {
     unit_name: string;
     minimum_units?: number;
   };
+  custom_plan?: {
+    enabled: boolean;
+    contact_email?: string; // Optional, falls back to tool-level email
+  };
 }
 
 export interface ToolProduct {
@@ -134,6 +141,10 @@ export interface ToolProduct {
   pricing_model: ProductPricingModel;
   is_active: boolean;
   created_at: string;
+  
+  // Custom plan fields
+  is_custom_plan?: boolean; // Indicates if this requires custom pricing
+  contact_email?: string; // Email for custom pricing inquiries
   
   // Display metadata
   features?: string[];

@@ -329,9 +329,12 @@ export default function ToolDialog(props: ToolDialogProps) {
                       pricingModel={product.pricing_model}
                       features={product.features}
                       isPreferred={product.is_preferred}
+                      isCustomPlan={product.is_custom_plan}
+                      contactEmail={product.contact_email}
+                      toolMetadata={tool.metadata ?? undefined}
                       onSelect={(productId) => {
-                        // Initiate checkout with selected product
-                        if (props.onToolLaunch && productId) {
+                        // Initiate checkout with selected product (only for non-custom plans)
+                        if (props.onToolLaunch && productId && !product.is_custom_plan && !product.pricing_model.custom_plan?.enabled) {
                           props.onToolLaunch(tool.id, productId);
                           props.onClose();
                         }

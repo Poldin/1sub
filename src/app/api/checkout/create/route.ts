@@ -62,6 +62,21 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Check if selected product is a custom plan
+      if (selected_product_id) {
+        const selectedProduct = activeProducts.find((p: { id: string }) => p.id === selected_product_id);
+        if (selectedProduct) {
+          const isCustomPlan = (selectedProduct as { is_custom_plan?: boolean }).is_custom_plan || 
+                               (selectedProduct as { pricing_model?: { custom_plan?: { enabled: boolean } } }).pricing_model?.custom_plan?.enabled;
+          if (isCustomPlan) {
+            return NextResponse.json(
+              { error: 'This product requires custom pricing. Please contact the vendor directly.' },
+              { status: 400 }
+            );
+          }
+        }
+      }
+
       // Prevent self-purchase
       if (toolMetadata?.vendor_id === authUser.id) {
         return NextResponse.json(

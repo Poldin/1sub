@@ -50,6 +50,10 @@ export default function EditProductPage() {
       unit_name: '',
       minimum_units: 0,
     },
+    custom_plan: {
+      enabled: false,
+      contact_email: '',
+    },
   });
 
   const [toolName, setToolName] = useState<string>('');
@@ -101,6 +105,7 @@ export default function EditProductPage() {
             },
             subscription: { enabled: false, price: 0, interval: 'month' as const, trial_days: 0, ...data.pricing_model.subscription },
             usage_based: { enabled: false, price_per_unit: 0, unit_name: '', minimum_units: 0, ...data.pricing_model.usage_based },
+            custom_plan: { enabled: false, contact_email: '', ...data.pricing_model.custom_plan },
           });
         }
 
@@ -177,7 +182,8 @@ export default function EditProductPage() {
     // Check if at least one pricing model is enabled
     const hasAnyPricing = pricingModel.one_time?.enabled || 
                           pricingModel.subscription?.enabled || 
-                          pricingModel.usage_based?.enabled;
+                          pricingModel.usage_based?.enabled ||
+                          pricingModel.custom_plan?.enabled;
 
     if (!hasAnyPricing) {
       alert('Please enable at least one pricing model');
@@ -243,6 +249,8 @@ export default function EditProductPage() {
           description: formData.description,
           is_active: formData.is_active,
           pricing_model: pricingModel,
+          is_custom_plan: pricingModel.custom_plan?.enabled || false,
+          contact_email: pricingModel.custom_plan?.enabled ? (pricingModel.custom_plan.contact_email || null) : null,
         })
         .eq('id', productId);
 

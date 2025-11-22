@@ -23,9 +23,13 @@ export interface PricingModel {
     unit_name: string;
     minimum_units?: number;
   };
+  custom_plan: {
+    enabled: boolean;
+    contact_email: string;
+  };
 }
 
-type PricingModelType = 'one_time' | 'subscription' | 'consumption' | 'one_time_sub' | 'one_time_cons' | 'sub_cons' | 'all' | null;
+type PricingModelType = 'one_time' | 'subscription' | 'consumption' | 'custom_plan' | 'one_time_sub' | 'one_time_cons' | 'sub_cons' | 'all' | null;
 
 interface PricingModelsSectionProps {
   pricingModel: PricingModel;
@@ -44,6 +48,7 @@ export default function PricingModelsSection({ pricingModel, setPricingModel }: 
       one_time: { enabled: false, type: 'absolute', price: 0 },
       subscription: { enabled: false, price: 0, interval: 'month' as const, trial_days: 0 },
       usage_based: { enabled: false, price_per_unit: 0, unit_name: '', minimum_units: 0 },
+      custom_plan: { enabled: false, contact_email: '' },
     };
 
     // Enable based on selection
@@ -56,6 +61,9 @@ export default function PricingModelsSection({ pricingModel, setPricingModel }: 
         break;
       case 'consumption':
         newModel.usage_based.enabled = true;
+        break;
+      case 'custom_plan':
+        newModel.custom_plan.enabled = true;
         break;
       case 'one_time_sub':
         newModel.one_time.enabled = true;
@@ -120,6 +128,17 @@ export default function PricingModelsSection({ pricingModel, setPricingModel }: 
           }`}
         >
           Consumption
+        </button>
+        <button
+          type="button"
+          onClick={() => handleModelSelect('custom_plan')}
+          className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+            selectedModel === 'custom_plan'
+              ? 'bg-[#3ecf8e] text-black border-2 border-[#3ecf8e]'
+              : 'bg-transparent text-[#ededed] border-2 border-[#4b5563] hover:border-[#3ecf8e]'
+          }`}
+        >
+          Custom Plan
         </button>
         <button
           type="button"
@@ -402,6 +421,41 @@ export default function PricingModelsSection({ pricingModel, setPricingModel }: 
                   />
                   <p className="text-xs text-[#9ca3af] mt-0.5">
                     Minimum units that must be purchased
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Custom Plan Fields */}
+          {pricingModel.custom_plan.enabled && (
+            <div className="border border-[#4b5563] rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-[#ededed] mb-3">Custom Plan</h3>
+              <div className="space-y-3">
+                <div className="bg-[#111111] border border-[#374151] rounded-lg p-3 mb-3">
+                  <p className="text-xs text-[#d1d5db] mb-1">
+                    <strong>Custom pricing plans</strong> allow users to contact you directly for personalized quotes and pricing.
+                  </p>
+                  <p className="text-xs text-[#9ca3af]">
+                    Users will see a &quot;Contact for Custom Pricing&quot; button instead of a standard checkout flow.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[#d1d5db] mb-1">
+                    Contact Email (Optional)
+                  </label>
+                  <input
+                    type="email"
+                    value={pricingModel.custom_plan.contact_email}
+                    onChange={(e) => setPricingModel({
+                      ...pricingModel,
+                      custom_plan: { ...pricingModel.custom_plan, contact_email: e.target.value }
+                    })}
+                    className="w-full px-3 py-1.5 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent text-sm"
+                    placeholder="sales@your-company.com"
+                  />
+                  <p className="text-xs text-[#9ca3af] mt-1">
+                    Leave empty to use the tool-level custom pricing email. This email will be used for this specific product.
                   </p>
                 </div>
               </div>

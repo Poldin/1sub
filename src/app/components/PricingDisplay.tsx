@@ -99,6 +99,11 @@ interface MainPriceDisplayProps {
 }
 
 export function MainPriceDisplay({ pricingOptions }: MainPriceDisplayProps) {
+  // Check if this is a custom plan (only ProductPricingModel has custom_plan)
+  if ('custom_plan' in pricingOptions && pricingOptions.custom_plan?.enabled) {
+    return <span className="text-lg font-semibold text-[#3ecf8e]">Contact for Custom Pricing</span>;
+  }
+
   // Determine main price to display (priority: subscription > one_time > usage_based)
   let mainPrice = '';
   let mainPriceLabel = '';
@@ -168,7 +173,11 @@ interface PricingCardProps {
   pricingModel: ProductPricingModel;
   features?: string[];
   isPreferred?: boolean;
+  isCustomPlan?: boolean;
+  contactEmail?: string;
+  toolMetadata?: { custom_pricing_email?: string };
   onSelect?: (productId?: string) => void;
+  onContactVendor?: (email: string, productName: string) => void;
 }
 
 export function PricingCard({ 
@@ -178,8 +187,28 @@ export function PricingCard({
   pricingModel, 
   features, 
   isPreferred,
-  onSelect 
+  isCustomPlan,
+  contactEmail,
+  toolMetadata,
+  onSelect,
+  onContactVendor
 }: PricingCardProps) {
+  const isCustom = isCustomPlan || pricingModel.custom_plan?.enabled;
+  const emailToUse = contactEmail || pricingModel.custom_plan?.contact_email || toolMetadata?.custom_pricing_email;
+
+  const handleContactClick = () => {
+    if (emailToUse && onContactVendor) {
+      onContactVendor(emailToUse, name);
+    } else if (emailToUse) {
+      // Fallback to mailto link
+      const subject = encodeURIComponent(`Inquiry about ${name}`);
+      const body = encodeURIComponent(`Hi,\n\nI'm interested in learning more about the "${name}" plan and would like to discuss custom pricing.\n\nThank you!`);
+      window.location.href = `mailto:${emailToUse}?subject=${subject}&body=${body}`;
+    } else {
+      alert('No contact email available. Please contact the vendor directly.');
+    }
+  };
+
   return (
     <div 
       className={`relative bg-[#111111] rounded-lg p-6 border-2 transition-all flex flex-col ${
@@ -212,9 +241,11 @@ export function PricingCard({
       {/* Pricing Information */}
       <div className="mb-4">
         <MainPriceDisplay pricingOptions={pricingModel} />
-        <div className="mt-2">
-          <PricingBadges pricingOptions={pricingModel} />
-        </div>
+        {!isCustom && (
+          <div className="mt-2">
+            <PricingBadges pricingOptions={pricingModel} />
+          </div>
+        )}
       </div>
 
       {/* Features */}
@@ -232,7 +263,17 @@ export function PricingCard({
       )}
 
       {/* CTA Button */}
-      {onSelect && (
+      {isCustom ? (
+        <button 
+          onClick={handleContactClick}
+          className="w-full bg-[#3ecf8e] text-black px-4 py-3 rounded-md font-bold hover:bg-[#2dd4bf] transition-all flex items-center justify-center gap-2 group mt-4"
+        >
+          Contact for Quote
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+          </svg>
+        </button>
+      ) : onSelect && (
         <button 
           onClick={() => onSelect(id)}
           className="w-full bg-[#3ecf8e] text-black px-4 py-3 rounded-md font-bold hover:bg-[#2dd4bf] transition-all flex items-center justify-center gap-2 group mt-4"

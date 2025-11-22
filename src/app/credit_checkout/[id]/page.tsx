@@ -586,6 +586,191 @@ export default function CreditCheckoutPage() {
                 <div className="p-6 lg:p-8 space-y-6">
                   <h2 className="text-xl font-bold text-[#ededed]">Order Summary</h2>
 
+                  {/* What You're Buying Section */}
+                  {!isCompleted && (
+                    <div className="bg-gradient-to-br from-[#0a0a0a]/80 to-[#1f2937]/50 rounded-xl border border-[#3ecf8e]/30 p-5 space-y-4">
+                      <h3 className="text-sm font-semibold text-[#3ecf8e] uppercase tracking-wide flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                        </svg>
+                        What you&apos;re buying
+                      </h3>
+                      
+                      <div className="space-y-3">
+                        {/* Tool Info */}
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-[#1f2937] border border-[#374151]">
+                            {toolImageUrl ? (
+                              <img 
+                                src={toolImageUrl} 
+                                alt={checkout.metadata.tool_name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  e.currentTarget.parentElement!.innerHTML = '<div class="w-full h-full bg-gradient-to-br from-[#3ecf8e] to-[#2dd4bf] flex items-center justify-center"><svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div>';
+                                }}
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-gradient-to-br from-[#3ecf8e] to-[#2dd4bf] flex items-center justify-center">
+                                <Wrench className="w-6 h-6 text-white" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-bold text-[#ededed] text-base truncate">
+                              {checkout.metadata.tool_name}
+                            </h4>
+                            {vendor && (
+                              <p className="text-xs text-[#9ca3af] mt-0.5">by {vendor.full_name}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Selected Plan Details */}
+                        {selectedPricing && (
+                          <div className="border-t border-[#374151]/50 pt-3 space-y-2">
+                            {/* For Products Structure */}
+                            {hasProducts && (() => {
+                              const product = checkout.metadata.products!.find((p: CheckoutProduct) => p.id === selectedPricing);
+                              if (!product) return null;
+                              
+                              const pm = product.pricing_model;
+                              let planType = '';
+                              let billingInfo = '';
+                              let priceDisplay = '';
+                              
+                              if (pm.one_time?.enabled) {
+                                planType = 'One-time Purchase';
+                                billingInfo = 'Lifetime access';
+                                if (pm.one_time.price) {
+                                  priceDisplay = `${pm.one_time.price} credits`;
+                                } else if (pm.one_time.min_price) {
+                                  priceDisplay = `${pm.one_time.min_price} credits`;
+                                }
+                              } else if (pm.subscription?.enabled) {
+                                planType = 'Subscription';
+                                const interval = pm.subscription.interval === 'year' ? 'yearly' : 'monthly';
+                                billingInfo = `Billed ${interval}${pm.subscription.trial_days ? ` • ${pm.subscription.trial_days} days free trial` : ''}`;
+                                priceDisplay = `${pm.subscription.price} credits/${pm.subscription.interval === 'year' ? 'year' : 'month'}`;
+                              } else if (pm.usage_based?.enabled) {
+                                planType = 'Pay-as-you-go';
+                                billingInfo = `Per ${pm.usage_based.unit_name || 'unit'}${pm.usage_based.minimum_units ? ` • Min ${pm.usage_based.minimum_units} units` : ''}`;
+                                priceDisplay = `${pm.usage_based.price_per_unit} credits/${pm.usage_based.unit_name || 'unit'}`;
+                              }
+                              
+                              return (
+                                <>
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-sm font-semibold text-[#ededed]">{product.name}</span>
+                                        {product.is_preferred && (
+                                          <span className="text-xs bg-[#3ecf8e]/20 text-[#3ecf8e] px-1.5 py-0.5 rounded font-medium">
+                                            Recommended
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-1.5 mt-1">
+                                        {pm.subscription?.enabled && (
+                                          <span className="text-xs px-2 py-0.5 rounded bg-blue-400/10 text-blue-400 border border-blue-400/20">
+                                            🔄 {planType}
+                                          </span>
+                                        )}
+                                        {pm.one_time?.enabled && !pm.subscription?.enabled && (
+                                          <span className="text-xs px-2 py-0.5 rounded bg-green-400/10 text-green-400 border border-green-400/20">
+                                            ✓ {planType}
+                                          </span>
+                                        )}
+                                        {pm.usage_based?.enabled && (
+                                          <span className="text-xs px-2 py-0.5 rounded bg-purple-400/10 text-purple-400 border border-purple-400/20">
+                                            📊 {planType}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-xs text-[#9ca3af] mt-1">{billingInfo}</p>
+                                    </div>
+                                    <div className="text-right ml-3">
+                                      <div className="text-lg font-bold text-[#3ecf8e]">{priceDisplay.split(' ')[0]}</div>
+                                      <div className="text-xs text-[#9ca3af]">{priceDisplay.split(' ').slice(1).join(' ')}</div>
+                                    </div>
+                                  </div>
+                                  
+                                  {product.features && product.features.length > 0 && (
+                                    <div className="mt-3 pt-3 border-t border-[#374151]/50">
+                                      <p className="text-xs font-medium text-[#d1d5db] mb-2">Included features:</p>
+                                      <ul className="space-y-1.5">
+                                        {product.features.slice(0, 4).map((feature: string, idx: number) => (
+                                          <li key={idx} className="text-xs text-[#9ca3af] flex items-start gap-2">
+                                            <Check className="w-3.5 h-3.5 text-[#3ecf8e] flex-shrink-0 mt-0.5" />
+                                            <span>{feature}</span>
+                                          </li>
+                                        ))}
+                                        {product.features.length > 4 && (
+                                          <li className="text-xs text-[#9ca3af] italic pl-5">
+                                            +{product.features.length - 4} more features
+                                          </li>
+                                        )}
+                                      </ul>
+                                    </div>
+                                  )}
+                                </>
+                              );
+                            })()}
+                            
+                            {/* For Pricing Options Structure (old) */}
+                            {hasPricingOptions && !hasProducts && (() => {
+                              let planName = '';
+                              let planType = '';
+                              let billingInfo = '';
+                              let priceDisplay = '';
+                              
+                              if (selectedPricing === 'one_time' && checkout.metadata.pricing_options?.one_time?.enabled) {
+                                planName = 'One-time Payment';
+                                planType = 'One-time Purchase';
+                                billingInfo = 'Lifetime access';
+                                priceDisplay = `${checkout.metadata.pricing_options.one_time.price} credits`;
+                              } else if (selectedPricing === 'subscription_monthly' && checkout.metadata.pricing_options?.subscription_monthly?.enabled) {
+                                planName = 'Monthly Subscription';
+                                planType = 'Subscription';
+                                billingInfo = 'Billed monthly';
+                                priceDisplay = `${checkout.metadata.pricing_options.subscription_monthly.price} credits/month`;
+                              } else if (selectedPricing === 'subscription_yearly' && checkout.metadata.pricing_options?.subscription_yearly?.enabled) {
+                                planName = 'Yearly Subscription';
+                                planType = 'Subscription';
+                                billingInfo = 'Billed annually';
+                                priceDisplay = `${checkout.metadata.pricing_options.subscription_yearly.price} credits/year`;
+                              }
+                              
+                              return (
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <div className="text-sm font-semibold text-[#ededed]">{planName}</div>
+                                    <div className="flex items-center gap-1.5 mt-1">
+                                      {selectedPricing?.includes('subscription') ? (
+                                        <span className="text-xs px-2 py-0.5 rounded bg-blue-400/10 text-blue-400 border border-blue-400/20">
+                                          🔄 {planType}
+                                        </span>
+                                      ) : (
+                                        <span className="text-xs px-2 py-0.5 rounded bg-green-400/10 text-green-400 border border-green-400/20">
+                                          ✓ {planType}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-[#9ca3af] mt-1">{billingInfo}</p>
+                                  </div>
+                                  <div className="text-right ml-3">
+                                    <div className="text-lg font-bold text-[#3ecf8e]">{priceDisplay.split(' ')[0]}</div>
+                                    <div className="text-xs text-[#9ca3af]">{priceDisplay.split(' ').slice(1).join(' ')}</div>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Products Selection (new structure) */}
                   {hasProducts && !isCompleted && (
                     <div className="space-y-3">
