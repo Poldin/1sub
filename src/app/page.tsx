@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Users } from 'lucide-react';
 import Footer from './components/Footer';
 import ToolCard from './components/ToolCard';
@@ -12,6 +13,7 @@ import { useTools } from '@/hooks/useTools';
 import { Tool } from '@/lib/tool-types';
 
 export default function Home() {
+  const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -130,6 +132,51 @@ export default function Home() {
     setIsDialogOpen(false);
     setTimeout(() => setSelectedTool(null), 300); // Delay clearing to allow animation
   }, []);
+
+  // Handle tool launch - creates checkout and navigates
+  const handleToolLaunch = useCallback(async (toolId: string, selectedProductId?: string) => {
+    try {
+      // Check authentication first
+      const profileResponse = await fetch('/api/user/profile');
+      
+      if (profileResponse.status === 401) {
+        // Not authenticated - redirect to login with tool info
+        router.push(`/login?redirect=/&tool=${toolId}`);
+        return;
+      }
+
+      if (!profileResponse.ok) {
+        alert('Failed to verify authentication. Please try again.');
+        return;
+      }
+
+      // Create checkout session
+      const checkoutResponse = await fetch('/api/checkout/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tool_id: toolId,
+          selected_product_id: selectedProductId,
+        }),
+      });
+
+      if (!checkoutResponse.ok) {
+        const errorData = await checkoutResponse.json();
+        alert(errorData.error || 'Failed to create checkout');
+        return;
+      }
+
+      const { checkout_id } = await checkoutResponse.json();
+
+      // Navigate to checkout page
+      router.push(`/credit_checkout/${checkout_id}`);
+    } catch (error) {
+      console.error('Error launching tool:', error);
+      alert('An error occurred. Please try again.');
+    }
+  }, [router]);
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] pb-20 sm:pb-0">
@@ -615,6 +662,7 @@ export default function Home() {
           isOpen={isDialogOpen}
           onClose={handleDialogClose}
           tool={selectedTool}
+          onToolLaunch={handleToolLaunch}
         />
       )}
     </div>
