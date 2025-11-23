@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { Star, Users, ExternalLink } from 'lucide-react';
 import { Tool, ToolProduct, DEFAULT_UI_METADATA, DEFAULT_ENGAGEMENT_METRICS, hasProducts } from '@/lib/tool-types';
 import { PricingSection } from './PricingDisplay';
+import { getToolPhase, getPhaseLabel, getPhaseTailwindClasses } from '@/lib/tool-phase';
 
 // Legacy props format (for backward compatibility)
 export interface LegacyToolCardProps {
@@ -276,10 +277,31 @@ function ToolCardComponent(props: ToolCardProps) {
   const canShowHeroImage = hasHeroImage && !heroImageError;
   const canShowLogoImage = hasLogoImage && !logoImageError;
 
-  const cardClassName = `group bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg p-4 flex flex-col h-full transition-all hover:border-[#3ecf8e]/50 hover:shadow-lg hover:shadow-[#3ecf8e]/10 ${isHighlighted ? 'ring-2 ring-[#3ecf8e]' : ''}`;
+  // Dynamic phase calculation based on paying user count
+  const payingUserCount = tool.metadata?.paying_user_count ?? 0;
+  const calculatedPhase = getToolPhase(payingUserCount);
+  const phaseLabel = getPhaseLabel(calculatedPhase);
+  const phaseClasses = getPhaseTailwindClasses(calculatedPhase);
+
+  // Border styling based on calculated phase and highlight
+  let borderClasses = 'border';
+  if (isHighlighted) {
+    borderClasses += ' border-[#3ecf8e] shadow-lg shadow-[#3ecf8e]/50 animate-pulse';
+  } else {
+    borderClasses += ' ' + phaseClasses.border + ' ' + phaseClasses.hover;
+  }
+
+  const cardClassName = `group bg-[#1a1a1a] ${borderClasses} rounded-lg p-4 pt-10 flex flex-col h-full transition-all duration-300 relative`;
 
   return (
     <div className={cardClassName}>
+      {/* Phase Badge - Always shown */}
+      <div className="absolute top-2 left-1/2 transform -translate-x-1/2 z-10">
+        <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase shadow-lg ${phaseClasses.badge}`}>
+          {phaseLabel}
+        </span>
+      </div>
+
       <div className="flex items-start gap-3 mb-3">
         <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-[#2a2a2a] flex items-center justify-center overflow-hidden relative">
           {canShowLogoImage ? (

@@ -65,14 +65,14 @@ export function getPhaseColors(phase: ToolPhase): PhaseColors {
 /**
  * Get human-readable label for a phase
  * @param phase - The tool phase
- * @returns Formatted label with Greek letter prefix
+ * @returns Formatted label
  */
 export function getPhaseLabel(phase: ToolPhase): string {
     switch (phase) {
         case 'alpha':
-            return 'α ALPHA';
+            return 'ALPHA';
         case 'beta':
-            return 'β BETA';
+            return 'BETA';
         case 'public':
             return 'PUBLIC';
     }
@@ -90,19 +90,19 @@ export function getPhaseTailwindClasses(phase: ToolPhase) {
             return {
                 border: 'border-2 border-[#ef4444]',
                 badge: 'bg-[#ef4444] text-white',
-                hover: 'hover:border-[#dc2626] hover:shadow-[#ef4444]/30',
+                hover: 'hover:border-[#dc2626] hover:shadow-lg hover:shadow-[#ef4444]/30 hover:-translate-y-1',
             };
         case 'beta':
             return {
                 border: 'border-2 border-[#f59e0b]',
                 badge: 'bg-[#f59e0b] text-white',
-                hover: 'hover:border-[#d97706] hover:shadow-[#f59e0b]/30',
+                hover: 'hover:border-[#d97706] hover:shadow-lg hover:shadow-[#f59e0b]/30 hover:-translate-y-1',
             };
         case 'public':
             return {
                 border: 'border-2 border-[#3ecf8e]',
                 badge: 'bg-[#3ecf8e] text-black',
-                hover: 'hover:border-[#2dd4bf] hover:shadow-[#3ecf8e]/30',
+                hover: 'hover:border-[#2dd4bf] hover:shadow-lg hover:shadow-[#3ecf8e]/30 hover:-translate-y-1',
             };
     }
 }
