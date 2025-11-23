@@ -11,7 +11,8 @@ import {
   CreditCard,
   Key,
   LogOut,
-  ArrowLeft
+  ArrowLeft,
+  FileText
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -31,10 +32,11 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
     { name: 'Overview', href: '/admin', icon: Home },
     { name: 'Users', href: '/admin/users', icon: Users },
     { name: 'Tools', href: '/admin/tools', icon: Settings },
+    { name: 'Vendor Applications', href: '/admin/vendor-applications', icon: FileText },
     { name: 'Usage Logs', href: '/admin/usage-logs', icon: Activity },
     { name: 'Refund', href: '/admin/refund', icon: CreditCard },
     { name: 'Settings', href: '/admin/settings', icon: Settings },
-    { name: 'API', href: '/admin/api', icon: Key },
+    { name: 'API', href: '/admin/apis', icon: Key },
   ];
 
   return (

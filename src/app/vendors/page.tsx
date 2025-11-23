@@ -18,36 +18,62 @@ export default function VendorsPage() {
                 </h1>
               </Link>
             </div>
-            
+
             {/* CTA Button */}
-            <a
-              href="/register"
-              className="btn-secondary text-sm sm:text-base"
+            <Link
+              href="/vendors/apply"
+              className="group relative inline-flex items-center justify-center px-6 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] rounded-full overflow-hidden transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-[#3ecf8e]/30"
             >
-              sign up
-            </a>
+              <span className="relative z-10 flex items-center gap-2">
+                become a vendor
+                <svg className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
+              </span>
+            </Link>
           </div>
         </div>
       </header>
 
       {/* Hero Section */}
-      <section className="section-padding text-center">
-        <div className="mx-auto max-w-5xl">
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
+      <section className="relative section-padding text-center overflow-hidden">
+        {/* Animated Background Gradient */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#3ecf8e]/10 via-[#0a0a0a] to-[#2dd4bf]/10 animate-gradient opacity-50"></div>
+
+        {/* Floating Particles Effect */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-[#3ecf8e] rounded-full opacity-60 animate-float"></div>
+          <div className="absolute top-1/3 right-1/4 w-3 h-3 bg-[#2dd4bf] rounded-full opacity-40 animate-float delay-200"></div>
+          <div className="absolute bottom-1/3 left-1/3 w-2 h-2 bg-[#3ecf8e] rounded-full opacity-50 animate-float delay-400"></div>
+          <div className="absolute top-2/3 right-1/3 w-3 h-3 bg-[#2dd4bf] rounded-full opacity-30 animate-float delay-300"></div>
+        </div>
+
+        <div className="relative mx-auto max-w-5xl">
+          <h1 className="text-4xl sm:text-5xl lg:text-7xl font-bold mb-6 leading-tight animate-fade-in-up opacity-0">
             We connect you with{" "}
-            <span className="text-[#3ecf8e]">users.</span>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] animate-gradient">
+              users.
+            </span>
           </h1>
-          
-          <p className="text-lg sm:text-xl text-[#d1d5db] max-w-3xl mx-auto mb-8 leading-relaxed">
+
+          <p className="text-lg sm:text-xl lg:text-2xl text-[#d1d5db] max-w-3xl mx-auto mb-10 leading-relaxed animate-fade-in-up delay-200 opacity-0">
             Join 1sub to get discovered by thousands of subscribers actively looking for tools like yours.
           </p>
-          
-          <a
-            href="/vendors/apply"
-            className="btn-secondary text-sm sm:text-base px-2"
-          >
-            apply to become a vendor
-          </a>
+
+          <div className="animate-fade-in-up delay-400 opacity-0">
+            <Link
+              href="/vendors/apply"
+              className="group relative inline-flex items-center justify-center px-10 py-5 text-lg sm:text-xl font-bold text-white bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] rounded-full overflow-hidden transition-all duration-300 hover:scale-105 animate-pulse-glow active:scale-95"
+            >
+              <span className="relative z-10 flex items-center gap-3">
+                apply to become a vendor
+                <svg className="w-6 h-6 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
+              </span>
+              <div className="absolute inset-0 bg-gradient-to-r from-[#2dd4bf] to-[#3ecf8e] opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -57,7 +83,7 @@ export default function VendorsPage() {
           <h2 className="text-3xl sm:text-4xl font-bold mb-6 text-center">
             How does it work?
           </h2>
-          
+
           {/* Flow Diagram */}
           <div className="mb-12 py-8">
             <div className="flex items-center justify-center gap-4 sm:gap-8">
@@ -144,7 +170,7 @@ export default function VendorsPage() {
           </div>
 
           <p className="text-lg sm:text-xl text-[#d1d5db] mb-8 text-center leading-relaxed max-w-4xl mx-auto">
-            Our mission is to build a large community of subscribers and convert them into active users of your digital tool. 
+            Our mission is to build a large community of subscribers and convert them into active users of your digital tool.
           </p>
           <p className="text-base text-[#9ca3af] mb-12 text-center leading-relaxed max-w-3xl mx-auto">
             We handle user acquisition and management. You integrate with two simple API endpoints, and we&apos;ll bring thousands of potential subscribers directly to your product.
@@ -152,120 +178,134 @@ export default function VendorsPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
             {/* Endpoint 1 */}
-            <div className="bg-[#1f2937] border border-[#374151] rounded-lg p-8 hover:border-[#3ecf8e] transition-colors">
+            <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-8 hover:border-[#3ecf8e] transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-[#3ecf8e]/10 group">
               <div className="flex items-start gap-4 mb-4">
-                <div className="bg-[#3ecf8e] text-black rounded-lg px-4 py-2 font-black text-lg">1</div>
+                <div className="bg-gradient-to-br from-[#3ecf8e] to-[#2dd4bf] text-black rounded-xl px-4 py-2 font-black text-lg shadow-lg shadow-[#3ecf8e]/20">1</div>
                 <div>
-                  <h3 className="text-xl font-bold text-[#3ecf8e] mb-2">User verification</h3>
-                  <p className="text-sm text-[#9ca3af] font-mono mb-3">POST /api/verify-user</p>
+                  <h3 className="text-xl font-bold text-[#3ecf8e] mb-2 group-hover:text-[#2dd4bf] transition-colors">Secure Verification</h3>
+                  <p className="text-sm text-[#9ca3af] font-mono mb-3 bg-[#111827] px-2 py-1 rounded inline-block">JWT & Redirect Flow</p>
                 </div>
               </div>
               <p className="text-[#d1d5db] text-base leading-relaxed">
-                Check if a user is a valid 1sub subscriber. Simply send us the user identifier, and we&apos;ll instantly confirm their subscription status and entitlements. This ensures only legitimate 1sub users can access your tool.
+                We redirect users to your tool with a signed JWT token. Simply verify the signature to instantly confirm their subscription status and entitlements. No complex API calls needed for initial access.
               </p>
             </div>
 
             {/* Endpoint 2 */}
-            <div className="bg-[#1f2937] border border-[#374151] rounded-lg p-8 hover:border-[#3ecf8e] transition-colors">
+            <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-8 hover:border-[#3ecf8e] transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-[#3ecf8e]/10 group">
               <div className="flex items-start gap-4 mb-4">
-                <div className="bg-[#3ecf8e] text-black rounded-lg px-4 py-2 font-black text-lg">2</div>
+                <div className="bg-gradient-to-br from-[#3ecf8e] to-[#2dd4bf] text-black rounded-xl px-4 py-2 font-black text-lg shadow-lg shadow-[#3ecf8e]/20">2</div>
                 <div>
-                  <h3 className="text-xl font-bold text-[#3ecf8e] mb-2">Usage tracking & billing</h3>
-                  <p className="text-sm text-[#9ca3af] font-mono mb-3">POST /api/usage-tracking</p>
+                  <h3 className="text-xl font-bold text-[#3ecf8e] mb-2 group-hover:text-[#2dd4bf] transition-colors">Real-time Events</h3>
+                  <p className="text-sm text-[#9ca3af] font-mono mb-3 bg-[#111827] px-2 py-1 rounded inline-block">Webhooks</p>
                 </div>
               </div>
               <p className="text-[#d1d5db] text-base leading-relaxed">
-                Track active users and manage billing automatically. We handle all fee calculations, payments, and subscription management so you can focus entirely on building the best tool possible.
+                Stay in sync with subscription changes. We send real-time webhook events when users subscribe, cancel, or upgrade, so you can automatically provision or revoke access without polling.
               </p>
             </div>
           </div>
 
           {/* Business Model Flexibility */}
-          <div className="bg-gradient-to-br from-[#3ecf8e]/10 to-[#059669]/10 border border-[#3ecf8e]/30 rounded-lg p-6 sm:p-8 mb-10">
-            <h3 className="text-2xl font-bold mb-4 text-center text-[#3ecf8e]">Your business, your rules</h3>
-            <p className="text-base sm:text-lg text-[#d1d5db] text-center leading-relaxed mb-6 max-w-3xl mx-auto">
-              We don&apos;t limit your creativity. We simply want to be the primary access channel for users to discover and use your tool. Choose any business model that works best for you — consumption-based, fixed subscriptions, variable plans, or anything in between.
+          <div className="py-16 text-center">
+            <h3 className="text-3xl sm:text-4xl font-bold mb-6 text-white">Your business, your rules</h3>
+            <p className="text-lg text-[#d1d5db] leading-relaxed mb-10 max-w-3xl mx-auto">
+              We don&apos;t limit your creativity. We simply want to be the primary access channel for users to discover and use your tool. Choose any business model that works best for you.
             </p>
-            <div className="flex flex-wrap justify-center gap-3">
-              <span className="px-4 py-2 bg-[#1f2937] border border-[#3ecf8e]/40 rounded-full text-sm text-[#d1d5db]">
+            <div className="flex flex-wrap justify-center gap-4">
+              <span className="px-6 py-3 bg-[#1f2937] border border-[#374151] rounded-full text-[#ededed] font-medium hover:border-[#3ecf8e] transition-colors cursor-default">
                 Pay-as-you-go
               </span>
-              <span className="px-4 py-2 bg-[#1f2937] border border-[#3ecf8e]/40 rounded-full text-sm text-[#d1d5db]">
+              <span className="px-6 py-3 bg-[#1f2937] border border-[#374151] rounded-full text-[#ededed] font-medium hover:border-[#3ecf8e] transition-colors cursor-default">
                 Fixed monthly
               </span>
-              <span className="px-4 py-2 bg-[#1f2937] border border-[#3ecf8e]/40 rounded-full text-sm text-[#d1d5db]">
+              <span className="px-6 py-3 bg-[#1f2937] border border-[#374151] rounded-full text-[#ededed] font-medium hover:border-[#3ecf8e] transition-colors cursor-default">
                 Tiered pricing
               </span>
-              <span className="px-4 py-2 bg-[#1f2937] border border-[#3ecf8e]/40 rounded-full text-sm text-[#d1d5db]">
+              <span className="px-6 py-3 bg-[#1f2937] border border-[#374151] rounded-full text-[#ededed] font-medium hover:border-[#3ecf8e] transition-colors cursor-default">
                 Usage-based
               </span>
-              <span className="px-4 py-2 bg-[#1f2937] border border-[#3ecf8e]/40 rounded-full text-sm text-[#d1d5db]">
+              <span className="px-6 py-3 bg-[#1f2937] border border-[#374151] rounded-full text-[#ededed] font-medium hover:border-[#3ecf8e] transition-colors cursor-default">
                 Hybrid model
               </span>
             </div>
           </div>
 
           {/* Why Users Love 1sub */}
-          <div className="bg-[#1f2937] border border-[#374151] rounded-lg p-6 sm:p-8 mb-10">
-            <h3 className="text-2xl font-bold mb-4 text-center text-white">Why users choose 1sub</h3>
-            <p className="text-base text-[#d1d5db] text-center leading-relaxed mb-8 max-w-3xl mx-auto">
-              Users want clarity, simplicity, and value. 1sub consolidates multiple tools into a single subscription, giving them:
+          <div className="py-12">
+            <h3 className="text-3xl font-bold mb-6 text-center text-white">Why users choose 1sub</h3>
+            <p className="text-lg text-[#d1d5db] text-center leading-relaxed mb-12 max-w-3xl mx-auto">
+              Users want clarity, simplicity, and value. 1sub consolidates multiple tools into a single subscription.
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="text-center">
-                <div className="bg-[#3ecf8e]/10 border border-[#3ecf8e]/30 rounded-lg p-6">
-                  <h4 className="font-bold text-[#3ecf8e] text-lg mb-2">Clear costs</h4>
-                  <p className="text-sm text-[#d1d5db]">No hidden fees. One subscription, predictable pricing.</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="text-center group">
+                <div className="bg-[#1f2937]/50 border border-[#374151] rounded-2xl p-8 hover:border-[#3ecf8e] transition-all duration-300 hover:-translate-y-1">
+                  <div className="w-12 h-12 bg-[#3ecf8e]/10 rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:bg-[#3ecf8e]/20 transition-colors">
+                    <span className="text-2xl">💎</span>
+                  </div>
+                  <h4 className="font-bold text-white text-xl mb-3">Clear costs</h4>
+                  <p className="text-[#9ca3af] leading-relaxed">No hidden fees. One subscription, predictable pricing for everything.</p>
                 </div>
               </div>
-              <div className="text-center">
-                <div className="bg-[#3ecf8e]/10 border border-[#3ecf8e]/30 rounded-lg p-6">
-                  <h4 className="font-bold text-[#3ecf8e] text-lg mb-2">Centralized management</h4>
-                  <p className="text-sm text-[#d1d5db]">All tools in one place. Easy to manage and control spending.</p>
+              <div className="text-center group">
+                <div className="bg-[#1f2937]/50 border border-[#374151] rounded-2xl p-8 hover:border-[#3ecf8e] transition-all duration-300 hover:-translate-y-1">
+                  <div className="w-12 h-12 bg-[#3ecf8e]/10 rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:bg-[#3ecf8e]/20 transition-colors">
+                    <span className="text-2xl">⚡</span>
+                  </div>
+                  <h4 className="font-bold text-white text-xl mb-3">Centralized</h4>
+                  <p className="text-[#9ca3af] leading-relaxed">All tools in one place. Easy to manage, control spending, and discover.</p>
                 </div>
               </div>
-              <div className="text-center">
-                <div className="bg-[#3ecf8e]/10 border border-[#3ecf8e]/30 rounded-lg p-6">
-                  <h4 className="font-bold text-[#3ecf8e] text-lg mb-2">Maximum value</h4>
-                  <p className="text-sm text-[#d1d5db]">Get more from every euro. Access multiple tools for one price.</p>
+              <div className="text-center group">
+                <div className="bg-[#1f2937]/50 border border-[#374151] rounded-2xl p-8 hover:border-[#3ecf8e] transition-all duration-300 hover:-translate-y-1">
+                  <div className="w-12 h-12 bg-[#3ecf8e]/10 rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:bg-[#3ecf8e]/20 transition-colors">
+                    <span className="text-2xl">🚀</span>
+                  </div>
+                  <h4 className="font-bold text-white text-xl mb-3">Max Value</h4>
+                  <p className="text-[#9ca3af] leading-relaxed">Get more from every euro. Access multiple premium tools for one price.</p>
                 </div>
               </div>
             </div>
-            <p className="text-sm text-[#9ca3af] text-center mt-6 max-w-2xl mx-auto">
-              This is why users flock to 1sub — and why your tool gains instant visibility among a highly engaged audience.
-            </p>
           </div>
 
           {/* Additional Benefits */}
-          <div className="bg-gradient-to-br from-[#1f2937] to-[#111827] rounded-lg p-6 sm:p-8 border border-[#374151] mb-8">
-            <h3 className="text-xl font-bold mb-4 text-center text-white">What you get</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          <div className="py-12 border-t border-[#374151]/50">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
               <div className="text-center">
-                <h4 className="font-bold text-[#3ecf8e] mb-2">Real-time verification</h4>
-                <p className="text-sm text-[#d1d5db]">Instant user validation with every request</p>
+                <div className="text-[#3ecf8e] mb-3">
+                  <svg className="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </div>
+                <h4 className="font-bold text-white mb-2">Real-time verification</h4>
+                <p className="text-sm text-[#9ca3af]">Instant user validation with every request</p>
               </div>
               <div className="text-center">
-                <h4 className="font-bold text-[#3ecf8e] mb-2">Automated billing</h4>
-                <p className="text-sm text-[#d1d5db]">Zero manual work, we handle everything</p>
+                <div className="text-[#3ecf8e] mb-3">
+                  <svg className="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </div>
+                <h4 className="font-bold text-white mb-2">Automated billing</h4>
+                <p className="text-sm text-[#9ca3af]">Zero manual work, we handle everything</p>
               </div>
               <div className="text-center">
-                <h4 className="font-bold text-[#3ecf8e] mb-2">Usage analytics</h4>
-                <p className="text-sm text-[#d1d5db]">Track your growth and user engagement</p>
+                <div className="text-[#3ecf8e] mb-3">
+                  <svg className="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                </div>
+                <h4 className="font-bold text-white mb-2">Usage analytics</h4>
+                <p className="text-sm text-[#9ca3af]">Track your growth and user engagement</p>
               </div>
             </div>
           </div>
 
           {/* Documentation CTA */}
           <div className="text-center">
-            <a
-              href="/api-docs"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 btn-secondary text-sm sm:text-base"
+            <Link
+              href="/vendors/apply"
+              className="group inline-flex items-center gap-2 px-6 py-3 bg-[#1f2937] border border-[#374151] hover:border-[#3ecf8e] text-[#ededed] rounded-full font-semibold transition-all duration-300 hover:shadow-lg hover:shadow-[#3ecf8e]/10"
             >
-              <span>read the docs</span>
- 
-            </a>
+              <span>start your integration now</span>
+              <svg className="w-4 h-4 text-[#3ecf8e] transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </Link>
           </div>
         </div>
       </section>
@@ -283,7 +323,7 @@ export default function VendorsPage() {
             <p className="text-lg sm:text-2xl text-white mb-8 leading-relaxed font-semibold">
               We&apos;re small and growing. The earlier you join, the better your rate!
             </p>
-            
+
             <div className="bg-white/95 rounded-xl p-6 sm:p-8 max-w-3xl mx-auto">
               <div className="space-y-4 text-left">
                 <div className="flex items-center justify-between p-4 bg-gradient-to-r from-[#fbbf24] to-[#f59e0b] rounded-lg">
@@ -311,18 +351,23 @@ export default function VendorsPage() {
                   <span className="text-3xl font-black text-black">Start at 35%</span>
                 </div>
               </div>
-              
+
               <p className="text-sm text-[#6b7280] mt-6 font-semibold">
                 Your starting rate is locked in forever. As you grow, your fees only go down!
               </p>
             </div>
-            
-            <a
-              href="/register"
-              className="inline-block bg-black text-[#3ecf8e] px-10 py-4 rounded-lg font-black text-xl hover:bg-[#1f2937] transition-colors shadow-2xl mt-8"
+
+            <Link
+              href="/vendors/apply"
+              className="group relative inline-flex items-center justify-center px-10 py-4 text-xl font-black text-black bg-white rounded-xl overflow-hidden transition-all duration-300 hover:scale-105 hover:shadow-2xl mt-8"
             >
-              claim your spot now
-            </a>
+              <span className="relative z-10 flex items-center gap-2">
+                claim your spot now
+                <svg className="w-5 h-5 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
+              </span>
+            </Link>
           </div>
         </div>
       </section>
@@ -333,7 +378,7 @@ export default function VendorsPage() {
           <h2 className="text-3xl sm:text-4xl font-bold mb-6">
             We are your external sales team
           </h2>
-          
+
           <p className="text-lg sm:text-xl text-[#d1d5db] max-w-3xl mx-auto mb-12 leading-relaxed">
             You focus on building the best tool ever. We&apos;ll take care of getting it to the right users.
           </p>
@@ -441,7 +486,7 @@ export default function VendorsPage() {
           <div className="relative mb-12">
             {/* Connecting Line */}
             <div className="hidden md:block absolute top-1/2 left-0 right-0 h-1 bg-gradient-to-r from-[#ef4444] via-[#f59e0b] to-[#3ecf8e] transform -translate-y-1/2"></div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative z-10">
               {/* Phase 1: Alpha */}
               <div className="bg-gradient-to-br from-[#1f2937] to-[#111827] border-2 border-[#ef4444] rounded-lg p-6 text-center relative">
@@ -571,12 +616,17 @@ export default function VendorsPage() {
             Join 1sub today and start reaching thousands of potential customers.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <a
+            <Link
               href="/vendors/apply"
-              className="btn-secondary text-sm sm:text-base"
+              className="group relative inline-flex items-center justify-center px-8 py-4 text-lg font-bold text-white bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] rounded-full overflow-hidden transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-[#3ecf8e]/30"
             >
-              apply to become a vendor
-            </a>
+              <span className="relative z-10 flex items-center gap-2">
+                apply to become a vendor
+                <svg className="w-5 h-5 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
+              </span>
+            </Link>
           </div>
         </div>
       </section>

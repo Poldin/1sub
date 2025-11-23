@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Menu, DollarSign } from 'lucide-react';
@@ -9,6 +9,7 @@ import AdminSidebar from '../components/AdminSidebar';
 interface RefundAdjustment {
   id: string;
   userEmail: string;
+  userName: string | null;
   amount: number;
   reason: string;
   createdAt: string;
@@ -24,49 +25,93 @@ export default function RefundPage() {
     reason: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [recentAdjustments, setRecentAdjustments] = useState<RefundAdjustment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
   };
 
-  // Mock data for recent adjustments
-  const recentAdjustments: RefundAdjustment[] = [
-    {
-      id: '1',
-      userEmail: 'user1@example.com',
-      amount: 100,
-      reason: 'Welcome bonus',
-      createdAt: new Date().toISOString(),
-      adminName: 'Admin User'
-    },
-    {
-      id: '2',
-      userEmail: 'user2@example.com',
-      amount: -50,
-      reason: 'Refund for unused credits',
-      createdAt: new Date().toISOString(),
-      adminName: 'Admin User'
-    },
-    {
-      id: '3',
-      userEmail: 'user3@example.com',
-      amount: 25,
-      reason: 'Customer service compensation',
-      createdAt: new Date().toISOString(),
-      adminName: 'Admin User'
-    }
-  ];
+  useEffect(() => {
+    fetchAdjustments();
+  }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const fetchAdjustments = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/admin/credits/adjustments?limit=50');
+      if (response.ok) {
+        const data = await response.json();
+        setRecentAdjustments(data.adjustments || []);
+      } else {
+        throw new Error('Failed to fetch adjustments');
+      }
+    } catch (err) {
+      console.error('Error fetching adjustments:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load adjustments');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    console.log('Refund adjustment:', formData);
-    // Simulate API call
-    setTimeout(() => {
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const amount = parseFloat(formData.amount);
+      if (isNaN(amount) || amount === 0) {
+        throw new Error('Amount must be a non-zero number');
+      }
+
+      // Trim and normalize email
+      const normalizedEmail = formData.email.trim().toLowerCase();
+      if (!normalizedEmail) {
+        throw new Error('Email is required');
+      }
+
+      const response = await fetch('/api/admin/credits/adjust', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: normalizedEmail,
+          amount,
+          reason: formData.reason.trim(),
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSuccessMessage(`Credits ${amount > 0 ? 'added' : 'subtracted'} successfully. New balance: ${data.balanceAfter.toFixed(2)}`);
+        setFormData({ email: '', amount: '', reason: '' });
+        fetchAdjustments(); // Refresh adjustments list
+      } else {
+        let errorMessage = 'Failed to process adjustment';
+        try {
+          const errorText = await response.text();
+          if (errorText) {
+            try {
+              const errorData = JSON.parse(errorText);
+              errorMessage = errorData.error || errorMessage;
+            } catch {
+              errorMessage = errorText || errorMessage;
+            }
+          }
+        } catch (parseError) {
+          console.error('Error parsing error response:', parseError);
+        }
+        throw new Error(errorMessage);
+      }
+    } catch (err) {
+      console.error('Error processing adjustment:', err);
+      setError(err instanceof Error ? err.message : 'Failed to process adjustment');
+    } finally {
       setIsSubmitting(false);
-      setFormData({ email: '', amount: '', reason: '' });
-      alert('Credit adjustment processed successfully!');
-    }, 1000);
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -109,10 +154,22 @@ export default function RefundPage() {
         </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {error && (
+          <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-4 mb-8">
+            <p className="text-red-400">Error: {error}</p>
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="bg-green-900/20 border border-green-500/50 rounded-lg p-4 mb-8">
+            <p className="text-green-400">{successMessage}</p>
+          </div>
+        )}
+
         {/* Adjustment Form */}
         <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151] mb-8">
           <h2 className="text-lg font-semibold text-[#ededed] mb-6">Adjust User Credits</h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" suppressHydrationWarning>
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-[#d1d5db] mb-2">
                 User Email
@@ -126,6 +183,7 @@ export default function RefundPage() {
                 className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
                 placeholder="user@example.com"
                 required
+                suppressHydrationWarning
               />
             </div>
 
@@ -142,6 +200,7 @@ export default function RefundPage() {
                 className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
                 placeholder="100 or -50"
                 required
+                suppressHydrationWarning
               />
             </div>
 
@@ -158,6 +217,7 @@ export default function RefundPage() {
                 className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
                 placeholder="Reason for adjustment..."
                 required
+                suppressHydrationWarning
               />
             </div>
 
@@ -165,6 +225,7 @@ export default function RefundPage() {
               type="submit"
               disabled={isSubmitting}
               className="w-full bg-[#3ecf8e] text-black py-3 px-4 rounded-lg font-semibold hover:bg-[#2dd4bf] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              suppressHydrationWarning
             >
               {isSubmitting ? 'Processing...' : 'Confirm Adjustment'}
             </button>
@@ -188,27 +249,44 @@ export default function RefundPage() {
                 </tr>
               </thead>
               <tbody>
-                {recentAdjustments.map((adjustment) => (
-                  <tr key={adjustment.id} className="border-b border-[#374151]">
-                    <td className="px-6 py-4 text-[#ededed]">
-                      {adjustment.userEmail}
-                    </td>
-                    <td className={`px-6 py-4 font-medium ${
-                      adjustment.amount > 0 ? 'text-green-400' : 'text-red-400'
-                    }`}>
-                      {adjustment.amount > 0 ? '+' : ''}{adjustment.amount}
-                    </td>
-                    <td className="px-6 py-4 text-[#9ca3af]">
-                      {adjustment.reason}
-                    </td>
-                    <td className="px-6 py-4 text-[#9ca3af]">
-                      {new Date(adjustment.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 text-[#9ca3af]">
-                      {adjustment.adminName}
+                {loading ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-8 text-center text-[#9ca3af]">
+                      Loading adjustments...
                     </td>
                   </tr>
-                ))}
+                ) : recentAdjustments.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-8 text-center text-[#9ca3af]">
+                      No adjustments found
+                    </td>
+                  </tr>
+                ) : (
+                  recentAdjustments.map((adjustment) => (
+                    <tr key={adjustment.id} className="border-b border-[#374151]">
+                      <td className="px-6 py-4 text-[#ededed]">
+                        {adjustment.userEmail}
+                        {adjustment.userName && (
+                          <div className="text-sm text-[#9ca3af]">{adjustment.userName}</div>
+                        )}
+                      </td>
+                      <td className={`px-6 py-4 font-medium ${
+                        adjustment.amount > 0 ? 'text-green-400' : 'text-red-400'
+                      }`}>
+                        {adjustment.amount > 0 ? '+' : ''}{adjustment.amount.toFixed(2)}
+                      </td>
+                      <td className="px-6 py-4 text-[#9ca3af]">
+                        {adjustment.reason}
+                      </td>
+                      <td className="px-6 py-4 text-[#9ca3af]">
+                        {new Date(adjustment.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 text-[#9ca3af]">
+                        {adjustment.adminName}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Menu, Settings, CheckCircle } from 'lucide-react';
@@ -15,20 +15,80 @@ export default function SettingsPage() {
     supportEmail: 'support@1sub.io'
   });
   const [isSaving, setIsSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  const fetchSettings = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/admin/settings');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.settings) {
+          setFormData({
+            creditMultiplier: data.settings.creditMultiplier?.toString() || '1.0',
+            referralBonus: data.settings.referralBonus?.toString() || '10',
+            supportEmail: data.settings.supportEmail || 'support@1sub.io',
+          });
+        }
+      } else {
+        throw new Error('Failed to fetch settings');
+      }
+    } catch (err) {
+      console.error('Error fetching settings:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load settings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
-    console.log('Settings update:', formData);
-    // Simulate API call
-    setTimeout(() => {
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const response = await fetch('/api/admin/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          creditMultiplier: parseFloat(formData.creditMultiplier),
+          referralBonus: parseInt(formData.referralBonus, 10),
+          supportEmail: formData.supportEmail,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSuccessMessage('Settings saved successfully!');
+        // Update form with returned settings
+        if (data.settings) {
+          setFormData({
+            creditMultiplier: data.settings.creditMultiplier?.toString() || formData.creditMultiplier,
+            referralBonus: data.settings.referralBonus?.toString() || formData.referralBonus,
+            supportEmail: data.settings.supportEmail || formData.supportEmail,
+          });
+        }
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save settings');
+      }
+    } catch (err) {
+      console.error('Error saving settings:', err);
+      setError(err instanceof Error ? err.message : 'Failed to save settings');
+    } finally {
       setIsSaving(false);
-      alert('Settings saved successfully!');
-    }, 1000);
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -71,11 +131,31 @@ export default function SettingsPage() {
         </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Settings Form */}
-          <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
-            <h2 className="text-lg font-semibold text-[#ededed] mb-6">General Configuration</h2>
-            <form onSubmit={handleSubmit} className="space-y-6">
+        {loading && (
+          <div className="text-center py-12">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#3ecf8e] border-r-transparent"></div>
+            <p className="mt-4 text-[#9ca3af]">Loading settings...</p>
+          </div>
+        )}
+
+        {error && (
+          <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-4 mb-8">
+            <p className="text-red-400">Error: {error}</p>
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="bg-green-900/20 border border-green-500/50 rounded-lg p-4 mb-8">
+            <p className="text-green-400">{successMessage}</p>
+          </div>
+        )}
+
+        {!loading && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Settings Form */}
+            <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
+              <h2 className="text-lg font-semibold text-[#ededed] mb-6">General Configuration</h2>
+              <form onSubmit={handleSubmit} className="space-y-6">
               <div>
                 <label htmlFor="creditMultiplier" className="block text-sm font-medium text-[#d1d5db] mb-2">
                   Credit Top-Up Multiplier
@@ -195,7 +275,8 @@ export default function SettingsPage() {
               </div>
             </div>
           </div>
-        </div>
+          </div>
+        )}
 
         {/* Footer */}
         <footer className="border-t border-[#374151] mt-16 py-8">

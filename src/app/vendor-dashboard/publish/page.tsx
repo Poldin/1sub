@@ -21,7 +21,7 @@ export default function PublishToolPage() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
   const [isPublishing, setIsPublishing] = useState(false);
-  
+
   // UI Metadata fields
   const [uiMetadata, setUiMetadata] = useState({
     emoji: '🔧',
@@ -30,18 +30,17 @@ export default function PublishToolPage() {
     tags: [] as string[],
     tagInput: '',
     category: '',
-    developmentStage: '' as 'alpha' | 'beta' | '',
     discountPercentage: 0
   });
-  
+
   // Common emoji options for tools
   const emojiOptions = ['🔧', '⚙️', '🛠️', '🎨', '💡', '🚀', '📊', '🤖', '💻', '🎯', '📱', '🌐', '🔍', '📝', '🎬', '🎵', '💰', '📈', '🔐', '🎮', '🏗️', '🧪', '📚', '🎭'];
-  
+
   // Content Metadata fields
   const [contentMetadata, setContentMetadata] = useState({
     longDescription: ''
   });
-  
+
   // States for unified Sidebar
   const [userId, setUserId] = useState<string>('');
   const [userRole, setUserRole] = useState<string>('user');
@@ -50,47 +49,47 @@ export default function PublishToolPage() {
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
   };
-  
+
   const handleShareAndEarnClick = () => {
     // Handled by Sidebar component
   };
-  
+
   // Fetch user data
   useEffect(() => {
     const fetchUserData = async () => {
       try {
         const supabase = createClient();
         const { data: { user }, error: authError } = await supabase.auth.getUser();
-        
+
         if (authError || !user) {
           return;
         }
-        
+
         setUserId(user.id);
-        
+
         // Fetch user profile data
         const { data: profileData } = await supabase
           .from('user_profiles')
           .select('role')
           .eq('id', user.id)
           .single();
-        
+
         if (profileData) {
           setUserRole(profileData.role || 'user');
         }
-        
+
         // Check if user has tools
         const { data: toolsData } = await supabase
           .from('tools')
           .select('id')
           .eq('user_profile_id', user.id);
-        
+
         setHasTools((toolsData?.length || 0) > 0);
       } catch (err) {
         console.error('Error fetching user data:', err);
       }
     };
-    
+
     fetchUserData();
   }, []);
 
@@ -102,7 +101,7 @@ export default function PublishToolPage() {
       // Optimize the image
       const { optimizeHeroImage, formatFileSize } = await import('@/lib/image-optimization');
       const result = await optimizeHeroImage(file);
-      
+
       // Show optimization result
       if (result.reductionPercentage > 0) {
         console.log(
@@ -110,10 +109,10 @@ export default function PublishToolPage() {
           `(${result.reductionPercentage}% reduction)`
         );
       }
-      
+
       // Use optimized file
       setImageFile(result.file);
-      
+
       // Create preview
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -134,7 +133,7 @@ export default function PublishToolPage() {
       // Optimize the logo
       const { optimizeLogoImage, formatFileSize } = await import('@/lib/image-optimization');
       const result = await optimizeLogoImage(file);
-      
+
       // Show optimization result
       if (result.reductionPercentage > 0) {
         console.log(
@@ -142,10 +141,10 @@ export default function PublishToolPage() {
           `(${result.reductionPercentage}% reduction)`
         );
       }
-      
+
       // Use optimized file
       setUiMetadata({ ...uiMetadata, logoFile: result.file });
-      
+
       // Create preview
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -177,7 +176,7 @@ export default function PublishToolPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!imageFile) {
       alert('Please select an image for your tool');
       return;
@@ -207,7 +206,7 @@ export default function PublishToolPage() {
     try {
       const supabase = createClient();
       const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-      
+
       if (authError || !authUser) {
         alert('You must be logged in to publish tools');
         setIsPublishing(false);
@@ -263,7 +262,7 @@ export default function PublishToolPage() {
         const { data: { publicUrl: logoPublicUrl } } = supabase.storage
           .from('allfile')
           .getPublicUrl(logoFilePath);
-        
+
         logoUrl = logoPublicUrl;
       }
 
@@ -300,7 +299,6 @@ export default function PublishToolPage() {
           logo_url: logoUrl || undefined,
           tags: uiMetadata.tags.length > 0 ? uiMetadata.tags : undefined,
           category: uiMetadata.category || undefined,
-          development_stage: uiMetadata.developmentStage ? (uiMetadata.developmentStage as 'alpha' | 'beta') : null,
           discount_percentage: uiMetadata.discountPercentage > 0 ? uiMetadata.discountPercentage : undefined,
         },
         content: {
@@ -335,22 +333,22 @@ export default function PublishToolPage() {
         })
         .select()
         .single();
-      
+
       if (insertError) {
         console.error('Database error:', insertError);
         alert(`Failed to create tool: ${insertError.message}`);
         setIsPublishing(false);
         return;
       }
-      
+
       console.log('Tool created successfully:', toolData);
-      
+
       // Show API key to vendor (display once)
       alert(`Tool created successfully!\n\nYour API key is: ${apiKey}\n\nPlease save this API key - it will not be shown again.`);
-      
+
       // Redirect to products page to configure pricing via products
       router.push(`/vendor-dashboard/products`);
-      
+
     } catch (err: unknown) {
       console.error('Error creating tool:', err);
       alert('Failed to create tool');
@@ -365,7 +363,7 @@ export default function PublishToolPage() {
     });
   };
 
-  const handleUiMetadataChange = (field: string, value: string | number | 'alpha' | 'beta' | File | null) => {
+  const handleUiMetadataChange = (field: string, value: string | number | File | null) => {
     setUiMetadata({
       ...uiMetadata,
       [field]: value
@@ -382,8 +380,8 @@ export default function PublishToolPage() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex overflow-x-hidden">
       {/* Unified Sidebar */}
-      <Sidebar 
-        isOpen={isMenuOpen} 
+      <Sidebar
+        isOpen={isMenuOpen}
         onClose={toggleMenu}
         onShareAndEarnClick={handleShareAndEarnClick}
         userId={userId}
@@ -407,16 +405,16 @@ export default function PublishToolPage() {
               >
                 <Menu className="w-6 h-6 sm:w-6 sm:h-6" />
               </button>
-              
+
               {/* Tool Selector */}
               {hasTools && userId && (
                 <ToolSelector userId={userId} />
               )}
-              
+
               {/* Page Title */}
               <h1 className="text-xl sm:text-2xl font-bold text-[#ededed]">Publish New Tool</h1>
             </div>
-            
+
             {/* Spacer */}
             <div className="w-10"></div>
           </div>
@@ -452,7 +450,7 @@ export default function PublishToolPage() {
                 {/* Basic Information */}
                 <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
                   <h2 className="text-lg font-semibold text-[#ededed] mb-6">Basic Information</h2>
-                  
+
                   {/* Name and Image Side by Side */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                     <div>
@@ -645,7 +643,7 @@ export default function PublishToolPage() {
                 {/* UI Metadata */}
                 <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
                   <h2 className="text-lg font-semibold text-[#ededed] mb-6">Visual & Display</h2>
-                  
+
                   <div className="space-y-6">
                     {/* Emoji and Logo */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -658,7 +656,7 @@ export default function PublishToolPage() {
                           <div className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-2xl text-center min-h-[3rem] flex items-center justify-center">
                             {uiMetadata.emoji || '🔧'}
                           </div>
-                          
+
                           {/* Emoji Picker Grid */}
                           <div className="grid grid-cols-6 gap-2 max-h-48 overflow-y-auto p-2 bg-[#374151] rounded-lg border border-[#4b5563]">
                             {emojiOptions.map((emoji) => (
@@ -666,18 +664,17 @@ export default function PublishToolPage() {
                                 key={emoji}
                                 type="button"
                                 onClick={() => handleUiMetadataChange('emoji', emoji)}
-                                className={`text-2xl p-2 rounded-lg transition-colors hover:bg-[#4b5563] ${
-                                  uiMetadata.emoji === emoji 
-                                    ? 'bg-[#3ecf8e] text-black ring-2 ring-[#3ecf8e]' 
+                                className={`text-2xl p-2 rounded-lg transition-colors hover:bg-[#4b5563] ${uiMetadata.emoji === emoji
+                                    ? 'bg-[#3ecf8e] text-black ring-2 ring-[#3ecf8e]'
                                     : 'hover:scale-110'
-                                }`}
+                                  }`}
                                 title={`Select ${emoji}`}
                               >
                                 {emoji}
                               </button>
                             ))}
                           </div>
-                          
+
                           {/* Custom Emoji Input (fallback) */}
                           <div>
                             <label className="block text-xs text-[#9ca3af] mb-1">
@@ -797,22 +794,7 @@ export default function PublishToolPage() {
                         />
                       </div>
 
-                      <div>
-                        <label htmlFor="developmentStage" className="block text-sm font-medium text-[#d1d5db] mb-2">
-                          Development Stage
-                        </label>
-                        <select
-                          id="developmentStage"
-                          name="developmentStage"
-                          value={uiMetadata.developmentStage}
-                          onChange={(e) => handleUiMetadataChange('developmentStage', e.target.value)}
-                          className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
-                        >
-                          <option value="">None</option>
-                          <option value="alpha">Alpha</option>
-                          <option value="beta">Beta</option>
-                        </select>
-                      </div>
+                      {/* Development Stage is now calculated dynamically based on paying users */}
                     </div>
 
                     {/* Discount Percentage */}
@@ -852,29 +834,21 @@ export default function PublishToolPage() {
                 <div className="p-4 border-b border-[#374151]">
                   <h3 className="text-sm font-semibold text-[#ededed]">Preview</h3>
                 </div>
-                
-                {/* Development Stage Badge */}
-                {uiMetadata.developmentStage && (
-                  <div className="px-4 pt-4">
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${
-                        uiMetadata.developmentStage === 'alpha'
-                          ? 'bg-purple-500 text-white'
-                          : 'bg-blue-500 text-white'
-                      }`}
-                    >
-                      {uiMetadata.developmentStage}
-                    </span>
-                  </div>
-                )}
+
+                {/* Development Stage Badge - calculated dynamically, defaults to Alpha for new tools */}
+                <div className="px-4 pt-4">
+                  <span className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-purple-500 text-white shadow-lg border border-purple-400/50">
+                    Alpha
+                  </span>
+                </div>
 
                 {/* Image - Full Width at Top */}
                 <div className="w-full h-48 bg-gradient-to-br from-[#3ecf8e]/20 to-[#2dd4bf]/20 flex items-center justify-center overflow-hidden">
                   {imagePreview ? (
-                    <img 
-                      src={imagePreview} 
-                      alt={formData.name || 'Tool preview'} 
-                      className="w-full h-full object-cover" 
+                    <img
+                      src={imagePreview}
+                      alt={formData.name || 'Tool preview'}
+                      className="w-full h-full object-cover"
                     />
                   ) : (
                     <div className="text-center">

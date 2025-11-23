@@ -10,6 +10,12 @@
 
 import { createClient } from '@/lib/supabase/client';
 
+interface CheckoutMetadata {
+    tool_id?: string;
+    status?: string;
+    [key: string]: unknown;
+}
+
 /**
  * Count unique paying users for a specific tool
  * A "paying user" is someone who has either:
@@ -57,9 +63,9 @@ export async function countPayingUsersForTool(toolId: string): Promise<number> {
 
         // Add purchase users (filter by tool_id and completed status in metadata)
         if (purchaseUsers) {
-            purchaseUsers.forEach((purchase: { user_id: string | null; metadata: any }) => {
+            purchaseUsers.forEach((purchase: { user_id: string | null; metadata: unknown }) => {
                 if (purchase.user_id && purchase.metadata) {
-                    const metadata = purchase.metadata as any;
+                    const metadata = purchase.metadata as CheckoutMetadata;
                     if (metadata.tool_id === toolId && metadata.status === 'completed') {
                         userIdSet.add(purchase.user_id);
                     }
@@ -132,9 +138,9 @@ export async function batchCountPayingUsers(toolIds: string[]): Promise<Map<stri
 
         // Add purchase users
         if (purchases) {
-            purchases.forEach((purchase: { user_id: string | null; metadata: any }) => {
+            purchases.forEach((purchase: { user_id: string | null; metadata: unknown }) => {
                 if (purchase.user_id && purchase.metadata) {
-                    const metadata = purchase.metadata as any;
+                    const metadata = purchase.metadata as CheckoutMetadata;
                     if (metadata.tool_id && metadata.status === 'completed') {
                         const userSet = usersByTool.get(metadata.tool_id);
                         if (userSet) {
@@ -188,8 +194,8 @@ export async function isPayingUser(userId: string, toolId: string): Promise<bool
             .eq('user_id', userId);
 
         if (purchases && purchases.length > 0) {
-            return purchases.some((p: { metadata: any }) => {
-                const metadata = p.metadata as any;
+            return purchases.some((p: { metadata: unknown }) => {
+                const metadata = p.metadata as CheckoutMetadata;
                 return metadata?.tool_id === toolId && metadata?.status === 'completed';
             });
         }

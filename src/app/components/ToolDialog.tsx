@@ -4,6 +4,7 @@ import { X, Star, Users, ExternalLink, Check } from 'lucide-react';
 import Image from 'next/image';
 import { Tool, DEFAULT_UI_METADATA, DEFAULT_ENGAGEMENT_METRICS, hasProducts } from '@/lib/tool-types';
 import { PricingCard } from './PricingDisplay';
+import { getToolPhase, getPhaseLabel, getPhaseTailwindClasses } from '@/lib/tool-phase';
 
 // Custom scrollbar styles
 const scrollbarStyles = `
@@ -200,6 +201,12 @@ export default function ToolDialog(props: ToolDialogProps) {
   const emoji = uiMeta.emoji;
   const gradient = uiMeta.gradient;
 
+  // Dynamic phase calculation based on paying user count
+  const payingUserCount = tool.metadata?.paying_user_count ?? 0;
+  const calculatedPhase = getToolPhase(payingUserCount);
+  const phaseLabel = getPhaseLabel(calculatedPhase);
+  const phaseClasses = getPhaseTailwindClasses(calculatedPhase);
+
   return (
     <>
       <style>{scrollbarStyles}</style>
@@ -288,15 +295,10 @@ export default function ToolDialog(props: ToolDialogProps) {
                         <span className="text-sm font-medium">Website</span>
                       </a>
                     )}
-                    {/* Development Stage Badge */}
-                    {uiMeta.development_stage && (
-                      <span className={`px-3 py-1 rounded-lg text-xs font-bold uppercase ${uiMeta.development_stage === 'alpha'
-                        ? 'bg-purple-500 text-white'
-                        : 'bg-blue-500 text-white'
-                        }`}>
-                        {uiMeta.development_stage}
-                      </span>
-                    )}
+                    {/* Dynamic Phase Badge */}
+                    <span className={`px-3 py-1 rounded-lg text-xs font-bold uppercase shadow-lg ${phaseClasses.badge}`}>
+                      {phaseLabel}
+                    </span>
                     {/* Discount Badge */}
                     {(uiMeta.discount_percentage ?? 0) > 0 && (
                       <span className="bg-red-500 text-white px-3 py-1 rounded-lg text-xs font-bold">

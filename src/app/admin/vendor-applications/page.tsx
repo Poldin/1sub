@@ -3,6 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { Menu } from 'lucide-react';
+import AdminSidebar from '../components/AdminSidebar';
+import Link from 'next/link';
 
 interface VendorApplication {
   id: string;
@@ -29,6 +32,11 @@ export default function VendorApplicationsAdminPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
   const [processing, setProcessing] = useState<string | null>(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  const toggleMenu = () => {
+    setIsMenuOpen(!isMenuOpen);
+  };
 
   useEffect(() => {
     checkAdminAccess();
@@ -93,15 +101,44 @@ export default function VendorApplicationsAdminPage() {
       });
 
       if (response.ok) {
-        alert(`Application ${newStatus} successfully`);
+        const data = await response.json();
+        alert(`Application ${newStatus} successfully${data.message ? `: ${data.message}` : ''}`);
         fetchApplications();
       } else {
-        const error = await response.json();
-        alert(`Error: ${error.error}`);
+        let errorMessage = 'Failed to process application';
+        try {
+          const errorText = await response.text();
+          if (errorText) {
+            try {
+              const errorData = JSON.parse(errorText);
+              errorMessage = errorData.error || errorMessage;
+              console.error('Error processing application:', {
+                status: response.status,
+                error: errorData,
+                rawResponse: errorText,
+              });
+            } catch {
+              // Not JSON, use the text as error message
+              errorMessage = errorText || errorMessage;
+              console.error('Error processing application (non-JSON):', {
+                status: response.status,
+                rawResponse: errorText,
+              });
+            }
+          } else {
+            console.error('Error processing application (empty response):', {
+              status: response.status,
+            });
+          }
+        } catch (parseError) {
+          console.error('Error parsing error response:', parseError);
+        }
+        alert(`Error: ${errorMessage}`);
       }
     } catch (error) {
       console.error('Error processing application:', error);
-      alert('Failed to process application');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to process application';
+      alert(`Error: ${errorMessage}`);
     } finally {
       setProcessing(null);
     }
@@ -121,9 +158,38 @@ export default function VendorApplicationsAdminPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] p-8">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8">Vendor Applications</h1>
+    <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex overflow-x-hidden">
+      {/* Sidebar Component */}
+      <AdminSidebar 
+        isOpen={isMenuOpen} 
+        onClose={toggleMenu}
+      />
+
+      {/* Main Content Area */}
+      <main className={`
+        flex-1 min-w-0 transition-all duration-300 ease-in-out overflow-x-hidden
+        ${isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'}
+      `}>
+        {/* Top Bar with Hamburger */}
+        <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-30 overflow-x-hidden">
+          <div className="flex items-center justify-between p-2 sm:p-3 min-w-0">
+            {/* Hamburger Button */}
+            <button
+              onClick={toggleMenu}
+              className="p-2 rounded-lg hover:bg-[#374151] transition-colors flex-shrink-0"
+            >
+              <Menu className="w-6 h-6 sm:w-6 sm:h-6" />
+            </button>
+            
+            {/* Page Title */}
+            <h1 className="text-xl sm:text-2xl font-bold text-[#ededed]">Vendor Applications</h1>
+            
+            {/* Spacer for centering */}
+            <div className="w-10"></div>
+          </div>
+        </header>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
         {/* Filter Tabs */}
         <div className="flex gap-4 mb-6">
@@ -232,7 +298,23 @@ export default function VendorApplicationsAdminPage() {
             ))}
           </div>
         )}
+
+        {/* Footer */}
+        <footer className="border-t border-[#374151] mt-16 py-8">
+          <div className="max-w-4xl mx-auto px-4 text-center">
+            <div className="flex justify-center space-x-6 text-sm">
+              <Link href="/" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Home</Link>
+              <Link href="/privacy" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Privacy</Link>
+              <Link href="/terms" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Terms</Link>
+              <Link href="/support" className="text-[#9ca3af] hover:text-[#ededed] transition-colors">Support</Link>
+            </div>
+            <p className="text-[#9ca3af] text-xs mt-4">
+              © 2025 1sub.io. All rights reserved.
+            </p>
+          </div>
+        </footer>
       </div>
+      </main>
     </div>
   );
 }

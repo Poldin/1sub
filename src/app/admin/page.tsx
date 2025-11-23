@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Users, CreditCard, Activity, Menu } from 'lucide-react';
@@ -26,12 +26,53 @@ interface RecentTransaction {
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const [stats] = useState<DashboardStats | null>(null);
-  const [recentTransactions] = useState<RecentTransaction[]>([]);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [recentTransactions, setRecentTransactions] = useState<RecentTransaction[]>([]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
+  };
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Fetch stats
+      const statsResponse = await fetch('/api/admin/stats');
+      if (statsResponse.ok) {
+        const statsData = await statsResponse.json();
+        setStats(statsData);
+      } else {
+        const errorData = await statsResponse.json().catch(() => ({ error: 'Unknown error' }));
+        const errorMessage = errorData.details 
+          ? `${errorData.error}: ${errorData.details}`
+          : errorData.error || `Failed to fetch stats (${statsResponse.status})`;
+        console.error('Stats API error:', { status: statsResponse.status, error: errorData });
+        throw new Error(errorMessage);
+      }
+
+      // Fetch recent transactions
+      const transactionsResponse = await fetch('/api/admin/transactions?limit=20');
+      if (transactionsResponse.ok) {
+        const transactionsData = await transactionsResponse.json();
+        setRecentTransactions(transactionsData.transactions || []);
+      } else {
+        throw new Error('Failed to fetch transactions');
+      }
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -67,8 +108,23 @@ export default function AdminDashboard() {
         </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        {loading && (
+          <div className="text-center py-12">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#3ecf8e] border-r-transparent"></div>
+            <p className="mt-4 text-[#9ca3af]">Loading dashboard...</p>
+          </div>
+        )}
+
+        {error && (
+          <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-4 mb-8">
+            <p className="text-red-400">Error: {error}</p>
+          </div>
+        )}
+
+        {!loading && !error && (
+          <>
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
             <div className="flex items-center">
               <div className="p-2 bg-[#3ecf8e]/20 rounded-lg">
@@ -144,9 +200,9 @@ export default function AdminDashboard() {
                       </td>
                       <td className="px-6 py-4">
                         <span className={`px-2 py-1 rounded text-xs font-medium ${
-                          transaction.transaction_type === 'grant' 
+                          transaction.transaction_type === 'add' 
                             ? 'bg-green-500/20 text-green-400'
-                            : transaction.transaction_type === 'consume'
+                            : transaction.transaction_type === 'subtract'
                             ? 'bg-red-500/20 text-red-400'
                             : 'bg-gray-500/20 text-gray-400'
                         }`}>
@@ -212,6 +268,8 @@ export default function AdminDashboard() {
             </div>
           </div>
         </div>
+          </>
+        )}
 
         {/* Footer */}
         <footer className="border-t border-[#374151] mt-16 py-8">

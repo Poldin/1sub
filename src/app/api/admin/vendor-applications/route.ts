@@ -136,20 +136,37 @@ export async function PATCH(request: NextRequest) {
     });
 
     if (!result.success) {
+      console.error('Failed to process vendor application:', {
+        applicationId: application_id,
+        newStatus: new_status,
+        error: result.error,
+      });
       return NextResponse.json(
-        { error: result.error },
+        { error: result.error || 'Failed to process application' },
         { status: 400 }
       );
     }
+
+    console.log('Successfully processed vendor application:', {
+      applicationId: application_id,
+      newStatus: new_status,
+      message: result.message,
+    });
 
     return NextResponse.json({
       success: true,
       message: result.message || 'Application processed successfully',
     });
   } catch (error) {
-    console.error('Error processing vendor application:', error);
+    console.error('Error processing vendor application:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        error: error instanceof Error ? error.message : 'Internal server error',
+        details: 'An unexpected error occurred while processing the application'
+      },
       { status: 500 }
     );
   }

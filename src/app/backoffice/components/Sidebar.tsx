@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  X, 
+import {
+  X,
   Search,
   User,
   HelpCircle,
@@ -77,7 +77,7 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
     <>
       {/* Overlay per mobile quando menu è aperto */}
       {isOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={onClose}
         />
@@ -113,15 +113,15 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
               <span className="font-medium">Search</span>
             </a>
 
-            <button 
+            <button
               onClick={() => router.push('/profile')}
               className="w-full flex items-center gap-3 px-3 py-1.5 rounded hover:bg-[#374151] transition-colors text-[#ededed] group text-sm"
             >
               <User className="w-5 h-5 text-[#3ecf8e] group-hover:text-[#2dd4bf]" />
               <span className="font-medium">Profile</span>
             </button>
-            
-            <button 
+
+            <button
               onClick={() => router.push('/support')}
               className="w-full flex items-center gap-3 px-3 py-1.5 rounded hover:bg-[#374151] transition-colors text-[#ededed] group text-sm"
             >
@@ -148,7 +148,7 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
                       <ChevronDown className="w-4 h-4 text-[#9ca3af]" />
                     )}
                   </button>
-                  
+
                   {/* Vendor Submenu */}
                   {isVendorMenuOpen && (
                     <div className="ml-4 mt-1 space-y-1">
@@ -256,7 +256,7 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
               <p className="text-xs text-[#9ca3af] mb-3">Publish your tool and engage with users!</p>
               <button
                 onClick={() => {
-                  router.push('/vendor-dashboard');
+                  router.push('/vendors');
                   onClose();
                 }}
                 className="w-full bg-[#374151] hover:bg-[#4b5563] text-[#ededed] px-4 py-2 rounded-lg font-semibold transition-colors text-sm"
