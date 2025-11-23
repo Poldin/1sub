@@ -22,12 +22,29 @@ export async function sendVendorApprovalEmail(params: {
   companyName: string;
 }): Promise<{ success: boolean; error?: string }> {
   try {
+    console.log('sendVendorApprovalEmail called', {
+      to: params.to,
+      vendorName: params.vendorName,
+      companyName: params.companyName,
+      hasResendKey: !!process.env.RESEND_API_KEY,
+      fromEmail: FROM_EMAIL,
+    });
+
     if (!process.env.RESEND_API_KEY) {
-      console.warn('RESEND_API_KEY not configured, skipping email send');
+      console.warn('RESEND_API_KEY not configured, skipping email send', {
+        to: params.to,
+        companyName: params.companyName,
+      });
       return { success: false, error: 'Email service not configured' };
     }
 
     const { to, vendorName, companyName } = params;
+
+    console.log('Sending vendor approval email via Resend', {
+      from: FROM_EMAIL,
+      to,
+      companyName,
+    });
 
     const { data, error } = await resend.emails.send({
       from: FROM_EMAIL,
@@ -82,14 +99,31 @@ export async function sendVendorApprovalEmail(params: {
     });
 
     if (error) {
-      console.error('Error sending vendor approval email:', error);
+      console.error('Error sending vendor approval email via Resend:', {
+        error,
+        errorMessage: error.message,
+        errorName: error.name,
+        to,
+        companyName,
+        from: FROM_EMAIL,
+      });
       return { success: false, error: error.message };
     }
 
-    console.log('Vendor approval email sent successfully:', data);
+    console.log('Vendor approval email sent successfully via Resend:', {
+      emailId: data?.id,
+      to,
+      companyName,
+      from: FROM_EMAIL,
+    });
     return { success: true };
   } catch (error) {
-    console.error('Error in sendVendorApprovalEmail:', error);
+    console.error('Unexpected error in sendVendorApprovalEmail:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      to: params.to,
+      companyName: params.companyName,
+    });
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to send email',
@@ -107,12 +141,29 @@ export async function sendVendorRejectionEmail(params: {
   rejectionReason: string;
 }): Promise<{ success: boolean; error?: string }> {
   try {
+    console.log('sendVendorRejectionEmail called', {
+      to: params.to,
+      vendorName: params.vendorName,
+      companyName: params.companyName,
+      hasResendKey: !!process.env.RESEND_API_KEY,
+      fromEmail: FROM_EMAIL,
+    });
+
     if (!process.env.RESEND_API_KEY) {
-      console.warn('RESEND_API_KEY not configured, skipping email send');
+      console.warn('RESEND_API_KEY not configured, skipping email send', {
+        to: params.to,
+        companyName: params.companyName,
+      });
       return { success: false, error: 'Email service not configured' };
     }
 
     const { to, vendorName, companyName, rejectionReason } = params;
+
+    console.log('Sending vendor rejection email via Resend', {
+      from: FROM_EMAIL,
+      to,
+      companyName,
+    });
 
     const { data, error } = await resend.emails.send({
       from: FROM_EMAIL,
@@ -165,14 +216,31 @@ export async function sendVendorRejectionEmail(params: {
     });
 
     if (error) {
-      console.error('Error sending vendor rejection email:', error);
+      console.error('Error sending vendor rejection email via Resend:', {
+        error,
+        errorMessage: error.message,
+        errorName: error.name,
+        to,
+        companyName,
+        from: FROM_EMAIL,
+      });
       return { success: false, error: error.message };
     }
 
-    console.log('Vendor rejection email sent successfully:', data);
+    console.log('Vendor rejection email sent successfully via Resend:', {
+      emailId: data?.id,
+      to,
+      companyName,
+      from: FROM_EMAIL,
+    });
     return { success: true };
   } catch (error) {
-    console.error('Error in sendVendorRejectionEmail:', error);
+    console.error('Unexpected error in sendVendorRejectionEmail:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      to: params.to,
+      companyName: params.companyName,
+    });
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to send email',

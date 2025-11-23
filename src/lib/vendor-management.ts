@@ -302,36 +302,83 @@ export async function processVendorApplication(params: {
     }
 
     // Send email notification based on status
-    if (userEmail && (params.newStatus === 'approved' || params.newStatus === 'rejected')) {
-      const { sendVendorApprovalEmail, sendVendorRejectionEmail } = await import('@/lib/email-service');
-      
-      const userProfile = Array.isArray(applicationData.user_profile)
-        ? applicationData.user_profile[0]
-        : applicationData.user_profile;
-      const vendorName = userProfile?.full_name || 'there';
-      const companyName = applicationData.company;
+    if (params.newStatus === 'approved' || params.newStatus === 'rejected') {
+      if (!userEmail) {
+        console.warn('Cannot send email notification: userEmail is missing', {
+          applicationId: params.applicationId,
+          userId: applicationData.user_id,
+          status: params.newStatus,
+        });
+      } else {
+        console.log('Attempting to send email notification', {
+          applicationId: params.applicationId,
+          userEmail,
+          status: params.newStatus,
+        });
 
-      if (params.newStatus === 'approved') {
-        // Send approval email (don't fail if email fails)
-        sendVendorApprovalEmail({
-          to: userEmail,
-          vendorName,
-          companyName,
-        }).catch((emailError) => {
-          console.error('Failed to send approval email:', emailError);
-          // Don't throw - email failure shouldn't fail the approval
-        });
-      } else if (params.newStatus === 'rejected' && params.rejectionReason) {
-        // Send rejection email (don't fail if email fails)
-        sendVendorRejectionEmail({
-          to: userEmail,
-          vendorName,
-          companyName,
-          rejectionReason: params.rejectionReason,
-        }).catch((emailError) => {
-          console.error('Failed to send rejection email:', emailError);
-          // Don't throw - email failure shouldn't fail the rejection
-        });
+        try {
+          const { sendVendorApprovalEmail, sendVendorRejectionEmail } = await import('@/lib/email-service');
+          
+          const userProfile = Array.isArray(applicationData.user_profile)
+            ? applicationData.user_profile[0]
+            : applicationData.user_profile;
+          const vendorName = userProfile?.full_name || 'there';
+          const companyName = applicationData.company;
+
+          if (params.newStatus === 'approved') {
+            // Send approval email (don't fail if email fails)
+            const emailResult = await sendVendorApprovalEmail({
+              to: userEmail,
+              vendorName,
+              companyName,
+            });
+            
+            if (emailResult.success) {
+              console.log('Vendor approval email sent successfully', {
+                applicationId: params.applicationId,
+                userEmail,
+                companyName,
+              });
+            } else {
+              console.error('Failed to send approval email:', {
+                applicationId: params.applicationId,
+                userEmail,
+                error: emailResult.error,
+              });
+            }
+          } else if (params.newStatus === 'rejected' && params.rejectionReason) {
+            // Send rejection email (don't fail if email fails)
+            const emailResult = await sendVendorRejectionEmail({
+              to: userEmail,
+              vendorName,
+              companyName,
+              rejectionReason: params.rejectionReason,
+            });
+            
+            if (emailResult.success) {
+              console.log('Vendor rejection email sent successfully', {
+                applicationId: params.applicationId,
+                userEmail,
+                companyName,
+              });
+            } else {
+              console.error('Failed to send rejection email:', {
+                applicationId: params.applicationId,
+                userEmail,
+                error: emailResult.error,
+              });
+            }
+          }
+        } catch (emailError) {
+          console.error('Error sending email notification:', {
+            applicationId: params.applicationId,
+            userEmail,
+            status: params.newStatus,
+            error: emailError instanceof Error ? emailError.message : String(emailError),
+            stack: emailError instanceof Error ? emailError.stack : undefined,
+          });
+          // Don't throw - email failure shouldn't fail the approval/rejection
+        }
       }
     }
 
@@ -422,36 +469,83 @@ async function processVendorApplicationFallback(params: {
     }
 
     // Send email notification based on status
-    if (userEmail && (params.newStatus === 'approved' || params.newStatus === 'rejected')) {
-      const { sendVendorApprovalEmail, sendVendorRejectionEmail } = await import('@/lib/email-service');
-      
-      const userProfile = Array.isArray(application.user_profile)
-        ? application.user_profile[0]
-        : application.user_profile;
-      const vendorName = userProfile?.full_name || 'there';
-      const companyName = application.company;
+    if (params.newStatus === 'approved' || params.newStatus === 'rejected') {
+      if (!userEmail) {
+        console.warn('Cannot send email notification: userEmail is missing', {
+          applicationId: params.applicationId,
+          userId: application.user_id,
+          status: params.newStatus,
+        });
+      } else {
+        console.log('Attempting to send email notification', {
+          applicationId: params.applicationId,
+          userEmail,
+          status: params.newStatus,
+        });
 
-      if (params.newStatus === 'approved') {
-        // Send approval email (don't fail if email fails)
-        sendVendorApprovalEmail({
-          to: userEmail,
-          vendorName,
-          companyName,
-        }).catch((emailError) => {
-          console.error('Failed to send approval email:', emailError);
-          // Don't throw - email failure shouldn't fail the approval
-        });
-      } else if (params.newStatus === 'rejected' && params.rejectionReason) {
-        // Send rejection email (don't fail if email fails)
-        sendVendorRejectionEmail({
-          to: userEmail,
-          vendorName,
-          companyName,
-          rejectionReason: params.rejectionReason,
-        }).catch((emailError) => {
-          console.error('Failed to send rejection email:', emailError);
-          // Don't throw - email failure shouldn't fail the rejection
-        });
+        try {
+          const { sendVendorApprovalEmail, sendVendorRejectionEmail } = await import('@/lib/email-service');
+          
+          const userProfile = Array.isArray(application.user_profile)
+            ? application.user_profile[0]
+            : application.user_profile;
+          const vendorName = userProfile?.full_name || 'there';
+          const companyName = application.company;
+
+          if (params.newStatus === 'approved') {
+            // Send approval email (don't fail if email fails)
+            const emailResult = await sendVendorApprovalEmail({
+              to: userEmail,
+              vendorName,
+              companyName,
+            });
+            
+            if (emailResult.success) {
+              console.log('Vendor approval email sent successfully', {
+                applicationId: params.applicationId,
+                userEmail,
+                companyName,
+              });
+            } else {
+              console.error('Failed to send approval email:', {
+                applicationId: params.applicationId,
+                userEmail,
+                error: emailResult.error,
+              });
+            }
+          } else if (params.newStatus === 'rejected' && params.rejectionReason) {
+            // Send rejection email (don't fail if email fails)
+            const emailResult = await sendVendorRejectionEmail({
+              to: userEmail,
+              vendorName,
+              companyName,
+              rejectionReason: params.rejectionReason,
+            });
+            
+            if (emailResult.success) {
+              console.log('Vendor rejection email sent successfully', {
+                applicationId: params.applicationId,
+                userEmail,
+                companyName,
+              });
+            } else {
+              console.error('Failed to send rejection email:', {
+                applicationId: params.applicationId,
+                userEmail,
+                error: emailResult.error,
+              });
+            }
+          }
+        } catch (emailError) {
+          console.error('Error sending email notification:', {
+            applicationId: params.applicationId,
+            userEmail,
+            status: params.newStatus,
+            error: emailError instanceof Error ? emailError.message : String(emailError),
+            stack: emailError instanceof Error ? emailError.stack : undefined,
+          });
+          // Don't throw - email failure shouldn't fail the approval/rejection
+        }
       }
     }
 
