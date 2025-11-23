@@ -66,6 +66,7 @@ export default function VendorUsersPage() {
 
       if (!tools || tools.length === 0) {
         setUsers([]);
+        setLoading(false);
         return;
       }
       const toolIds = tools.map((tool: { id: string; name: string }) => tool.id);
@@ -242,6 +243,7 @@ export default function VendorUsersPage() {
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         
         if (authError || !user) {
+          setLoading(false);
           return;
         }
         
@@ -271,10 +273,13 @@ export default function VendorUsersPage() {
         // Fetch vendor users if user has tools
         if (hasTools) {
           await fetchVendorUsers(user.id);
+        } else {
+          setLoading(false);
         }
       } catch (err) {
         console.error('Error fetching user data:', err);
         setError('Failed to load user data');
+        setLoading(false);
       }
     };
     
