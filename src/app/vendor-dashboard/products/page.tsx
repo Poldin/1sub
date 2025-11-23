@@ -46,6 +46,7 @@ export default function ProductsPage() {
   const [userLoading, setUserLoading] = useState(true);
   const [userRole, setUserRole] = useState<string>('user');
   const [hasTools, setHasTools] = useState(false);
+  const [isVendor, setIsVendor] = useState(false);
 
   // Tool selection states
   const [selectedToolId, setSelectedToolId] = useState<string>('');
@@ -169,6 +170,10 @@ export default function ProductsPage() {
           setUserRole(data.role);
         }
 
+        if (data.isVendor !== undefined) {
+          setIsVendor(data.isVendor);
+        }
+
         // Fetch user's tools
         const supabase = createClient();
         const { data: toolsData, error } = await supabase
@@ -218,13 +223,14 @@ export default function ProductsPage() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex overflow-x-hidden">
       {/* Unified Sidebar */}
-      <Sidebar 
-        isOpen={isMenuOpen} 
+      <Sidebar
+        isOpen={isMenuOpen}
         onClose={toggleMenu}
         onShareAndEarnClick={handleShareAndEarnClick}
         userId={user?.id || ''}
         userRole={userRole}
         hasTools={hasTools}
+        isVendor={isVendor}
       />
 
       {/* Main Content Area */}

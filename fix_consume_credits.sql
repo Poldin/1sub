@@ -136,3 +136,4 @@ GRANT EXECUTE ON FUNCTION consume_credits TO service_role;
 -- Add comment for documentation
 COMMENT ON FUNCTION consume_credits IS 'Atomically consume credits from a user account with row-level locking. Fixed to wait for locks to ensure accurate balance reading.';
 
+

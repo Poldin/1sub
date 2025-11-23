@@ -21,6 +21,7 @@ function BackofficeContent() {
   const [userRole, setUserRole] = useState<string>('user'); // Change to 'vendor' to test vendor view
   const [showPurchaseSuccess, setShowPurchaseSuccess] = useState(false);
   const [hasTools, setHasTools] = useState(false);
+  const [isVendor, setIsVendor] = useState(false);
   const [highlightedToolId, setHighlightedToolId] = useState<string | null>(null);
 
   // Load sidebar state from localStorage on mount
@@ -55,6 +56,10 @@ function BackofficeContent() {
 
         if (data.role) {
           setUserRole(data.role);
+        }
+
+        if (data.isVendor !== undefined) {
+          setIsVendor(data.isVendor);
         }
 
         if (data.credits !== undefined) {
@@ -364,6 +369,7 @@ function BackofficeContent() {
           userId={user?.id || ''}
           userRole={userRole}
           hasTools={hasTools}
+          isVendor={isVendor}
         />
 
         {/* Main Content Area */}
@@ -445,8 +451,8 @@ function BackofficeContent() {
               </div>
             </div> */}
 
-              {/* Vendor Dashboard Access - Only for vendors */}
-              {userRole === 'vendor' && (
+              {/* Vendor Dashboard Access - Only for approved vendors */}
+              {isVendor && (
                 <div className="my-8 px-3 sm:px-4 lg:px-8">
                   <div className="bg-gradient-to-r from-[#3ecf8e]/20 to-[#2dd4bf]/20 border border-[#3ecf8e]/30 rounded-xl p-6">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">

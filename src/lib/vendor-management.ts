@@ -219,6 +219,30 @@ export async function processVendorApplication(params: {
   try {
     const supabase = await createClient();
 
+    // Get application details first to fetch user email for notifications
+    const { data: applicationData, error: fetchError } = await supabase
+      .from('vendor_applications')
+      .select(`
+        user_id,
+        company,
+        user_profile:user_profiles!vendor_applications_user_id_fkey(
+          full_name
+        )
+      `)
+      .eq('id', params.applicationId)
+      .single();
+
+    if (fetchError || !applicationData) {
+      return {
+        success: false,
+        error: 'Application not found',
+      };
+    }
+
+    // Get user email from auth
+    const { data: authUser } = await supabase.auth.admin.getUserById(applicationData.user_id);
+    const userEmail = authUser?.user?.email;
+
     // Use the RPC function for atomic operation
     const { data, error } = await supabase.rpc('process_vendor_application', {
       p_application_id: params.applicationId,
@@ -277,6 +301,40 @@ export async function processVendorApplication(params: {
       };
     }
 
+    // Send email notification based on status
+    if (userEmail && (params.newStatus === 'approved' || params.newStatus === 'rejected')) {
+      const { sendVendorApprovalEmail, sendVendorRejectionEmail } = await import('@/lib/email-service');
+      
+      const userProfile = Array.isArray(applicationData.user_profile)
+        ? applicationData.user_profile[0]
+        : applicationData.user_profile;
+      const vendorName = userProfile?.full_name || 'there';
+      const companyName = applicationData.company;
+
+      if (params.newStatus === 'approved') {
+        // Send approval email (don't fail if email fails)
+        sendVendorApprovalEmail({
+          to: userEmail,
+          vendorName,
+          companyName,
+        }).catch((emailError) => {
+          console.error('Failed to send approval email:', emailError);
+          // Don't throw - email failure shouldn't fail the approval
+        });
+      } else if (params.newStatus === 'rejected' && params.rejectionReason) {
+        // Send rejection email (don't fail if email fails)
+        sendVendorRejectionEmail({
+          to: userEmail,
+          vendorName,
+          companyName,
+          rejectionReason: params.rejectionReason,
+        }).catch((emailError) => {
+          console.error('Failed to send rejection email:', emailError);
+          // Don't throw - email failure shouldn't fail the rejection
+        });
+      }
+    }
+
     return {
       success: true,
       message: result.message,
@@ -302,10 +360,17 @@ async function processVendorApplicationFallback(params: {
   try {
     const supabase = await createClient();
 
-    // Get application details first
+    // Get application details first (with user profile for email)
     const { data: application, error: fetchError } = await supabase
       .from('vendor_applications')
-      .select('user_id, status')
+      .select(`
+        user_id,
+        status,
+        company,
+        user_profile:user_profiles!vendor_applications_user_id_fkey(
+          full_name
+        )
+      `)
       .eq('id', params.applicationId)
       .single();
 
@@ -315,6 +380,10 @@ async function processVendorApplicationFallback(params: {
         error: 'Application not found',
       };
     }
+
+    // Get user email from auth
+    const { data: authUser } = await supabase.auth.admin.getUserById(application.user_id);
+    const userEmail = authUser?.user?.email;
 
     // Update application status
     const { error: updateError } = await supabase
@@ -349,6 +418,40 @@ async function processVendorApplicationFallback(params: {
       if (profileError) {
         console.error('Error updating user profile:', profileError);
         // Don't fail the whole operation, just log the error
+      }
+    }
+
+    // Send email notification based on status
+    if (userEmail && (params.newStatus === 'approved' || params.newStatus === 'rejected')) {
+      const { sendVendorApprovalEmail, sendVendorRejectionEmail } = await import('@/lib/email-service');
+      
+      const userProfile = Array.isArray(application.user_profile)
+        ? application.user_profile[0]
+        : application.user_profile;
+      const vendorName = userProfile?.full_name || 'there';
+      const companyName = application.company;
+
+      if (params.newStatus === 'approved') {
+        // Send approval email (don't fail if email fails)
+        sendVendorApprovalEmail({
+          to: userEmail,
+          vendorName,
+          companyName,
+        }).catch((emailError) => {
+          console.error('Failed to send approval email:', emailError);
+          // Don't throw - email failure shouldn't fail the approval
+        });
+      } else if (params.newStatus === 'rejected' && params.rejectionReason) {
+        // Send rejection email (don't fail if email fails)
+        sendVendorRejectionEmail({
+          to: userEmail,
+          vendorName,
+          companyName,
+          rejectionReason: params.rejectionReason,
+        }).catch((emailError) => {
+          console.error('Failed to send rejection email:', emailError);
+          // Don't throw - email failure shouldn't fail the rejection
+        });
       }
     }
 

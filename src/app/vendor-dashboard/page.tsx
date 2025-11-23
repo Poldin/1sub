@@ -22,7 +22,8 @@ export default function VendorDashboard() {
   const [userLoading, setUserLoading] = useState(true);
   const [userRole, setUserRole] = useState<string>('user');
   const [hasTools, setHasTools] = useState(false);
-  const [toolsCount, setToolsCount] = useState(0);
+  const [isVendor, setIsVendor] = useState(false);
+  const [companyName, setCompanyName] = useState<string | null>(null);
 
   // Tool selection states
   const [selectedToolId, setSelectedToolId] = useState<string>('');
@@ -103,7 +104,6 @@ export default function VendorDashboard() {
       });
       localStorage.removeItem('selectedToolId');
       setHasTools(false);
-      setToolsCount(0);
       return;
     }
 
@@ -113,7 +113,6 @@ export default function VendorDashboard() {
     localStorage.setItem('selectedToolId', nextTool.id);
     fetchToolAnalytics(nextTool.id);
     setHasTools(true);
-    setToolsCount(updatedTools.length);
   };
 
   const handleConfirmDeleteTool = async () => {
@@ -266,6 +265,13 @@ export default function VendorDashboard() {
 
         const data = await response.json();
 
+        // Check if user is a vendor - redirect if not
+        if (!data.isVendor) {
+          alert('You must be an approved vendor to access the vendor dashboard. Please apply to become a vendor first.');
+          router.push('/vendors/apply');
+          return;
+        }
+
         setUser({
           id: data.id,
           fullName: data.fullName || null,
@@ -276,15 +282,30 @@ export default function VendorDashboard() {
           setUserRole(data.role);
         }
 
-        // Fetch user's tools
+        if (data.isVendor !== undefined) {
+          setIsVendor(data.isVendor);
+        }
+
+        // Fetch vendor application to get company name
         const supabase = createClient();
+        const { data: vendorApplication } = await supabase
+          .from('vendor_applications')
+          .select('company')
+          .eq('user_id', data.id)
+          .eq('status', 'approved')
+          .single();
+
+        if (vendorApplication?.company) {
+          setCompanyName(vendorApplication.company);
+        }
+
+        // Fetch user's tools
         const { data: toolsData, error } = await supabase
           .from('tools')
           .select('*')
           .eq('user_profile_id', data.id);
 
         if (!error && toolsData) {
-          setToolsCount(toolsData.length);
           setHasTools(toolsData.length > 0);
           const mappedTools = toolsData.map((tool: { id: string; name: string }) => ({
             id: tool.id,
@@ -338,6 +359,7 @@ export default function VendorDashboard() {
         userId={user?.id || ''}
         userRole={userRole}
         hasTools={hasTools}
+        isVendor={isVendor}
       />
 
       <main
@@ -366,7 +388,7 @@ export default function VendorDashboard() {
               )}
 
               <h1 className="text-xl sm:text-2xl font-bold text-[#ededed]">
-                {hasTools ? 'Vendor Dashboard' : 'Become a Vendor'}
+                {companyName || (hasTools ? 'Vendor Dashboard' : 'Become a Vendor')}
               </h1>
             </div>
 
