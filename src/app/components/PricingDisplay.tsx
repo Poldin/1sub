@@ -96,9 +96,10 @@ export function PricingBadges({ pricingOptions }: PricingBadgesProps) {
 
 interface MainPriceDisplayProps {
   pricingOptions: PricingOptions | ProductPricingModel;
+  isFromProducts?: boolean;
 }
 
-export function MainPriceDisplay({ pricingOptions }: MainPriceDisplayProps) {
+export function MainPriceDisplay({ pricingOptions, isFromProducts = false }: MainPriceDisplayProps) {
   // Check if this is a custom plan (only ProductPricingModel has custom_plan)
   if ('custom_plan' in pricingOptions && pricingOptions.custom_plan?.enabled) {
     return <span className="text-lg font-semibold text-[#3ecf8e]">Contact for Custom Pricing</span>;
@@ -146,16 +147,20 @@ export function MainPriceDisplay({ pricingOptions }: MainPriceDisplayProps) {
 // ============================================================================
 
 interface PricingSectionProps {
-  pricingOptions: PricingOptions | ProductPricingModel;
+  pricingOptions: PricingOptions | ProductPricingModel | null | undefined;
+  isFromProducts?: boolean;
 }
 
-export function PricingSection({ pricingOptions }: PricingSectionProps) {
+export function PricingSection({ pricingOptions, isFromProducts = false }: PricingSectionProps) {
+  // Use empty object as fallback if pricingOptions is null/undefined
+  const safePricingOptions = pricingOptions || {};
+  
   return (
     <div className="mb-3 pb-3 border-b border-[#374151]">
       <div className="flex items-center gap-2">
-        <MainPriceDisplay pricingOptions={pricingOptions} />
+        <MainPriceDisplay pricingOptions={safePricingOptions} isFromProducts={isFromProducts} />
         <div className="ml-auto">
-          <PricingBadges pricingOptions={pricingOptions} />
+          <PricingBadges pricingOptions={safePricingOptions} />
         </div>
       </div>
     </div>

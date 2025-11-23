@@ -39,11 +39,7 @@ export default function PublishToolPage() {
   
   // Content Metadata fields
   const [contentMetadata, setContentMetadata] = useState({
-    longDescription: '',
-    features: [] as string[],
-    featureInput: '',
-    useCases: [] as string[],
-    useCaseInput: ''
+    longDescription: ''
   });
   
   // States for unified Sidebar
@@ -98,28 +94,67 @@ export default function PublishToolPage() {
     fetchUserData();
   }, []);
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setImageFile(file);
+    if (!file) return;
+
+    try {
+      // Optimize the image
+      const { optimizeHeroImage, formatFileSize } = await import('@/lib/image-optimization');
+      const result = await optimizeHeroImage(file);
+      
+      // Show optimization result
+      if (result.reductionPercentage > 0) {
+        console.log(
+          `Image optimized: ${formatFileSize(result.originalSize)} → ${formatFileSize(result.optimizedSize)} ` +
+          `(${result.reductionPercentage}% reduction)`
+        );
+      }
+      
+      // Use optimized file
+      setImageFile(result.file);
+      
       // Create preview
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result as string);
       };
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(result.file);
+    } catch (error) {
+      console.error('Image optimization error:', error);
+      alert('Failed to optimize image. Please try a different image.');
     }
   };
 
-  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setUiMetadata({ ...uiMetadata, logoFile: file });
+    if (!file) return;
+
+    try {
+      // Optimize the logo
+      const { optimizeLogoImage, formatFileSize } = await import('@/lib/image-optimization');
+      const result = await optimizeLogoImage(file);
+      
+      // Show optimization result
+      if (result.reductionPercentage > 0) {
+        console.log(
+          `Logo optimized: ${formatFileSize(result.originalSize)} → ${formatFileSize(result.optimizedSize)} ` +
+          `(${result.reductionPercentage}% reduction)`
+        );
+      }
+      
+      // Use optimized file
+      setUiMetadata({ ...uiMetadata, logoFile: result.file });
+      
+      // Create preview
       const reader = new FileReader();
       reader.onloadend = () => {
         setUiMetadata(prev => ({ ...prev, logoUrl: reader.result as string }));
       };
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(result.file);
+    } catch (error) {
+      console.error('Logo optimization error:', error);
+      alert('Failed to optimize logo. Please try a different image.');
     }
   };
 
@@ -137,40 +172,6 @@ export default function PublishToolPage() {
     setUiMetadata({
       ...uiMetadata,
       tags: uiMetadata.tags.filter(tag => tag !== tagToRemove)
-    });
-  };
-
-  const handleAddFeature = () => {
-    if (contentMetadata.featureInput.trim() && !contentMetadata.features.includes(contentMetadata.featureInput.trim())) {
-      setContentMetadata({
-        ...contentMetadata,
-        features: [...contentMetadata.features, contentMetadata.featureInput.trim()],
-        featureInput: ''
-      });
-    }
-  };
-
-  const handleRemoveFeature = (featureToRemove: string) => {
-    setContentMetadata({
-      ...contentMetadata,
-      features: contentMetadata.features.filter(feature => feature !== featureToRemove)
-    });
-  };
-
-  const handleAddUseCase = () => {
-    if (contentMetadata.useCaseInput.trim() && !contentMetadata.useCases.includes(contentMetadata.useCaseInput.trim())) {
-      setContentMetadata({
-        ...contentMetadata,
-        useCases: [...contentMetadata.useCases, contentMetadata.useCaseInput.trim()],
-        useCaseInput: ''
-      });
-    }
-  };
-
-  const handleRemoveUseCase = (useCaseToRemove: string) => {
-    setContentMetadata({
-      ...contentMetadata,
-      useCases: contentMetadata.useCases.filter(useCase => useCase !== useCaseToRemove)
     });
   };
 
@@ -286,8 +287,6 @@ export default function PublishToolPage() {
         };
         content: {
           long_description?: string;
-          features?: string[];
-          use_cases?: string[];
         };
         api_key_hash?: string;
         api_key_created_at?: string;
@@ -306,8 +305,6 @@ export default function PublishToolPage() {
         },
         content: {
           long_description: contentMetadata.longDescription || undefined,
-          features: contentMetadata.features.length > 0 ? contentMetadata.features : undefined,
-          use_cases: contentMetadata.useCases.length > 0 ? contentMetadata.useCases : undefined,
         },
         api_key_hash: apiKeyHash,
         api_key_created_at: apiKeyCreatedAt,
@@ -834,101 +831,6 @@ export default function PublishToolPage() {
                         className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
                         placeholder="0"
                       />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Content Metadata */}
-                <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
-                  <h2 className="text-lg font-semibold text-[#ededed] mb-6">Content Details</h2>
-                  
-                  <div className="space-y-6">
-                    {/* Features */}
-                    <div>
-                      <label htmlFor="features" className="block text-sm font-medium text-[#d1d5db] mb-2">
-                        Features
-                      </label>
-                      <div className="flex gap-2 mb-2">
-                        <input
-                          type="text"
-                          id="features"
-                          value={contentMetadata.featureInput}
-                          onChange={(e) => handleContentMetadataChange('featureInput', e.target.value)}
-                          onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddFeature())}
-                          className="flex-1 px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
-                          placeholder="Add a feature and press Enter"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleAddFeature}
-                          className="px-4 py-2 bg-[#3ecf8e] text-black rounded-lg hover:bg-[#2dd4bf] transition-colors font-semibold"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </button>
-                      </div>
-                      {contentMetadata.features.length > 0 && (
-                        <ul className="space-y-2">
-                          {contentMetadata.features.map((feature, index) => (
-                            <li
-                              key={index}
-                              className="inline-flex items-center gap-2 px-3 py-1 bg-[#374151] text-[#d1d5db] rounded-lg text-sm mr-2 mb-2"
-                            >
-                              {feature}
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveFeature(feature)}
-                                className="hover:text-red-400"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-
-                    {/* Use Cases */}
-                    <div>
-                      <label htmlFor="useCases" className="block text-sm font-medium text-[#d1d5db] mb-2">
-                        Use Cases
-                      </label>
-                      <div className="flex gap-2 mb-2">
-                        <input
-                          type="text"
-                          id="useCases"
-                          value={contentMetadata.useCaseInput}
-                          onChange={(e) => handleContentMetadataChange('useCaseInput', e.target.value)}
-                          onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddUseCase())}
-                          className="flex-1 px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
-                          placeholder="Add a use case and press Enter"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleAddUseCase}
-                          className="px-4 py-2 bg-[#3ecf8e] text-black rounded-lg hover:bg-[#2dd4bf] transition-colors font-semibold"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </button>
-                      </div>
-                      {contentMetadata.useCases.length > 0 && (
-                        <ul className="space-y-2">
-                          {contentMetadata.useCases.map((useCase, index) => (
-                            <li
-                              key={index}
-                              className="inline-flex items-center gap-2 px-3 py-1 bg-[#374151] text-[#d1d5db] rounded-lg text-sm mr-2 mb-2"
-                            >
-                              {useCase}
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveUseCase(useCase)}
-                                className="hover:text-red-400"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
                     </div>
                   </div>
                 </div>

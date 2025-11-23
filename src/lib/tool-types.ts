@@ -41,7 +41,7 @@ export interface PricingOptions {
 // UI METADATA TYPES
 // ============================================================================
 
-export type DevelopmentStage = 'alpha' | 'beta' | null;
+export type DevelopmentStage = 'alpha' | 'beta' | 'public' | null;
 
 export interface UIMetadata {
   emoji?: string;
@@ -86,16 +86,19 @@ export interface ToolMetadata {
   engagement?: EngagementMetrics;
   content?: ContentMetadata;
   vendor_id?: string;
-  
+
+  // Dynamic phase calculation
+  paying_user_count?: number;
+
   // API key fields for external tool integration
   api_key_hash?: string;  // Hashed API key for storage
   api_key_created_at?: string;  // ISO timestamp
   api_key_last_used_at?: string;  // ISO timestamp
   api_key_active?: boolean;  // For revocation
-  
+
   // Custom pricing contact email (fallback for products without specific contact email)
   custom_pricing_email?: string;
-  
+
   // Legacy fields for backward compatibility
   icon?: string;
   category?: string;
@@ -141,11 +144,11 @@ export interface ToolProduct {
   pricing_model: ProductPricingModel;
   is_active: boolean;
   created_at: string;
-  
+
   // Custom plan fields
   is_custom_plan?: boolean; // Indicates if this requires custom pricing
   contact_email?: string; // Email for custom pricing inquiries
-  
+
   // Display metadata
   features?: string[];
   is_preferred?: boolean;
@@ -166,7 +169,7 @@ export interface Tool {
   user_profile_id: string | null;
   created_at: string | null;
   updated_at: string | null;
-  
+
   // Related data (when joined)
   products?: ToolProduct[];
 }
@@ -185,7 +188,7 @@ export interface HomepageToolCardProps {
   imageUrl?: string;
   rating: number;
   adoptions: number;
-  
+
   // Pricing (simplified for display)
   price?: number; // Legacy support
   pricing?: {
@@ -196,7 +199,7 @@ export interface HomepageToolCardProps {
       unit: string;
     };
   };
-  
+
   // Products (for multi-tier tools)
   products?: {
     id: string;
@@ -213,14 +216,14 @@ export interface HomepageToolCardProps {
     features?: string[];
     isPreferred?: boolean;
   }[];
-  
+
   // Visual
   gradient?: string;
   tags?: string[];
   verified?: boolean;
   discount?: number;
   developmentStage?: DevelopmentStage;
-  
+
   // Actions
   ctaLabel?: string;
   onClick?: () => void;

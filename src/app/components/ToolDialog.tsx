@@ -88,6 +88,31 @@ function isUnifiedProps(props: ToolDialogProps): props is UnifiedToolDialogProps
   return 'tool' in props;
 }
 
+// Helper to check if URL is likely an image
+const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.svg', '.ico'];
+
+const isLikelyImageUrl = (url?: string | null): boolean => {
+  if (!url) return false;
+
+  const lowerUrl = url.toLowerCase();
+
+  if (lowerUrl.startsWith('data:image/')) {
+    return true;
+  }
+
+  if (lowerUrl.startsWith('/')) {
+    return IMAGE_EXTENSIONS.some((ext) => lowerUrl.endsWith(ext));
+  }
+
+  try {
+    const parsed = new URL(url);
+    const pathname = parsed.pathname.toLowerCase();
+    return IMAGE_EXTENSIONS.some((ext) => pathname.endsWith(ext));
+  } catch {
+    return false;
+  }
+};
+
 const formatAdoptions = (num: number): string => {
   if (num >= 1000000) {
     return (num / 1000000).toFixed(1) + 'M';
@@ -250,6 +275,19 @@ export default function ToolDialog(props: ToolDialogProps) {
                         {formatAdoptions(engagement.adoption_count ?? 0)} users
                       </span>
                     </div>
+                    {/* Website Link */}
+                    {tool.url && !isLikelyImageUrl(tool.url) && (
+                      <a
+                        href={tool.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 text-[#9ca3af] hover:text-[#3ecf8e] transition-colors px-2 py-1 rounded hover:bg-[#374151]"
+                        title="Visit website"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        <span className="text-sm font-medium">Website</span>
+                      </a>
+                    )}
                     {/* Development Stage Badge */}
                     {uiMeta.development_stage && (
                       <span className={`px-3 py-1 rounded-lg text-xs font-bold uppercase ${uiMeta.development_stage === 'alpha'
@@ -307,7 +345,7 @@ export default function ToolDialog(props: ToolDialogProps) {
 
             {/* Description */}
             <div className="px-6 sm:px-8 pb-6">
-              <p className="text-[#d1d5db] text-base sm:text-lg leading-relaxed whitespace-pre-line">
+              <p className="text-[#d1d5db] text-base sm:text-lg leading-loose whitespace-pre-line max-w-4xl">
                 {longDescription || tool.description}
               </p>
             </div>

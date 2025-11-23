@@ -1,22 +1,6 @@
 'use client';
 
 /**
- * UNIFIED TOOL CARD COMPONENT - OPTIMIZED
- * Supports both legacy props (flat structure) and new Tool type
- * Automatically detects which format is being used
- * Uses React.memo to prevent unnecessary re-renders
- */
-
-import { Users, Star, ExternalLink } from 'lucide-react';
-import Image from 'next/image';
-import { useEffect, useState, memo } from 'react';
-import { Tool, ToolProduct, DEFAULT_UI_METADATA, DEFAULT_ENGAGEMENT_METRICS, hasProducts, hasPricingOptions } from '@/lib/tool-types';
-import { PricingSection } from './PricingDisplay';
-
-// ============================================================================
-// TYPES
-// ============================================================================
-
 // Legacy props format (for backward compatibility)
 export interface LegacyToolCardProps {
   id: number | string;
@@ -119,6 +103,56 @@ const formatAdoptions = (num: number): string => {
   return num.toString();
 };
 
+// Extract the lowest price from a product's pricing model
+const extractPriceFromProduct = (pricingModel: import('@/lib/tool-types').ProductPricingModel): number | null => {
+  // Skip custom plans
+  if (pricingModel.custom_plan?.enabled) {
+    return null;
+  }
+
+  const prices: number[] = [];
+
+  // Check subscription pricing
+  if (pricingModel.subscription?.enabled && pricingModel.subscription.price !== undefined) {
+    prices.push(pricingModel.subscription.price);
+  }
+
+  // Check one-time pricing
+  if (pricingModel.one_time?.enabled) {
+    if (pricingModel.one_time.type === 'absolute' && pricingModel.one_time.price !== undefined) {
+      prices.push(pricingModel.one_time.price);
+    } else if (pricingModel.one_time.type === 'range' && pricingModel.one_time.min_price !== undefined) {
+      prices.push(pricingModel.one_time.min_price);
+    }
+  }
+
+  // Check usage-based pricing
+  if (pricingModel.usage_based?.enabled && pricingModel.usage_based.price_per_unit !== undefined) {
+    prices.push(pricingModel.usage_based.price_per_unit);
+  }
+
+  return prices.length > 0 ? Math.min(...prices) : null;
+};
+
+// Get the lowest price from all products
+const getLowestProductPrice = (products: import('@/lib/tool-types').ToolProduct[]): number | null => {
+  const prices: number[] = [];
+
+  for (const product of products) {
+    // Skip inactive products and custom plans
+    if (!product.is_active || product.is_custom_plan) {
+      continue;
+    }
+
+    const price = extractPriceFromProduct(product.pricing_model);
+    if (price !== null) {
+      prices.push(price);
+    }
+  }
+
+  return prices.length > 0 ? Math.min(...prices) : null;
+};
+
 // Transform legacy props to Tool type
 function legacyToTool(props: LegacyToolCardProps): Tool {
   const {
@@ -157,10 +191,10 @@ function legacyToTool(props: LegacyToolCardProps): Tool {
       pricing_options: pricing ? {
         one_time: pricing.oneTime ? { enabled: true, price: pricing.oneTime } : undefined,
         subscription: pricing.monthly ? { enabled: true, price: pricing.monthly, interval: 'month' as const } : undefined,
-        usage_based: pricing.consumption ? { 
-          enabled: true, 
-          price_per_unit: pricing.consumption.price, 
-          unit_name: pricing.consumption.unit 
+        usage_based: pricing.consumption ? {
+          enabled: true,
+          price_per_unit: pricing.consumption.price,
+          unit_name: pricing.consumption.unit
         } : undefined,
       } : price ? {
         subscription: { enabled: true, price, interval: 'month' as const }
@@ -176,10 +210,10 @@ function legacyToTool(props: LegacyToolCardProps): Tool {
       pricing_model: {
         one_time: p.pricing.oneTime ? { enabled: true, type: 'absolute' as const, price: p.pricing.oneTime } : undefined,
         subscription: p.pricing.monthly ? { enabled: true, price: p.pricing.monthly, interval: 'month' as const } : undefined,
-        usage_based: p.pricing.consumption ? { 
-          enabled: true, 
-          price_per_unit: p.pricing.consumption.price, 
-          unit_name: p.pricing.consumption.unit 
+        usage_based: p.pricing.consumption ? {
+          enabled: true,
+          price_per_unit: p.pricing.consumption.price,
+          unit_name: p.pricing.consumption.unit
         } : undefined,
       },
       features: p.features,
@@ -197,18 +231,32 @@ function ToolCardComponent(props: ToolCardProps) {
   const { tool, mode, onViewClick, onLaunchClick, isHighlighted, priority } = isUnifiedProps(props)
     ? props
     : {
-        tool: legacyToTool(props),
-        mode: 'marketing' as const,
-        onViewClick: props.onViewClick,
-        onLaunchClick: props.onViewClick || props.onClick,
-        isHighlighted: false,
-        priority: props.priority || false,
-      };
+      tool: legacyToTool(props),
+      mode: 'marketing' as const,
+      onViewClick: props.onViewClick,
+      onLaunchClick: props.onViewClick || props.onClick,
+      isHighlighted: false,
+      priority: props.priority || false,
+    };
 
   // Extract metadata with defaults - solo questi sono complessi abbastanza da meritare memoization
   const uiMeta = { ...DEFAULT_UI_METADATA, ...tool.metadata?.ui };
   const engagement = { ...DEFAULT_ENGAGEMENT_METRICS, ...tool.metadata?.engagement };
   const pricingOptions = tool.metadata?.pricing_options;
+
+  // If no tool-level pricing, try to get lowest price from products
+  const lowestProductPrice = !pricingOptions && hasProducts(tool) && tool.products
+    ? getLowestProductPrice(tool.products)
+    : null;
+
+  // Create a pricing options object from product price if needed
+  const effectivePricingOptions = pricingOptions || (lowestProductPrice !== null ? {
+    subscription: {
+      enabled: true,
+      price: lowestProductPrice,
+      interval: 'month' as const
+    }
+  } : {});
 
   // Determine which image to show - calcoli semplici, non serve useMemo
   const imageUrl = uiMeta.hero_image_url || tool.url;
@@ -223,211 +271,177 @@ function ToolCardComponent(props: ToolCardProps) {
   const canShowHeroImage = hasHeroImage && !heroImageError;
   const canShowLogoImage = hasLogoImage && !logoImageError;
 
-  useEffect(() => {
-    setHeroImageError(false);
-  }, [imageUrl]);
-
-  useEffect(() => {
-    setLogoImageError(false);
-  }, [logoUrl]);
-
-  // Handle card click (except for buttons)
-  const handleCardClick = (e: React.MouseEvent) => {
-    const target = e.target as HTMLElement;
-    if (target.closest('button')) return;
-    if (onViewClick) onViewClick();
-  };
-
-  // Border styling based on development stage and highlight
-  let borderClasses = 'border';
-  if (isHighlighted) {
-    borderClasses += ' border-[#3ecf8e] shadow-lg shadow-[#3ecf8e]/50 animate-pulse';
-  } else if (uiMeta.development_stage === 'alpha') {
-    borderClasses += ' border-2 border-purple-500 hover:border-purple-400 hover:shadow-purple-500/30';
-  } else if (uiMeta.development_stage === 'beta') {
-    borderClasses += ' border-2 border-blue-500 hover:border-blue-400 hover:shadow-blue-500/30';
-  } else {
-    borderClasses += ' border-[#374151] hover:border-[#3ecf8e]/50 hover:shadow-[#3ecf8e]/20';
-  }
-
-  return (
-    <div
-      className={`group bg-[#1f2937] rounded-xl tool-card-hover cursor-pointer flex flex-col h-full relative ${borderClasses}`}
-      onClick={handleCardClick}
-    >
-      {/* Development Stage Badge */}
-      {uiMeta.development_stage && (
-        <div className="absolute top-2 left-1/2 transform -translate-x-1/2 z-10">
-          <span
-            className={`px-3 py-1 rounded-full text-xs font-bold uppercase shadow-lg ${
-              uiMeta.development_stage === 'alpha'
-                ? 'bg-purple-500 text-white'
-                : 'bg-blue-500 text-white'
-            }`}
-          >
-            {uiMeta.development_stage}
-          </span>
+        <Image
+          src={logoUrl as string}
+          alt={tool.name}
+          fill
+          className="object-cover"
+          sizes="48px"
+          loading="lazy"
+          onError={() => setLogoImageError(true)}
+        />
+      ) : emoji ? (
+        <div className="text-2xl">{emoji}</div>
+      ) : (
+        <div className="text-lg font-semibold text-[#ededed]">
+          {tool.name.slice(0, 1).toUpperCase()}
         </div>
       )}
+    </div>
 
-      {/* Content Section */}
-      <div className={`p-4 flex flex-col flex-1 overflow-hidden ${uiMeta.development_stage ? 'pt-10' : ''}`}>
-        {/* Header: Logo + Name */}
-        <div className="flex items-start gap-3 mb-3">
-          <div
-            className={`flex-shrink-0 w-12 h-12 rounded-lg bg-gradient-to-br ${uiMeta.gradient} flex items-center justify-center overflow-hidden relative`}
-          >
-            {canShowLogoImage ? (
-              <Image 
-                src={logoUrl as string} 
-                alt={tool.name} 
-                fill
-                className="object-cover"
-                sizes="48px"
-                loading="lazy"
-                onError={() => setLogoImageError(true)}
+    <div className="flex-1 min-w-0">
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="font-bold text-base text-[#ededed] group-hover:text-[#3ecf8e] transition-colors line-clamp-1">
+          {tool.name}
+        </h3>
+
+        {uiMeta.verified && (
+          <div className="flex-shrink-0 bg-blue-500/20 text-blue-400 p-1 rounded">
+            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+              <path
+                fillRule="evenodd"
+                d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                clipRule="evenodd"
               />
-            ) : emoji ? (
-              <div className="text-2xl">{emoji}</div>
-            ) : (
-              <div className="text-lg font-semibold text-[#ededed]">
-                {tool.name.slice(0, 1).toUpperCase()}
-              </div>
-            )}
-          </div>
-
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-2">
-              <h3 className="font-bold text-base text-[#ededed] group-hover:text-[#3ecf8e] transition-colors line-clamp-1">
-                {tool.name}
-              </h3>
-
-              {uiMeta.verified && (
-                <div className="flex-shrink-0 bg-blue-500/20 text-blue-400 p-1 rounded">
-                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                    <path
-                      fillRule="evenodd"
-                      d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Description */}
-        <p className="text-[#9ca3af] text-sm mb-3 line-clamp-2 leading-relaxed">
-          {tool.description}
-        </p>
-
-        {/* Preview Image - Large, full width with gradient overlay on hover */}
-        <div className="mb-3 rounded-md overflow-hidden bg-[#111111] -mx-4 w-[calc(100%+2rem)] relative aspect-video">
-          <div className="relative overflow-hidden w-full h-full">
-            {canShowHeroImage ? (
-              <Image
-                src={imageUrl as string}
-                alt={`${tool.name} preview`}
-                fill
-                className="object-cover tool-card-image"
-                sizes="(max-width: 640px) 320px, (max-width: 1024px) 352px, 352px"
-                placeholder="blur"
-                blurDataURL="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mM8dv16PQAGwgK75n6TaAAAAABJRU5ErkJggg=="
-                priority={priority}
-                loading={priority ? 'eager' : 'lazy'}
-                onError={() => setHeroImageError(true)}
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center opacity-20">
-                <div className="text-6xl">{emoji || '🔧'}</div>
-              </div>
-            )}
-            {/* Gradient Overlay on Hover */}
-            <div className="absolute inset-0 bg-gradient-to-t from-[#1f2937]/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-          </div>
-          {(uiMeta.discount_percentage ?? 0) > 0 && (
-            <div className="absolute top-3 right-3 bg-gradient-to-r from-red-500 to-red-600 text-white px-3 py-1.5 rounded-lg shadow-lg animate-pulse-glow">
-              <span className="text-lg font-black">-{uiMeta.discount_percentage}%</span>
-            </div>
-          )}
-        </div>
-
-        {/* Tags */}
-        {uiMeta.tags && uiMeta.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-3">
-            {uiMeta.tags.slice(0, 3).map((tag, index) => (
-              <span
-                key={index}
-                className="bg-[#374151] text-[#d1d5db] px-2 py-0.5 rounded text-xs font-medium"
-              >
-                {tag}
-              </span>
-            ))}
-            {uiMeta.tags.length > 3 && (
-              <span className="text-[#9ca3af] text-xs py-0.5">+{uiMeta.tags.length - 3}</span>
-            )}
+            </svg>
           </div>
         )}
-
-        {/* Pricing Section */}
-        {pricingOptions && hasPricingOptions(tool.metadata) && (
-          <PricingSection pricingOptions={pricingOptions} />
-        )}
-
-        {/* Products Indicator */}
-        {hasProducts(tool) && tool.products.length > 1 && (
-          <div className="mb-3 text-xs text-[#9ca3af] italic">
-            {tool.products.length} plans available
-          </div>
-        )}
-
-        {/* Stats Bar with CTA */}
-        <div className="flex items-center justify-between mt-auto">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1">
-              <Star className="w-4 h-4 text-[#3ecf8e] fill-[#3ecf8e]" />
-              <span className="text-[#ededed] font-bold text-sm">{engagement.rating?.toFixed(1) ?? '4.5'}</span>
-            </div>
-
-            <div className="flex items-center gap-1">
-              <Users className="w-4 h-4 text-[#9ca3af]" />
-              <span className="text-[#9ca3af] font-medium text-sm">
-                {formatAdoptions(engagement.adoption_count ?? 0)}
-              </span>
-            </div>
-          </div>
-
-          {/* CTA Buttons */}
-          <div className="flex items-center gap-2">
-            {mode === 'marketing' && onViewClick && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onViewClick();
-                }}
-                className="text-[#9ca3af] hover:text-[#d1d5db] px-3 py-1.5 text-xs font-bold transition-colors flex items-center gap-1"
-              >
-                view
-              </button>
-            )}
-
-            {onLaunchClick && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onLaunchClick();
-                }}
-                className="bg-[#3ecf8e] text-black px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#2dd4bf] transition-all flex items-center gap-1 group-hover:gap-2"
-              >
-                {mode === 'dashboard' ? 'launch' : 'start'}
-                <ExternalLink className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-        </div>
       </div>
     </div>
+  </div>
+
+  {/* Description - Fixed height to prevent layout shifts */}
+<div className="h-10 mb-3">
+  <p className="text-[#9ca3af] text-sm line-clamp-2 leading-relaxed">
+    {tool.description}
+  </p>
+</div>
+
+{/* Preview Image - Large, full width with gradient overlay on hover */ }
+<div className="mb-3 rounded-md overflow-hidden bg-[#111111] -mx-4 w-[calc(100%+2rem)] relative aspect-video">
+  <div className="relative overflow-hidden w-full h-full">
+    {canShowHeroImage ? (
+      <Image
+        src={imageUrl as string}
+        alt={`${tool.name} preview`}
+        fill
+        className="object-cover object-center tool-card-image"
+        sizes="(max-width: 640px) 320px, (max-width: 1024px) 352px, 352px"
+        placeholder="blur"
+        blurDataURL="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mM8dv16PQAGwgK75n6TaAAAAABJRU5ErkJggg=="
+        priority={priority}
+        loading={priority ? 'eager' : 'lazy'}
+        onError={() => setHeroImageError(true)}
+      />
+    ) : (
+      <div className="w-full h-full flex items-center justify-center opacity-20">
+        <div className="text-6xl">{emoji || '🔧'}</div>
+      </div>
+    )}
+    {/* Gradient Overlay on Hover */}
+    <div className="absolute inset-0 bg-gradient-to-t from-[#1f2937]/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+  </div>
+  {(uiMeta.discount_percentage ?? 0) > 0 && (
+    <div className="absolute top-3 right-3 bg-gradient-to-r from-red-500 to-red-600 text-white px-3 py-1.5 rounded-lg shadow-lg animate-pulse-glow">
+      <span className="text-lg font-black">-{uiMeta.discount_percentage}%</span>
+    </div>
+  )}
+</div>
+
+{/* Tags - Always reserve space to prevent layout shifts */ }
+<div className="min-h-[1.75rem] mb-3">
+  {uiMeta.tags && uiMeta.tags.length > 0 && (
+    <div className="flex flex-wrap gap-1.5">
+      {uiMeta.tags.slice(0, 3).map((tag, index) => (
+        <span
+          key={index}
+          className="bg-[#374151] text-[#d1d5db] px-2 py-0.5 rounded text-xs font-medium"
+        >
+          {tag}
+        </span>
+      ))}
+      {uiMeta.tags.length > 3 && (
+        <span className="text-[#9ca3af] text-xs py-0.5">+{uiMeta.tags.length - 3}</span>
+      )}
+    </div>
+  )}
+</div>
+
+{/* Pricing Section - Always show, even if pricing is not available */ }
+<PricingSection
+  pricingOptions={effectivePricingOptions}
+  isFromProducts={lowestProductPrice !== null && !pricingOptions}
+/>
+
+{/* Products Indicator */ }
+{
+  hasProducts(tool) && tool.products.length > 1 && (
+    <div className="mb-3 text-xs text-[#9ca3af] italic">
+      {tool.products.length} plans available
+    </div>
+  )
+}
+
+{/* Stats Bar with CTA */ }
+<div className="flex items-center justify-between mt-auto">
+  <div className="flex items-center gap-3">
+    <div className="flex items-center gap-1">
+      <Star className="w-4 h-4 text-[#3ecf8e] fill-[#3ecf8e]" />
+      <span className="text-[#ededed] font-bold text-sm">{engagement.rating?.toFixed(1) ?? '4.5'}</span>
+    </div>
+
+    <div className="flex items-center gap-1">
+      <Users className="w-4 h-4 text-[#9ca3af]" />
+      <span className="text-[#9ca3af] font-medium text-sm">
+        {formatAdoptions(engagement.adoption_count ?? 0)}
+      </span>
+    </div>
+
+    {/* Website Link */}
+    {tool.url && !isLikelyImageUrl(tool.url) && (
+      <a
+        href={tool.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="flex items-center gap-1 text-[#9ca3af] hover:text-[#3ecf8e] transition-colors"
+        title="Visit website"
+      >
+        <ExternalLink className="w-3.5 h-3.5" />
+      </a>
+    )}
+  </div>
+
+  {/* CTA Buttons */}
+  <div className="flex items-center gap-2">
+    {mode === 'marketing' && onViewClick && (
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onViewClick();
+        }}
+        className="text-[#9ca3af] hover:text-[#d1d5db] px-3 py-1.5 text-xs font-bold transition-colors flex items-center gap-1"
+      >
+        view
+      </button>
+    )}
+
+    {onLaunchClick && (
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onLaunchClick();
+        }}
+        className="bg-[#3ecf8e] text-black px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#2dd4bf] transition-all flex items-center gap-1 group-hover:gap-2"
+      >
+        {mode === 'dashboard' ? 'launch' : 'start'}
+        <ExternalLink className="w-3.5 h-3.5" />
+      </button>
+    )}
+  </div>
+</div>
+</div >
+    </div >
   );
 }
 

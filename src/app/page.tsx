@@ -317,7 +317,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
           {/* Search Bar */}
-          <div className="mb-8 max-w-3xl mx-auto">
+          <div className="mb-8 max-w-3xl mx-auto" suppressHydrationWarning>
             <div className="text-center mb-4">
               <h2 className="text-2xl sm:text-3xl font-bold mb-2">explore our tools</h2>
               <p className="text-[#9ca3af]">search by name, category, or feature</p>

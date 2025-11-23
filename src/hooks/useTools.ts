@@ -3,6 +3,7 @@
 import useSWR from 'swr';
 import { createClient } from '@/lib/supabase/client';
 import { Tool } from '@/lib/tool-types';
+import { batchCountPayingUsers } from '@/lib/tool-payments';
 
 interface UseToolsReturn {
   tools: Tool[];
@@ -14,11 +15,12 @@ interface UseToolsReturn {
 /**
  * Fetcher function for SWR to get tools from Supabase
  * Fetches all tool data with products for complete information
+ * Enriches each tool with paying user counts for dynamic phase calculation
  */
 async function fetchTools(): Promise<Tool[]> {
   try {
     const supabase = createClient();
-    
+
     const { data: toolsData, error: fetchError } = await supabase
       .from('tools')
       .select(`
@@ -47,9 +49,30 @@ async function fetchTools(): Promise<Tool[]> {
         // Return empty array instead of throwing
         return [];
       }
-      
+
       console.error('Error fetching tools:', fetchError);
       throw new Error(`Failed to load tools: ${fetchError.message}`);
+    }
+
+    // Enrich tools with paying user counts for dynamic phase calculation
+    if (toolsData && toolsData.length > 0) {
+      try {
+        const toolIds = toolsData.map((t: Tool) => t.id);
+        const payingUserCounts = await batchCountPayingUsers(toolIds);
+
+        // Add paying user count to each tool's metadata
+        return toolsData.map((tool: Tool) => ({
+          ...tool,
+          metadata: {
+            ...tool.metadata,
+            paying_user_count: payingUserCounts.get(tool.id) ?? 0
+          }
+        }));
+      } catch (countError) {
+        console.error('Error counting paying users, continuing without counts:', countError);
+        // Return tools without counts on error (will default to Alpha phase)
+        return toolsData;
+      }
     }
 
     return toolsData || [];
@@ -57,7 +80,7 @@ async function fetchTools(): Promise<Tool[]> {
     // Check if it's a refresh token error (including AuthApiError)
     const errorMessage = err instanceof Error ? err.message : String(err);
     const errorName = err && typeof err === 'object' && 'name' in err ? String(err.name) : '';
-    
+
     if (
       errorName === 'AuthApiError' ||
       errorMessage.includes('Refresh Token') ||
@@ -76,7 +99,7 @@ async function fetchTools(): Promise<Tool[]> {
       // Return empty array instead of throwing to prevent UI errors
       return [];
     }
-    
+
     console.error('Unexpected error in fetchTools:', err);
     throw err;
   }
@@ -119,4 +142,3 @@ export function useTools(): UseToolsReturn {
     },
   };
 }
-
