@@ -1,6 +1,11 @@
 'use client';
 
-/**
+import { useState, memo } from 'react';
+import Image from 'next/image';
+import { Star, Users, ExternalLink } from 'lucide-react';
+import { Tool, ToolProduct, DEFAULT_UI_METADATA, DEFAULT_ENGAGEMENT_METRICS, hasProducts } from '@/lib/tool-types';
+import { PricingSection } from './PricingDisplay';
+
 // Legacy props format (for backward compatibility)
 export interface LegacyToolCardProps {
   id: number | string;
@@ -271,177 +276,172 @@ function ToolCardComponent(props: ToolCardProps) {
   const canShowHeroImage = hasHeroImage && !heroImageError;
   const canShowLogoImage = hasLogoImage && !logoImageError;
 
-        <Image
-          src={logoUrl as string}
-          alt={tool.name}
-          fill
-          className="object-cover"
-          sizes="48px"
-          loading="lazy"
-          onError={() => setLogoImageError(true)}
-        />
-      ) : emoji ? (
-        <div className="text-2xl">{emoji}</div>
-      ) : (
-        <div className="text-lg font-semibold text-[#ededed]">
-          {tool.name.slice(0, 1).toUpperCase()}
+  const cardClassName = `group bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg p-4 flex flex-col h-full transition-all hover:border-[#3ecf8e]/50 hover:shadow-lg hover:shadow-[#3ecf8e]/10 ${isHighlighted ? 'ring-2 ring-[#3ecf8e]' : ''}`;
+
+  return (
+    <div className={cardClassName}>
+      <div className="flex items-start gap-3 mb-3">
+        <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-[#2a2a2a] flex items-center justify-center overflow-hidden relative">
+          {canShowLogoImage ? (
+            <Image
+              src={logoUrl as string}
+              alt={tool.name}
+              fill
+              className="object-cover"
+              sizes="48px"
+              loading="lazy"
+              onError={() => setLogoImageError(true)}
+            />
+          ) : emoji ? (
+            <div className="text-2xl">{emoji}</div>
+          ) : (
+            <div className="text-lg font-semibold text-[#ededed]">
+              {tool.name.slice(0, 1).toUpperCase()}
+            </div>
+          )}
         </div>
-      )}
-    </div>
 
-    <div className="flex-1 min-w-0">
-      <div className="flex items-start justify-between gap-2">
-        <h3 className="font-bold text-base text-[#ededed] group-hover:text-[#3ecf8e] transition-colors line-clamp-1">
-          {tool.name}
-        </h3>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="font-bold text-base text-[#ededed] group-hover:text-[#3ecf8e] transition-colors line-clamp-1">
+              {tool.name}
+            </h3>
 
-        {uiMeta.verified && (
-          <div className="flex-shrink-0 bg-blue-500/20 text-blue-400 p-1 rounded">
-            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-              <path
-                fillRule="evenodd"
-                d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                clipRule="evenodd"
-              />
-            </svg>
+            {uiMeta.verified && (
+              <div className="flex-shrink-0 bg-blue-500/20 text-blue-400 p-1 rounded">
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path
+                    fillRule="evenodd"
+                    d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="h-10 mb-3">
+        <p className="text-[#9ca3af] text-sm line-clamp-2 leading-relaxed">
+          {tool.description}
+        </p>
+      </div>
+
+      <div className="mb-3 rounded-md overflow-hidden bg-[#111111] -mx-4 w-[calc(100%+2rem)] relative aspect-video">
+        <div className="relative overflow-hidden w-full h-full">
+          {canShowHeroImage ? (
+            <Image
+              src={imageUrl as string}
+              alt={`${tool.name} preview`}
+              fill
+              className="object-cover object-center tool-card-image"
+              sizes="(max-width: 640px) 320px, (max-width: 1024px) 352px, 352px"
+              placeholder="blur"
+              blurDataURL="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mM8dv16PQAGwgK75n6TaAAAAABJRU5ErkJggg=="
+              priority={priority}
+              loading={priority ? 'eager' : 'lazy'}
+              onError={() => setHeroImageError(true)}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center opacity-20">
+              <div className="text-6xl">{emoji || '🔧'}</div>
+            </div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#1f2937]/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+        </div>
+        {(uiMeta.discount_percentage ?? 0) > 0 && (
+          <div className="absolute top-3 right-3 bg-gradient-to-r from-red-500 to-red-600 text-white px-3 py-1.5 rounded-lg shadow-lg animate-pulse-glow">
+            <span className="text-lg font-black">-{uiMeta.discount_percentage}%</span>
           </div>
         )}
       </div>
-    </div>
-  </div>
 
-  {/* Description - Fixed height to prevent layout shifts */}
-<div className="h-10 mb-3">
-  <p className="text-[#9ca3af] text-sm line-clamp-2 leading-relaxed">
-    {tool.description}
-  </p>
-</div>
-
-{/* Preview Image - Large, full width with gradient overlay on hover */ }
-<div className="mb-3 rounded-md overflow-hidden bg-[#111111] -mx-4 w-[calc(100%+2rem)] relative aspect-video">
-  <div className="relative overflow-hidden w-full h-full">
-    {canShowHeroImage ? (
-      <Image
-        src={imageUrl as string}
-        alt={`${tool.name} preview`}
-        fill
-        className="object-cover object-center tool-card-image"
-        sizes="(max-width: 640px) 320px, (max-width: 1024px) 352px, 352px"
-        placeholder="blur"
-        blurDataURL="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mM8dv16PQAGwgK75n6TaAAAAABJRU5ErkJggg=="
-        priority={priority}
-        loading={priority ? 'eager' : 'lazy'}
-        onError={() => setHeroImageError(true)}
-      />
-    ) : (
-      <div className="w-full h-full flex items-center justify-center opacity-20">
-        <div className="text-6xl">{emoji || '🔧'}</div>
+      <div className="min-h-[1.75rem] mb-3">
+        {uiMeta.tags && uiMeta.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {uiMeta.tags.slice(0, 3).map((tag, index) => (
+              <span
+                key={index}
+                className="bg-[#374151] text-[#d1d5db] px-2 py-0.5 rounded text-xs font-medium"
+              >
+                {tag}
+              </span>
+            ))}
+            {uiMeta.tags.length > 3 && (
+              <span className="text-[#9ca3af] text-xs py-0.5">+{uiMeta.tags.length - 3}</span>
+            )}
+          </div>
+        )}
       </div>
-    )}
-    {/* Gradient Overlay on Hover */}
-    <div className="absolute inset-0 bg-gradient-to-t from-[#1f2937]/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-  </div>
-  {(uiMeta.discount_percentage ?? 0) > 0 && (
-    <div className="absolute top-3 right-3 bg-gradient-to-r from-red-500 to-red-600 text-white px-3 py-1.5 rounded-lg shadow-lg animate-pulse-glow">
-      <span className="text-lg font-black">-{uiMeta.discount_percentage}%</span>
-    </div>
-  )}
-</div>
 
-{/* Tags - Always reserve space to prevent layout shifts */ }
-<div className="min-h-[1.75rem] mb-3">
-  {uiMeta.tags && uiMeta.tags.length > 0 && (
-    <div className="flex flex-wrap gap-1.5">
-      {uiMeta.tags.slice(0, 3).map((tag, index) => (
-        <span
-          key={index}
-          className="bg-[#374151] text-[#d1d5db] px-2 py-0.5 rounded text-xs font-medium"
-        >
-          {tag}
-        </span>
-      ))}
-      {uiMeta.tags.length > 3 && (
-        <span className="text-[#9ca3af] text-xs py-0.5">+{uiMeta.tags.length - 3}</span>
+      <PricingSection
+        pricingOptions={effectivePricingOptions}
+        isFromProducts={lowestProductPrice !== null && !pricingOptions}
+      />
+
+      {hasProducts(tool) && tool.products && tool.products.length > 1 && (
+        <div className="mb-3 text-xs text-[#9ca3af] italic">
+          {tool.products.length} plans available
+        </div>
       )}
+
+      <div className="flex items-center justify-between mt-auto">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1">
+            <Star className="w-4 h-4 text-[#3ecf8e] fill-[#3ecf8e]" />
+            <span className="text-[#ededed] font-bold text-sm">{engagement.rating?.toFixed(1) ?? '4.5'}</span>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <Users className="w-4 h-4 text-[#9ca3af]" />
+            <span className="text-[#9ca3af] font-medium text-sm">
+              {formatAdoptions(engagement.adoption_count ?? 0)}
+            </span>
+          </div>
+
+          {tool.url && !isLikelyImageUrl(tool.url) && (
+            <a
+              href={tool.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center gap-1 text-[#9ca3af] hover:text-[#3ecf8e] transition-colors"
+              title="Visit website"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {mode === 'marketing' && onViewClick && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewClick();
+              }}
+              className="text-[#9ca3af] hover:text-[#d1d5db] px-3 py-1.5 text-xs font-bold transition-colors flex items-center gap-1"
+            >
+              view
+            </button>
+          )}
+
+          {onLaunchClick && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onLaunchClick();
+              }}
+              className="bg-[#3ecf8e] text-black px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#2dd4bf] transition-all flex items-center gap-1 group-hover:gap-2"
+            >
+              {mode === 'dashboard' ? 'launch' : 'start'}
+              <ExternalLink className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
     </div>
-  )}
-</div>
-
-{/* Pricing Section - Always show, even if pricing is not available */ }
-<PricingSection
-  pricingOptions={effectivePricingOptions}
-  isFromProducts={lowestProductPrice !== null && !pricingOptions}
-/>
-
-{/* Products Indicator */ }
-{
-  hasProducts(tool) && tool.products.length > 1 && (
-    <div className="mb-3 text-xs text-[#9ca3af] italic">
-      {tool.products.length} plans available
-    </div>
-  )
-}
-
-{/* Stats Bar with CTA */ }
-<div className="flex items-center justify-between mt-auto">
-  <div className="flex items-center gap-3">
-    <div className="flex items-center gap-1">
-      <Star className="w-4 h-4 text-[#3ecf8e] fill-[#3ecf8e]" />
-      <span className="text-[#ededed] font-bold text-sm">{engagement.rating?.toFixed(1) ?? '4.5'}</span>
-    </div>
-
-    <div className="flex items-center gap-1">
-      <Users className="w-4 h-4 text-[#9ca3af]" />
-      <span className="text-[#9ca3af] font-medium text-sm">
-        {formatAdoptions(engagement.adoption_count ?? 0)}
-      </span>
-    </div>
-
-    {/* Website Link */}
-    {tool.url && !isLikelyImageUrl(tool.url) && (
-      <a
-        href={tool.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={(e) => e.stopPropagation()}
-        className="flex items-center gap-1 text-[#9ca3af] hover:text-[#3ecf8e] transition-colors"
-        title="Visit website"
-      >
-        <ExternalLink className="w-3.5 h-3.5" />
-      </a>
-    )}
-  </div>
-
-  {/* CTA Buttons */}
-  <div className="flex items-center gap-2">
-    {mode === 'marketing' && onViewClick && (
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onViewClick();
-        }}
-        className="text-[#9ca3af] hover:text-[#d1d5db] px-3 py-1.5 text-xs font-bold transition-colors flex items-center gap-1"
-      >
-        view
-      </button>
-    )}
-
-    {onLaunchClick && (
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onLaunchClick();
-        }}
-        className="bg-[#3ecf8e] text-black px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#2dd4bf] transition-all flex items-center gap-1 group-hover:gap-2"
-      >
-        {mode === 'dashboard' ? 'launch' : 'start'}
-        <ExternalLink className="w-3.5 h-3.5" />
-      </button>
-    )}
-  </div>
-</div>
-</div >
-    </div >
   );
 }
 
