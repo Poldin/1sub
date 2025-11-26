@@ -5,19 +5,18 @@
  * This file is for client-side operations only.
  * 
  * Credits are stored in the credit_transactions table as a ledger.
- * The user's current balance is stored in balance_after field of the latest transaction.
+ * Balance is calculated dynamically by summing all credit and debit transactions.
  * 
  * Migration Note:
- * - Use getCurrentBalanceClient() for all balance checks (uses balance_after)
- * - calculateCreditsFromTransactions() is kept only for validation purposes
- * - Do NOT use calculateCreditsFromTransactions() for balance checks in production code
+ * - Use getCurrentBalanceClient() for all balance checks (calculates from transactions)
+ * - calculateCreditsFromTransactions() is the implementation used by getCurrentBalanceClient()
  */
 
 import { createClient } from '@/lib/supabase/client';
 
 interface CreditTransaction {
   credits_amount: number;
-  type: 'add' | 'subtract';
+  type: 'credit' | 'debit';
 }
 
 /**
@@ -41,9 +40,9 @@ export function calculateCreditsFromTransactions(transactions: CreditTransaction
 
   return transactions.reduce((sum, transaction) => {
     const amount = transaction.credits_amount || 0;
-    if (transaction.type === 'add') {
+    if (transaction.type === 'credit') {
       return sum + amount;
-    } else if (transaction.type === 'subtract') {
+    } else if (transaction.type === 'debit') {
       return sum - amount;
     }
     return sum;
@@ -66,24 +65,22 @@ export async function getCurrentBalanceClient(userId: string): Promise<number | 
   try {
     const supabase = createClient();
     
-    const { data: transaction, error } = await supabase
+    const { data: transactions, error } = await supabase
       .from('credit_transactions')
-      .select('balance_after')
+      .select('credits_amount, type')
       .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+      .order('created_at', { ascending: true });
 
     if (error) {
-      // If no transactions found, return 0
-      if (error.code === 'PGRST116') {
-        return 0;
-      }
-      console.error('Error fetching current balance:', error);
+      console.error('Error fetching transactions for balance:', error);
       return null;
     }
 
-    return transaction?.balance_after ?? 0;
+    if (!transactions || transactions.length === 0) {
+      return 0;
+    }
+
+    return calculateCreditsFromTransactions(transactions);
   } catch (err) {
     console.error('Error in getCurrentBalanceClient:', err);
     return null;
@@ -97,7 +94,7 @@ export async function getCurrentBalanceClient(userId: string): Promise<number | 
  * Use getCurrentBalanceClient() instead for better performance.
  * 
  * This function should only be used for:
- * - Validation against balance_after
+ * - Validation of calculated balance
  * - Debugging balance inconsistencies
  * - Testing
  * 
@@ -129,7 +126,7 @@ export async function getUserCreditsClient(userId: string): Promise<number | nul
 }
 
 /**
- * Get the last balance_after value from credit_transactions (client-side)
+ * Calculate balance from all credit_transactions (client-side)
  * 
  * This is an alias for getCurrentBalanceClient() for backward compatibility.
  * 
@@ -142,7 +139,7 @@ export async function getLastBalanceClient(userId: string): Promise<number | nul
 }
 
 /**
- * Validate balance consistency by comparing balance_after with calculated balance (client-side)
+ * Validate balance consistency by comparing calculated balances (client-side)
  * This should be used for debugging and validation purposes only.
  * 
  * @param userId - User ID to validate
@@ -150,41 +147,28 @@ export async function getLastBalanceClient(userId: string): Promise<number | nul
  */
 export async function validateBalanceConsistency(userId: string): Promise<{
   isConsistent: boolean;
-  balanceFromLatest: number;
-  balanceFromCalculation: number;
-  discrepancy: number;
+  balance: number;
 } | null> {
   if (!userId) return null;
 
   try {
-    const balanceFromLatest = await getCurrentBalanceClient(userId);
-    const balanceFromCalculation = await getUserCreditsClient(userId);
+    const balance = await getCurrentBalanceClient(userId);
 
-    if (balanceFromLatest === null || balanceFromCalculation === null) {
+    if (balance === null) {
       return null;
     }
 
-    const isConsistent = balanceFromLatest === balanceFromCalculation;
-    const discrepancy = balanceFromLatest - balanceFromCalculation;
-
-    if (!isConsistent) {
-      console.warn(`Balance inconsistency detected for user ${userId}:`, {
-        balanceFromLatest,
-        balanceFromCalculation,
-        discrepancy
-      });
-    }
-
+    // Since we now calculate balance dynamically, consistency is always true
+    // This function is kept for backward compatibility
     return {
-      isConsistent,
-      balanceFromLatest,
-      balanceFromCalculation,
-      discrepancy
+      isConsistent: true,
+      balance
     };
   } catch (err) {
     console.error('Error in validateBalanceConsistency:', err);
     return null;
   }
 }
+
 
 

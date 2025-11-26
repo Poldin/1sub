@@ -5,7 +5,7 @@
  * All credit additions, subtractions, and balance checks should go through this service.
  * 
  * Key principles:
- * - Uses balance_after from latest transaction for performance
+ * - Calculates balance dynamically from all transactions
  * - Implements optimistic locking to prevent race conditions
  * - Supports idempotency keys for all operations
  * - Validates balance consistency periodically
@@ -22,7 +22,6 @@ interface CreditTransaction {
   user_id: string;
   credits_amount: number;
   type: CreditTransactionType;
-  balance_after: number | null;
   reason: string | null;
   idempotency_key: string | null;
   checkout_id: string | null;
@@ -68,8 +67,8 @@ interface BalanceValidationResult {
 }
 
 /**
- * Get the current balance for a user using the latest balance_after value
- * This is the primary method for checking balances (fast and accurate)
+ * Get the current balance for a user by calculating from all transactions
+ * This calculates balance by summing all credit and debit transactions
  */
 export async function getCurrentBalance(userId: string): Promise<number> {
   if (!userId) {
@@ -78,25 +77,32 @@ export async function getCurrentBalance(userId: string): Promise<number> {
 
   const supabase = await createClient();
 
-  // Get the latest transaction to get balance_after
-  const { data: transaction, error } = await supabase
+  // Get all transactions for the user
+  const { data: transactions, error } = await supabase
     .from('credit_transactions')
-    .select('balance_after')
+    .select('credits_amount, type')
     .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
+    .order('created_at', { ascending: true });
 
   if (error) {
-    // If no transactions found (PGRST116), return 0
-    if (error.code === 'PGRST116') {
-      return 0;
-    }
-    console.error('Error fetching current balance:', error);
+    console.error('Error fetching transactions for balance:', error);
     throw new Error('Failed to fetch current balance');
   }
 
-  return transaction?.balance_after ?? 0;
+  if (!transactions || transactions.length === 0) {
+    return 0;
+  }
+
+  // Calculate balance by summing credits and subtracting debits
+  return transactions.reduce((balance, transaction) => {
+    const amount = transaction.credits_amount || 0;
+    if (transaction.type === 'credit') {
+      return balance + amount;
+    } else if (transaction.type === 'debit') {
+      return balance - amount;
+    }
+    return balance;
+  }, 0);
 }
 
 /**
@@ -139,19 +145,20 @@ export async function addCredits(params: AddCreditsParams): Promise<CreditOperat
     if (idempotencyKey) {
       const { data: existing, error: existingError } = await supabase
         .from('credit_transactions')
-        .select('id, balance_after, credits_amount')
+        .select('id, credits_amount')
         .eq('user_id', userId)
         .eq('idempotency_key', idempotencyKey)
         .single();
 
       if (!existingError && existing) {
-        // Transaction already processed, return existing result
-        const balanceBefore = (existing.balance_after ?? 0) - (existing.credits_amount ?? 0);
+        // Transaction already processed, calculate current balance
+        const balanceAfter = await getCurrentBalance(userId);
+        const balanceBefore = balanceAfter - (existing.credits_amount ?? 0);
         return {
           success: true,
           transactionId: existing.id,
           balanceBefore,
-          balanceAfter: existing.balance_after ?? 0,
+          balanceAfter,
         };
       }
     }
@@ -166,8 +173,7 @@ export async function addCredits(params: AddCreditsParams): Promise<CreditOperat
       .insert({
         user_id: userId,
         credits_amount: amount,
-        type: 'add',
-        balance_after: balanceAfter,
+        type: 'credit',
         reason,
         idempotency_key: idempotencyKey,
         checkout_id: checkoutId,
@@ -244,19 +250,20 @@ export async function subtractCredits(params: SubtractCreditsParams): Promise<Cr
     if (idempotencyKey) {
       const { data: existing, error: existingError } = await supabase
         .from('credit_transactions')
-        .select('id, balance_after, credits_amount')
+        .select('id, credits_amount')
         .eq('user_id', userId)
         .eq('idempotency_key', idempotencyKey)
         .single();
 
       if (!existingError && existing) {
-        // Transaction already processed, return existing result
-        const balanceBefore = (existing.balance_after ?? 0) + (existing.credits_amount ?? 0);
+        // Transaction already processed, calculate current balance
+        const balanceAfter = await getCurrentBalance(userId);
+        const balanceBefore = balanceAfter + (existing.credits_amount ?? 0);
         return {
           success: true,
           transactionId: existing.id,
           balanceBefore,
-          balanceAfter: existing.balance_after ?? 0,
+          balanceAfter,
         };
       }
     }
@@ -282,8 +289,7 @@ export async function subtractCredits(params: SubtractCreditsParams): Promise<Cr
       .insert({
         user_id: userId,
         credits_amount: amount,
-        type: 'subtract',
-        balance_after: balanceAfter,
+        type: 'debit',
         reason,
         idempotency_key: idempotencyKey,
         checkout_id: checkoutId,
@@ -321,8 +327,8 @@ export async function subtractCredits(params: SubtractCreditsParams): Promise<Cr
 }
 
 /**
- * Calculate balance from all transactions (for validation only)
- * This is slower but can be used to validate the balance_after values
+ * Calculate balance from all transactions
+ * This is used for validation and consistency checks
  */
 async function calculateBalanceFromAllTransactions(userId: string): Promise<number> {
   if (!userId) {
@@ -348,9 +354,9 @@ async function calculateBalanceFromAllTransactions(userId: string): Promise<numb
 
   return transactions.reduce((sum, transaction) => {
     const amount = transaction.credits_amount || 0;
-    if (transaction.type === 'add') {
+    if (transaction.type === 'credit') {
       return sum + amount;
-    } else if (transaction.type === 'subtract') {
+    } else if (transaction.type === 'debit') {
       return sum - amount;
     }
     return sum;
@@ -358,7 +364,7 @@ async function calculateBalanceFromAllTransactions(userId: string): Promise<numb
 }
 
 /**
- * Validate that the balance_after in the latest transaction matches the calculated balance
+ * Validate balance consistency by comparing calculated balance
  * This should be called periodically to ensure data consistency
  */
 export async function validateBalance(userId: string): Promise<BalanceValidationResult> {
@@ -449,4 +455,5 @@ export async function getTransactionHistory(
 
   return (transactions || []) as CreditTransaction[];
 }
+
 

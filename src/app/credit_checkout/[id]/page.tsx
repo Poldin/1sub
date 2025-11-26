@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { Lock, Check, ExternalLink, Wrench, AlertCircle, Loader2 } from 'lucide-react';
 import { ProductPricingModel } from '@/lib/tool-types';
 import { BuyCreditsDialog } from '../components/BuyCreditsDialog';
+import { OTPDialog } from '../components/OTPDialog';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -75,6 +76,7 @@ export default function CreditCheckoutPage() {
   const [toolDescription, setToolDescription] = useState<string | null>(null);
   const [showAllPlans, setShowAllPlans] = useState(false);
   const [showBuyCreditsDialog, setShowBuyCreditsDialog] = useState(false);
+  const [showOTPDialog, setShowOTPDialog] = useState(false);
   const [purchaseSuccess, setPurchaseSuccess] = useState(false);
   const [purchaseData, setPurchaseData] = useState<{
     toolUrl: string;
@@ -188,29 +190,17 @@ export default function CreditCheckoutPage() {
       return;
     }
 
-    // Get the selected price
-    let selectedPrice = checkout.credit_amount || 0;
+    // Open OTP dialog instead of processing directly
+    setShowOTPDialog(true);
+    setError(null);
+  };
 
-    if (hasProducts && selectedPricing) {
-      const product = checkout.metadata.products!.find((p: CheckoutProduct) => p.id === selectedPricing);
-      if (product) {
-        const pm = product.pricing_model;
-        if (pm.one_time?.enabled && pm.one_time.price) selectedPrice = pm.one_time.price;
-        else if (pm.subscription?.enabled && pm.subscription.price) selectedPrice = pm.subscription.price;
-        else if (pm.usage_based?.enabled && pm.usage_based.price_per_unit) selectedPrice = pm.usage_based.price_per_unit;
-      }
-    } else if (hasPricingOptions && selectedPricing) {
-      const pricingOption = checkout.metadata.pricing_options?.[selectedPricing as keyof typeof checkout.metadata.pricing_options];
-      if (pricingOption) {
-        selectedPrice = pricingOption.price;
-      }
-    }
-
-    // Remove client-side balance check - let backend handle it atomically
-    // This prevents race conditions and ensures accurate balance validation
+  const handleOTPVerified = async (otp: string) => {
+    if (!checkout || !user) return;
 
     setIsProcessing(true);
     setError(null);
+    setShowOTPDialog(false);
 
     try {
       const response = await fetch('/api/checkout/process', {
@@ -1009,6 +999,20 @@ export default function CreditCheckoutPage() {
           }
         }}
       />
+
+      {/* OTP Dialog */}
+      {user && (
+        <OTPDialog
+          isOpen={showOTPDialog}
+          onClose={() => {
+            setShowOTPDialog(false);
+            setError(null);
+          }}
+          onVerify={handleOTPVerified}
+          checkoutId={checkoutId}
+          userEmail={user.email}
+        />
+      )}
     </div>
   );
 }

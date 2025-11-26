@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentBalance, addCredits, subtractCredits } from '@/lib/credits-service';
+import { transferCredits, createDebitTransaction, getCurrentBalance } from '@/lib/actions/credit-transactions';
 import { generateToolAccessToken } from '@/lib/jwt';
 import { notifySubscriptionActivated } from '@/lib/tool-webhooks';
 
@@ -76,6 +76,15 @@ export async function POST(request: NextRequest) {
           is_duplicate: true,
         },
         { status: 200 }
+      );
+    }
+
+    // 4.5. OTP VERIFICATION CHECK: Ensure OTP has been verified
+    // If OTP exists, it means it hasn't been verified yet
+    if (checkout.otp) {
+      return NextResponse.json(
+        { error: 'OTP verification required. Please verify the OTP code sent to your email.' },
+        { status: 400 }
       );
     }
 
@@ -196,187 +205,161 @@ export async function POST(request: NextRequest) {
       hasEnough: preCheckBalance >= creditCost
     });
 
-    // 7. ATOMIC OPERATION: Subtract credits from user using RPC with row-level locking
-    // This prevents race conditions and ensures atomic balance checks and deductions
-    const { data: consumeResult, error: consumeError } = await supabase
-      .rpc('consume_credits', {
-        p_user_id: authUser.id,
-        p_amount: creditCost,
-        p_reason: transactionReason,
-        p_idempotency_key: idempotencyKey || `checkout-${checkout.id}-user`,
-        p_tool_id: metadata.tool_id as string,
-        p_metadata: {
+    // 7. ATOMIC OPERATION: Transfer credits from buyer to vendor
+    // This creates TWO transactions atomically:
+    // 1. DEBIT transaction for buyer (subtracts credits)
+    // 2. CREDIT transaction for vendor (adds credits)
+    let transferResult;
+    let vendorTransactionWarning = null;
+    let userTransactionResultCompat;
+
+    if (checkout.vendor_id) {
+      // Transfer credits from buyer to vendor (creates both DEBIT and CREDIT)
+      transferResult = await transferCredits({
+        fromUserId: authUser.id,
+        toUserId: checkout.vendor_id,
+        amount: creditCost,
+        reason: transactionReason,
+        idempotencyKey: idempotencyKey || `checkout-${checkout.id}`,
+        checkoutId: checkout.id,
+        toolId: metadata.tool_id as string,
+        metadata: {
           tool_name: metadata.tool_name,
           tool_url: metadata.tool_url,
           checkout_type: checkoutType,
           selected_pricing: selected_pricing || null,
-          checkout_id: checkout.id,
-        }
+          buyer_id: authUser.id,
+        },
       });
 
-    if (consumeError) {
-      console.error('Credit consumption RPC error:', consumeError);
-      return NextResponse.json(
-        { 
-          error: 'Failed to process payment',
-          details: consumeError.message
-        },
-        { status: 500 }
-      );
-    }
-
-    // Check if result is null or undefined
-    if (!consumeResult) {
-      console.error('Credit consumption RPC returned null/undefined result', {
-        userId: authUser.id,
+      // Log the result for debugging
+      console.log('[DEBUG][checkout/process] Credit transfer result:', {
+        success: transferResult.success,
+        debitTransactionId: transferResult.debitTransactionId,
+        creditTransactionId: transferResult.creditTransactionId,
+        fromBalanceBefore: transferResult.fromBalanceBefore,
+        fromBalanceAfter: transferResult.fromBalanceAfter,
+        toBalanceBefore: transferResult.toBalanceBefore,
+        toBalanceAfter: transferResult.toBalanceAfter,
+        error: transferResult.error,
         creditCost,
-        checkoutId: checkout.id
+        buyerId: authUser.id,
+        vendorId: checkout.vendor_id
       });
-      return NextResponse.json(
-        { 
-          error: 'Failed to process payment',
-          details: 'No result returned from credit consumption service'
-        },
-        { status: 500 }
-      );
-    }
 
-    // Parse RPC result - handle both direct object and JSONB string
-    let userTransactionResult: {
-      success: boolean;
-      transaction_id?: string;
-      balance_before: number;
-      balance_after: number;
-      is_duplicate?: boolean;
-      error?: string;
-      required?: number;
-    };
-
-    // If result is a string (JSONB), parse it
-    if (typeof consumeResult === 'string') {
-      try {
-        userTransactionResult = JSON.parse(consumeResult);
-      } catch (parseError) {
-        console.error('Failed to parse RPC result as JSON:', parseError, {
-          rawResult: consumeResult,
-          userId: authUser.id,
-          creditCost
+      if (!transferResult.success) {
+        console.error('Credit transfer failed:', {
+          error: transferResult.error,
+          fromBalanceBefore: transferResult.fromBalanceBefore,
+          creditCost,
+          buyerId: authUser.id,
+          vendorId: checkout.vendor_id,
+          checkoutId: checkout.id,
+          preCheckBalance
         });
+        
+        // Calculate shortfall for better error messaging
+        const shortfall = transferResult.error === 'Insufficient credits' 
+          ? creditCost - transferResult.fromBalanceBefore
+          : 0;
+        
+        // If there's a discrepancy between pre-check and transaction balance, log it
+        if (preCheckBalance !== undefined && preCheckBalance !== transferResult.fromBalanceBefore) {
+          console.warn('[WARN][checkout/process] Balance discrepancy detected:', {
+            preCheckBalance,
+            transactionBalance: transferResult.fromBalanceBefore,
+            difference: preCheckBalance - transferResult.fromBalanceBefore,
+            userId: authUser.id
+          });
+        }
+        
         return NextResponse.json(
           { 
-            error: 'Failed to process payment',
-            details: 'Invalid response format from credit service'
+            error: transferResult.error || 'Failed to process payment',
+            current_balance: transferResult.fromBalanceBefore,
+            required: creditCost,
+            shortfall: shortfall > 0 ? shortfall : undefined,
+            pre_check_balance: preCheckBalance !== undefined ? preCheckBalance : undefined
           },
-          { status: 500 }
+          { status: transferResult.error === 'Insufficient credits' ? 400 : 500 }
         );
       }
-    } else {
-      userTransactionResult = consumeResult as typeof userTransactionResult;
-    }
 
-    // Log the result for debugging
-    console.log('[DEBUG][checkout/process] Credit consumption result:', {
-      success: userTransactionResult.success,
-      balance_before: userTransactionResult.balance_before,
-      balance_after: userTransactionResult.balance_after,
-      error: userTransactionResult.error,
-      required: userTransactionResult.required,
-      creditCost,
-      userId: authUser.id
-    });
-
-    if (!userTransactionResult.success) {
-      console.error('User transaction failed:', {
-        error: userTransactionResult.error,
-        balance_before: userTransactionResult.balance_before,
-        required: userTransactionResult.required || creditCost,
-        creditCost,
-        userId: authUser.id,
-        checkoutId: checkout.id,
-        preCheckBalance
-      });
-      
-      // Calculate shortfall for better error messaging
-      const shortfall = userTransactionResult.error === 'Insufficient credits' 
-        ? (userTransactionResult.required || creditCost) - userTransactionResult.balance_before
-        : 0;
-      
-      // If there's a discrepancy between pre-check and RPC balance, log it
-      if (preCheckBalance !== undefined && preCheckBalance !== userTransactionResult.balance_before) {
-        console.warn('[WARN][checkout/process] Balance discrepancy detected:', {
-          preCheckBalance,
-          rpcBalance: userTransactionResult.balance_before,
-          difference: preCheckBalance - userTransactionResult.balance_before,
-          userId: authUser.id
-        });
-      }
-      
-      return NextResponse.json(
-        { 
-          error: userTransactionResult.error || 'Failed to process payment',
-          current_balance: userTransactionResult.balance_before,
-          required: creditCost,
-          shortfall: shortfall > 0 ? shortfall : undefined,
-          pre_check_balance: preCheckBalance !== undefined ? preCheckBalance : undefined
-        },
-        { status: userTransactionResult.error === 'Insufficient credits' ? 400 : 500 }
-      );
-    }
-
-    // Map RPC result to expected format for backward compatibility
-    const mappedUserResult = {
-      success: true,
-      transactionId: userTransactionResult.transaction_id,
-      balanceBefore: userTransactionResult.balance_before,
-      balanceAfter: userTransactionResult.balance_after,
-    };
-
-    // Transaction success logged via audit system
-    // Use mapped result for compatibility with rest of the code
-    const userTransactionResultCompat = mappedUserResult;
-
-    // 8. ATOMIC OPERATION: Add credits to vendor using credit service
-    // This ensures atomicity and proper balance tracking
-    let vendorTransactionWarning = null;
-    let vendorTransactionResult = null;
-
-    if (checkout.vendor_id) {
-      vendorTransactionResult = await addCredits({
-        userId: checkout.vendor_id,
-        amount: creditCost,
-        reason: `Tool sale: ${metadata.tool_name}`,
-        idempotencyKey: idempotencyKey || `checkout-${checkout.id}-vendor`,
-        checkoutId: checkout.id,
-        toolId: metadata.tool_id as string,
-        metadata: {
-          buyer_id: authUser.id,
-          tool_name: metadata.tool_name,
-        },
-      });
-
-      if (!vendorTransactionResult.success) {
-        console.error('CRITICAL: Vendor transaction creation failed:', {
-          error: vendorTransactionResult.error,
+      // Check if vendor credit transaction failed (partial success)
+      if (transferResult.error && transferResult.error.includes('credit transaction failed')) {
+        console.error('CRITICAL: Vendor credit transaction failed:', {
+          error: transferResult.error,
           vendor_id: checkout.vendor_id,
           checkout_id: checkout.id,
           tool_id: metadata.tool_id,
           tool_name: metadata.tool_name,
           credit_cost: creditCost,
           buyer_id: authUser.id,
+          debitTransactionId: transferResult.debitTransactionId,
         });
         vendorTransactionWarning = 'Vendor earnings may not have been recorded. Please contact support.';
-        
-        // NOTE: In a traditional ACID database, we would rollback the user transaction here.
-        // With Supabase, we log this as a critical error for manual intervention.
-        // Future improvement: Implement a compensation table to track failed vendor transactions
       } else {
-        console.log('[DEBUG][checkout/process] Vendor transaction successful', {
-          transactionId: vendorTransactionResult.transactionId,
-          balanceBefore: vendorTransactionResult.balanceBefore,
-          balanceAfter: vendorTransactionResult.balanceAfter,
+        console.log('[DEBUG][checkout/process] Transfer successful - both transactions created', {
+          debitTransactionId: transferResult.debitTransactionId,
+          creditTransactionId: transferResult.creditTransactionId,
+          buyerBalanceBefore: transferResult.fromBalanceBefore,
+          buyerBalanceAfter: transferResult.fromBalanceAfter,
+          vendorBalanceBefore: transferResult.toBalanceBefore,
+          vendorBalanceAfter: transferResult.toBalanceAfter,
         });
       }
+
+      // Map transfer result to expected format for backward compatibility
+      userTransactionResultCompat = {
+        success: true,
+        transactionId: transferResult.debitTransactionId,
+        balanceBefore: transferResult.fromBalanceBefore,
+        balanceAfter: transferResult.fromBalanceAfter,
+      };
     } else {
+      // No vendor_id - this is a platform purchase (e.g., topup)
+      // Only create debit transaction for buyer
+      const userTransactionResult = await createDebitTransaction({
+        userId: authUser.id,
+        amount: creditCost,
+        reason: transactionReason,
+        idempotencyKey: idempotencyKey || `checkout-${checkout.id}-user`,
+        toolId: metadata.tool_id as string,
+        checkoutId: checkout.id,
+        metadata: {
+          tool_name: metadata.tool_name,
+          tool_url: metadata.tool_url,
+          checkout_type: checkoutType,
+          selected_pricing: selected_pricing || null,
+        },
+      });
+
+      if (!userTransactionResult.success) {
+        console.error('Debit transaction failed:', {
+          error: userTransactionResult.error,
+          balanceBefore: userTransactionResult.balanceBefore,
+          creditCost,
+          userId: authUser.id,
+          checkoutId: checkout.id,
+        });
+        
+        const shortfall = userTransactionResult.error === 'Insufficient credits' 
+          ? creditCost - userTransactionResult.balanceBefore
+          : 0;
+        
+        return NextResponse.json(
+          { 
+            error: userTransactionResult.error || 'Failed to process payment',
+            current_balance: userTransactionResult.balanceBefore,
+            required: creditCost,
+            shortfall: shortfall > 0 ? shortfall : undefined,
+          },
+          { status: userTransactionResult.error === 'Insufficient credits' ? 400 : 500 }
+        );
+      }
+
+      userTransactionResultCompat = userTransactionResult;
+
       console.warn('Checkout processed without vendor_id:', {
         checkout_id: checkout.id,
         tool_id: metadata.tool_id,
@@ -493,7 +476,7 @@ export async function POST(request: NextRequest) {
       completed_at: new Date().toISOString(),
       idempotency_key: idempotencyKey || `checkout-${checkout.id}`,
       user_transaction_id: userTransactionResultCompat.transactionId,
-      vendor_transaction_id: vendorTransactionResult?.transactionId,
+      vendor_transaction_id: transferResult?.creditTransactionId,
     };
 
     const { error: updateError } = await supabase
