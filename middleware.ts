@@ -45,6 +45,45 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
+  // Protect vendor dashboard routes - require vendor status
+  if (user && path.startsWith('/vendor-dashboard')) {
+    try {
+      // Use the supabase client from updateSession to check vendor status
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      
+      if (supabaseUrl && supabaseAnonKey) {
+        const { createServerClient } = await import('@supabase/ssr');
+        const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+          cookies: {
+            getAll() {
+              return request.cookies.getAll();
+            },
+            setAll() {
+              // No-op in middleware for read-only check
+            },
+          },
+        });
+        
+        const { data: profile, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('is_vendor')
+          .eq('id', user.id)
+          .single();
+
+        if (profileError || !profile?.is_vendor) {
+          // User is not a vendor, redirect to vendor application page
+          const redirectUrl = new URL('/vendors/apply', request.url);
+          redirectUrl.searchParams.set('redirect', path);
+          return NextResponse.redirect(redirectUrl);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking vendor status in middleware:', error);
+      // On error, allow through - the page component will handle the check
+    }
+  }
+
   return supabaseResponse;
 }
 

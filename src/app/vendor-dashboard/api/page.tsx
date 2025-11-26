@@ -31,6 +31,7 @@ export default function VendorAPIPage() {
   const [userId, setUserId] = useState<string>('');
   const [userRole, setUserRole] = useState<string>('user');
   const [hasTools, setHasTools] = useState(false);
+  const [isVendor, setIsVendor] = useState(false);
   
   // Webhook configuration states
   const [selectedToolForConfig, setSelectedToolForConfig] = useState<string>('');
@@ -65,12 +66,13 @@ export default function VendorAPIPage() {
         // Fetch user profile data
         const { data: profileData } = await supabase
           .from('user_profiles')
-          .select('role')
+          .select('role, is_vendor')
           .eq('id', user.id)
           .single();
         
         if (profileData) {
           setUserRole(profileData.role || 'user');
+          setIsVendor(profileData.is_vendor || false);
         }
         
         // Check if user has tools
@@ -300,6 +302,7 @@ export default function VendorAPIPage() {
         userId={userId}
         userRole={userRole}
         hasTools={hasTools}
+        isVendor={isVendor}
       />
 
       {/* Main Content Area */}

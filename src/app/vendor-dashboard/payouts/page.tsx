@@ -73,6 +73,7 @@ function VendorPayoutsPageContent() {
   const [userId, setUserId] = useState<string>('');
   const [userRole, setUserRole] = useState<string>('user');
   const [hasTools, setHasTools] = useState(false);
+  const [isVendor, setIsVendor] = useState(false);
 
   // Stripe Connect states
   const [accountStatus, setAccountStatus] = useState<StripeAccountStatus | null>(null);
@@ -109,12 +110,13 @@ function VendorPayoutsPageContent() {
         // Fetch user profile
         const { data: profileData } = await supabase
           .from('user_profiles')
-          .select('role')
+          .select('role, is_vendor')
           .eq('id', user.id)
           .single();
         
         if (profileData) {
           setUserRole(profileData.role || 'user');
+          setIsVendor(profileData.is_vendor || false);
         }
         
         // Check if user has tools
@@ -293,6 +295,7 @@ function VendorPayoutsPageContent() {
         userId={userId}
         userRole={userRole}
         hasTools={hasTools}
+        isVendor={isVendor}
       />
 
       {/* Main Content */}

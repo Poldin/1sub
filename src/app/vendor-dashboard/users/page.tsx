@@ -31,6 +31,7 @@ export default function VendorUsersPage() {
   const [userId, setUserId] = useState<string>('');
   const [userRole, setUserRole] = useState<string>('user');
   const [hasTools, setHasTools] = useState(false);
+  const [isVendor, setIsVendor] = useState(false);
   
   // States for real data
   const [users, setUsers] = useState<VendorUser[]>([]);
@@ -65,6 +66,7 @@ export default function VendorUsersPage() {
 
       if (!tools || tools.length === 0) {
         setUsers([]);
+        setLoading(false);
         return;
       }
       const toolIds = tools.map((tool: { id: string; name: string }) => tool.id);
@@ -241,6 +243,7 @@ export default function VendorUsersPage() {
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         
         if (authError || !user) {
+          setLoading(false);
           return;
         }
         
@@ -249,12 +252,13 @@ export default function VendorUsersPage() {
         // Fetch user profile data
         const { data: profileData } = await supabase
           .from('user_profiles')
-          .select('role')
+          .select('role, is_vendor')
           .eq('id', user.id)
           .single();
         
         if (profileData) {
           setUserRole(profileData.role || 'user');
+          setIsVendor(profileData.is_vendor || false);
         }
         
         // Check if user has tools
@@ -269,10 +273,13 @@ export default function VendorUsersPage() {
         // Fetch vendor users if user has tools
         if (hasTools) {
           await fetchVendorUsers(user.id);
+        } else {
+          setLoading(false);
         }
       } catch (err) {
         console.error('Error fetching user data:', err);
         setError('Failed to load user data');
+        setLoading(false);
       }
     };
     
@@ -302,6 +309,7 @@ export default function VendorUsersPage() {
         userId={userId}
         userRole={userRole}
         hasTools={hasTools}
+        isVendor={isVendor}
       />
 
       {/* Main Content Area */}

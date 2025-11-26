@@ -45,6 +45,7 @@ export default function PublishToolPage() {
   const [userId, setUserId] = useState<string>('');
   const [userRole, setUserRole] = useState<string>('user');
   const [hasTools, setHasTools] = useState(false);
+  const [isVendor, setIsVendor] = useState(false);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -62,20 +63,35 @@ export default function PublishToolPage() {
         const { data: { user }, error: authError } = await supabase.auth.getUser();
 
         if (authError || !user) {
+          router.push('/login');
           return;
         }
 
         setUserId(user.id);
 
-        // Fetch user profile data
-        const { data: profileData } = await supabase
+        // Fetch user profile data - check if user is a vendor
+        const { data: profileData, error: profileError } = await supabase
           .from('user_profiles')
-          .select('role')
+          .select('role, is_vendor')
           .eq('id', user.id)
           .single();
 
+        if (profileError || !profileData) {
+          console.error('Error fetching user profile:', profileError);
+          router.push('/backoffice');
+          return;
+        }
+
+        // Check if user is a vendor - redirect if not
+        if (!profileData.is_vendor) {
+          alert('You must be an approved vendor to create tools. Please apply to become a vendor first.');
+          router.push('/vendors/apply');
+          return;
+        }
+
         if (profileData) {
           setUserRole(profileData.role || 'user');
+          setIsVendor(profileData.is_vendor || false);
         }
 
         // Check if user has tools
@@ -87,11 +103,12 @@ export default function PublishToolPage() {
         setHasTools((toolsData?.length || 0) > 0);
       } catch (err) {
         console.error('Error fetching user data:', err);
+        router.push('/backoffice');
       }
     };
 
     fetchUserData();
-  }, []);
+  }, [router]);
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -176,6 +193,28 @@ export default function PublishToolPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Verify user is still a vendor before submission
+    const supabase = createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      alert('You must be logged in to create a tool');
+      router.push('/login');
+      return;
+    }
+
+    const { data: profileData } = await supabase
+      .from('user_profiles')
+      .select('is_vendor')
+      .eq('id', user.id)
+      .single();
+
+    if (!profileData?.is_vendor) {
+      alert('You must be an approved vendor to create tools. Please apply to become a vendor first.');
+      router.push('/vendors/apply');
+      return;
+    }
 
     if (!imageFile) {
       alert('Please select an image for your tool');
@@ -387,6 +426,7 @@ export default function PublishToolPage() {
         userId={userId}
         userRole={userRole}
         hasTools={hasTools}
+        isVendor={isVendor}
       />
 
       {/* Main Content Area */}
