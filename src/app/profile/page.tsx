@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, CreditCard, Calendar, DollarSign, AlertCircle, Check, Loader2, ExternalLink, Shield } from 'lucide-react';
+import { Menu, CreditCard, Calendar, DollarSign, AlertCircle, Check, Loader2, ExternalLink, Shield, User, LogOut } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { getPlanById } from '@/lib/subscription-plans';
 import { getCurrentBalanceClient } from '@/lib/credits';
+import Sidebar from '@/app/backoffice/components/Sidebar';
+import SearchBar from '@/app/backoffice/components/SearchBar';
 
 interface PlatformSubscription {
   id: string;
@@ -57,6 +59,20 @@ export default function ProfilePage() {
   const [purchasedToolsToShow, setPurchasedToolsToShow] = useState(5);
   const [subscriptionsToShow, setSubscriptionsToShow] = useState(5);
 
+  // Sidebar states
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [userRole, setUserRole] = useState<string>('user');
+  const [hasTools, setHasTools] = useState(false);
+  const [isVendor, setIsVendor] = useState(false);
+
+  // Load sidebar state from localStorage on mount
+  useEffect(() => {
+    const savedSidebarState = localStorage.getItem('sidebarOpen');
+    if (savedSidebarState !== null) {
+      setIsMenuOpen(savedSidebarState === 'true');
+    }
+  }, []);
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -78,6 +94,24 @@ export default function ProfilePage() {
           email: authUser.email || '',
           fullName: userData.fullName || '',
         });
+
+        // Set user role and vendor status
+        if (userData.role) {
+          setUserRole(userData.role);
+        }
+        if (userData.isVendor !== undefined) {
+          setIsVendor(userData.isVendor);
+        }
+
+        // Check if user has created any tools
+        const { data: userTools, error: toolsError } = await supabase
+          .from('tools')
+          .select('id')
+          .eq('user_profile_id', authUser.id);
+
+        if (!toolsError && userTools && userTools.length > 0) {
+          setHasTools(true);
+        }
 
         // Fetch credits
         const userCredits = await getCurrentBalanceClient(authUser.id);
@@ -299,6 +333,23 @@ export default function ProfilePage() {
     }
   };
 
+  const toggleMenu = () => {
+    const newState = !isMenuOpen;
+    setIsMenuOpen(newState);
+    // Save sidebar state to localStorage
+    localStorage.setItem('sidebarOpen', String(newState));
+  };
+
+  const handleLogout = async () => {
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      router.push('/');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex items-center justify-center">
@@ -313,30 +364,58 @@ export default function ProfilePage() {
   const plan = platformSub ? getPlanById(platformSub.plan_id) : null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0a0a0a] via-[#0f1419] to-[#0a0a0a] text-[#ededed]">
-      {/* Header */}
-      <header className="bg-[#0a0a0a]/80 backdrop-blur-sm border-b border-[#374151]/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <button
-              onClick={() => router.push('/backoffice')}
-              className="text-2xl font-bold text-[#3ecf8e] hover:text-[#2dd4bf] transition-colors"
-            >
-              1sub<span className="text-[#9ca3af] font-normal">.io</span>
-            </button>
-            <button
-              onClick={() => router.back()}
-              className="flex items-center gap-2 text-[#9ca3af] hover:text-[#ededed] transition-colors px-4 py-2 rounded-lg hover:bg-[#1f2937]/50"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span className="hidden sm:inline">Back</span>
-            </button>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex overflow-x-hidden">
+      {/* Sidebar Component */}
+      <Sidebar
+        isOpen={isMenuOpen}
+        onClose={toggleMenu}
+        userId={user?.id || ''}
+        userRole={userRole}
+        hasTools={hasTools}
+        isVendor={isVendor}
+      />
 
-      {/* Main Content */}
-      <main className="max-w-6xl mx-auto px-4 py-8 sm:py-12">
+      {/* Main Content Area */}
+      <main className={`
+        flex-1 min-w-0 transition-all duration-300 ease-in-out overflow-x-hidden
+        ${isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'}
+      `}>
+        {/* Top Bar con Hamburger */}
+        <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-50">
+          <div className="flex items-center justify-center gap-2 p-2 sm:p-3 min-w-0 lg:justify-between">
+            {/* Hamburger Button */}
+            <button
+              onClick={toggleMenu}
+              className="p-2 rounded-lg hover:bg-[#374151] transition-colors flex-shrink-0"
+            >
+              <Menu className="w-6 h-6 sm:w-6 sm:h-6" />
+            </button>
+
+            {/* Search Bar Component */}
+            <SearchBar />
+
+            {/* Profile Button with Logout */}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 p-2 bg-[#1f2937] hover:bg-[#374151] rounded-lg transition-colors flex-shrink-0" data-testid="user-menu">
+                <User className="w-4 h-4 text-[#3ecf8e]" />
+                <span className="hidden lg:block text-sm font-medium text-[#ededed]">
+                  {user?.fullName || user?.email || 'profile'}
+                </span>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="flex items-center justify-center p-2 bg-red-600/20 hover:bg-red-600/30 rounded-lg transition-colors flex-shrink-0"
+                title="Logout"
+              >
+                <LogOut className="w-4 h-4 text-red-400" />
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {/* Content */}
+        <div className="overflow-x-hidden">
+          <div className="max-w-6xl mx-auto px-4 py-8 sm:py-12">
         {/* Error Message */}
         {error && (
           <div className="bg-red-400/10 border border-red-400/20 rounded-xl p-4 mb-6 animate-in fade-in slide-in-from-top-4 duration-300">
@@ -649,6 +728,8 @@ export default function ProfilePage() {
             <AlertCircle className="w-4 h-4" />
             Get Support
           </button>
+        </div>
+          </div>
         </div>
       </main>
     </div>

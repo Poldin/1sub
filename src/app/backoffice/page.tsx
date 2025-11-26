@@ -242,10 +242,11 @@ function BackofficeContent() {
         }
 
         // Prevent self-purchase
-        if (toolMetadata?.vendor_id === user.id) {
-          alert('You cannot purchase your own tools');
-          return;
-        }
+        // TEMPORARILY DISABLED: Allow vendors to purchase their own tools
+        // if (toolMetadata?.vendor_id === user.id) {
+        //   alert('You cannot purchase your own tools');
+        //   return;
+        // }
 
         // Create checkout with products
         const { data: checkout, error } = await supabase
@@ -292,10 +293,11 @@ function BackofficeContent() {
         }
 
         // Prevent self-purchase
-        if (toolMetadata?.vendor_id === user.id) {
-          alert('You cannot purchase your own tools');
-          return;
-        }
+        // TEMPORARILY DISABLED: Allow vendors to purchase their own tools
+        // if (toolMetadata?.vendor_id === user.id) {
+        //   alert('You cannot purchase your own tools');
+        //   return;
+        // }
 
         // Create checkout with pricing_options (user will select on checkout page)
         const { data: checkout, error } = await supabase

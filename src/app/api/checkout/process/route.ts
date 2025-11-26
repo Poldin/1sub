@@ -56,12 +56,13 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Prevent self-purchase (user cannot buy their own tools)
-    if (checkout.vendor_id === authUser.id) {
-      return NextResponse.json(
-        { error: 'You cannot purchase your own tools' },
-        { status: 400 }
-      );
-    }
+    // TEMPORARILY DISABLED: Allow vendors to purchase their own tools
+    // if (checkout.vendor_id === authUser.id) {
+    //   return NextResponse.json(
+    //     { error: 'You cannot purchase your own tools' },
+    //     { status: 400 }
+    //   );
+    // }
 
     // 4. IDEMPOTENCY CHECK: Check if checkout is already completed
     const metadata = checkout.metadata as Record<string, unknown>;

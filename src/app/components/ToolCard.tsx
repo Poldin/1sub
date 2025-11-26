@@ -291,10 +291,16 @@ function ToolCardComponent(props: ToolCardProps) {
     borderClasses += ' ' + phaseClasses.border + ' ' + phaseClasses.hover;
   }
 
-  const cardClassName = `group bg-[#1a1a1a] ${borderClasses} rounded-lg p-4 pt-10 flex flex-col h-full transition-all duration-300 relative`;
+  const cardClassName = `group bg-[#1a1a1a] ${borderClasses} rounded-lg p-4 pt-10 flex flex-col h-full transition-all duration-300 relative cursor-pointer`;
+
+  const handleCardClick = () => {
+    if (onViewClick) {
+      onViewClick();
+    }
+  };
 
   return (
-    <div className={cardClassName}>
+    <div className={cardClassName} onClick={handleCardClick}>
       {/* Phase Badge - Always shown */}
       <div className="absolute top-2 left-1/2 transform -translate-x-1/2 z-10">
         <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase shadow-lg ${phaseClasses.badge}`}>
@@ -437,17 +443,6 @@ function ToolCardComponent(props: ToolCardProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          {mode === 'marketing' && onViewClick && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onViewClick();
-              }}
-              className="text-[#9ca3af] hover:text-[#d1d5db] px-3 py-1.5 text-xs font-bold transition-colors flex items-center gap-1"
-            >
-              view
-            </button>
-          )}
 
           {onLaunchClick && (
             <button

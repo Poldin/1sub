@@ -309,8 +309,7 @@ export function PricingCard({
           onClick={() => onSelect(id)}
           className="w-full bg-[#3ecf8e] text-black px-2 py-1.5 rounded text-xs font-medium hover:bg-[#2dd4bf] transition-all flex items-center justify-center gap-1 group mt-4"
         >
-          Start
-          <ExternalLink className="w-3 h-3" />
+          select {name}
         </button>
       )}
     </div>

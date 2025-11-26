@@ -1,13 +1,13 @@
 'use client';
 
-import { memo, useMemo } from 'react';
-import { X, Star, Users, ExternalLink, Check } from 'lucide-react';
+import { memo, useMemo, useState } from 'react';
+import { X, Star, Users, ExternalLink, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import Image from 'next/image';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { Tool, DEFAULT_UI_METADATA, DEFAULT_ENGAGEMENT_METRICS, hasProducts } from '@/lib/tool-types';
-import { PricingCard } from './PricingDisplay';
+import { PricingCard, MainPriceDisplay, PricingBadges } from './PricingDisplay';
 import { getToolPhase, getPhaseLabel, getPhaseTailwindClasses } from '@/lib/tool-phase';
 
 // Custom scrollbar styles
@@ -201,6 +201,9 @@ function ToolDialogComponent(props: ToolDialogProps) {
   const engagement = useMemo(() => ({ ...DEFAULT_ENGAGEMENT_METRICS, ...tool.metadata?.engagement }), [tool.metadata?.engagement]);
   const longDescription = useMemo(() => tool.metadata?.content?.long_description, [tool.metadata?.content?.long_description]);
 
+  // State for description expansion
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+
   // Determine which image to show - MEMOIZED
   const imageUrl = useMemo(() => uiMeta.hero_image_url || tool.url, [uiMeta.hero_image_url, tool.url]);
   const logoUrl = uiMeta.logo_url;
@@ -354,63 +357,92 @@ function ToolDialogComponent(props: ToolDialogProps) {
             {/* Description - Markdown support */}
             <div className="px-6 sm:px-8 pb-6">
               <div className="markdown-content max-w-4xl">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  rehypePlugins={[rehypeRaw]}
-                  components={{
-                    // Headings
-                    h1: ({node, ...props}) => <h1 className="text-3xl font-bold text-[#ededed] mt-6 mb-4" {...props} />,
-                    h2: ({node, ...props}) => <h2 className="text-2xl font-bold text-[#ededed] mt-5 mb-3" {...props} />,
-                    h3: ({node, ...props}) => <h3 className="text-xl font-bold text-[#ededed] mt-4 mb-2" {...props} />,
-                    h4: ({node, ...props}) => <h4 className="text-lg font-bold text-[#ededed] mt-3 mb-2" {...props} />,
-                    // Paragraphs
-                    p: ({node, ...props}) => <p className="text-[#d1d5db] text-base sm:text-lg leading-loose mb-4" {...props} />,
-                    // Links
-                    a: ({node, ...props}) => <a className="text-[#3ecf8e] no-underline hover:underline transition-colors" target="_blank" rel="noopener noreferrer" {...props} />,
-                    // Strong/Bold
-                    strong: ({node, ...props}) => <strong className="text-[#ededed] font-bold" {...props} />,
-                    // Emphasis/Italic
-                    em: ({node, ...props}) => <em className="text-[#d1d5db] italic" {...props} />,
-                    // Code inline
-                    code: ({node, inline, ...props}: any) => 
-                      inline ? (
-                        <code className="text-[#3ecf8e] bg-[#374151] px-1.5 py-0.5 rounded text-sm font-mono" {...props} />
-                      ) : (
-                        <code className="text-[#d1d5db] font-mono" {...props} />
+                <div className="relative">
+                  <div 
+                    className={`overflow-hidden transition-all duration-300 ${
+                      isDescriptionExpanded ? 'max-h-none' : 'max-h-48'
+                    }`}
+                  >
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeRaw]}
+                    components={{
+                      // Headings
+                      h1: ({node, ...props}) => <h1 className="text-3xl font-bold text-[#ededed] mt-6 mb-4" {...props} />,
+                      h2: ({node, ...props}) => <h2 className="text-2xl font-bold text-[#ededed] mt-5 mb-3" {...props} />,
+                      h3: ({node, ...props}) => <h3 className="text-xl font-bold text-[#ededed] mt-4 mb-2" {...props} />,
+                      h4: ({node, ...props}) => <h4 className="text-lg font-bold text-[#ededed] mt-3 mb-2" {...props} />,
+                      // Paragraphs
+                      p: ({node, ...props}) => <p className="text-[#d1d5db] text-base sm:text-lg leading-loose mb-4" {...props} />,
+                      // Links
+                      a: ({node, ...props}) => <a className="text-[#3ecf8e] no-underline hover:underline transition-colors" target="_blank" rel="noopener noreferrer" {...props} />,
+                      // Strong/Bold
+                      strong: ({node, ...props}) => <strong className="text-[#ededed] font-bold" {...props} />,
+                      // Emphasis/Italic
+                      em: ({node, ...props}) => <em className="text-[#d1d5db] italic" {...props} />,
+                      // Code inline
+                      code: ({node, inline, ...props}: any) => 
+                        inline ? (
+                          <code className="text-[#3ecf8e] bg-[#374151] px-1.5 py-0.5 rounded text-sm font-mono" {...props} />
+                        ) : (
+                          <code className="text-[#d1d5db] font-mono" {...props} />
+                        ),
+                      // Code blocks
+                      pre: ({node, ...props}) => (
+                        <pre className="bg-[#111111] border border-[#374151] rounded-lg p-4 overflow-x-auto mb-4" {...props} />
                       ),
-                    // Code blocks
-                    pre: ({node, ...props}) => (
-                      <pre className="bg-[#111111] border border-[#374151] rounded-lg p-4 overflow-x-auto mb-4" {...props} />
-                    ),
-                    // Lists
-                    ul: ({node, ...props}) => <ul className="list-disc list-inside text-[#d1d5db] mb-4 space-y-2 ml-4" {...props} />,
-                    ol: ({node, ...props}) => <ol className="list-decimal list-inside text-[#d1d5db] mb-4 space-y-2 ml-4" {...props} />,
-                    li: ({node, ...props}) => <li className="text-[#d1d5db]" {...props} />,
-                    // Blockquotes
-                    blockquote: ({node, ...props}) => (
-                      <blockquote className="border-l-4 border-[#3ecf8e] pl-4 text-[#9ca3af] italic my-4" {...props} />
-                    ),
-                    // Horizontal rule
-                    hr: ({node, ...props}) => <hr className="border-[#374151] my-6" {...props} />,
-                    // Tables
-                    table: ({node, ...props}) => (
-                      <div className="overflow-x-auto my-4">
-                        <table className="min-w-full border-collapse" {...props} />
-                      </div>
-                    ),
-                    thead: ({node, ...props}) => <thead className="bg-[#1f2937]" {...props} />,
-                    tbody: ({node, ...props}) => <tbody {...props} />,
-                    tr: ({node, ...props}) => <tr className="border-b border-[#374151]" {...props} />,
-                    th: ({node, ...props}) => <th className="text-[#ededed] font-bold px-4 py-2 text-left border border-[#374151]" {...props} />,
-                    td: ({node, ...props}) => <td className="text-[#d1d5db] px-4 py-2 border border-[#374151]" {...props} />,
-                    // Images
-                    img: ({node, ...props}) => (
-                      <img className="rounded-lg border border-[#374151] max-w-full h-auto my-4" {...props} />
-                    ),
-                  }}
-                >
-                  {longDescription || tool.description || ''}
-                </ReactMarkdown>
+                      // Lists
+                      ul: ({node, ...props}) => <ul className="list-disc list-inside text-[#d1d5db] mb-4 space-y-2 ml-4" {...props} />,
+                      ol: ({node, ...props}) => <ol className="list-decimal list-inside text-[#d1d5db] mb-4 space-y-2 ml-4" {...props} />,
+                      li: ({node, ...props}) => <li className="text-[#d1d5db]" {...props} />,
+                      // Blockquotes
+                      blockquote: ({node, ...props}) => (
+                        <blockquote className="border-l-4 border-[#3ecf8e] pl-4 text-[#9ca3af] italic my-4" {...props} />
+                      ),
+                      // Horizontal rule
+                      hr: ({node, ...props}) => <hr className="border-[#374151] my-6" {...props} />,
+                      // Tables
+                      table: ({node, ...props}) => (
+                        <div className="overflow-x-auto my-4">
+                          <table className="min-w-full border-collapse" {...props} />
+                        </div>
+                      ),
+                      thead: ({node, ...props}) => <thead className="bg-[#1f2937]" {...props} />,
+                      tbody: ({node, ...props}) => <tbody {...props} />,
+                      tr: ({node, ...props}) => <tr className="border-b border-[#374151]" {...props} />,
+                      th: ({node, ...props}) => <th className="text-[#ededed] font-bold px-4 py-2 text-left border border-[#374151]" {...props} />,
+                      td: ({node, ...props}) => <td className="text-[#d1d5db] px-4 py-2 border border-[#374151]" {...props} />,
+                      // Images
+                      img: ({node, ...props}) => (
+                        <img className="rounded-lg border border-[#374151] max-w-full h-auto my-4" {...props} />
+                      ),
+                    }}
+                  >
+                    {longDescription || tool.description || ''}
+                  </ReactMarkdown>
+                  </div>
+                  {!isDescriptionExpanded && (
+                    <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-[#1f2937] to-transparent pointer-events-none" />
+                  )}
+                </div>
+                {(longDescription || tool.description) && (
+                  <button
+                    onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                    className="mt-4 flex items-center gap-2 text-[#3ecf8e] hover:text-[#2dd4bf] transition-colors text-sm font-medium"
+                  >
+                    {isDescriptionExpanded ? (
+                      <>
+                        <ChevronUp className="w-4 h-4" />
+                        Show less
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="w-4 h-4" />
+                        Show more
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
 
@@ -438,11 +470,44 @@ function ToolDialogComponent(props: ToolDialogProps) {
                         // Initiate checkout with selected product (only for non-custom plans)
                         if (props.onToolLaunch && productId && !product.is_custom_plan && !product.pricing_model.custom_plan?.enabled) {
                           props.onToolLaunch(tool.id, productId);
-                          props.onClose();
+                          // Keep dialog open - checkout opens in new tab
                         }
                       }}
                     />
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Legacy Pricing Options Section - Show when tool has pricing_options but no products */}
+            {!hasProducts(tool) && tool.metadata?.pricing_options && (
+              <div className="px-6 sm:px-8 pb-8">
+                <h3 className="text-xl sm:text-2xl font-bold text-[#ededed] mb-4">
+                  Pricing
+                </h3>
+
+                <div className="bg-[#1f2937] border border-[#374151] rounded-xl p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <MainPriceDisplay pricingOptions={tool.metadata.pricing_options} />
+                      <div className="mt-2">
+                        <PricingBadges pricingOptions={tool.metadata.pricing_options} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {props.onToolLaunch && (
+                    <button
+                      onClick={() => {
+                        props.onToolLaunch?.(tool.id);
+                        props.onClose();
+                      }}
+                      className="w-full bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] text-black px-6 py-3 rounded-lg font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                    >
+                      Start
+                      <ExternalLink className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             )}

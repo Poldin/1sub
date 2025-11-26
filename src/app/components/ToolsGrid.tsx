@@ -54,15 +54,11 @@ export default function ToolsGrid({
     setTimeout(() => setSelectedTool(null), 300); // Delay clearing to allow animation
   };
 
-  // Handle launch/start click
+  // Handle launch/start click - always open dialog first
   const handleLaunchClick = (tool: Tool) => {
-    if (onToolLaunch) {
-      onToolLaunch(tool.id);
-    } else {
-      // Default behavior: open dialog
-      setSelectedTool(tool);
-      setIsDialogOpen(true);
-    }
+    // Always open dialog when clicking Start button
+    setSelectedTool(tool);
+    setIsDialogOpen(true);
   };
 
   // Loading State

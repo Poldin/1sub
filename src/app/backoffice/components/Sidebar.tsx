@@ -111,7 +111,7 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
               className="flex items-center gap-3 px-3 py-1.5 rounded hover:bg-[#374151] transition-colors text-[#ededed] group text-sm"
             >
               <Search className="w-5 h-5 text-[#3ecf8e] group-hover:text-[#2dd4bf]" />
-              <span className="font-medium">Search</span>
+              <span className="font-medium">Tools</span>
             </a>
 
             <button
@@ -130,8 +130,8 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
               <span className="font-medium">Support</span>
             </button>
 
-            {/* Vendor Menu - Only show if user is an approved vendor */}
-            {isVendor && (
+            {/* Vendor Menu - Show if user is an approved vendor OR has created tools */}
+            {(isVendor || hasTools) && (
               <>
                 <div className="border-t border-[#374151] my-2"></div>
                 <div>
@@ -247,8 +247,8 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
           </a>
         </div>
 
-        {/* Become a Vendor CTA - Only for users who are not approved vendors */}
-        {!isVendor && (
+        {/* Become a Vendor CTA - Only for users who are not approved vendors and don't have tools */}
+        {!isVendor && !hasTools && (
           <div className="mx-4 mb-4">
             <div className="bg-[#1f2937] border border-[#374151] rounded-lg p-4">
               <div className="flex items-center gap-3 mb-2">

@@ -78,12 +78,13 @@ export async function POST(request: NextRequest) {
       }
 
       // Prevent self-purchase
-      if (toolMetadata?.vendor_id === authUser.id) {
-        return NextResponse.json(
-          { error: 'You cannot purchase your own tools' },
-          { status: 400 }
-        );
-      }
+      // TEMPORARILY DISABLED: Allow vendors to purchase their own tools
+      // if (toolMetadata?.vendor_id === authUser.id) {
+      //   return NextResponse.json(
+      //     { error: 'You cannot purchase your own tools' },
+      //     { status: 400 }
+      //   );
+      // }
 
       // Create checkout with products
       const { data: checkout, error } = await supabase
@@ -135,12 +136,13 @@ export async function POST(request: NextRequest) {
 
     if (pricingOptions) {
       // Prevent self-purchase
-      if (toolMetadata?.vendor_id === authUser.id) {
-        return NextResponse.json(
-          { error: 'You cannot purchase your own tools' },
-          { status: 400 }
-        );
-      }
+      // TEMPORARILY DISABLED: Allow vendors to purchase their own tools
+      // if (toolMetadata?.vendor_id === authUser.id) {
+      //   return NextResponse.json(
+      //     { error: 'You cannot purchase your own tools' },
+      //     { status: 400 }
+      //   );
+      // }
 
       // Create checkout with pricing_options
       const { data: checkout, error } = await supabase

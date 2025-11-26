@@ -5,6 +5,8 @@ import { useRouter, useParams } from 'next/navigation';
 import { Lock, Check, ExternalLink, Wrench, AlertCircle, Loader2 } from 'lucide-react';
 import { ProductPricingModel } from '@/lib/tool-types';
 import { BuyCreditsDialog } from '../components/BuyCreditsDialog';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface PricingOption {
   enabled: boolean;
@@ -293,14 +295,6 @@ export default function CreditCheckoutPage() {
         metadata: { ...prev.metadata, status: 'completed', completed_at: new Date().toISOString() }
       } : null);
 
-      // Auto-open tool if URL is valid
-      if (toolUrl && toolUrl !== 'https://example.com/tool/' && !toolUrl.includes('example.com')) {
-        const redirectUrl = toolAccessToken
-          ? `${toolUrl}${toolUrl.includes('?') ? '&' : '?'}token=${toolAccessToken}`
-          : toolUrl;
-        window.open(redirectUrl, '_blank');
-      }
-
     } catch (err) {
       console.error('Purchase error:', err);
       setError('An unexpected error occurred. Please try again.');
@@ -409,69 +403,54 @@ export default function CreditCheckoutPage() {
             {/* Success Message */}
             <div className="text-center mb-8">
               <h2 className="text-2xl font-bold text-[#ededed] mb-2">
-                {purchaseData.isSubscription ? 'Subscription Activated!' : 'Purchase Successful!'}
+                Transaction confirmed
               </h2>
               <p className="text-[#9ca3af]">
-                {purchaseData.isSubscription
-                  ? `You now have access to ${checkout.metadata.tool_name}. Your subscription will auto-renew.`
-                  : `You now have access to ${checkout.metadata.tool_name}.`
-                }
+                {(() => {
+                  let planName = '';
+                  const hasProducts = Array.isArray(checkout.metadata.products) && checkout.metadata.products.length > 0;
+                  const hasPricingOptions = checkout.metadata.pricing_options &&
+                    Object.values(checkout.metadata.pricing_options).some(opt => opt?.enabled);
+                  
+                  if (hasProducts && selectedPricing) {
+                    const product = checkout.metadata.products!.find((p: CheckoutProduct) => p.id === selectedPricing);
+                    if (product) planName = product.name;
+                  } else if (hasPricingOptions && selectedPricing) {
+                    if (selectedPricing === 'one_time') planName = 'One-time Payment';
+                    else if (selectedPricing === 'subscription_monthly') planName = 'Monthly Subscription';
+                    else if (selectedPricing === 'subscription_yearly') planName = 'Yearly Subscription';
+                  }
+                  
+                  return planName ? `${planName} plan is activated: you can start using ${checkout.metadata.tool_name}` : `You can start using ${checkout.metadata.tool_name}`;
+                })()}
               </p>
             </div>
 
-            {/* Updated Balance */}
-            <div className="bg-[#0a0a0a]/50 rounded-lg p-4 mb-6 border border-[#374151]">
-              <div className="flex justify-between items-center">
-                <span className="text-[#9ca3af]">Updated Balance:</span>
-                <span className="text-[#3ecf8e] font-semibold text-lg">{user?.credits.toFixed(2) || 0} credits</span>
-              </div>
-            </div>
-
             {/* Action Buttons */}
-            <div className="space-y-3">
+            <div className="space-y-4">
               {purchaseData.toolUrl &&
                 purchaseData.toolUrl !== 'https://example.com/tool/' &&
                 !purchaseData.toolUrl.includes('example.com') && (
                   <button
                     onClick={handleLaunchTool}
-                    className="w-full bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] text-black px-6 py-4 rounded-lg font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                    className="w-full bg-[#374151] text-[#ededed] px-6 py-4 rounded-lg font-semibold hover:bg-[#4b5563] transition-colors flex items-center justify-center gap-2"
                   >
                     <ExternalLink className="w-5 h-5" />
-                    Launch {checkout.metadata.tool_name}
+                    {checkout.metadata.tool_name}
                   </button>
                 )}
-              <button
-                onClick={() => router.push('/backoffice?purchase_success=true')}
-                className="w-full bg-[#374151] text-[#ededed] px-6 py-4 rounded-lg font-semibold hover:bg-[#4b5563] transition-colors"
-              >
-                Return to Dashboard
-              </button>
             </div>
-
-            {/* Tool opened notification */}
-            {purchaseData.toolUrl &&
-              purchaseData.toolUrl !== 'https://example.com/tool/' &&
-              !purchaseData.toolUrl.includes('example.com') && (
-                <p className="text-xs text-[#9ca3af] text-center mt-4">
-                  The tool has been opened in a new tab. If it didn&apos;t open, click the button above.
-                </p>
-              )}
           </div>
 
           {/* Additional Info */}
-          {purchaseData.isSubscription && (
-            <div className="mt-4 text-center">
-              <p className="text-sm text-[#9ca3af]">
-                Manage your subscription from{' '}
-                <button
-                  onClick={() => router.push('/profile')}
-                  className="text-[#3ecf8e] hover:underline"
-                >
-                  your profile
-                </button>
-              </p>
-            </div>
-          )}
+          <div className="mt-4 text-center">
+            <button
+              onClick={() => router.push('/backoffice?purchase_success=true')}
+              className="text-sm text-[#9ca3af] hover:text-[#ededed] transition-colors"
+            >
+              Return to Dashboard
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -580,7 +559,7 @@ export default function CreditCheckoutPage() {
               {/* Plan Selection - Now inside Left Column */}
               {!isCompleted && (hasProducts || hasPricingOptions) && (
                 <div className="pt-6 border-t border-[#374151]">
-                  <h3 className="text-xl font-bold text-[#ededed] mb-6">Select a Plan</h3>
+                  <h3 className="text-xl text-[#ededed] mb-6">Select a Plan</h3>
                   <div className="grid grid-cols-1 gap-4">
                 {/* Products Selection */}
                 {hasProducts && checkout.metadata.products!.map((product: CheckoutProduct) => {
@@ -619,42 +598,53 @@ export default function CreditCheckoutPage() {
                         : 'border-[#374151] hover:border-[#4b5563] bg-[#0a0a0a]/30'
                         }`}
                     >
-                      <div className="flex items-start justify-between relative z-10">
-                        <div className="flex-1 pr-4">
-                          <div className="flex items-center gap-3 mb-2">
-                            <span className={`text-lg font-bold ${isSelected ? 'text-[#3ecf8e]' : 'text-[#ededed]'}`}>
-                              {product.name}
+                      <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="text-lg font-bold text-[#ededed]">
+                            {product.name}
+                          </span>
+                          {product.is_preferred && (
+                            <span className="text-xs bg-[#3ecf8e]/20 text-[#3ecf8e] px-2 py-0.5 rounded-full font-medium">
+                              Recommended
                             </span>
-                            {product.is_preferred && (
-                              <span className="text-xs bg-[#3ecf8e]/20 text-[#3ecf8e] px-2 py-0.5 rounded-full font-medium">
-                                Recommended
-                              </span>
-                            )}
-                          </div>
-                          {product.description && (
-                            <p className="text-sm text-[#9ca3af] mb-4 leading-relaxed">
+                          )}
+                        </div>
+                        {product.description && (
+                          <div className="text-sm text-[#9ca3af] mb-4 leading-relaxed">
+                            <ReactMarkdown
+                              remarkPlugins={[remarkGfm]}
+                              components={{
+                                p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
+                                strong: ({node, ...props}) => <strong className="text-[#d1d5db] font-semibold" {...props} />,
+                                em: ({node, ...props}) => <em className="italic" {...props} />,
+                                code: ({node, inline, ...props}: any) => 
+                                  inline ? (
+                                    <code className="text-[#3ecf8e] bg-[#374151] px-1.5 py-0.5 rounded text-xs font-mono" {...props} />
+                                  ) : (
+                                    <code className="text-[#d1d5db] font-mono" {...props} />
+                                  ),
+                                ul: ({node, ...props}) => <ul className="list-disc list-inside space-y-1 ml-2 mt-2" {...props} />,
+                                ol: ({node, ...props}) => <ol className="list-decimal list-inside space-y-1 ml-2 mt-2" {...props} />,
+                                li: ({node, ...props}) => <li className="text-[#9ca3af]" {...props} />,
+                                a: ({node, ...props}) => <a className="text-[#3ecf8e] hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
+                              }}
+                            >
                               {product.description}
-                            </p>
-                          )}
-                          {product.features && product.features.length > 0 && (
-                            <div className="space-y-2">
-                              {product.features.map((feature: string, idx: number) => (
-                                <div key={idx} className="flex items-center gap-2 text-sm text-[#d1d5db]">
-                                  <div className={`p-0.5 rounded-full ${isSelected ? 'bg-[#3ecf8e]/20' : 'bg-[#374151]'}`}>
-                                    <Check className={`w-3 h-3 ${isSelected ? 'text-[#3ecf8e]' : 'text-[#9ca3af]'}`} />
-                                  </div>
-                                  {feature}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          <div className={`text-2xl font-bold ${isSelected ? 'text-[#3ecf8e]' : 'text-[#ededed]'}`}>
-                            {priceDisplay}
+                            </ReactMarkdown>
                           </div>
-                          <div className="text-sm text-[#9ca3af]">{priceLabel}</div>
-                        </div>
+                        )}
+                        {product.features && product.features.length > 0 && (
+                          <div className="space-y-2">
+                            {product.features.map((feature: string, idx: number) => (
+                              <div key={idx} className="flex items-center gap-2 text-sm text-[#d1d5db]">
+                                <div className={`p-0.5 rounded-full ${isSelected ? 'bg-[#3ecf8e]/20' : 'bg-[#374151]'}`}>
+                                  <Check className={`w-3 h-3 ${isSelected ? 'text-[#3ecf8e]' : 'text-[#9ca3af]'}`} />
+                                </div>
+                                {feature}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </button>
                   );
@@ -672,18 +662,10 @@ export default function CreditCheckoutPage() {
                           : 'border-[#374151] hover:border-[#4b5563] bg-[#0a0a0a]/30'
                           }`}
                       >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="text-lg font-bold text-[#ededed] mb-1">One-time Payment</div>
-                            <div className="text-sm text-[#9ca3af]">
-                              {checkout.metadata.pricing_options.one_time.description || 'Lifetime access'}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-2xl font-bold text-[#3ecf8e]">
-                              {checkout.metadata.pricing_options.one_time.price}
-                            </div>
-                            <div className="text-sm text-[#9ca3af]">credits</div>
+                        <div>
+                          <div className="text-lg font-bold text-[#ededed] mb-1">One-time Payment</div>
+                          <div className="text-sm text-[#9ca3af]">
+                            {checkout.metadata.pricing_options.one_time.description || 'Lifetime access'}
                           </div>
                         </div>
                       </button>
@@ -698,18 +680,10 @@ export default function CreditCheckoutPage() {
                           : 'border-[#374151] hover:border-[#4b5563] bg-[#0a0a0a]/30'
                           }`}
                       >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="text-lg font-bold text-[#ededed] mb-1">Monthly Subscription</div>
-                            <div className="text-sm text-[#9ca3af]">
-                              {checkout.metadata.pricing_options.subscription_monthly.description || 'Billed monthly'}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-2xl font-bold text-[#3ecf8e]">
-                              {checkout.metadata.pricing_options.subscription_monthly.price}
-                            </div>
-                            <div className="text-sm text-[#9ca3af]">/mo</div>
+                        <div>
+                          <div className="text-lg font-bold text-[#ededed] mb-1">Monthly Subscription</div>
+                          <div className="text-sm text-[#9ca3af]">
+                            {checkout.metadata.pricing_options.subscription_monthly.description || 'Billed monthly'}
                           </div>
                         </div>
                       </button>
@@ -761,13 +735,6 @@ export default function CreditCheckoutPage() {
                 {/* What You're Buying Section */}
                 {!isCompleted && (
                   <div className="bg-gradient-to-br from-[#0a0a0a]/80 to-[#1f2937]/50 rounded-xl border border-[#3ecf8e]/30 p-5 space-y-4">
-                    <h3 className="text-sm font-semibold text-[#3ecf8e] uppercase tracking-wide flex items-center gap-2">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                      </svg>
-                      What you&apos;re buying
-                    </h3>
-
                     <div className="space-y-3">
                       {/* Tool Info */}
                       <div className="flex items-start gap-3">
@@ -844,25 +811,25 @@ export default function CreditCheckoutPage() {
                                     </div>
                                     <div className="flex items-center gap-1.5 mt-1">
                                       {pm.subscription?.enabled && (
-                                        <span className="text-xs px-2 py-0.5 rounded bg-blue-400/10 text-blue-400 border border-blue-400/20">
-                                          🔄 {planType}
+                                        <span className="text-xs px-2 py-0.5 rounded bg-[#374151] text-[#ededed] border border-[#374151]">
+                                          {planType}
                                         </span>
                                       )}
                                       {pm.one_time?.enabled && !pm.subscription?.enabled && (
-                                        <span className="text-xs px-2 py-0.5 rounded bg-green-400/10 text-green-400 border border-green-400/20">
-                                          ✓ {planType}
+                                        <span className="text-xs px-2 py-0.5 rounded bg-[#374151] text-[#ededed] border border-[#374151]">
+                                          {planType}
                                         </span>
                                       )}
                                       {pm.usage_based?.enabled && (
-                                        <span className="text-xs px-2 py-0.5 rounded bg-purple-400/10 text-purple-400 border border-purple-400/20">
-                                          📊 {planType}
+                                        <span className="text-xs px-2 py-0.5 rounded bg-[#374151] text-[#ededed] border border-[#374151]">
+                                          {planType}
                                         </span>
                                       )}
                                     </div>
                                     <p className="text-xs text-[#9ca3af] mt-1">{billingInfo}</p>
                                   </div>
                                   <div className="text-right ml-3">
-                                    <div className="text-lg font-bold text-[#3ecf8e]">{priceDisplay.split(' ')[0]}</div>
+                                    <div className="text-lg font-bold text-[#ededed]">{priceDisplay.split(' ')[0]}</div>
                                     <div className="text-xs text-[#9ca3af]">{priceDisplay.split(' ').slice(1).join(' ')}</div>
                                   </div>
                                 </div>
@@ -919,19 +886,19 @@ export default function CreditCheckoutPage() {
                                   <div className="text-sm font-semibold text-[#ededed]">{planName}</div>
                                   <div className="flex items-center gap-1.5 mt-1">
                                     {selectedPricing?.includes('subscription') ? (
-                                      <span className="text-xs px-2 py-0.5 rounded bg-blue-400/10 text-blue-400 border border-blue-400/20">
-                                        🔄 {planType}
+                                      <span className="text-xs px-2 py-0.5 rounded bg-[#374151] text-[#ededed] border border-[#374151]">
+                                        {planType}
                                       </span>
                                     ) : (
-                                      <span className="text-xs px-2 py-0.5 rounded bg-green-400/10 text-green-400 border border-green-400/20">
-                                        ✓ {planType}
+                                      <span className="text-xs px-2 py-0.5 rounded bg-[#374151] text-[#ededed] border border-[#374151]">
+                                        {planType}
                                       </span>
                                     )}
                                   </div>
                                   <p className="text-xs text-[#9ca3af] mt-1">{billingInfo}</p>
                                 </div>
                                 <div className="text-right ml-3">
-                                  <div className="text-lg font-bold text-[#3ecf8e]">{priceDisplay.split(' ')[0]}</div>
+                                  <div className="text-lg font-bold text-[#ededed]">{priceDisplay.split(' ')[0]}</div>
                                   <div className="text-xs text-[#9ca3af]">{priceDisplay.split(' ').slice(1).join(' ')}</div>
                                 </div>
                               </div>
@@ -949,29 +916,13 @@ export default function CreditCheckoutPage() {
                 <div className="border-t border-[#374151] pt-6 space-y-4">
                   <div className="flex justify-between items-center">
                     <span className="text-base font-medium text-[#ededed]">Total</span>
-                    <span className="text-2xl font-bold text-[#3ecf8e]">
+                    <span className="text-2xl font-bold text-[#ededed]">
                       {selectedPrice}
                       <span className="text-sm text-[#9ca3af] ml-1">
                         {isSubscription && subscriptionPeriod ? `/${subscriptionPeriod === 'monthly' ? 'mo' : 'yr'}` : 'credits'}
                       </span>
                     </span>
                   </div>
-
-                  {/* Balance Info */}
-                  {!isCompleted && (
-                    <div className="bg-[#0a0a0a]/50 rounded-lg p-4 space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-[#9ca3af]">Current Balance</span>
-                        <span className="text-[#ededed] font-medium">{user?.credits.toFixed(2)} credits</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-[#9ca3af]">After Purchase</span>
-                        <span className={`font-bold ${hasEnoughCredits ? 'text-[#3ecf8e]' : 'text-red-400'}`}>
-                          {balanceAfter.toFixed(2)} credits
-                        </span>
-                      </div>
-                    </div>
-                  )}
                 </div>
 
                 {/* Error/Warning Messages */}
@@ -1021,7 +972,7 @@ export default function CreditCheckoutPage() {
                     <span>Select a Plan</span>
                   ) : (
                     <>
-                      <span>confirm and buy</span>
+                      <span>confirm and pay {selectedPrice} CR</span>
                     </>
                   )}
                 </button>

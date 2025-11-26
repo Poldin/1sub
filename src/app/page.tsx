@@ -102,8 +102,9 @@ export default function Home() {
 
       const { checkout_id } = await checkoutResponse.json();
 
-      // Navigate to checkout page
-      router.push(`/credit_checkout/${checkout_id}`);
+      // Open checkout page in a new tab
+      const checkoutUrl = `/credit_checkout/${checkout_id}`;
+      window.open(checkoutUrl, '_blank');
     } catch (error) {
       console.error('Error launching tool:', error);
       alert('An error occurred. Please try again.');
@@ -203,9 +204,9 @@ export default function Home() {
             <a
               href="/login"
               id="join"
-              className="group relative inline-flex items-center justify-center px-10 py-5 text-lg sm:text-xl font-bold text-white bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] rounded-full overflow-hidden transition-all duration-300 hover:scale-105 animate-pulse-glow active:scale-95"
+              className="group relative inline-flex items-center justify-center px-10 py-5 text-lg sm:text-xl font-bold bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] rounded-full overflow-hidden transition-all duration-300 hover:scale-105 animate-pulse-glow active:scale-95"
             >
-              <span className="relative z-10 flex items-center gap-3">
+              <span className="relative z-10 flex items-center gap-3 text-white">
                 join us today!
                 <svg className="w-6 h-6 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
@@ -362,11 +363,9 @@ export default function Home() {
             {/* Community Card */}
             <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-8 hover:border-[#3ecf8e] transition-all group">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 bg-gradient-to-br from-[#3ecf8e] to-[#2dd4bf] rounded-xl flex items-center justify-center">
-                  <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
-                  </svg>
-                </div>
+                <svg className="w-6 h-6 text-[#d1d5db]" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+                </svg>
                 <h2 className="text-2xl font-bold">join our community</h2>
               </div>
               
@@ -377,7 +376,7 @@ export default function Home() {
               <div className="flex flex-col gap-3">
                 <a
                   href="/login"
-                  className="group/btn flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] text-white rounded-xl font-semibold hover:scale-105 transition-transform"
+                  className="group/btn flex items-center justify-center gap-2 px-6 py-3 bg-[#374151] text-[#d1d5db] rounded-xl font-semibold hover:bg-[#4B5563] transition-colors"
                 >
                   get started
                   <svg className="w-5 h-5 transition-transform group-hover/btn:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -401,26 +400,24 @@ export default function Home() {
             {/* Vendor Card */}
             <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-8 hover:border-[#3ecf8e] transition-all group">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 bg-gradient-to-br from-[#2dd4bf] to-[#3ecf8e] rounded-xl flex items-center justify-center">
-                  <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M6 6V5a3 3 0 013-3h2a3 3 0 013 3v1h2a2 2 0 012 2v3.57A22.952 22.952 0 0110 13a22.95 22.95 0 01-8-1.43V8a2 2 0 012-2h2zm2-1a1 1 0 011-1h2a1 1 0 011 1v1H8V5zm1 5a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clipRule="evenodd" />
-                    <path d="M2 13.692V16a2 2 0 002 2h12a2 2 0 002-2v-2.308A24.974 24.974 0 0110 15c-2.796 0-5.487-.46-8-1.308z" />
-                  </svg>
-                </div>
+                <svg className="w-6 h-6 text-[#d1d5db]" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M6 6V5a3 3 0 013-3h2a3 3 0 013 3v1h2a2 2 0 012 2v3.57A22.952 22.952 0 0110 13a22.95 22.95 0 01-8-1.43V8a2 2 0 012-2h2zm2-1a1 1 0 011-1h2a1 1 0 011 1v1H8V5zm1 5a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clipRule="evenodd" />
+                  <path d="M2 13.692V16a2 2 0 002 2h12a2 2 0 002-2v-2.308A24.974 24.974 0 0110 15c-2.796 0-5.487-.46-8-1.308z" />
+                </svg>
                 <h2 className="text-2xl font-bold">for vendors</h2>
+                <span className="bg-[#3ecf8e]/20 text-[#3ecf8e] px-2 py-1 rounded text-xs font-bold border border-[#3ecf8e]/30">
+                  1st month is free
+                </span>
               </div>
               
-              <p className="text-[#d1d5db] mb-2 leading-relaxed">
+              <p className="text-[#d1d5db] mb-6 leading-relaxed">
                 Get discovered by thousands of subscribers.
-              </p>
-              <p className="text-[#3ecf8e] text-sm font-semibold mb-6">
-                1st month free of fees
               </p>
               
               <div className="flex flex-col gap-3">
                 <a
                   href="/register"
-                  className="group/btn flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-[#2dd4bf] to-[#3ecf8e] text-white rounded-xl font-semibold hover:scale-105 transition-transform"
+                  className="group/btn flex items-center justify-center gap-2 px-6 py-3 bg-[#374151] text-[#d1d5db] rounded-xl font-semibold hover:bg-[#4B5563] transition-colors"
                 >
                   submit your tool
                   <svg className="w-5 h-5 transition-transform group-hover/btn:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -429,7 +426,7 @@ export default function Home() {
                 </a>
                 <a
                   href="/vendors"
-                  className="flex items-center justify-center gap-2 px-6 py-3 border border-[#3ecf8e] text-[#3ecf8e] rounded-xl font-semibold hover:bg-[#3ecf8e]/10 transition-colors"
+                  className="flex items-center justify-center gap-2 px-6 py-3 text-[#d1d5db] underline hover:text-[#ededed] transition-colors"
                 >
                   learn more
                 </a>
