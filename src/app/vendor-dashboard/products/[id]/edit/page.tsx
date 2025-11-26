@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { ArrowLeft, Save, Trash2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { ProductPricingModel } from '@/lib/tool-types';
+import MarkdownEditor from '../../../../components/MarkdownEditor';
 
 interface Product {
   id: string;
@@ -345,20 +346,22 @@ export default function EditProductPage() {
                 />
               </div>
 
-              {/* Product Description */}
+              {/* Product Description - Markdown Editor */}
               <div>
-                <label htmlFor="description" className="block text-sm font-medium text-[#d1d5db] mb-2">
-                  Description *
-                </label>
-                <textarea
-                  id="description"
-                  name="description"
+                <MarkdownEditor
                   value={formData.description}
-                  onChange={handleInputChange}
-                  rows={4}
-                  className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent resize-y"
-                  placeholder="Full access to all features with priority support..."
-                  required
+                  onChange={(value) => setFormData({ ...formData, description: value })}
+                  placeholder="Full access to all features with priority support...
+
+Puoi usare markdown:
+- **Grassetto**
+- *Corsivo*
+- `Codice inline`
+- Liste puntate
+- [Link](url)
+- E molto altro..."
+                  label="Description *"
+                  rows={8}
                 />
               </div>
 

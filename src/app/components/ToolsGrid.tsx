@@ -7,7 +7,7 @@ import ToolCard from './ToolCard';
 import ToolDialog from './ToolDialog';
 
 interface ToolsGridProps {
-  onToolLaunch?: (toolId: string) => void;
+  onToolLaunch?: (toolId: string, selectedProductId?: string) => void;
   highlightedToolId?: string | null;
   searchTerm?: string;
   tools?: Tool[]; // Optional: allow passing tools directly

@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Fix for multiple lockfiles warning
+  turbopack: {
+    root: process.cwd(),
+  },
   images: {
     remotePatterns: [
       {

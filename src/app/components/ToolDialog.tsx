@@ -1,7 +1,11 @@
 'use client';
 
+import { memo, useMemo } from 'react';
 import { X, Star, Users, ExternalLink, Check } from 'lucide-react';
 import Image from 'next/image';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import { Tool, DEFAULT_UI_METADATA, DEFAULT_ENGAGEMENT_METRICS, hasProducts } from '@/lib/tool-types';
 import { PricingCard } from './PricingDisplay';
 import { getToolPhase, getPhaseLabel, getPhaseTailwindClasses } from '@/lib/tool-phase';
@@ -124,10 +128,12 @@ const formatAdoptions = (num: number): string => {
   return num.toString();
 };
 
-export default function ToolDialog(props: ToolDialogProps) {
+function ToolDialogComponent(props: ToolDialogProps) {
   if (!props.isOpen) return null;
 
   // Extract tool data based on format
+  // Non usiamo useMemo qui perché il memo comparison già gestisce i re-render
+  // e useMemo con [props] causerebbe comunque re-render quando props cambia
   let tool: Tool;
 
   if (isUnifiedProps(props)) {
@@ -190,22 +196,22 @@ export default function ToolDialog(props: ToolDialogProps) {
     };
   }
 
-  // Extract metadata with defaults
-  const uiMeta = { ...DEFAULT_UI_METADATA, ...tool.metadata?.ui };
-  const engagement = { ...DEFAULT_ENGAGEMENT_METRICS, ...tool.metadata?.engagement };
-  const longDescription = tool.metadata?.content?.long_description;
+  // Extract metadata with defaults - MEMOIZED
+  const uiMeta = useMemo(() => ({ ...DEFAULT_UI_METADATA, ...tool.metadata?.ui }), [tool.metadata?.ui]);
+  const engagement = useMemo(() => ({ ...DEFAULT_ENGAGEMENT_METRICS, ...tool.metadata?.engagement }), [tool.metadata?.engagement]);
+  const longDescription = useMemo(() => tool.metadata?.content?.long_description, [tool.metadata?.content?.long_description]);
 
-  // Determine which image to show
-  const imageUrl = uiMeta.hero_image_url || tool.url;
+  // Determine which image to show - MEMOIZED
+  const imageUrl = useMemo(() => uiMeta.hero_image_url || tool.url, [uiMeta.hero_image_url, tool.url]);
   const logoUrl = uiMeta.logo_url;
   const emoji = uiMeta.emoji;
   const gradient = uiMeta.gradient;
 
-  // Dynamic phase calculation based on paying user count
+  // Dynamic phase calculation based on paying user count - MEMOIZED
   const payingUserCount = tool.metadata?.paying_user_count ?? 0;
-  const calculatedPhase = getToolPhase(payingUserCount);
-  const phaseLabel = getPhaseLabel(calculatedPhase);
-  const phaseClasses = getPhaseTailwindClasses(calculatedPhase);
+  const calculatedPhase = useMemo(() => getToolPhase(payingUserCount), [payingUserCount]);
+  const phaseLabel = useMemo(() => getPhaseLabel(calculatedPhase), [calculatedPhase]);
+  const phaseClasses = useMemo(() => getPhaseTailwindClasses(calculatedPhase), [calculatedPhase]);
 
   return (
     <>
@@ -345,11 +351,67 @@ export default function ToolDialog(props: ToolDialogProps) {
               </div>
             </div>
 
-            {/* Description */}
+            {/* Description - Markdown support */}
             <div className="px-6 sm:px-8 pb-6">
-              <p className="text-[#d1d5db] text-base sm:text-lg leading-loose whitespace-pre-line max-w-4xl">
-                {longDescription || tool.description}
-              </p>
+              <div className="markdown-content max-w-4xl">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  rehypePlugins={[rehypeRaw]}
+                  components={{
+                    // Headings
+                    h1: ({node, ...props}) => <h1 className="text-3xl font-bold text-[#ededed] mt-6 mb-4" {...props} />,
+                    h2: ({node, ...props}) => <h2 className="text-2xl font-bold text-[#ededed] mt-5 mb-3" {...props} />,
+                    h3: ({node, ...props}) => <h3 className="text-xl font-bold text-[#ededed] mt-4 mb-2" {...props} />,
+                    h4: ({node, ...props}) => <h4 className="text-lg font-bold text-[#ededed] mt-3 mb-2" {...props} />,
+                    // Paragraphs
+                    p: ({node, ...props}) => <p className="text-[#d1d5db] text-base sm:text-lg leading-loose mb-4" {...props} />,
+                    // Links
+                    a: ({node, ...props}) => <a className="text-[#3ecf8e] no-underline hover:underline transition-colors" target="_blank" rel="noopener noreferrer" {...props} />,
+                    // Strong/Bold
+                    strong: ({node, ...props}) => <strong className="text-[#ededed] font-bold" {...props} />,
+                    // Emphasis/Italic
+                    em: ({node, ...props}) => <em className="text-[#d1d5db] italic" {...props} />,
+                    // Code inline
+                    code: ({node, inline, ...props}: any) => 
+                      inline ? (
+                        <code className="text-[#3ecf8e] bg-[#374151] px-1.5 py-0.5 rounded text-sm font-mono" {...props} />
+                      ) : (
+                        <code className="text-[#d1d5db] font-mono" {...props} />
+                      ),
+                    // Code blocks
+                    pre: ({node, ...props}) => (
+                      <pre className="bg-[#111111] border border-[#374151] rounded-lg p-4 overflow-x-auto mb-4" {...props} />
+                    ),
+                    // Lists
+                    ul: ({node, ...props}) => <ul className="list-disc list-inside text-[#d1d5db] mb-4 space-y-2 ml-4" {...props} />,
+                    ol: ({node, ...props}) => <ol className="list-decimal list-inside text-[#d1d5db] mb-4 space-y-2 ml-4" {...props} />,
+                    li: ({node, ...props}) => <li className="text-[#d1d5db]" {...props} />,
+                    // Blockquotes
+                    blockquote: ({node, ...props}) => (
+                      <blockquote className="border-l-4 border-[#3ecf8e] pl-4 text-[#9ca3af] italic my-4" {...props} />
+                    ),
+                    // Horizontal rule
+                    hr: ({node, ...props}) => <hr className="border-[#374151] my-6" {...props} />,
+                    // Tables
+                    table: ({node, ...props}) => (
+                      <div className="overflow-x-auto my-4">
+                        <table className="min-w-full border-collapse" {...props} />
+                      </div>
+                    ),
+                    thead: ({node, ...props}) => <thead className="bg-[#1f2937]" {...props} />,
+                    tbody: ({node, ...props}) => <tbody {...props} />,
+                    tr: ({node, ...props}) => <tr className="border-b border-[#374151]" {...props} />,
+                    th: ({node, ...props}) => <th className="text-[#ededed] font-bold px-4 py-2 text-left border border-[#374151]" {...props} />,
+                    td: ({node, ...props}) => <td className="text-[#d1d5db] px-4 py-2 border border-[#374151]" {...props} />,
+                    // Images
+                    img: ({node, ...props}) => (
+                      <img className="rounded-lg border border-[#374151] max-w-full h-auto my-4" {...props} />
+                    ),
+                  }}
+                >
+                  {longDescription || tool.description || ''}
+                </ReactMarkdown>
+              </div>
             </div>
 
             {/* Products Section */}
@@ -390,4 +452,35 @@ export default function ToolDialog(props: ToolDialogProps) {
     </>
   );
 }
+
+// Memoize ToolDialog per evitare re-render non necessari
+export default memo(ToolDialogComponent, (prevProps, nextProps) => {
+  // Se isOpen è false in entrambi, non serve re-render
+  if (!prevProps.isOpen && !nextProps.isOpen) return true;
+  
+  // Se isOpen cambia, serve re-render
+  if (prevProps.isOpen !== nextProps.isOpen) return false;
+  
+  // Se non è aperto, non serve re-render
+  if (!nextProps.isOpen) return true;
+  
+  // Confronta le props rilevanti - confronto più robusto per evitare re-render quando il tool è lo stesso
+  if (isUnifiedProps(prevProps) && isUnifiedProps(nextProps)) {
+    // Confronta solo l'ID del tool - se è lo stesso, non serve re-render
+    // anche se l'oggetto tool è stato ricreato da SWR
+    const sameTool = prevProps.tool.id === nextProps.tool.id;
+    const sameCallbacks = (
+      prevProps.onClose === nextProps.onClose &&
+      prevProps.onToolLaunch === nextProps.onToolLaunch
+    );
+    
+    // Se tool e callbacks sono gli stessi, non serve re-render
+    // Nota: confrontiamo solo l'ID perché SWR potrebbe ricreare l'oggetto
+    // anche se i dati sono identici, ma l'ID rimane stabile
+    return sameTool && sameCallbacks;
+  }
+  
+  // Per legacy props, usa confronto completo
+  return false;
+});
 

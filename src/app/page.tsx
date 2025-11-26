@@ -1,33 +1,33 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, lazy, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import { Users } from 'lucide-react';
 import Footer from './components/Footer';
 import ToolCard from './components/ToolCard';
-import ToolCardSkeleton from './components/ToolCardSkeleton';
-import ToolDialog from './components/ToolDialog';
 import PricingExplainer from './components/PricingExplainer';
 import TrustIndicators from './components/TrustIndicators';
 import { useTools } from '@/hooks/useTools';
 import { Tool } from '@/lib/tool-types';
 
+// Lazy-load del ToolDialog per ridurre il bundle iniziale
+const ToolDialog = lazy(() => import('./components/ToolDialog'));
+
 export default function Home() {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
+  const [selectedToolId, setSelectedToolId] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   
   // Fetch tools from database
   const { tools, loading, error } = useTools();
-  
-  // Carousel drag and auto-scroll functionality
-  const carouselRef = useRef<HTMLDivElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [startX, setStartX] = useState(0);
-  const [scrollLeft, setScrollLeft] = useState(0);
-  const [userInteracting, setUserInteracting] = useState(false);
-  const autoScrollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Trova il tool selezionato dal ID per evitare riferimenti instabili
+  // Questo evita re-render quando SWR ricarica i dati ma il tool è lo stesso
+  const selectedTool = useMemo(() => {
+    if (!selectedToolId) return null;
+    return tools.find(tool => tool.id === selectedToolId) || null;
+  }, [tools, selectedToolId]);
 
   // Filter tools based on search term - MEMOIZED per evitare ricalcoli
   const filteredTools = useMemo(() => {
@@ -41,96 +41,28 @@ export default function Home() {
     });
   }, [tools, searchTerm]);
 
-  // Carousel tools - limitiamo a 12 per performance
-  const carouselTools = useMemo(() => filteredTools.slice(0, 12), [filteredTools]);
-
-  // Drag to scroll functionality
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (!carouselRef.current) return;
-    setIsDragging(true);
-    setUserInteracting(true);
-    setStartX(e.pageX - carouselRef.current.offsetLeft);
-    setScrollLeft(carouselRef.current.scrollLeft);
-    carouselRef.current.style.cursor = 'grabbing';
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging || !carouselRef.current) return;
-    e.preventDefault();
-    const x = e.pageX - carouselRef.current.offsetLeft;
-    const walk = (x - startX) * 2; // Scroll speed multiplier
-    carouselRef.current.scrollLeft = scrollLeft - walk;
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
-    if (carouselRef.current) {
-      carouselRef.current.style.cursor = 'grab';
-    }
-    // Reset user interaction after 3 seconds
-    setTimeout(() => {
-      setUserInteracting(false);
-    }, 3000);
-  };
-
-  const handleMouseLeave = () => {
-    setIsDragging(false);
-    if (carouselRef.current) {
-      carouselRef.current.style.cursor = 'grab';
-    }
-  };
-
-  // Auto-scroll functionality
-  useEffect(() => {
-    const startAutoScroll = () => {
-      if (autoScrollIntervalRef.current) {
-        clearInterval(autoScrollIntervalRef.current);
-      }
-      
-      autoScrollIntervalRef.current = setInterval(() => {
-        // Only auto-scroll on tablet+ where carousel is visible
-        if (!userInteracting && carouselRef.current && window.innerWidth >= 640) {
-          const carousel = carouselRef.current;
-          const maxScrollLeft = carousel.scrollWidth - carousel.clientWidth;
-          
-          if (carousel.scrollLeft >= maxScrollLeft) {
-            // Reset to beginning when reached the end
-            carousel.scrollTo({ left: 0, behavior: 'smooth' });
-          } else {
-            // Scroll to the right
-            carousel.scrollBy({ left: 344, behavior: 'smooth' }); // w-80 + gap-6
-          }
-        }
-      }, 3000); // Auto-scroll every 3 seconds
-    };
-
-    startAutoScroll();
-
-    return () => {
-      if (autoScrollIntervalRef.current) {
-        clearInterval(autoScrollIntervalRef.current);
-      }
-    };
-  }, [userInteracting]);
-
-  // Handle scroll events to detect user interaction
-  const handleScroll = () => {
-    setUserInteracting(true);
-    setTimeout(() => {
-      setUserInteracting(false);
-    }, 3000);
-  };
-
   // Handle tool card click to open dialog - MEMOIZED callback
+  // Usa solo l'ID per evitare problemi con riferimenti instabili
   const handleToolClick = useCallback((tool: Tool) => {
-    setSelectedTool(tool);
+    setSelectedToolId(tool.id);
     setIsDialogOpen(true);
   }, []);
+
+  // Create stable callback map for tools to avoid re-renders
+  // This ensures each ToolCard gets a stable callback reference
+  const toolClickCallbacks = useMemo(() => {
+    const map = new Map<string, () => void>();
+    filteredTools.forEach(tool => {
+      map.set(tool.id, () => handleToolClick(tool));
+    });
+    return map;
+  }, [filteredTools, handleToolClick]);
 
   // Handle dialog close - MEMOIZED callback
   const handleDialogClose = useCallback(() => {
     setIsDialogOpen(false);
-    setTimeout(() => setSelectedTool(null), 300); // Delay clearing to allow animation
+    // Delay clearing to allow animation - usa l'ID invece dell'oggetto
+    setTimeout(() => setSelectedToolId(null), 300);
   }, []);
 
   // Handle tool launch - creates checkout and navigates
@@ -398,90 +330,26 @@ export default function Home() {
             </div>
           )}
 
-          {/* Mobile Carousel */}
+          {/* All Tools Section */}
           {!loading && !error && filteredTools.length > 0 && (
-            <>
-              <div className="mb-8 mt-12 sm:hidden -mx-4">
-                <div className="w-full overflow-hidden">
-                  <div 
-                    className="flex gap-4 overflow-x-auto pb-4 px-4" 
-                    style={{
-                      scrollbarWidth: 'none',
-                      msOverflowStyle: 'none',
-                      WebkitOverflowScrolling: 'touch'
-                    }}
-                  >
-                    {loading ? (
-                      <>
-                        {[...Array(3)].map((_, index) => (
-                          <div key={`skeleton-mobile-${index}`} className="flex-shrink-0 w-80 min-w-[20rem]">
-                            <ToolCardSkeleton />
-                          </div>
-                        ))}
-                      </>
-                    ) : (
-                      carouselTools.map((tool, index) => (
-                        <div key={tool.id} className="flex-shrink-0 w-80 min-w-[20rem]">
-                          <ToolCard tool={tool} mode="marketing" onViewClick={() => handleToolClick(tool)} onLaunchClick={() => handleToolClick(tool)} priority={index < 3} />
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
+            <div className="mb-8 mt-8">
+              <div className="flex flex-wrap gap-4 sm:gap-6 justify-center">
+                {filteredTools.map((tool) => {
+                  // Usa callback stabili dal Map per evitare re-render non necessari
+                  const handleClick = toolClickCallbacks.get(tool.id) || (() => handleToolClick(tool));
+                  return (
+                    <div key={tool.id} className="w-80 sm:w-[22rem]">
+                      <ToolCard 
+                        tool={tool} 
+                        mode="marketing" 
+                        onViewClick={handleClick} 
+                        onLaunchClick={handleClick} 
+                      />
+                    </div>
+                  );
+                })}
               </div>
-
-              {/* Desktop Carousel - mostra solo prime 12 card per performance */}
-              <div className="mb-4 mt-4 hidden sm:block -mx-6 lg:-mx-8">
-                <div 
-                  ref={carouselRef}
-                  className="flex gap-6 overflow-x-auto py-4 px-6 lg:px-8 scrollbar-hide cursor-grab select-none" 
-                  style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}
-                  onMouseDown={handleMouseDown}
-                  onMouseMove={handleMouseMove}
-                  onMouseUp={handleMouseUp}
-                  onMouseLeave={handleMouseLeave}
-                  onScroll={handleScroll}
-                >
-                  {loading ? (
-                    <>
-                      {[...Array(4)].map((_, index) => (
-                        <div key={`skeleton-desktop-${index}`} className="flex-shrink-0 w-[22rem]">
-                          <ToolCardSkeleton />
-                        </div>
-                      ))}
-                    </>
-                  ) : (
-                    carouselTools.map((tool, index) => (
-                      <div key={tool.id} className="flex-shrink-0 w-[22rem]">
-                        <ToolCard tool={tool} mode="marketing" onViewClick={() => handleToolClick(tool)} onLaunchClick={() => handleToolClick(tool)} priority={index < 4} />
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              {/* All Tools Section */}
-              <div className="mb-8">
-                <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">All Tools</h2>
-                <div className="flex flex-wrap gap-4 sm:gap-6 justify-center">
-                  {loading ? (
-                    <>
-                      {[...Array(6)].map((_, index) => (
-                        <div key={`skeleton-all-${index}`} className="w-80 sm:w-[22rem]">
-                          <ToolCardSkeleton />
-                        </div>
-                      ))}
-                    </>
-                  ) : (
-                    filteredTools.map((tool) => (
-                      <div key={tool.id} className="w-80 sm:w-[22rem]">
-                        <ToolCard tool={tool} mode="marketing" onViewClick={() => handleToolClick(tool)} onLaunchClick={() => handleToolClick(tool)} />
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </>
+            </div>
           )}
         </div>
       </section>
@@ -656,14 +524,18 @@ export default function Home() {
       {/* Footer */}
       <Footer />
 
-      {/* Tool Dialog */}
-      {selectedTool && (
-        <ToolDialog
-          isOpen={isDialogOpen}
-          onClose={handleDialogClose}
-          tool={selectedTool}
-          onToolLaunch={handleToolLaunch}
-        />
+      {/* Tool Dialog - Renderizzato solo quando aperto */}
+      {/* Isolato dal re-render del componente padre usando key basata sull'ID */}
+      {isDialogOpen && selectedTool && (
+        <Suspense fallback={null}>
+          <ToolDialog
+            key={selectedTool.id}
+            isOpen={isDialogOpen}
+            onClose={handleDialogClose}
+            tool={selectedTool}
+            onToolLaunch={handleToolLaunch}
+          />
+        </Suspense>
       )}
     </div>
   );

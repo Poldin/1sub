@@ -1,5 +1,9 @@
 'use client';
 
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
+import { ExternalLink } from 'lucide-react';
 import { PricingOptions, ProductPricingModel } from '@/lib/tool-types';
 
 // ============================================================================
@@ -236,21 +240,43 @@ export function PricingCard({
         {name}
       </h4>
       
-      {/* Description */}
+      {/* Description - Markdown support */}
       {description && (
-        <p className="text-sm text-[#9ca3af] mb-4">
-          {description}
-        </p>
+        <div className="text-sm text-[#9ca3af] mb-4 markdown-description">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeRaw]}
+            components={{
+              p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
+              strong: ({node, ...props}) => <strong className="text-[#d1d5db] font-semibold" {...props} />,
+              em: ({node, ...props}) => <em className="italic" {...props} />,
+              ul: ({node, ...props}) => <ul className="list-disc list-inside space-y-1 ml-2" {...props} />,
+              ol: ({node, ...props}) => <ol className="list-decimal list-inside space-y-1 ml-2" {...props} />,
+              li: ({node, ...props}) => <li {...props} />,
+              code: ({node, inline, ...props}: any) => 
+                inline ? (
+                  <code className="text-[#3ecf8e] bg-[#374151] px-1 py-0.5 rounded text-xs font-mono" {...props} />
+                ) : (
+                  <code className="text-[#d1d5db] font-mono" {...props} />
+                ),
+              a: ({node, ...props}) => <a className="text-[#3ecf8e] hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
+            }}
+          >
+            {description}
+          </ReactMarkdown>
+        </div>
       )}
 
       {/* Pricing Information */}
       <div className="mb-4">
-        <MainPriceDisplay pricingOptions={pricingModel} />
-        {!isCustom && (
-          <div className="mt-2">
-            <PricingBadges pricingOptions={pricingModel} />
-          </div>
-        )}
+        <div className="flex items-baseline justify-between gap-4">
+          <MainPriceDisplay pricingOptions={pricingModel} />
+          {!isCustom && (
+            <div className="flex-shrink-0">
+              <PricingBadges pricingOptions={pricingModel} />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Features */}
@@ -281,12 +307,10 @@ export function PricingCard({
       ) : onSelect && (
         <button 
           onClick={() => onSelect(id)}
-          className="w-full bg-[#3ecf8e] text-black px-4 py-3 rounded-md font-bold hover:bg-[#2dd4bf] transition-all flex items-center justify-center gap-2 group mt-4"
+          className="w-full bg-[#3ecf8e] text-black px-2 py-1.5 rounded text-xs font-medium hover:bg-[#2dd4bf] transition-all flex items-center justify-center gap-1 group mt-4"
         >
-          Select Plan
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
+          Start
+          <ExternalLink className="w-3 h-3" />
         </button>
       )}
     </div>

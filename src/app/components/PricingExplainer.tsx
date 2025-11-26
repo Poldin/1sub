@@ -11,7 +11,7 @@ export default function PricingExplainer() {
           simple, transparent pricing
         </h2>
         <p className="text-[#d1d5db] text-lg">
-          1 credit = €1. Use credits for any tool, any time.
+          1 credit = €1 = 1 CR. Use credits for any tool, any time.
         </p>
       </div>
 

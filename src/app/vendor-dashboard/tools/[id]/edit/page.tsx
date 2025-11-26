@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import Sidebar from '../../../../backoffice/components/Sidebar';
 import Footer from '../../../../components/Footer';
 import ToolSelector from '../../../components/ToolSelector';
+import MarkdownEditor from '../../../../components/MarkdownEditor';
 
 interface Tool {
   id: string;
@@ -502,7 +503,7 @@ export default function EditToolPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex overflow-x-hidden">
+    <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex">
       {/* Unified Sidebar */}
       <Sidebar
         isOpen={isMenuOpen}
@@ -515,7 +516,7 @@ export default function EditToolPage() {
 
       {/* Main Content Area */}
       <main className={`
-        flex-1 min-w-0 transition-all duration-300 ease-in-out overflow-x-hidden
+        flex-1 min-w-0 transition-all duration-300 ease-in-out
         ${isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'}
       `}>
         {/* Top Bar with Hamburger, Tool Selector, and Save */}
@@ -697,19 +698,22 @@ export default function EditToolPage() {
                     </p>
                   </div>
 
-                  {/* Long Description */}
+                  {/* Long Description - Markdown Editor */}
                   <div>
-                    <label htmlFor="longDescription" className="block text-sm font-medium text-[#d1d5db] mb-2">
-                      Long Description
-                    </label>
-                    <textarea
-                      id="longDescription"
-                      name="longDescription"
+                    <MarkdownEditor
                       value={contentMetadata.longDescription}
-                      onChange={(e) => handleContentMetadataChange('longDescription', e.target.value)}
-                      rows={6}
-                      className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent resize-y"
-                      placeholder="Provide a detailed description of your tool. This will be shown in the tool detail view..."
+                      onChange={(value) => handleContentMetadataChange('longDescription', value)}
+                      placeholder="Provide a detailed description of your tool. This will be shown in the tool detail view...
+
+Puoi usare markdown:
+- **Grassetto**
+- *Corsivo*
+- `Codice inline`
+- Liste puntate
+- [Link](url)
+- E molto altro..."
+                      label="Long Description"
+                      rows={12}
                     />
                   </div>
                 </form>
@@ -909,8 +913,8 @@ export default function EditToolPage() {
 
             </div>
 
-            {/* Right Column: Preview */}
-            <div className="rounded-lg overflow-hidden">
+            {/* Right Column: Preview - Sticky */}
+            <div className="lg:sticky lg:top-[88px] lg:h-fit lg:max-h-[calc(100vh-88px)] lg:overflow-y-auto rounded-lg">
               <div className="bg-[#1f2937] rounded-lg overflow-hidden border border-[#374151]">
                 {/* Image - Full Width at Top */}
                 <div className="w-full h-48 bg-gradient-to-br from-[#3ecf8e]/20 to-[#2dd4bf]/20 flex items-center justify-center overflow-hidden">

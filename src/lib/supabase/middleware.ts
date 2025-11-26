@@ -12,6 +12,26 @@ export async function updateSession(request: NextRequest) {
     return { supabaseResponse: NextResponse.next({ request }), user: null };
   }
 
+  // Check if request headers are too large (HTTP 431 prevention)
+  const headerSize = JSON.stringify(request.headers).length;
+  const maxHeaderSize = 8192; // 8KB limit (common server limit)
+  
+  if (headerSize > maxHeaderSize) {
+    // Clear cookies if headers are too large
+    const response = NextResponse.next({ request });
+    const allCookies = request.cookies.getAll();
+    
+    // Clear Supabase cookies to reduce header size
+    allCookies.forEach((cookie) => {
+      if (cookie.name.includes('sb-') || cookie.name.includes('supabase') || cookie.name.includes('auth-token')) {
+        response.cookies.delete(cookie.name);
+        response.cookies.set(cookie.name, '', { maxAge: 0, path: '/', domain: undefined });
+      }
+    });
+    
+    return { supabaseResponse: response, user: null };
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   });
