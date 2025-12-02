@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Menu, CreditCard, Calendar, DollarSign, AlertCircle, Check, Loader2, ExternalLink, Shield, User, LogOut } from 'lucide-react';
+import { Menu, CreditCard, Calendar, DollarSign, AlertCircle, Check, Loader2, ExternalLink, Shield, User, LogOut, RefreshCw, TrendingUp, TrendingDown } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { getPlanById } from '@/lib/subscription-plans';
 import { getCurrentBalanceClient } from '@/lib/credits';
@@ -44,6 +44,17 @@ interface PurchasedTool {
   credits_paid: number;
 }
 
+interface Transaction {
+  id: string;
+  type: 'grant' | 'consume';
+  amount: number;
+  reason: string;
+  date: string;
+  metadata: Record<string, unknown>;
+  toolId: string | null;
+  checkoutId: string | null;
+}
+
 export default function ProfilePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -52,12 +63,15 @@ export default function ProfilePage() {
   const [platformSub, setPlatformSub] = useState<PlatformSubscription | null>(null);
   const [toolSubs, setToolSubs] = useState<ToolSubscription[]>([]);
   const [purchasedTools, setPurchasedTools] = useState<PurchasedTool[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   
   // Pagination states
   const [purchasedToolsToShow, setPurchasedToolsToShow] = useState(5);
   const [subscriptionsToShow, setSubscriptionsToShow] = useState(5);
+  const [transactionsToShow, setTransactionsToShow] = useState(10);
+  const [transactionsLoading, setTransactionsLoading] = useState(false);
 
   // Sidebar states
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -119,6 +133,9 @@ export default function ProfilePage() {
           setCredits(userCredits);
         }
 
+        // Fetch credit transactions
+        await fetchTransactions(authUser.id);
+
         // Fetch platform subscription
         const { data: platformData } = await supabase
           .from('platform_subscriptions')
@@ -171,7 +188,7 @@ export default function ProfilePage() {
             // Try to get subscription info from completed checkouts
             const { data: completedCheckouts } = await supabase
               .from('checkouts')
-              .select('metadata, created_at')
+              .select('metadata, created_at, type')
               .eq('user_id', authUser.id)
               .eq('type', 'tool_subscription')
               .not('metadata->status', 'eq', 'pending')
@@ -179,68 +196,49 @@ export default function ProfilePage() {
             
             if (completedCheckouts && completedCheckouts.length > 0) {
               console.log('[INFO] Found', completedCheckouts.length, 'completed subscription checkouts');
+              console.log('[DEBUG] Subscription checkouts data:', completedCheckouts.map((c: Record<string, unknown>) => ({
+                created_at: c.created_at,
+                type: c.type,
+                status: (c.metadata as Record<string, unknown>)?.status,
+                tool_name: (c.metadata as Record<string, unknown>)?.tool_name,
+              })));
               // We can't create full subscription objects from this, but we can log it
             }
           }
-        }
-
-        if (toolData && Array.isArray(toolData) && toolData.length > 0) {
-          console.log('[DEBUG] Found', toolData.length, 'active tool subscriptions');
-          // Map database fields to interface
-          const mappedSubs = toolData.map((sub: Record<string, unknown>) => ({
-            id: sub.id,
-            tool_id: sub.tool_id,
-            status: sub.status,
-            credits_per_period: sub.credits_per_period,
-            period: sub.period,
-            next_billing_date: sub.next_billing_date,
-            created_at: sub.created_at,
-            metadata: sub.metadata || {},
-          }));
-          setToolSubs(mappedSubs as ToolSubscription[]);
-        } else {
-          console.log('[DEBUG] No active tool subscriptions found');
+          
+          // Set empty array on error
           setToolSubs([]);
+        } else {
+          if (toolData && Array.isArray(toolData) && toolData.length > 0) {
+            console.log('[DEBUG] Found', toolData.length, 'active tool subscriptions');
+            console.log('[DEBUG] Subscription details:', toolData.map((sub: Record<string, unknown>) => ({
+              id: sub.id,
+              tool_id: sub.tool_id,
+              status: sub.status,
+              period: sub.period,
+              tool_name: (sub.metadata as Record<string, unknown>)?.tool_name,
+            })));
+            
+            // Map database fields to interface
+            const mappedSubs = toolData.map((sub: Record<string, unknown>) => ({
+              id: sub.id,
+              tool_id: sub.tool_id,
+              status: sub.status,
+              credits_per_period: sub.credits_per_period,
+              period: sub.period,
+              next_billing_date: sub.next_billing_date,
+              created_at: sub.created_at,
+              metadata: sub.metadata || {},
+            }));
+            setToolSubs(mappedSubs as ToolSubscription[]);
+          } else {
+            console.log('[DEBUG] No active tool subscriptions found');
+            setToolSubs([]);
+          }
         }
 
         // Fetch one-time purchased tools (from completed checkouts)
-        const { data: checkoutsData, error: checkoutsError } = await supabase
-          .from('checkouts')
-          .select('id, credit_amount, created_at, metadata')
-          .eq('user_id', authUser.id)
-          .eq('type', 'tool_purchase')
-          .order('created_at', { ascending: false });
-
-        if (checkoutsError) {
-          console.error('[ERROR] Failed to fetch purchased tools:', checkoutsError);
-        }
-
-        if (checkoutsData && Array.isArray(checkoutsData) && checkoutsData.length > 0) {
-          // Filter only completed purchases
-          const completedPurchases = checkoutsData.filter((checkout: Record<string, unknown>) => {
-            const meta = checkout.metadata as Record<string, unknown>;
-            return meta?.status === 'completed';
-          });
-
-          console.log('[DEBUG] Found', completedPurchases.length, 'one-time tool purchases');
-
-          const mappedPurchases = completedPurchases.map((checkout: Record<string, unknown>) => {
-            const meta = checkout.metadata as Record<string, unknown>;
-            return {
-              id: checkout.id,
-              tool_id: meta?.tool_id || '',
-              tool_name: meta?.tool_name || 'Unknown Tool',
-              tool_url: meta?.tool_url || '',
-              purchased_at: checkout.created_at,
-              credits_paid: checkout.credit_amount || 0,
-            };
-          });
-
-          setPurchasedTools(mappedPurchases as PurchasedTool[]);
-        } else {
-          console.log('[DEBUG] No one-time tool purchases found');
-          setPurchasedTools([]);
-        }
+        await fetchPurchasedTools(authUser.id);
 
         setLoading(false);
       } catch (err) {
@@ -252,6 +250,218 @@ export default function ProfilePage() {
 
     fetchData();
   }, [router]);
+
+  // Add refresh on window focus
+  useEffect(() => {
+    const handleFocus = async () => {
+      if (user?.id) {
+        // Refresh credits and transactions when user returns to tab
+        const userCredits = await getCurrentBalanceClient(user.id);
+        if (userCredits !== null) {
+          setCredits(userCredits);
+        }
+        await fetchTransactions(user.id);
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [user?.id]);
+
+  // Fetch transactions function
+  const fetchTransactions = async (userId: string) => {
+    setTransactionsLoading(true);
+    try {
+      const response = await fetch(`/api/user/transactions?limit=50&offset=0`);
+      if (!response.ok) throw new Error('Failed to fetch transactions');
+      const data = await response.json();
+      setTransactions(data.transactions || []);
+    } catch (err) {
+      console.error('Error fetching transactions:', err);
+      // Don't show error to user, just log it
+    } finally {
+      setTransactionsLoading(false);
+    }
+  };
+
+  // Fetch purchased tools function (reusable)
+  const fetchPurchasedTools = async (userId: string) => {
+    try {
+      const supabase = createClient();
+      
+      // Query all completed checkouts (more flexible - includes null types)
+      // We'll filter in code to exclude subscriptions
+      const { data: checkoutsData, error: checkoutsError } = await supabase
+        .from('checkouts')
+        .select('id, credit_amount, type, created_at, metadata')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (checkoutsError) {
+        console.error('[ERROR] Failed to fetch purchased tools:', checkoutsError);
+        // Try fallback query with more specific filter
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('checkouts')
+          .select('id, credit_amount, type, created_at, metadata')
+          .eq('user_id', userId)
+          .or('type.eq.tool_purchase,type.is.null')
+          .order('created_at', { ascending: false });
+
+        if (fallbackError) {
+          console.error('[ERROR] Fallback query also failed:', fallbackError);
+          setPurchasedTools([]);
+          return;
+        }
+
+        if (fallbackData && Array.isArray(fallbackData)) {
+          // Filter completed purchases, exclude subscriptions and usage-based tools
+          const completedPurchases = fallbackData.filter((checkout: Record<string, unknown>) => {
+            const meta = checkout.metadata as Record<string, unknown>;
+            const checkoutType = checkout.type as string | null;
+            const isCompleted = meta?.status === 'completed';
+            // Exclude subscriptions - check both type and metadata
+            const isNotSubscription = checkoutType !== 'tool_subscription' && 
+              !(meta?.checkout_type === 'tool_subscription') &&
+              !(meta?.billing_period);
+            const isNotUsageBased = meta?.pricing_model !== 'usage_based';
+            return isCompleted && isNotSubscription && isNotUsageBased;
+          });
+
+          // Deduplicate by tool_id - keep only most recent purchase per tool
+          const uniquePurchasesMap = new Map<string, PurchasedTool>();
+          completedPurchases.forEach((checkout: Record<string, unknown>) => {
+            const meta = checkout.metadata as Record<string, unknown>;
+            const toolId = meta?.tool_id as string;
+            if (toolId) {
+              const purchase: PurchasedTool = {
+                id: checkout.id as string,
+                tool_id: toolId,
+                tool_name: meta?.tool_name as string || 'Unknown Tool',
+                tool_url: meta?.tool_url as string || '',
+                purchased_at: checkout.created_at as string,
+                credits_paid: checkout.credit_amount as number || 0,
+              };
+              const existing = uniquePurchasesMap.get(toolId);
+              if (!existing || new Date(purchase.purchased_at) > new Date(existing.purchased_at)) {
+                uniquePurchasesMap.set(toolId, purchase);
+              }
+            }
+          });
+          const uniquePurchases = Array.from(uniquePurchasesMap.values());
+
+          console.log('[DEBUG] Fallback query found', completedPurchases.length, 'completed one-time purchases (before deduplication)');
+          console.log('[DEBUG] After deduplication:', uniquePurchases.length, 'unique purchases');
+
+          setPurchasedTools(uniquePurchases);
+        } else {
+          setPurchasedTools([]);
+        }
+        return;
+      }
+
+      if (checkoutsData && Array.isArray(checkoutsData)) {
+        console.log('[DEBUG] Found', checkoutsData.length, 'total checkouts for user');
+
+        // Filter completed purchases, exclude subscriptions and usage-based tools
+        const completedPurchases = checkoutsData.filter((checkout: Record<string, unknown>) => {
+          const meta = checkout.metadata as Record<string, unknown>;
+          const checkoutType = checkout.type as string | null;
+          const isCompleted = meta?.status === 'completed';
+          // Exclude subscriptions - check both type and metadata
+          const isNotSubscription = checkoutType !== 'tool_subscription' && 
+            !(meta?.checkout_type === 'tool_subscription') &&
+            !(meta?.billing_period);
+          const isNotUsageBased = meta?.pricing_model !== 'usage_based';
+          return isCompleted && isNotSubscription && isNotUsageBased;
+        });
+
+        console.log('[DEBUG] Found', completedPurchases.length, 'completed one-time tool purchases (after filtering, before deduplication)');
+
+        // Deduplicate by tool_id - keep only most recent purchase per tool
+        const uniquePurchasesMap = new Map<string, PurchasedTool>();
+        completedPurchases.forEach((checkout: Record<string, unknown>) => {
+          const meta = checkout.metadata as Record<string, unknown>;
+          const toolId = meta?.tool_id as string;
+          if (toolId) {
+            const purchase: PurchasedTool = {
+              id: checkout.id as string,
+              tool_id: toolId,
+              tool_name: meta?.tool_name as string || 'Unknown Tool',
+              tool_url: meta?.tool_url as string || '',
+              purchased_at: checkout.created_at as string,
+              credits_paid: checkout.credit_amount as number || 0,
+            };
+            const existing = uniquePurchasesMap.get(toolId);
+            if (!existing || new Date(purchase.purchased_at) > new Date(existing.purchased_at)) {
+              uniquePurchasesMap.set(toolId, purchase);
+            }
+          }
+        });
+        const uniquePurchases = Array.from(uniquePurchasesMap.values());
+
+        console.log('[DEBUG] After deduplication:', uniquePurchases.length, 'unique purchases');
+
+        setPurchasedTools(uniquePurchases);
+      } else {
+        console.log('[DEBUG] No checkouts found');
+        setPurchasedTools([]);
+      }
+    } catch (err) {
+      console.error('[ERROR] Error in fetchPurchasedTools:', err);
+      setPurchasedTools([]);
+    }
+  };
+
+  // Manual refresh function
+  const handleRefresh = async () => {
+    if (!user?.id) return;
+    
+    const supabase = createClient();
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) return;
+
+    // Refresh all data
+    const userCredits = await getCurrentBalanceClient(authUser.id);
+    if (userCredits !== null) {
+      setCredits(userCredits);
+    }
+
+    // Refresh transactions
+    await fetchTransactions(authUser.id);
+
+    // Refresh purchased tools
+    await fetchPurchasedTools(authUser.id);
+
+    // Refresh tool subscriptions
+    const { data: toolData, error: toolSubsError } = await supabase
+      .from('tool_subscriptions')
+      .select('*')
+      .eq('user_id', authUser.id)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false });
+
+    if (toolSubsError) {
+      console.error('[ERROR] Failed to refresh tool subscriptions:', toolSubsError);
+      // Don't clear existing subscriptions on refresh error
+    } else {
+      if (toolData && Array.isArray(toolData)) {
+        console.log('[DEBUG] Refreshed', toolData.length, 'active tool subscriptions');
+        const mappedSubs = toolData.map((sub: Record<string, unknown>) => ({
+          id: sub.id,
+          tool_id: sub.tool_id,
+          status: sub.status,
+          credits_per_period: sub.credits_per_period,
+          period: sub.period,
+          next_billing_date: sub.next_billing_date,
+          created_at: sub.created_at,
+          metadata: sub.metadata || {},
+        }));
+        setToolSubs(mappedSubs as ToolSubscription[]);
+      } else {
+        setToolSubs([]);
+      }
+    }
+  };
 
   const handleCancelPlatformSubscription = async () => {
     if (!platformSub || !confirm('Are you sure you want to cancel your platform subscription? You will lose access to recurring credits at the end of this billing period.')) {
@@ -445,6 +655,14 @@ export default function ProfilePage() {
                 </div>
               </div>
               <div className="flex gap-3">
+                <button
+                  onClick={handleRefresh}
+                  className="px-4 py-3 bg-[#374151] text-[#ededed] rounded-lg font-semibold hover:bg-[#4b5563] transition-colors flex items-center gap-2"
+                  title="Refresh data"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  <span className="hidden sm:inline">Refresh</span>
+                </button>
                 <button
                   onClick={() => router.push('/buy-credits')}
                   className="px-6 py-3 bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] text-black rounded-lg font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-[#3ecf8e]/20"
@@ -717,6 +935,114 @@ export default function ProfilePage() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Transaction History */}
+        <div className="mt-8">
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-[#3ecf8e]/10 rounded-lg">
+                <CreditCard className="w-5 h-5 text-[#3ecf8e]" />
+              </div>
+              <h2 className="text-xl font-bold">Transaction History</h2>
+            </div>
+            {transactionsLoading && (
+              <Loader2 className="w-4 h-4 animate-spin text-[#3ecf8e]" />
+            )}
+          </div>
+
+          {transactions.length > 0 ? (
+            <>
+              <div className="bg-[#1f2937]/50 backdrop-blur-sm border border-[#374151]/50 rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-[#0a0a0a]/50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Date</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Type</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Amount</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Description</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#374151]">
+                      {transactions.slice(0, transactionsToShow).map((transaction) => {
+                        const isGrant = transaction.type === 'grant';
+                        const toolName = transaction.metadata?.tool_name as string | undefined;
+                        const displayReason = toolName 
+                          ? transaction.reason.replace(toolName, '').trim()
+                          : transaction.reason;
+
+                        return (
+                          <tr key={transaction.id} className="hover:bg-[#374151]/30 transition-colors">
+                            <td className="px-6 py-4 text-[#9ca3af] whitespace-nowrap">
+                              <div>
+                                <div>{new Date(transaction.date).toLocaleDateString()}</div>
+                                <div className="text-xs text-[#6b7280] mt-0.5">
+                                  {new Date(transaction.date).toLocaleTimeString()}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-2">
+                                {isGrant ? (
+                                  <TrendingUp className="w-4 h-4 text-[#3ecf8e]" />
+                                ) : (
+                                  <TrendingDown className="w-4 h-4 text-red-400" />
+                                )}
+                                <span className={`text-sm font-medium ${
+                                  isGrant ? 'text-[#3ecf8e]' : 'text-red-400'
+                                }`}>
+                                  {isGrant ? 'Credit Added' : 'Credit Used'}
+                                </span>
+                              </div>
+                            </td>
+                            <td className={`px-6 py-4 font-semibold ${
+                              isGrant ? 'text-[#3ecf8e]' : 'text-red-400'
+                            }`}>
+                              {isGrant ? '+' : ''}{transaction.amount.toFixed(2)}
+                            </td>
+                            <td className="px-6 py-4 text-[#ededed]">
+                              <div className="max-w-md">
+                                <div className="truncate">{displayReason}</div>
+                                {toolName && (
+                                  <div className="text-xs text-[#9ca3af] mt-1">
+                                    Tool: {toolName}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Load More Button for Transactions */}
+              {transactions.length > transactionsToShow && (
+                <div className="mt-4 text-center">
+                  <button
+                    onClick={() => setTransactionsToShow(prev => prev + 10)}
+                    className="px-6 py-2.5 bg-[#1f2937]/50 border border-[#374151]/50 text-[#ededed] rounded-lg font-medium hover:border-[#3ecf8e]/50 hover:bg-[#1f2937]/70 transition-all inline-flex items-center gap-2"
+                  >
+                    Load More
+                    <span className="text-xs text-[#9ca3af]">
+                      ({transactions.length - transactionsToShow} more)
+                    </span>
+                  </button>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="bg-[#1f2937]/30 border border-dashed border-[#374151] rounded-xl p-8 text-center">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-[#3ecf8e]/10 rounded-full mb-4">
+                <CreditCard className="w-8 h-8 text-[#3ecf8e]/50" />
+              </div>
+              <p className="text-[#9ca3af] mb-4">No transactions yet</p>
+              <p className="text-sm text-[#6b7280]">Your credit transactions will appear here</p>
+            </div>
+          )}
         </div>
 
         {/* Quick Actions */}

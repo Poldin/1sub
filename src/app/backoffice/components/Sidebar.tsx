@@ -48,14 +48,19 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
   }, []);
 
   // Fetch credits independently using unified balance method
-  // Uses balance_after from latest transaction for consistency with checkout
+  // Uses user_balances table for fast and reliable balance lookups
   useEffect(() => {
     const fetchCredits = async () => {
       if (!userId) return;
 
-      const totalCredits = await getCurrentBalanceClient(userId);
-      if (totalCredits !== null) {
-        setCredits(totalCredits);
+      try {
+        const totalCredits = await getCurrentBalanceClient(userId);
+        if (totalCredits !== null) {
+          setCredits(totalCredits);
+        }
+      } catch (error) {
+        // Silently handle errors - default to 0 credits
+        // Errors are already logged in getCurrentBalanceClient
       }
     };
 

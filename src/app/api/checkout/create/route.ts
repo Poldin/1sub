@@ -63,6 +63,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Check if selected product is a custom plan
+      // Also check for duplicate subscriptions if this is a subscription product
       if (selected_product_id) {
         const selectedProduct = activeProducts.find((p: { id: string }) => p.id === selected_product_id);
         if (selectedProduct) {
@@ -73,6 +74,33 @@ export async function POST(request: NextRequest) {
               { error: 'This product requires custom pricing. Please contact the vendor directly.' },
               { status: 400 }
             );
+          }
+
+          // Check if this is a subscription product and user already has an active subscription
+          const pm = (selectedProduct as { pricing_model?: { subscription?: { enabled: boolean } } }).pricing_model;
+          if (pm?.subscription?.enabled) {
+            const { data: existingSub, error: existingSubError } = await supabase
+              .from('tool_subscriptions')
+              .select('id, status')
+              .eq('user_id', authUser.id)
+              .eq('tool_id', tool.id)
+              .in('status', ['active', 'paused'])
+              .maybeSingle();
+
+            if (existingSubError && existingSubError.code !== 'PGRST116') {
+              // PGRST116 is "not found" which is fine
+              console.error('Error checking for existing subscription:', existingSubError);
+              // Don't fail, let process route handle it
+            } else if (existingSub) {
+              return NextResponse.json(
+                { 
+                  error: 'You already have an active subscription to this tool',
+                  existing_subscription_id: existingSub.id,
+                  message: 'Please cancel your existing subscription before creating a new one, or contact support to upgrade/downgrade your plan.'
+                },
+                { status: 400 }
+              );
+            }
           }
         }
       }

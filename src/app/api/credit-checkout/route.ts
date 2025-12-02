@@ -65,9 +65,9 @@ export async function POST(request: NextRequest) {
 
     // Consume credits using improved RPC function with atomic operations
     // The RPC now handles:
-    // - Row-level locking to prevent race conditions
+    // - Row-level locking on user_balances table to prevent race conditions
     // - Balance validation
-    // - Atomic balance_after calculation
+    // - Atomic balance updates via user_balances table
     // - Idempotency checking
     const { data: consumeResult, error: consumeError } = await supabase
       .rpc('consume_credits', {

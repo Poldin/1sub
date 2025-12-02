@@ -5,11 +5,12 @@
  * All credit additions, subtractions, and balance checks should go through this service.
  * 
  * Key principles:
- * - Uses balance_after from latest transaction for performance
- * - Implements optimistic locking to prevent race conditions
+ * - Uses user_balances table as source of truth for fast and reliable balance lookups
+ * - Implements row-level locking to prevent race conditions
  * - Supports idempotency keys for all operations
  * - Validates balance consistency periodically
  * - All operations are atomic and logged
+ * - Trigger automatically updates user_balances on transaction insert
  */
 
 import { createClient } from '@/lib/supabase/server';
@@ -22,7 +23,6 @@ interface CreditTransaction {
   user_id: string;
   credits_amount: number;
   type: CreditTransactionType;
-  balance_after: number | null;
   reason: string | null;
   idempotency_key: string | null;
   checkout_id: string | null;
@@ -68,7 +68,7 @@ interface BalanceValidationResult {
 }
 
 /**
- * Get the current balance for a user using the latest balance_after value
+ * Get the current balance for a user from user_balances table
  * This is the primary method for checking balances (fast and accurate)
  */
 export async function getCurrentBalance(userId: string): Promise<number> {
@@ -76,27 +76,50 @@ export async function getCurrentBalance(userId: string): Promise<number> {
     throw new Error('User ID is required');
   }
 
-  const supabase = await createClient();
+  try {
+    const supabase = await createClient();
 
-  // Get the latest transaction to get balance_after
-  const { data: transaction, error } = await supabase
-    .from('credit_transactions')
-    .select('balance_after')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
+    // Get balance from user_balances table (source of truth)
+    const { data: balanceRecord, error } = await supabase
+      .from('user_balances')
+      .select('balance')
+      .eq('user_id', userId)
+      .single();
 
-  if (error) {
-    // If no transactions found (PGRST116), return 0
-    if (error.code === 'PGRST116') {
+    if (error) {
+      // If no balance record found (PGRST116), return 0
+      // This can happen for new users who haven't had any transactions yet
+      if (error.code === 'PGRST116') {
+        return 0;
+      }
+      
+      // Log detailed error information
+      console.error('Error fetching current balance:', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        userId,
+      });
+      
+      // For other errors, still return 0 rather than throwing
+      // This prevents the profile fetch from failing completely
+      // The error is logged for debugging
       return 0;
     }
-    console.error('Error fetching current balance:', error);
-    throw new Error('Failed to fetch current balance');
-  }
 
-  return transaction?.balance_after ?? 0;
+    return balanceRecord?.balance ?? 0;
+  } catch (error) {
+    // Catch any unexpected errors (e.g., network issues, database connection)
+    console.error('Unexpected error in getCurrentBalance:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      userId,
+    });
+    
+    // Return 0 instead of throwing to prevent cascading failures
+    return 0;
+  }
 }
 
 /**
@@ -139,35 +162,34 @@ export async function addCredits(params: AddCreditsParams): Promise<CreditOperat
     if (idempotencyKey) {
       const { data: existing, error: existingError } = await supabase
         .from('credit_transactions')
-        .select('id, balance_after, credits_amount')
+        .select('id, credits_amount')
         .eq('user_id', userId)
         .eq('idempotency_key', idempotencyKey)
         .single();
 
       if (!existingError && existing) {
-        // Transaction already processed, return existing result
-        const balanceBefore = (existing.balance_after ?? 0) - (existing.credits_amount ?? 0);
+        // Transaction already processed, get current balance from user_balances
+        const balanceAfter = await getCurrentBalance(userId);
+        const balanceBefore = balanceAfter - (existing.credits_amount ?? 0);
         return {
           success: true,
           transactionId: existing.id,
           balanceBefore,
-          balanceAfter: existing.balance_after ?? 0,
+          balanceAfter,
         };
       }
     }
 
     // Get current balance
     const balanceBefore = await getCurrentBalance(userId);
-    const balanceAfter = balanceBefore + amount;
 
-    // Insert the transaction
+    // Insert the transaction (trigger will update user_balances automatically)
     const { data: transaction, error: insertError } = await supabase
       .from('credit_transactions')
       .insert({
         user_id: userId,
         credits_amount: amount,
         type: 'add',
-        balance_after: balanceAfter,
         reason,
         idempotency_key: idempotencyKey,
         checkout_id: checkoutId,
@@ -186,6 +208,9 @@ export async function addCredits(params: AddCreditsParams): Promise<CreditOperat
         error: 'Failed to add credits'
       };
     }
+
+    // Get updated balance from user_balances (trigger should have updated it)
+    const balanceAfter = await getCurrentBalance(userId);
 
     return {
       success: true,
@@ -244,19 +269,20 @@ export async function subtractCredits(params: SubtractCreditsParams): Promise<Cr
     if (idempotencyKey) {
       const { data: existing, error: existingError } = await supabase
         .from('credit_transactions')
-        .select('id, balance_after, credits_amount')
+        .select('id, credits_amount')
         .eq('user_id', userId)
         .eq('idempotency_key', idempotencyKey)
         .single();
 
       if (!existingError && existing) {
-        // Transaction already processed, return existing result
-        const balanceBefore = (existing.balance_after ?? 0) + (existing.credits_amount ?? 0);
+        // Transaction already processed, get current balance from user_balances
+        const balanceAfter = await getCurrentBalance(userId);
+        const balanceBefore = balanceAfter + (existing.credits_amount ?? 0);
         return {
           success: true,
           transactionId: existing.id,
           balanceBefore,
-          balanceAfter: existing.balance_after ?? 0,
+          balanceAfter,
         };
       }
     }
@@ -274,16 +300,13 @@ export async function subtractCredits(params: SubtractCreditsParams): Promise<Cr
       };
     }
 
-    const balanceAfter = balanceBefore - amount;
-
-    // Insert the transaction
+    // Insert the transaction (trigger will update user_balances automatically)
     const { data: transaction, error: insertError } = await supabase
       .from('credit_transactions')
       .insert({
         user_id: userId,
         credits_amount: amount,
         type: 'subtract',
-        balance_after: balanceAfter,
         reason,
         idempotency_key: idempotencyKey,
         checkout_id: checkoutId,
@@ -302,6 +325,9 @@ export async function subtractCredits(params: SubtractCreditsParams): Promise<Cr
         error: 'Failed to subtract credits'
       };
     }
+
+    // Get updated balance from user_balances (trigger should have updated it)
+    const balanceAfter = await getCurrentBalance(userId);
 
     return {
       success: true,
@@ -322,7 +348,7 @@ export async function subtractCredits(params: SubtractCreditsParams): Promise<Cr
 
 /**
  * Calculate balance from all transactions (for validation only)
- * This is slower but can be used to validate the balance_after values
+ * This is slower but can be used to validate the user_balances.balance values
  */
 async function calculateBalanceFromAllTransactions(userId: string): Promise<number> {
   if (!userId) {
@@ -358,7 +384,7 @@ async function calculateBalanceFromAllTransactions(userId: string): Promise<numb
 }
 
 /**
- * Validate that the balance_after in the latest transaction matches the calculated balance
+ * Validate that the user_balances.balance matches the calculated balance from transactions
  * This should be called periodically to ensure data consistency
  */
 export async function validateBalance(userId: string): Promise<BalanceValidationResult> {

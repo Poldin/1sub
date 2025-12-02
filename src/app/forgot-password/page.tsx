@@ -76,7 +76,7 @@ function ForgotPasswordContent() {
       const redirectBase = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin;
       const supabase = createClient();
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${redirectBase}/forgot-password`,
+        redirectTo: `${redirectBase}/reset-password`,
       });
 
       if (error) {
@@ -109,7 +109,7 @@ function ForgotPasswordContent() {
       const redirectBase = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin;
       const supabase = createClient();
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${redirectBase}/forgot-password`,
+        redirectTo: `${redirectBase}/reset-password`,
       });
 
       if (error) {

@@ -60,10 +60,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const userIds = (userProfiles || []).map(p => p.id);
-
     // If no users, return zero stats
-    if (userIds.length === 0) {
+    if (!userProfiles || userProfiles.length === 0) {
       return NextResponse.json({
         totalBalance: 0,
         userCount: 0,
@@ -71,42 +69,23 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Get latest transaction for each user more efficiently
-    // Fetch all transactions for these users, ordered by created_at desc
-    // Then group by user_id to get the latest balance_after for each user
-    const { data: allTransactions, error: transactionsError } = await supabase
-      .from('credit_transactions')
-      .select('user_id, balance_after, created_at')
-      .in('user_id', userIds)
-      .order('created_at', { ascending: false });
+    // Get all balances from user_balances table (much more efficient than aggregating transactions)
+    const { data: allBalances, error: balancesError } = await supabase
+      .from('user_balances')
+      .select('balance');
 
-    if (transactionsError) {
-      console.error('Error fetching transactions:', transactionsError);
-      // Continue with zero balances if we can't fetch transactions
+    if (balancesError) {
+      console.error('Error fetching balances:', balancesError);
+      // Continue with zero balances if we can't fetch balances
     }
-
-    // Group transactions by user_id and get the latest balance_after for each user
-    const userBalances = new Map<string, number>();
-    
-    if (allTransactions && allTransactions.length > 0) {
-      // Since transactions are ordered by created_at desc, the first transaction
-      // for each user_id is their latest balance
-      for (const tx of allTransactions) {
-        if (tx.user_id && !userBalances.has(tx.user_id)) {
-          userBalances.set(tx.user_id, tx.balance_after || 0);
-        }
-      }
-    }
-
-    // Get balances for all users (default to 0 if no transactions)
-    const balances = userIds.map(userId => userBalances.get(userId) || 0);
 
     // Calculate total balance (sum of all user balances)
-    const totalBalance = balances.reduce((sum, balance) => sum + balance, 0);
+    const totalBalance = (allBalances || []).reduce((sum, record) => sum + (record.balance || 0), 0);
 
     // Calculate average balance
-    const averageBalance = balances.length > 0
-      ? totalBalance / balances.length
+    const userCountValue = userCount || userProfiles.length;
+    const averageBalance = userCountValue > 0
+      ? totalBalance / userCountValue
       : 0;
 
     return NextResponse.json({

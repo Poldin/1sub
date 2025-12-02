@@ -131,6 +131,10 @@ export async function POST(request: NextRequest) {
         } else if (pm.usage_based?.enabled && pm.usage_based.price_per_unit) {
           creditCost = pm.usage_based.price_per_unit;
           checkoutType = 'tool_purchase'; // Usage-based is typically one-time per unit
+          // Mark as usage-based in metadata for proper categorization
+          if (!metadata.pricing_model) {
+            metadata.pricing_model = 'usage_based';
+          }
         }
       }
     }
@@ -169,6 +173,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Update checkout with selected option (if products or pricing_options were used)
+    // Also ensure type is always set, even if no selected_pricing
     if (selected_pricing && (metadata.products || metadata.pricing_options)) {
       await supabase.from('checkouts').update({
         credit_amount: creditCost,
@@ -177,11 +182,45 @@ export async function POST(request: NextRequest) {
           ...metadata,
           selected_pricing,
           billing_period: billingPeriod,
+          // Ensure pricing_model is preserved if it was set
+          pricing_model: metadata.pricing_model,
+        }
+      }).eq('id', checkout_id);
+    } else if (!checkout.type || checkout.type !== checkoutType) {
+      // Ensure type is set even if no selected_pricing was provided
+      // This handles cases where checkout was created without products/pricing_options
+      await supabase.from('checkouts').update({
+        credit_amount: creditCost,
+        type: checkoutType,
+        metadata: {
+          ...checkout.metadata,
+          ...metadata,
+          // Preserve pricing_model if it was set
+          pricing_model: metadata.pricing_model || (checkout.metadata as Record<string, unknown>)?.pricing_model,
         }
       }).eq('id', checkout_id);
     }
 
-    // 6. Determine transaction reason based on checkout type
+    // 6. Validate checkout type and billing period for subscriptions
+    if (checkoutType === 'tool_subscription' && !billingPeriod) {
+      console.error('[ERROR][checkout/process] Invalid subscription configuration:', {
+        checkoutType,
+        billingPeriod,
+        selected_pricing,
+        has_products: !!(metadata.products && Array.isArray(metadata.products)),
+        has_pricing_options: !!metadata.pricing_options,
+      });
+      return NextResponse.json(
+        { 
+          error: 'Invalid subscription configuration',
+          message: 'Billing period is required for subscription checkouts. Please try again or contact support.',
+          checkout_id: checkout.id
+        },
+        { status: 400 }
+      );
+    }
+
+    // 6.5. Determine transaction reason based on checkout type
     let transactionReason = `Tool purchase: ${metadata.tool_name}`;
     if (checkoutType === 'tool_subscription') {
       transactionReason = `Subscription payment: ${metadata.tool_name} (${billingPeriod || 'monthly'})`;
@@ -211,6 +250,7 @@ export async function POST(request: NextRequest) {
           checkout_type: checkoutType,
           selected_pricing: selected_pricing || null,
           checkout_id: checkout.id,
+          pricing_model: metadata.pricing_model,
         }
       });
 
@@ -386,6 +426,42 @@ export async function POST(request: NextRequest) {
 
     // 9. Create subscription record if this is a subscription checkout
     if (checkoutType === 'tool_subscription' && billingPeriod) {
+      // Check for existing active subscription to prevent duplicates
+      const { data: existingSub, error: existingSubError } = await supabase
+        .from('tool_subscriptions')
+        .select('id, status, period, credits_per_period')
+        .eq('user_id', authUser.id)
+        .eq('tool_id', metadata.tool_id as string)
+        .in('status', ['active', 'paused'])
+        .maybeSingle();
+
+      if (existingSubError && existingSubError.code !== 'PGRST116') {
+        // PGRST116 is "not found" which is fine, other errors are not
+        console.error('Error checking for existing subscription:', existingSubError);
+        return NextResponse.json(
+          { error: 'Failed to check for existing subscription' },
+          { status: 500 }
+        );
+      }
+
+      if (existingSub) {
+        console.warn('[WARN][checkout/process] Duplicate subscription attempt:', {
+          userId: authUser.id,
+          toolId: metadata.tool_id,
+          existingSubscriptionId: existingSub.id,
+          existingStatus: existingSub.status,
+        });
+        return NextResponse.json(
+          { 
+            error: 'You already have an active subscription to this tool',
+            existing_subscription_id: existingSub.id,
+            existing_status: existingSub.status,
+            message: 'Please cancel your existing subscription before creating a new one, or contact support to upgrade/downgrade your plan.'
+          },
+          { status: 400 }
+        );
+      }
+
       // Calculate next billing date
       const nextBillingDate = new Date();
       if (billingPeriod === 'monthly') {
@@ -435,9 +511,20 @@ export async function POST(request: NextRequest) {
           checkout_id: checkout.id,
         });
         
-        // TODO: Store in failed_subscriptions table for manual review
-        // NOTE: Credits have already been deducted, but subscription wasn't created
-        // This requires manual intervention
+        // Return error - don't mark checkout as completed
+        // Credits were already deducted, but subscription wasn't created
+        // This is a critical error that requires manual intervention
+        return NextResponse.json(
+          { 
+            error: 'Failed to create subscription',
+            message: 'Your credits were deducted but subscription creation failed. Please contact support with this checkout ID.',
+            checkout_id: checkout.id,
+            credits_deducted: creditCost,
+            transaction_id: userTransactionResultCompat.transactionId,
+            details: subError.message || 'Unknown error during subscription creation'
+          },
+          { status: 500 }
+        );
       } else {
         console.log('[DEBUG][checkout/process] Subscription created successfully:', {
           subscriptionId: createdSub?.id,
@@ -487,6 +574,7 @@ export async function POST(request: NextRequest) {
 
     // 11. Update checkout status to completed (IDEMPOTENT)
     // Store idempotency key in metadata to prevent duplicate processing
+    // Also store checkout_type and billing_period for proper categorization
     const updatedMetadata = {
       ...metadata,
       status: 'completed',
@@ -494,6 +582,8 @@ export async function POST(request: NextRequest) {
       idempotency_key: idempotencyKey || `checkout-${checkout.id}`,
       user_transaction_id: userTransactionResultCompat.transactionId,
       vendor_transaction_id: vendorTransactionResult?.transactionId,
+      checkout_type: checkoutType, // Store checkout type in metadata for filtering
+      billing_period: billingPeriod || undefined, // Store billing period if subscription
     };
 
     const { error: updateError } = await supabase
@@ -514,6 +604,9 @@ export async function POST(request: NextRequest) {
       authUserId: authUser.id,
       newBalance: userTransactionResultCompat.balanceAfter,
       vendorId: checkout.vendor_id,
+      checkoutType: checkoutType,
+      billingPeriod: billingPeriod,
+      isSubscription: checkoutType === 'tool_subscription',
     });
 
     // 12. Return success with both tokens

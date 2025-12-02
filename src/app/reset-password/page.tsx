@@ -10,49 +10,107 @@ type Status = 'loading' | 'ready' | 'success' | 'error';
 function ResetPasswordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const code = searchParams.get('code');
-
+  
   const [status, setStatus] = useState<Status>('loading');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const verifyRecoveryCode = async () => {
-      if (!code) {
-        setError('Reset link is invalid or missing. Please request a new one.');
-        setStatus('error');
-        return;
-      }
-
+    const verifyRecoveryToken = async () => {
       try {
         const supabase = createClient();
-        const { data, error: verifyError } = await supabase.auth.verifyOtp({
-          type: 'recovery',
-          token_hash: code,
-        });
 
-        if (verifyError || !data.session) {
-          console.error('Failed to verify recovery code:', verifyError);
-          setError(
-            verifyError?.message || 'Reset link is invalid or has expired. Please request a new code.'
-          );
-          setStatus('error');
+        // First, check for tokens in URL hash fragments (most common format from Supabase)
+        // Format: #access_token=...&type=recovery&expires_in=...
+        if (typeof window !== 'undefined' && window.location.hash) {
+          const hashParams = new URLSearchParams(window.location.hash.substring(1));
+          const accessToken = hashParams.get('access_token');
+          const refreshToken = hashParams.get('refresh_token');
+          const type = hashParams.get('type');
+
+          if (accessToken && type === 'recovery') {
+            // Set session directly from hash tokens
+            const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken || '',
+            });
+
+            if (sessionError) {
+              console.error('Failed to set session from hash tokens:', sessionError);
+              setError(
+                sessionError.message || 'Reset link is invalid or has expired. Please request a new one.'
+              );
+              setStatus('error');
+              return;
+            }
+
+            if (sessionData.session) {
+              setStatus('ready');
+              // Clean up the hash from URL
+              window.history.replaceState(null, '', window.location.pathname + window.location.search);
+              return;
+            }
+          }
+        }
+
+        // Fallback: Check for code in query parameters
+        const code = searchParams.get('code');
+        const token = searchParams.get('token');
+        const type = searchParams.get('type');
+
+        if (code && type === 'recovery') {
+          // Exchange code for session
+          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+
+          if (exchangeError || !data.session) {
+            console.error('Failed to exchange code for session:', exchangeError);
+            setError(
+              exchangeError?.message || 'Reset link is invalid or has expired. Please request a new one.'
+            );
+            setStatus('error');
+            return;
+          }
+
+          setStatus('ready');
           return;
         }
 
-        await supabase.auth.setSession(data.session);
-        setStatus('ready');
+        // Fallback: Check for token parameter
+        if (token && type === 'recovery') {
+          // Try to verify OTP with token
+          const { data, error: verifyError } = await supabase.auth.verifyOtp({
+            type: 'recovery',
+            token_hash: token,
+          });
+
+          if (verifyError || !data.session) {
+            console.error('Failed to verify recovery token:', verifyError);
+            setError(
+              verifyError?.message || 'Reset link is invalid or has expired. Please request a new one.'
+            );
+            setStatus('error');
+            return;
+          }
+
+          await supabase.auth.setSession(data.session);
+          setStatus('ready');
+          return;
+        }
+
+        // If no valid token found
+        setError('Reset link is invalid or missing. Please request a new one.');
+        setStatus('error');
       } catch (err) {
-        console.error('Unexpected error verifying recovery code:', err);
+        console.error('Unexpected error verifying recovery token:', err);
         setError('An unexpected error occurred. Please try again.');
         setStatus('error');
       }
     };
 
-    verifyRecoveryCode();
+    verifyRecoveryToken();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code]);
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
