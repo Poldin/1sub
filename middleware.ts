@@ -25,10 +25,25 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Special handling for reset-password routes with recovery code
+  // Allow these routes to bypass all authentication checks so the page component
+  // can properly handle the code exchange without middleware interference
+  if (path === '/reset-password') {
+    const code = request.nextUrl.searchParams.get('code');
+    const type = request.nextUrl.searchParams.get('type');
+    
+    if (code && type === 'recovery') {
+      // Get supabaseResponse but bypass all auth checks and redirects
+      const { supabaseResponse } = await updateSession(request);
+      // Return immediately, allowing the page to handle code exchange
+      return supabaseResponse;
+    }
+  }
+
   const { supabaseResponse, user } = await updateSession(request);
 
   // Define public paths that don't require authentication
-  const publicPaths = ['/', '/login', '/register', '/waitlist', '/forgot-password'];
+  const publicPaths = ['/', '/login', '/register', '/waitlist', '/forgot-password', '/reset-password'];
 
   // Check if the current path is public
   const isPublicPath = publicPaths.includes(path);
