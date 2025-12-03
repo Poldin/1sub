@@ -111,7 +111,7 @@ export default function Home() {
   }, [router]);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] pb-20 sm:pb-0">
+    <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] pb-24 sm:pb-0">
       {/* Mobile Sticky CTA - Bottom */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a] to-transparent z-40 sm:hidden">
         <a
@@ -314,7 +314,7 @@ export default function Home() {
           </div>
           
           {/* Loading / Error State */}
-          {loading && (
+          {loading && filteredTools.length === 0 && (
             <div className="flex items-center justify-center py-12">
               <div className="text-center">
                 <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#3ecf8e] border-r-transparent"></div>
@@ -330,15 +330,15 @@ export default function Home() {
             </div>
           )}
 
-          {/* All Tools Section */}
-          {!loading && !error && filteredTools.length > 0 && (
+          {/* All Tools Section - Show tools even if still loading (optimistic update) */}
+          {!error && filteredTools.length > 0 && (
             <div className="mb-8 mt-8">
-              <div className="flex flex-wrap gap-4 sm:gap-6 justify-center">
+              <div className="flex flex-wrap gap-4 sm:gap-6 justify-center px-2 sm:px-0">
                 {filteredTools.map((tool) => {
                   // Usa callback stabili dal Map per evitare re-render non necessari
                   const handleClick = toolClickCallbacks.get(tool.id) || (() => handleToolClick(tool));
                   return (
-                    <div key={tool.id} className="w-80 sm:w-[22rem]">
+                    <div key={tool.id} className="w-full max-w-[320px] sm:w-[22rem]">
                       <ToolCard 
                         tool={tool} 
                         mode="marketing" 
@@ -349,6 +349,18 @@ export default function Home() {
                   );
                 })}
               </div>
+            </div>
+          )}
+          
+          {/* Empty State - when no tools match search */}
+          {!loading && !error && filteredTools.length === 0 && (
+            <div className="text-center py-12">
+              <p className="text-[#9ca3af] text-lg mb-2">
+                {searchTerm ? 'No tools found matching your search' : 'No tools available yet'}
+              </p>
+              <p className="text-[#6b7280] text-sm">
+                {searchTerm ? 'Try a different search term' : 'Check back soon for new tools!'}
+              </p>
             </div>
           )}
         </div>
