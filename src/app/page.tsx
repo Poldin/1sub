@@ -111,7 +111,7 @@ export default function Home() {
   }, [router]);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] pb-24 sm:pb-0">
+    <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] pb-36 sm:pb-0">
       {/* Mobile Sticky CTA - Bottom */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a] to-transparent z-40 sm:hidden">
         <a
@@ -314,7 +314,7 @@ export default function Home() {
           </div>
           
           {/* Loading / Error State */}
-          {loading && filteredTools.length === 0 && (
+          {loading && tools.length === 0 && (
             <div className="flex items-center justify-center py-12">
               <div className="text-center">
                 <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#3ecf8e] border-r-transparent"></div>
