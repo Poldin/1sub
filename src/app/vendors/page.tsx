@@ -499,7 +499,9 @@ export default function VendorsPage() {
                   </p>
                   <div className="bg-[#ef4444]/10 border border-[#ef4444]/30 rounded-lg p-4 mb-3">
                     <div className="text-3xl font-black text-[#ef4444] mb-1">100</div>
-                    <p className="text-xs text-[#9ca3af]">paid subscriptions to exit</p>
+                    <p className="text-xs text-[#9ca3af] mb-2">users and</p>
+                    <div className="text-3xl font-black text-[#ef4444] mb-1">1k</div>
+                    <p className="text-xs text-[#9ca3af]">revenue to exit</p>
                   </div>
                   <div className="inline-block bg-[#ef4444]/20 text-[#ef4444] px-3 py-1 rounded text-xs font-semibold">
                     Users pay • Phase visible
@@ -518,8 +520,10 @@ export default function VendorsPage() {
                     Proven interest. Your tool is gaining traction and users.
                   </p>
                   <div className="bg-[#f59e0b]/10 border border-[#f59e0b]/30 rounded-lg p-4 mb-3">
-                    <div className="text-3xl font-black text-[#f59e0b] mb-1">500</div>
-                    <p className="text-xs text-[#9ca3af]">paid subscriptions to exit</p>
+                    <div className="text-3xl font-black text-[#f59e0b] mb-1">1000</div>
+                    <p className="text-xs text-[#9ca3af] mb-2">users and</p>
+                    <div className="text-3xl font-black text-[#f59e0b] mb-1">10k</div>
+                    <p className="text-xs text-[#9ca3af]">revenue to exit</p>
                   </div>
                   <div className="inline-block bg-[#f59e0b]/20 text-[#f59e0b] px-3 py-1 rounded text-xs font-semibold">
                     Users pay • Phase visible
@@ -538,8 +542,8 @@ export default function VendorsPage() {
                     Fully established. Your tool is a trusted part of 1sub.
                   </p>
                   <div className="bg-[#3ecf8e]/10 border border-[#3ecf8e]/30 rounded-lg p-4 mb-3">
-                    <div className="text-3xl font-black text-[#3ecf8e] mb-1">500+</div>
-                    <p className="text-xs text-[#9ca3af]">paid subscriptions achieved</p>
+                    <div className="text-2xl font-black text-[#3ecf8e] mb-1">FULL</div>
+                    <p className="text-xs text-[#9ca3af]">Fully launched</p>
                   </div>
                   <div className="inline-block bg-[#3ecf8e]/20 text-[#3ecf8e] px-3 py-1 rounded text-xs font-semibold">
                     Fully launched

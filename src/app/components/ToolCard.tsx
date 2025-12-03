@@ -277,9 +277,10 @@ function ToolCardComponent(props: ToolCardProps) {
   const canShowHeroImage = hasHeroImage && !heroImageError;
   const canShowLogoImage = hasLogoImage && !logoImageError;
 
-  // Dynamic phase calculation based on paying user count
+  // Dynamic phase calculation based on paying user count and revenue
   const payingUserCount = tool.metadata?.paying_user_count ?? 0;
-  const calculatedPhase = getToolPhase(payingUserCount);
+  const revenue = tool.metadata?.revenue ?? 0;
+  const calculatedPhase = getToolPhase(payingUserCount, revenue);
   const phaseLabel = getPhaseLabel(calculatedPhase);
   const phaseClasses = getPhaseTailwindClasses(calculatedPhase);
 

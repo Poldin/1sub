@@ -1,11 +1,11 @@
 /**
  * Tool Phase Calculation Utility
  * 
- * Automatically calculates tool development phases based on paying user counts.
- * Phase thresholds:
- * - Alpha: 0-99 paying users (Red #ef4444)
- * - Beta: 100-499 paying users (Orange #f59e0b)
- * - Public: 500+ paying users (Green #3ecf8e)
+ * Automatically calculates tool development phases based on paying user counts and revenue.
+ * Phase thresholds (both conditions must be met to exit):
+ * - Alpha: < 100 users OR < 1k revenue (Red #ef4444)
+ * - Beta: >= 100 users AND >= 1k revenue, but < 1000 users OR < 10k revenue (Orange #f59e0b)
+ * - Public: >= 1000 users AND >= 10k revenue (Green #3ecf8e)
  */
 
 export type ToolPhase = 'alpha' | 'beta' | 'public';
@@ -18,16 +18,24 @@ export interface PhaseColors {
 }
 
 /**
- * Calculate the tool phase based on paying user count
+ * Calculate the tool phase based on paying user count and revenue
+ * Both conditions must be met to exit a phase.
  * @param payingUserCount - Number of unique paying users
+ * @param revenue - Revenue in credits/currency (defaults to 0 if not provided)
  * @returns The calculated phase: 'alpha', 'beta', or 'public'
  */
-export function getToolPhase(payingUserCount: number): ToolPhase {
-    if (payingUserCount >= 500) {
+export function getToolPhase(payingUserCount: number, revenue: number = 0): ToolPhase {
+    // Public: Need 1000+ users AND 10k+ revenue
+    if (payingUserCount >= 1000 && revenue >= 10000) {
         return 'public';
-    } else if (payingUserCount >= 100) {
+    }
+    
+    // Beta: Need 100+ users AND 1k+ revenue (but not yet public)
+    if (payingUserCount >= 100 && revenue >= 1000) {
         return 'beta';
     }
+    
+    // Alpha: Everything else (< 100 users OR < 1k revenue)
     return 'alpha';
 }
 
