@@ -1,6 +1,5 @@
 'use client';
 
-import { Users } from 'lucide-react';
 import Link from 'next/link';
 
 export default function VendorsPage() {
@@ -404,8 +403,8 @@ export default function VendorsPage() {
                 <div className="bg-[#1f2937] border border-[#374151] rounded-lg p-6 hover:border-[#3ecf8e] transition-colors">
                   <div className="text-4xl font-black text-white mb-2">35%</div>
                   <div className="flex items-center justify-center gap-2 text-[#9ca3af]">
-                    <Users className="w-4 h-4" />
-                    <span className="text-sm">0 - 1K users</span>
+                    <span className="text-lg font-bold">€</span>
+                    <span className="text-sm">€0 - €1K</span>
                   </div>
                 </div>
 
@@ -413,8 +412,8 @@ export default function VendorsPage() {
                 <div className="bg-[#1f2937] border border-[#374151] rounded-lg p-6 hover:border-[#3ecf8e] transition-colors">
                   <div className="text-4xl font-black text-white mb-2">30%</div>
                   <div className="flex items-center justify-center gap-2 text-[#9ca3af]">
-                    <Users className="w-4 h-4" />
-                    <span className="text-sm">1K - 5K users</span>
+                    <span className="text-lg font-bold">€</span>
+                    <span className="text-sm">€1K - €5K</span>
                   </div>
                 </div>
 
@@ -422,8 +421,8 @@ export default function VendorsPage() {
                 <div className="bg-[#1f2937] border border-[#374151] rounded-lg p-6 hover:border-[#3ecf8e] transition-colors">
                   <div className="text-4xl font-black text-white mb-2">25%</div>
                   <div className="flex items-center justify-center gap-2 text-[#9ca3af]">
-                    <Users className="w-4 h-4" />
-                    <span className="text-sm">5K - 10K users</span>
+                    <span className="text-lg font-bold">€</span>
+                    <span className="text-sm">€5K - €10K</span>
                   </div>
                 </div>
 
@@ -431,8 +430,8 @@ export default function VendorsPage() {
                 <div className="bg-[#1f2937] border border-[#374151] rounded-lg p-6 hover:border-[#3ecf8e] transition-colors">
                   <div className="text-4xl font-black text-white mb-2">20%</div>
                   <div className="flex items-center justify-center gap-2 text-[#9ca3af]">
-                    <Users className="w-4 h-4" />
-                    <span className="text-sm">10K - 20K users</span>
+                    <span className="text-lg font-bold">€</span>
+                    <span className="text-sm">€10K - €20K</span>
                   </div>
                 </div>
 
@@ -440,8 +439,8 @@ export default function VendorsPage() {
                 <div className="bg-[#1f2937] border border-[#374151] rounded-lg p-6 hover:border-[#3ecf8e] transition-colors">
                   <div className="text-4xl font-black text-white mb-2">15%</div>
                   <div className="flex items-center justify-center gap-2 text-[#9ca3af]">
-                    <Users className="w-4 h-4" />
-                    <span className="text-sm">20K - 50K users</span>
+                    <span className="text-lg font-bold">€</span>
+                    <span className="text-sm">€20K - €50K</span>
                   </div>
                 </div>
 
@@ -449,8 +448,8 @@ export default function VendorsPage() {
                 <div className="bg-[#1f2937] border border-[#374151] rounded-lg p-6 hover:border-[#3ecf8e] transition-colors">
                   <div className="text-4xl font-black text-white mb-2">10%</div>
                   <div className="flex items-center justify-center gap-2 text-[#9ca3af]">
-                    <Users className="w-4 h-4" />
-                    <span className="text-sm">50K - 100K users</span>
+                    <span className="text-lg font-bold">€</span>
+                    <span className="text-sm">€50K - €100K</span>
                   </div>
                 </div>
 
@@ -458,14 +457,14 @@ export default function VendorsPage() {
                 <div className="bg-[#1f2937] border-2 border-[#3ecf8e] rounded-lg p-6 hover:shadow-lg hover:shadow-[#3ecf8e]/20 transition-all sm:col-span-2 lg:col-span-3">
                   <div className="text-5xl font-black text-[#3ecf8e] mb-2">6%</div>
                   <div className="flex items-center justify-center gap-2 text-[#d1d5db]">
-                    <Users className="w-5 h-5" />
-                    <span className="text-base font-semibold">100K+ users</span>
+                    <span className="text-xl font-bold text-[#3ecf8e]">€</span>
+                    <span className="text-base font-semibold">€100K+</span>
                   </div>
                 </div>
               </div>
 
               <p className="text-sm text-[#9ca3af] mt-6">
-                Fees are based on active monthly users of your tool through 1sub
+                Fees are based on annual revenue generated through 1sub
               </p>
             </div>
           </div>
