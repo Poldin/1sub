@@ -300,7 +300,14 @@ export default function SupportPage() {
              <div className="p-4 bg-[#374151] rounded-lg">
                <h3 className="font-medium text-[#ededed] mb-2">Community</h3>
                <p className="text-sm text-[#9ca3af] mb-3">Join our community forum for help and discussions</p>
-               <button className="text-[#3ecf8e] text-sm hover:underline">Join Community →</button>
+               <a 
+                 href="https://discord.gg/R87YSYpKK"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 className="text-[#3ecf8e] text-sm hover:underline inline-block"
+               >
+                 Join Community →
+               </a>
              </div>
              <div className="p-4 bg-[#374151] rounded-lg">
                <h3 className="font-medium text-[#ededed] mb-2">Status Page</h3>

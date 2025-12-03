@@ -383,7 +383,7 @@ export default function Home() {
                   </svg>
                 </a>
                 <a
-                  href="https://discord.com"
+                  href="https://discord.gg/R87YSYpKK"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center justify-center gap-2 px-6 py-3 bg-[#5865F2] text-white rounded-xl font-semibold hover:bg-[#4752C4] transition-colors"

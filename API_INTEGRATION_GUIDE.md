@@ -628,7 +628,7 @@ curl -X POST https://1sub.vercel.app/api/v1/credits/consume \
 Need help? Contact:
 - 📧 Email: support@1sub.io
 - 📚 Documentation: https://1sub.vercel.app/docs
-- 💬 Discord: https://discord.gg/1sub
+- 💬 Discord: https://discord.gg/R87YSYpKK
 
 ---
 
