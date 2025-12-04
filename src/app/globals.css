@@ -400,20 +400,6 @@ body {
   input[type="text"], input[type="search"] {
     font-size: 16px; /* Prevents iOS zoom */
   }
-  
-  /* Force card visibility on mobile */
-  [class*="tool-card"],
-  [class*="ToolCard"] {
-    display: flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-  }
-  
-  /* Ensure card containers are visible */
-  .flex.flex-wrap {
-    display: flex !important;
-    visibility: visible !important;
-  }
 }
 
 /* Touch device optimizations */

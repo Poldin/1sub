@@ -301,17 +301,7 @@ function ToolCardComponent(props: ToolCardProps) {
   };
 
   return (
-    <div 
-      className={cardClassName} 
-      onClick={handleCardClick}
-      style={{ 
-        display: 'flex',
-        visibility: 'visible',
-        opacity: 1,
-        position: 'relative',
-        zIndex: 1
-      }}
-    >
+    <div className={cardClassName} onClick={handleCardClick}>
       {/* Phase Badge - Always shown */}
       <div className="absolute top-2 left-1/2 transform -translate-x-1/2 z-10">
         <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase shadow-lg ${phaseClasses.badge}`}>
