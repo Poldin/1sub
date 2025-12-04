@@ -122,13 +122,27 @@ export function useTools(): UseToolsReturn {
       revalidateOnReconnect: true,
       // Keep previous data while revalidating
       keepPreviousData: true,
-      // Retry on error with exponential backoff
-      errorRetryCount: 3,
-      errorRetryInterval: 5000,
+      // Retry on error with exponential backoff - limited retries for mobile
+      errorRetryCount: 2, // Reduced from 3 to prevent infinite loading on mobile
+      errorRetryInterval: 3000, // Reduced from 5000 for faster feedback
+      // Custom retry logic to prevent infinite retries on mobile
+      onErrorRetry: (error, key, config, revalidate, { retryCount }) => {
+        // Don't retry if we've exceeded max retries
+        if (retryCount >= 2) {
+          console.warn('Max retry count reached for tools fetch');
+          return;
+        }
+        // Don't retry for specific errors that won't be fixed by retrying
+        if (error.message?.includes('network') || error.message?.includes('fetch')) {
+          console.warn('Network error, limiting retries:', error.message);
+        }
+        // Retry with exponential backoff
+        setTimeout(() => revalidate({ retryCount }), 3000 * (retryCount + 1));
+      },
       // Don't throw errors, handle them gracefully
       shouldRetryOnError: true,
       onError: (err) => {
-        console.error('SWR error fetching tools:', err);
+        console.error('[useTools] SWR error fetching tools:', err);
       },
     }
   );

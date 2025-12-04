@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useMemo, useCallback, lazy, Suspense } from 'react';
+import { useState, useMemo, useCallback, lazy, Suspense, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Footer from './components/Footer';
 import ToolCard from './components/ToolCard';
+import ToolCardSkeleton from './components/ToolCardSkeleton';
 import PricingExplainer from './components/PricingExplainer';
 import TrustIndicators from './components/TrustIndicators';
 import { useTools } from '@/hooks/useTools';
@@ -17,9 +18,26 @@ export default function Home() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedToolId, setSelectedToolId] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [loadingTimeout, setLoadingTimeout] = useState(false);
   
   // Fetch tools from database
-  const { tools, loading, error } = useTools();
+  const { tools, loading, error, refetch } = useTools();
+
+  // Add timeout mechanism for slow networks (especially mobile)
+  useEffect(() => {
+    if (loading && tools.length === 0) {
+      const timer = setTimeout(() => {
+        setLoadingTimeout(true);
+      }, 15000);
+
+      return () => {
+        clearTimeout(timer);
+        setLoadingTimeout(false);
+      };
+    } else {
+      setLoadingTimeout(false);
+    }
+  }, [loading, tools.length]);
 
   // Trova il tool selezionato dal ID per evitare riferimenti instabili
   // Questo evita re-render quando SWR ricarica i dati ma il tool è lo stesso
@@ -112,11 +130,11 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] pb-36 sm:pb-0">
-      {/* Mobile Sticky CTA - Bottom */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a] to-transparent z-40 sm:hidden">
+      {/* Mobile Sticky CTA - Bottom - z-index set to not interfere with cards */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a] to-transparent z-30 sm:hidden pointer-events-none">
         <a
           href="/login"
-          className="flex items-center justify-center w-full px-6 py-4 text-lg font-bold text-white bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] rounded-full shadow-lg shadow-[#3ecf8e]/30 active:scale-95 transition-transform"
+          className="flex items-center justify-center w-full px-6 py-4 text-lg font-bold text-white bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] rounded-full shadow-lg shadow-[#3ecf8e]/30 active:scale-95 transition-transform pointer-events-auto"
         >
           <span className="flex items-center gap-2">
             get started now
@@ -244,8 +262,8 @@ export default function Home() {
         <PricingExplainer />
       </section>
 
-      {/* Tools Showcase */}
-      <section className="section-padding bg-[#0a0a0a]">
+      {/* Tools Showcase - Extra padding on mobile for sticky CTA */}
+      <section className="section-padding bg-[#0a0a0a] pb-24 sm:pb-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
           {/* Search Bar */}
@@ -313,25 +331,54 @@ export default function Home() {
             </div>
           </div>
           
-          {/* Loading / Error State */}
-          {loading && tools.length === 0 && (
-            <div className="flex items-center justify-center py-12">
-              <div className="text-center">
-                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#3ecf8e] border-r-transparent"></div>
-                <p className="mt-4 text-[#9ca3af]">Loading tools...</p>
+          {/* Loading State - Show skeleton cards instead of spinner */}
+          {loading && tools.length === 0 && !loadingTimeout && (
+            <div className="mb-8 mt-8">
+              <div className="flex flex-wrap gap-4 sm:gap-6 justify-center px-2 sm:px-0">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <div key={`skeleton-${i}`} className="w-full max-w-[320px] sm:w-[22rem]">
+                    <ToolCardSkeleton />
+                  </div>
+                ))}
               </div>
             </div>
           )}
 
-          {error && (
+          {/* Loading Timeout State */}
+          {loadingTimeout && tools.length === 0 && (
             <div className="text-center py-12">
-              <p className="text-red-400 mb-2">Error loading tools</p>
-              <p className="text-[#9ca3af] text-sm">{error}</p>
+              <p className="text-yellow-400 mb-2">Unable to load tools</p>
+              <p className="text-[#9ca3af] text-sm mb-4">
+                The request is taking longer than expected. This may be due to a slow network connection.
+              </p>
+              <button
+                onClick={() => {
+                  setLoadingTimeout(false);
+                  refetch();
+                }}
+                className="px-6 py-3 bg-[#3ecf8e] text-black rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors"
+              >
+                Try Again
+              </button>
             </div>
           )}
 
-          {/* All Tools Section - Show tools even if still loading (optimistic update) */}
-          {!error && filteredTools.length > 0 && (
+          {/* Error State */}
+          {error && !loading && (
+            <div className="text-center py-12">
+              <p className="text-red-400 mb-2">Error loading tools</p>
+              <p className="text-[#9ca3af] text-sm mb-4">{error}</p>
+              <button
+                onClick={() => refetch()}
+                className="px-6 py-3 bg-[#3ecf8e] text-black rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          {/* All Tools Section - Show tools as soon as we have data (optimistic rendering) */}
+          {filteredTools.length > 0 && !loadingTimeout && (
             <div className="mb-8 mt-8">
               <div className="flex flex-wrap gap-4 sm:gap-6 justify-center px-2 sm:px-0">
                 {filteredTools.map((tool) => {
@@ -352,15 +399,19 @@ export default function Home() {
             </div>
           )}
           
-          {/* Empty State - when no tools match search */}
-          {!loading && !error && filteredTools.length === 0 && (
+          {/* Empty State - when no tools match search or no tools available */}
+          {!loading && !error && !loadingTimeout && filteredTools.length === 0 && tools.length === 0 && (
             <div className="text-center py-12">
-              <p className="text-[#9ca3af] text-lg mb-2">
-                {searchTerm ? 'No tools found matching your search' : 'No tools available yet'}
-              </p>
-              <p className="text-[#6b7280] text-sm">
-                {searchTerm ? 'Try a different search term' : 'Check back soon for new tools!'}
-              </p>
+              <p className="text-[#9ca3af] text-lg mb-2">No tools available yet</p>
+              <p className="text-[#6b7280] text-sm">Check back soon for new tools!</p>
+            </div>
+          )}
+
+          {/* Empty Search Results */}
+          {!loading && !loadingTimeout && filteredTools.length === 0 && tools.length > 0 && (
+            <div className="text-center py-12">
+              <p className="text-[#9ca3af] text-lg mb-2">No tools found matching your search</p>
+              <p className="text-[#6b7280] text-sm">Try a different search term</p>
             </div>
           )}
         </div>
