@@ -6,8 +6,8 @@ import AnimatedCounter from './AnimatedCounter';
 
 export default function TrustIndicators() {
   return (
-    <section className="section-padding bg-[#111111] pb-8 sm:pb-16">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6">
+    <section className="section-padding bg-[#111111] pb-8 sm:pb-16 overflow-x-hidden">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 w-full">
         {/* Social Proof Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 sm:mb-12">
           <AnimatedSection delay={0} direction="up">

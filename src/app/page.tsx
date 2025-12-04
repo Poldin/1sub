@@ -129,7 +129,7 @@ export default function Home() {
   }, [router]);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] pb-36 sm:pb-0">
+    <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] pb-36 sm:pb-0 overflow-x-hidden w-full">
       {/* Mobile Sticky CTA - Bottom - z-index set to not interfere with cards */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a] to-transparent z-30 sm:hidden pointer-events-none">
         <a
