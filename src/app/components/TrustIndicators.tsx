@@ -6,10 +6,10 @@ import AnimatedCounter from './AnimatedCounter';
 
 export default function TrustIndicators() {
   return (
-    <section className="section-padding bg-[#111111]">
-      <div className="max-w-6xl mx-auto">
+    <section className="section-padding bg-[#111111] pb-8 sm:pb-16">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6">
         {/* Social Proof Stats */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 sm:mb-12">
           <AnimatedSection delay={0} direction="up">
             <div className="bg-[#1f2937] border border-[#374151] rounded-xl p-6 text-center hover:border-[#3ecf8e] transition-all hover:scale-105">
               <Star className="w-10 h-10 text-[#3ecf8e] mx-auto mb-3" />
@@ -50,7 +50,7 @@ export default function TrustIndicators() {
 
         {/* Testimonials */}
         <AnimatedSection delay={0.4} direction="up">
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {[
             {
               name: 'Sarah Chen',
@@ -73,7 +73,7 @@ export default function TrustIndicators() {
           ].map((testimonial, index) => (
             <div
               key={index}
-              className="bg-[#1f2937] border border-[#374151] rounded-xl p-6 hover:border-[#3ecf8e] transition-all"
+              className="bg-[#1f2937] border border-[#374151] rounded-xl p-6 hover:border-[#3ecf8e] transition-all w-full"
             >
               {/* Stars */}
               <div className="flex gap-1 mb-3">
@@ -107,7 +107,7 @@ export default function TrustIndicators() {
         </AnimatedSection>
 
         {/* Trust Badges */}
-        <div className="mt-12 flex flex-wrap justify-center items-center gap-8 text-[#9ca3af]">
+        <div className="mt-8 sm:mt-12 flex flex-wrap justify-center items-center gap-4 sm:gap-8 text-[#9ca3af]">
           <div className="flex items-center gap-2">
             <Shield className="w-5 h-5 text-[#3ecf8e]" />
             <span className="text-sm">SSL Encrypted</span>

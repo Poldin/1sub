@@ -334,9 +334,9 @@ export default function Home() {
           {/* Loading State - Show skeleton cards instead of spinner */}
           {loading && tools.length === 0 && !loadingTimeout && (
             <div className="mb-8 mt-8">
-              <div className="flex flex-wrap gap-4 sm:gap-6 justify-center px-2 sm:px-0">
+              <div className="flex flex-wrap gap-4 sm:gap-6 justify-center px-4 sm:px-0">
                 {[1, 2, 3, 4, 5, 6].map((i) => (
-                  <div key={`skeleton-${i}`} className="w-full max-w-[320px] sm:w-[22rem]">
+                  <div key={`skeleton-${i}`} className="w-full sm:w-[22rem] flex-shrink-0">
                     <ToolCardSkeleton />
                   </div>
                 ))}
@@ -380,12 +380,12 @@ export default function Home() {
           {/* All Tools Section - Show tools as soon as we have data (optimistic rendering) */}
           {filteredTools.length > 0 && !loadingTimeout && (
             <div className="mb-8 mt-8">
-              <div className="flex flex-wrap gap-4 sm:gap-6 justify-center px-2 sm:px-0">
+              <div className="flex flex-wrap gap-4 sm:gap-6 justify-center px-4 sm:px-0">
                 {filteredTools.map((tool) => {
                   // Usa callback stabili dal Map per evitare re-render non necessari
                   const handleClick = toolClickCallbacks.get(tool.id) || (() => handleToolClick(tool));
                   return (
-                    <div key={tool.id} className="w-full max-w-[320px] sm:w-[22rem]">
+                    <div key={tool.id} className="w-full sm:w-[22rem] flex-shrink-0">
                       <ToolCard 
                         tool={tool} 
                         mode="marketing" 
