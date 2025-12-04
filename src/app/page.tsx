@@ -263,8 +263,8 @@ export default function Home() {
       </section>
 
       {/* Tools Showcase - Extra padding on mobile for sticky CTA */}
-      <section className="section-padding bg-[#0a0a0a] pb-24 sm:pb-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="section-padding bg-[#0a0a0a] pb-24 sm:pb-16" style={{ display: 'block', visibility: 'visible', minHeight: '400px' }}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" style={{ display: 'block', visibility: 'visible' }}>
           
           {/* Search Bar */}
           <div className="mb-8 max-w-3xl mx-auto" suppressHydrationWarning>
@@ -333,10 +333,20 @@ export default function Home() {
           
           {/* Loading State - Show skeleton cards instead of spinner */}
           {loading && tools.length === 0 && !loadingTimeout && (
-            <div className="mb-8 mt-8">
+            <div className="mb-8 mt-8" style={{ display: 'block', visibility: 'visible', minHeight: '200px' }}>
               <div className="flex flex-wrap gap-4 sm:gap-6 justify-center px-4 sm:px-0">
                 {[1, 2, 3, 4, 5, 6].map((i) => (
-                  <div key={`skeleton-${i}`} className="w-full sm:w-[22rem] flex-shrink-0">
+                  <div 
+                    key={`skeleton-${i}`} 
+                    className="w-full sm:w-[22rem] flex-shrink-0" 
+                    style={{ 
+                      display: 'block', 
+                      visibility: 'visible',
+                      opacity: 1,
+                      position: 'relative',
+                      zIndex: 1
+                    }}
+                  >
                     <ToolCardSkeleton />
                   </div>
                 ))}
@@ -378,14 +388,24 @@ export default function Home() {
           )}
 
           {/* All Tools Section - Show tools as soon as we have data (optimistic rendering) */}
-          {filteredTools.length > 0 && !loadingTimeout && (
-            <div className="mb-8 mt-8">
+          {filteredTools.length > 0 && (
+            <div className="mb-8 mt-8" style={{ display: 'block', visibility: 'visible', minHeight: '200px' }}>
               <div className="flex flex-wrap gap-4 sm:gap-6 justify-center px-4 sm:px-0">
                 {filteredTools.map((tool) => {
                   // Usa callback stabili dal Map per evitare re-render non necessari
                   const handleClick = toolClickCallbacks.get(tool.id) || (() => handleToolClick(tool));
                   return (
-                    <div key={tool.id} className="w-full sm:w-[22rem] flex-shrink-0">
+                    <div 
+                      key={tool.id} 
+                      className="w-full sm:w-[22rem] flex-shrink-0" 
+                      style={{ 
+                        display: 'block', 
+                        visibility: 'visible',
+                        opacity: 1,
+                        position: 'relative',
+                        zIndex: 1
+                      }}
+                    >
                       <ToolCard 
                         tool={tool} 
                         mode="marketing" 
@@ -396,6 +416,17 @@ export default function Home() {
                   );
                 })}
               </div>
+            </div>
+          )}
+          
+          {/* Debug Info - Remove in production */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="fixed bottom-20 left-4 bg-black/80 text-white text-xs p-2 rounded z-50 sm:hidden">
+              <div>Tools: {tools.length}</div>
+              <div>Filtered: {filteredTools.length}</div>
+              <div>Loading: {loading ? 'Yes' : 'No'}</div>
+              <div>Timeout: {loadingTimeout ? 'Yes' : 'No'}</div>
+              <div>Error: {error || 'None'}</div>
             </div>
           )}
           
