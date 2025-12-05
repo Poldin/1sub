@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentBalance, addCredits, subtractCredits } from '@/lib/credits-service';
 import { generateToolAccessToken } from '@/lib/jwt';
-import { notifySubscriptionActivated } from '@/lib/tool-webhooks';
+import { notifySubscriptionActivated, notifyPurchaseCompleted } from '@/lib/tool-webhooks';
 
 export async function POST(request: NextRequest) {
   try {
@@ -677,6 +677,26 @@ export async function POST(request: NextRequest) {
       billingPeriod: billingPeriod,
       isSubscription: checkoutType === 'tool_subscription',
     });
+
+    // 11.5. Send webhook notification for one-time purchases
+    // (Subscriptions already send webhook in step 9)
+    if (checkoutType === 'tool_purchase') {
+      try {
+        const creditsRemaining = userTransactionResultCompat.balanceAfter;
+        const purchaseType = metadata.pricing_model as string || 'one_time';
+        await notifyPurchaseCompleted(
+          metadata.tool_id as string,
+          authUser.id,
+          checkout.id,
+          creditCost,
+          creditsRemaining,
+          purchaseType
+        );
+      } catch (webhookError) {
+        // Don't fail the checkout if webhook fails
+        console.error('[Webhook] Failed to send purchase.completed webhook:', webhookError);
+      }
+    }
 
     // 12. Return success with both tokens
     return NextResponse.json({

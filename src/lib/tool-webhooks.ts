@@ -192,6 +192,26 @@ export async function notifySubscriptionActivated(
 }
 
 /**
+ * Notify tool of purchase completion (one-time purchases)
+ */
+export async function notifyPurchaseCompleted(
+  toolId: string,
+  oneSubUserId: string,
+  checkoutId: string,
+  amount: number,
+  creditsRemaining?: number,
+  purchaseType?: string
+): Promise<boolean> {
+  return sendToolWebhook(toolId, 'purchase.completed', {
+    oneSubUserId,
+    checkoutId,
+    amount,
+    creditsRemaining,
+    purchaseType,
+  });
+}
+
+/**
  * Notify tool of subscription cancellation
  */
 export async function notifySubscriptionCanceled(

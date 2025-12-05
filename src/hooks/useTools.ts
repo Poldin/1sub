@@ -28,6 +28,12 @@ async function fetchTools(): Promise<Tool[]> {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' }));
       console.error('Error fetching tools from API:', errorData);
+      
+      // Provide friendlier error message for authentication issues
+      if (response.status === 401) {
+        throw new Error('Unable to load tools at this time. Please try again later.');
+      }
+      
       throw new Error(errorData.error || `Failed to load tools: ${response.statusText}`);
     }
 
