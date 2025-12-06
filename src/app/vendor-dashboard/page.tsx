@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Menu, Settings, Plus, BarChart3, TrendingUp, DollarSign, Users, Rocket, ArrowRight, Edit } from 'lucide-react';
+import { Menu, Settings, Plus, BarChart3, TrendingUp, DollarSign, Users, Rocket, ArrowRight, Edit, Check } from 'lucide-react';
 import Sidebar from '../backoffice/components/Sidebar';
 import Footer from '../components/Footer';
 import { createClient } from '@/lib/supabase/client';
@@ -53,6 +53,21 @@ export default function VendorDashboard() {
     activeSubscribers: 0,
     revenue: 0,
     revenueGrowth: 0
+  });
+  const [chartData, setChartData] = useState<{
+    usage: Array<{ date: string; count: number }>;
+    revenue: Array<{ date: string; amount: number }>;
+    activeUsers: Array<{ date: string; count: number }>;
+  }>({
+    usage: [],
+    revenue: [],
+    activeUsers: [],
+  });
+  const [onboardingChecklist, setOnboardingChecklist] = useState({
+    hasPublishedTool: false,
+    hasCreatedProduct: false,
+    hasConfiguredApi: false,
+    hasFirstSale: false,
   });
 
   const toggleMenu = () => {
@@ -175,6 +190,12 @@ export default function VendorDashboard() {
 
       const totalTools = toolsData.length;
       const activeTools = toolsData.filter((tool: { id: string; is_active: boolean }) => tool.is_active).length;
+      
+      // Update onboarding checklist - has published tool
+      setOnboardingChecklist(prev => ({
+        ...prev,
+        hasPublishedTool: totalTools > 0,
+      }));
 
       // Get total users across all tool subscriptions
       const { data: subscriptionsData } = await supabase
@@ -184,12 +205,14 @@ export default function VendorDashboard() {
 
       const uniqueUsers = new Set(subscriptionsData?.map((sub: { user_id: string }) => sub.user_id) || []).size;
 
-      // Get total revenue from credit transactions
+      // Get total revenue from vendor earnings (type='add' with reason containing 'Tool sale:')
       const { data: transactionsData } = await supabase
         .from('credit_transactions')
         .select('credits_amount')
+        .eq('user_id', vendorId)
         .in('tool_id', toolsData.map((tool: { id: string; is_active: boolean }) => tool.id))
-        .eq('type', 'tool_usage');
+        .eq('type', 'add')
+        .ilike('reason', 'Tool sale:%');
 
       const totalRevenue = transactionsData?.reduce((sum: number, transaction: { credits_amount: number | null }) =>
         sum + (transaction.credits_amount || 0), 0) || 0;
@@ -200,6 +223,12 @@ export default function VendorDashboard() {
         totalUsers: uniqueUsers,
         totalRevenue
       });
+      
+      // Update onboarding checklist - has first sale
+      setOnboardingChecklist(prev => ({
+        ...prev,
+        hasFirstSale: (transactionsData?.length || 0) > 0,
+      }));
     } catch (error) {
       console.error('Error fetching vendor analytics:', error);
     }
@@ -210,39 +239,115 @@ export default function VendorDashboard() {
     try {
       const supabase = createClient();
 
-      // Get usage count (credit transactions for this tool)
+      // Get vendor earnings for this tool (type='add' with reason containing 'Tool sale:')
+      // Also get the tool's vendor ID
+      const { data: toolData } = await supabase
+        .from('tools')
+        .select('user_profile_id')
+        .eq('id', toolId)
+        .single();
+        
+      if (!toolData) return;
+      
       const { data: transactionsData } = await supabase
         .from('credit_transactions')
-        .select('credits_amount')
+        .select('credits_amount, created_at')
+        .eq('user_id', toolData.user_profile_id)
         .eq('tool_id', toolId)
-        .eq('type', 'tool_usage');
+        .eq('type', 'add')
+        .ilike('reason', 'Tool sale:%')
+        .order('created_at', { ascending: true });
 
       const usageCount = transactionsData?.length || 0;
-      const revenue = transactionsData?.reduce((sum: number, transaction: { credits_amount: number | null }) =>
+      const revenue = transactionsData?.reduce((sum: number, transaction: { credits_amount: number | null; created_at: string }) =>
         sum + (transaction.credits_amount || 0), 0) || 0;
 
       // Get active subscribers
       const { data: subscriptionsData } = await supabase
         .from('tool_subscriptions')
-        .select('id')
+        .select('id, created_at')
         .eq('tool_id', toolId)
-        .eq('status', 'active');
+        .eq('status', 'active')
+        .order('created_at', { ascending: true });
 
       const activeSubscribers = subscriptionsData?.length || 0;
 
-      // Calculate revenue growth (month-over-month)
-      // For now, using mock data - will be replaced with real calculation
-      const currentMonthRevenue = revenue;
-      const previousMonthRevenue = revenue * 0.85; // Mock: assume 15% growth
+      // Calculate revenue growth (month-over-month) using real data
+      const currentDate = new Date();
+      const currentMonthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+      const previousMonthStart = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
+      const previousMonthEnd = new Date(currentMonthStart.getTime() - 1);
+      
+      // Get previous month revenue
+      const { data: previousMonthData } = await supabase
+        .from('credit_transactions')
+        .select('credits_amount')
+        .eq('user_id', toolData.user_profile_id)
+        .eq('tool_id', toolId)
+        .eq('type', 'add')
+        .ilike('reason', 'Tool sale:%')
+        .gte('created_at', previousMonthStart.toISOString())
+        .lte('created_at', previousMonthEnd.toISOString());
+      
+      const previousMonthRevenue = previousMonthData?.reduce((sum: number, tx: { credits_amount: number | null }) => 
+        sum + (tx.credits_amount || 0), 0) || 0;
+      
       const revenueGrowth = previousMonthRevenue > 0
-        ? ((currentMonthRevenue - previousMonthRevenue) / previousMonthRevenue) * 100
-        : 0;
+        ? ((revenue - previousMonthRevenue) / previousMonthRevenue) * 100
+        : revenue > 0 ? 100 : 0;
 
       setToolStats({
         usageCount,
         activeSubscribers,
         revenue,
         revenueGrowth
+      });
+
+      // Build chart data from transaction history (last 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      const recentTransactions = transactionsData?.filter(
+        (tx: { created_at: string }) => new Date(tx.created_at) >= thirtyDaysAgo
+      ) || [];
+      
+      // Group transactions by day
+      const usageByDay = new Map<string, number>();
+      const revenueByDay = new Map<string, number>();
+      
+      recentTransactions.forEach((tx: { created_at: string; credits_amount: number | null }) => {
+        const date = new Date(tx.created_at).toISOString().split('T')[0];
+        usageByDay.set(date, (usageByDay.get(date) || 0) + 1);
+        revenueByDay.set(date, (revenueByDay.get(date) || 0) + (tx.credits_amount || 0));
+      });
+      
+      // Group active users by day of subscription
+      const activeUsersByDay = new Map<string, Set<string>>();
+      subscriptionsData?.forEach((sub: { created_at: string; id: string }) => {
+        const date = new Date(sub.created_at).toISOString().split('T')[0];
+        if (!activeUsersByDay.has(date)) {
+          activeUsersByDay.set(date, new Set());
+        }
+        activeUsersByDay.get(date)!.add(sub.id);
+      });
+      
+      // Convert maps to arrays and sort
+      const usage = Array.from(usageByDay.entries())
+        .map(([date, count]) => ({ date, count }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+      
+      const revenueChart = Array.from(revenueByDay.entries())
+        .map(([date, amount]) => ({ date, amount }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+      
+      const activeUsersChart = Array.from(activeUsersByDay.entries())
+        .map(([date, users]) => ({ date, count: users.size }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+      
+      setChartData({
+        usage,
+        revenue: revenueChart,
+        activeUsers: activeUsersChart,
       });
     } catch (error) {
       console.error('Error fetching tool analytics:', error);
@@ -299,33 +404,38 @@ export default function VendorDashboard() {
           setCompanyName(vendorApplication.company);
         }
 
-        // Fetch user's tools
-        const { data: toolsData, error } = await supabase
-          .from('tools')
-          .select('*')
-          .eq('user_profile_id', data.id);
+        // Fetch user's tools via the server-side API endpoint
+        const toolsResponse = await fetch('/api/vendor/tools');
+        
+        if (toolsResponse.ok) {
+          const toolsResult = await toolsResponse.json();
+          const toolsData = toolsResult.tools;
 
-        if (!error && toolsData) {
-          setHasTools(toolsData.length > 0);
-          const mappedTools = toolsData.map((tool: { id: string; name: string }) => ({
-            id: tool.id,
-            name: tool.name,
-          }));
-          setTools(mappedTools);
+          if (toolsData) {
+            setHasTools(toolsData.length > 0);
+            const mappedTools = toolsData.map((tool: { id: string; name: string }) => ({
+              id: tool.id,
+              name: tool.name,
+            }));
+            setTools(mappedTools);
 
-          // Set initial tool selection
-          if (toolsData.length > 0) {
-            const savedToolId = localStorage.getItem('selectedToolId');
-            const toolExists = savedToolId && toolsData.some((tool: { id: string; name: string }) => tool.id === savedToolId);
-            const initialToolId = toolExists ? savedToolId : toolsData[0].id;
-            const initialTool = toolsData.find((tool: { id: string; name: string }) => tool.id === initialToolId);
+            // Set initial tool selection
+            if (toolsData.length > 0) {
+              const savedToolId = localStorage.getItem('selectedToolId');
+              const toolExists = savedToolId && toolsData.some((tool: { id: string; name: string }) => tool.id === savedToolId);
+              const initialToolId = toolExists ? savedToolId : toolsData[0].id;
+              const initialTool = toolsData.find((tool: { id: string; name: string }) => tool.id === initialToolId);
 
-            setSelectedToolId(initialToolId);
-            setSelectedToolName(initialTool?.name || '');
+              setSelectedToolId(initialToolId);
+              setSelectedToolName(initialTool?.name || '');
 
-            // Fetch analytics
-            fetchVendorAnalytics(data.id);
-            fetchToolAnalytics(initialToolId);
+              // Fetch analytics
+              fetchVendorAnalytics(data.id);
+              fetchToolAnalytics(initialToolId);
+              
+              // Check onboarding progress
+              checkOnboardingProgress(data.id, toolsData);
+            }
           }
         }
       } catch (error) {
@@ -338,6 +448,41 @@ export default function VendorDashboard() {
 
     fetchUserData();
   }, [router]);
+  
+  // Check onboarding progress
+  const checkOnboardingProgress = async (vendorId: string, tools: Array<{ id: string; name: string }>) => {
+    try {
+      const supabase = createClient();
+      
+      // Check if any tool has products
+      if (tools.length > 0) {
+        const { data: productsData } = await supabase
+          .from('tool_products')
+          .select('id')
+          .in('tool_id', tools.map(t => t.id))
+          .limit(1);
+        
+        setOnboardingChecklist(prev => ({
+          ...prev,
+          hasCreatedProduct: (productsData?.length || 0) > 0,
+        }));
+      }
+      
+      // Check if API keys are configured
+      const { data: apiKeysData } = await supabase
+        .from('api_keys')
+        .select('id')
+        .in('tool_id', tools.map(t => t.id))
+        .limit(1);
+      
+      setOnboardingChecklist(prev => ({
+        ...prev,
+        hasConfiguredApi: (apiKeysData?.length || 0) > 0,
+      }));
+    } catch (error) {
+      console.error('Error checking onboarding progress:', error);
+    }
+  };
 
   if (userLoading) {
     return (
@@ -525,6 +670,89 @@ export default function VendorDashboard() {
           ) : (
             <>
 
+              {/* Onboarding Checklist */}
+              {(!onboardingChecklist.hasPublishedTool || !onboardingChecklist.hasCreatedProduct || !onboardingChecklist.hasConfiguredApi || !onboardingChecklist.hasFirstSale) && (
+                <div className="mb-8 bg-gradient-to-r from-[#3ecf8e]/10 to-[#2dd4bf]/10 border border-[#3ecf8e]/30 rounded-lg p-6">
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="p-2 bg-[#3ecf8e]/20 rounded-lg">
+                      <BarChart3 className="w-5 h-5 text-[#3ecf8e]" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-[#ededed] mb-1">Getting Started</h3>
+                      <p className="text-sm text-[#d1d5db]">
+                        Complete these steps to start monetizing your tools
+                      </p>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center ${onboardingChecklist.hasPublishedTool ? 'bg-[#3ecf8e]' : 'border-2 border-[#4b5563]'}`}>
+                        {onboardingChecklist.hasPublishedTool && <Check className="w-3 h-3 text-black" />}
+                      </div>
+                      <span className={`text-sm ${onboardingChecklist.hasPublishedTool ? 'text-[#d1d5db]' : 'text-[#9ca3af]'}`}>
+                        Publish your first tool
+                      </span>
+                      {!onboardingChecklist.hasPublishedTool && (
+                        <button
+                          onClick={() => router.push('/vendor-dashboard/publish')}
+                          className="ml-auto text-xs px-3 py-1 bg-[#3ecf8e] text-black rounded hover:bg-[#2dd4bf] transition-colors font-medium"
+                        >
+                          Publish Tool
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center ${onboardingChecklist.hasCreatedProduct ? 'bg-[#3ecf8e]' : 'border-2 border-[#4b5563]'}`}>
+                        {onboardingChecklist.hasCreatedProduct && <Check className="w-3 h-3 text-black" />}
+                      </div>
+                      <span className={`text-sm ${onboardingChecklist.hasCreatedProduct ? 'text-[#d1d5db]' : 'text-[#9ca3af]'}`}>
+                        Create pricing for your tool
+                      </span>
+                      {!onboardingChecklist.hasCreatedProduct && onboardingChecklist.hasPublishedTool && (
+                        <button
+                          onClick={() => router.push('/vendor-dashboard/products')}
+                          className="ml-auto text-xs px-3 py-1 bg-[#3ecf8e] text-black rounded hover:bg-[#2dd4bf] transition-colors font-medium"
+                        >
+                          Set Pricing
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center ${onboardingChecklist.hasConfiguredApi ? 'bg-[#3ecf8e]' : 'border-2 border-[#4b5563]'}`}>
+                        {onboardingChecklist.hasConfiguredApi && <Check className="w-3 h-3 text-black" />}
+                      </div>
+                      <span className={`text-sm ${onboardingChecklist.hasConfiguredApi ? 'text-[#d1d5db]' : 'text-[#9ca3af]'}`}>
+                        Configure API and integration
+                      </span>
+                      {!onboardingChecklist.hasConfiguredApi && onboardingChecklist.hasPublishedTool && (
+                        <button
+                          onClick={() => router.push('/vendor-dashboard/integration')}
+                          className="ml-auto text-xs px-3 py-1 bg-[#3ecf8e] text-black rounded hover:bg-[#2dd4bf] transition-colors font-medium"
+                        >
+                          View Guide
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center ${onboardingChecklist.hasFirstSale ? 'bg-[#3ecf8e]' : 'border-2 border-[#4b5563]'}`}>
+                        {onboardingChecklist.hasFirstSale && <Check className="w-3 h-3 text-black" />}
+                      </div>
+                      <span className={`text-sm ${onboardingChecklist.hasFirstSale ? 'text-[#d1d5db]' : 'text-[#9ca3af]'}`}>
+                        Make your first sale
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-[#3ecf8e]/20">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-[#9ca3af]">Progress</span>
+                      <span className="text-[#3ecf8e] font-medium">
+                        {[onboardingChecklist.hasPublishedTool, onboardingChecklist.hasCreatedProduct, onboardingChecklist.hasConfiguredApi, onboardingChecklist.hasFirstSale].filter(Boolean).length} / 4
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center gap-6 mb-6">
                 <div className="flex items-center gap-2">
                   <Settings className="w-4 h-4 text-[#3ecf8e]" />
@@ -627,21 +855,115 @@ export default function VendorDashboard() {
                   </div>
 
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-                    {[
-                      'Usage Over Time',
-                      'Revenue Over Time',
-                      'Active Users Trend',
-                      'Performance Metrics',
-                    ].map((title) => (
-                      <div key={title} className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
-                        <h3 className="text-lg font-semibold text-[#ededed] mb-4">{title}</h3>
-                        <div className="h-64 border border-[#374151] rounded-lg flex items-center justify-center">
-                          <p className="text-[#9ca3af]">
-                            Chart placeholder - {title.toLowerCase()} for {selectedToolName}
-                          </p>
+                    {/* Usage Over Time */}
+                    <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
+                      <h3 className="text-lg font-semibold text-[#ededed] mb-4">Usage Over Time</h3>
+                      <div className="h-64 border border-[#374151] rounded-lg p-4">
+                        {chartData.usage.length > 0 ? (
+                          <div className="h-full flex flex-col">
+                            <div className="flex-1 flex items-end justify-between gap-1">
+                              {chartData.usage.map((point, idx) => (
+                                <div key={idx} className="flex-1 flex flex-col items-center justify-end">
+                                  <div 
+                                    className="w-full bg-[#3ecf8e] rounded-t transition-all hover:bg-[#2dd4bf]"
+                                    style={{ height: `${chartData.usage.length > 0 ? (point.count / Math.max(...chartData.usage.map(p => p.count))) * 100 : 0}%` }}
+                                    title={`${point.date}: ${point.count} sales`}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                            <div className="mt-2 text-xs text-[#9ca3af] text-center">Last 30 days</div>
+                          </div>
+                        ) : (
+                          <div className="h-full flex items-center justify-center">
+                            <p className="text-[#9ca3af]">No usage data yet</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Revenue Over Time */}
+                    <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
+                      <h3 className="text-lg font-semibold text-[#ededed] mb-4">Revenue Over Time</h3>
+                      <div className="h-64 border border-[#374151] rounded-lg p-4">
+                        {chartData.revenue.length > 0 ? (
+                          <div className="h-full flex flex-col">
+                            <div className="flex-1 flex items-end justify-between gap-1">
+                              {chartData.revenue.map((point, idx) => (
+                                <div key={idx} className="flex-1 flex flex-col items-center justify-end">
+                                  <div 
+                                    className="w-full bg-blue-500 rounded-t transition-all hover:bg-blue-400"
+                                    style={{ height: `${chartData.revenue.length > 0 ? (point.amount / Math.max(...chartData.revenue.map(p => p.amount))) * 100 : 0}%` }}
+                                    title={`${point.date}: ${point.amount.toFixed(2)} credits`}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                            <div className="mt-2 text-xs text-[#9ca3af] text-center">Last 30 days</div>
+                          </div>
+                        ) : (
+                          <div className="h-full flex items-center justify-center">
+                            <p className="text-[#9ca3af]">No revenue data yet</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Active Users Trend */}
+                    <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
+                      <h3 className="text-lg font-semibold text-[#ededed] mb-4">Active Users Trend</h3>
+                      <div className="h-64 border border-[#374151] rounded-lg p-4">
+                        {chartData.activeUsers.length > 0 ? (
+                          <div className="h-full flex flex-col">
+                            <div className="flex-1 flex items-end justify-between gap-1">
+                              {chartData.activeUsers.map((point, idx) => (
+                                <div key={idx} className="flex-1 flex flex-col items-center justify-end">
+                                  <div 
+                                    className="w-full bg-purple-500 rounded-t transition-all hover:bg-purple-400"
+                                    style={{ height: `${chartData.activeUsers.length > 0 ? (point.count / Math.max(...chartData.activeUsers.map(p => p.count))) * 100 : 0}%` }}
+                                    title={`${point.date}: ${point.count} active users`}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                            <div className="mt-2 text-xs text-[#9ca3af] text-center">New subscriptions over time</div>
+                          </div>
+                        ) : (
+                          <div className="h-full flex items-center justify-center">
+                            <p className="text-[#9ca3af]">No active user data yet</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Performance Metrics Summary */}
+                    <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
+                      <h3 className="text-lg font-semibold text-[#ededed] mb-4">Performance Metrics</h3>
+                      <div className="h-64 flex flex-col justify-center space-y-4">
+                        <div className="flex justify-between items-center p-3 bg-[#374151] rounded-lg">
+                          <span className="text-[#9ca3af]">Avg Revenue per Sale</span>
+                          <span className="text-[#3ecf8e] font-semibold">
+                            {toolStats.usageCount > 0 
+                              ? (toolStats.revenue / toolStats.usageCount).toFixed(2) 
+                              : '0.00'} credits
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center p-3 bg-[#374151] rounded-lg">
+                          <span className="text-[#9ca3af]">Total Sales</span>
+                          <span className="text-[#ededed] font-semibold">{toolStats.usageCount}</span>
+                        </div>
+                        <div className="flex justify-between items-center p-3 bg-[#374151] rounded-lg">
+                          <span className="text-[#9ca3af]">Total Revenue</span>
+                          <span className="text-[#ededed] font-semibold">{toolStats.revenue.toFixed(2)} credits</span>
+                        </div>
+                        <div className="flex justify-between items-center p-3 bg-[#374151] rounded-lg">
+                          <span className="text-[#9ca3af]">Growth Rate</span>
+                          <span className={`font-semibold ${toolStats.revenueGrowth > 0 ? 'text-green-400' : toolStats.revenueGrowth < 0 ? 'text-red-400' : 'text-[#ededed]'}`}>
+                            {toolStats.revenueGrowth > 0 ? '+' : ''}{toolStats.revenueGrowth.toFixed(1)}%
+                          </span>
                         </div>
                       </div>
-                    ))}
+                    </div>
                   </div>
                 </>
               )}

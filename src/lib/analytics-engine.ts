@@ -258,12 +258,14 @@ export async function getToolRevenueMetrics(
     }
 
     // Get credit transactions for this vendor from this tool
+    // Vendor earnings are recorded as type='add' with reason containing 'Tool sale:'
     const { data: transactions } = await supabase
       .from('credit_transactions')
       .select('credits_amount')
       .eq('user_id', tool.user_profile_id)
       .eq('tool_id', toolId)
-      .eq('type', 'vendor_earning')
+      .eq('type', 'add')
+      .ilike('reason', 'Tool sale:%')
       .gte('created_at', startDate.toISOString())
       .lte('created_at', endDate.toISOString());
 

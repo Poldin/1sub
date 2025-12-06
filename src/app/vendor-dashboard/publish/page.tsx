@@ -305,12 +305,6 @@ export default function PublishToolPage() {
         logoUrl = logoPublicUrl;
       }
 
-      // Generate API key for the tool
-      const { generateApiKey, hashApiKey } = await import('@/lib/api-keys-client');
-      const apiKey = generateApiKey();
-      const apiKeyHash = await hashApiKey(apiKey);
-      const apiKeyCreatedAt = new Date().toISOString();
-
       // Prepare metadata structure
       const metadata: {
         vendor_id: string;
@@ -326,9 +320,6 @@ export default function PublishToolPage() {
         content: {
           long_description?: string;
         };
-        api_key_hash?: string;
-        api_key_created_at?: string;
-        api_key_active?: boolean;
         custom_pricing_email?: string;
       } = {
         vendor_id: authUser.id, // Store vendor_id for checkout and transaction tracking
@@ -343,9 +334,6 @@ export default function PublishToolPage() {
         content: {
           long_description: contentMetadata.longDescription || undefined,
         },
-        api_key_hash: apiKeyHash,
-        api_key_created_at: apiKeyCreatedAt,
-        api_key_active: true,
         custom_pricing_email: formData.customPricingEmail || undefined
       };
 
@@ -359,31 +347,46 @@ export default function PublishToolPage() {
         if (metadata.content[typedKey] === undefined) delete metadata.content[typedKey];
       });
 
-      // Create tool with complete metadata
-      const { data: toolData, error: insertError } = await supabase
-        .from('tools')
-        .insert({
+      // Create tool via server route (which also generates API key)
+      const response = await fetch('/api/vendor/tools/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           name: formData.name,
           description: formData.description,
-          url: formData.toolExternalUrl || '', // External tool URL
-          is_active: true,
-          user_profile_id: authUser.id,
-          metadata: metadata
-        })
-        .select()
-        .single();
+          url: formData.toolExternalUrl || '',
+          metadata: metadata,
+        }),
+      });
 
-      if (insertError) {
-        console.error('Database error:', insertError);
-        alert(`Failed to create tool: ${insertError.message}`);
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        console.error('Tool creation error:', result.error);
+        alert(`Failed to create tool: ${result.error}`);
         setIsPublishing(false);
         return;
       }
 
+      const toolData = result.tool;
+      const apiKey = result.api_key;
+
       console.log('Tool created successfully:', toolData);
 
-      // Show API key to vendor (display once)
-      alert(`Tool created successfully!\n\nYour API key is: ${apiKey}\n\nPlease save this API key - it will not be shown again.`);
+      // Show API key to vendor in a better modal-like prompt
+      const shouldCopy = confirm(
+        `✅ Tool created successfully!\n\n` +
+        `Your API key is:\n${apiKey}\n\n` +
+        `⚠️ IMPORTANT: Save this key now! It will not be shown again.\n\n` +
+        `Click OK to copy to clipboard, or Cancel to close.`
+      );
+      
+      if (shouldCopy) {
+        navigator.clipboard.writeText(apiKey);
+        alert('API key copied to clipboard! Make sure to save it in a secure location.');
+      }
 
       // Redirect to products page to configure pricing via products
       router.push(`/vendor-dashboard/products`);

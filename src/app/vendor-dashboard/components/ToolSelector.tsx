@@ -35,14 +35,17 @@ export default function ToolSelector({
       if (!userId) return;
 
       try {
-        const supabase = createClient();
-        const { data, error } = await supabase
-          .from('tools')
-          .select('id, name')
-          .eq('user_profile_id', userId)
-          .order('created_at', { ascending: false });
+        // Use the server-side API endpoint for consistent, secure tool fetching
+        const response = await fetch('/api/vendor/tools');
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch tools');
+        }
+        
+        const result = await response.json();
+        const data = result.tools;
 
-        if (!error && data) {
+        if (data) {
           setTools(data);
           onToolsFetched?.(data);
 

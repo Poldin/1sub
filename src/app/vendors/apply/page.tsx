@@ -22,6 +22,7 @@ export default function VendorApplyPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<{ id: string; email: string; fullName: string | null } | null>(null);
+  const [existingApplication, setExistingApplication] = useState<{ status: string; company: string; created_at: string; rejection_reason?: string } | null>(null);
 
   // Check authentication
   useEffect(() => {
@@ -49,6 +50,17 @@ export default function VendorApplyPage() {
           email: profileData.email,
           fullName: profileData.fullName
         });
+
+        // Check for existing application
+        const { data: applicationData } = await supabase
+          .from('vendor_applications')
+          .select('status, company, created_at, rejection_reason')
+          .eq('user_id', profileData.id)
+          .single();
+
+        if (applicationData) {
+          setExistingApplication(applicationData);
+        }
       } catch (error) {
         console.error('Auth check error:', error);
         router.push('/register?redirect=/vendors/apply');
@@ -135,7 +147,68 @@ export default function VendorApplyPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Existing Application Status */}
+          {existingApplication && (
+            <div className={`mb-6 p-4 border rounded-lg ${
+              existingApplication.status === 'approved' ? 'bg-green-500/10 border-green-500/30' :
+              existingApplication.status === 'pending' ? 'bg-yellow-500/10 border-yellow-500/30' :
+              'bg-red-500/10 border-red-500/30'
+            }`}>
+              <h3 className="font-semibold mb-2 text-[#ededed]">Application Status</h3>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-[#9ca3af]">Status:</span>
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    existingApplication.status === 'approved' ? 'bg-green-500 text-white' :
+                    existingApplication.status === 'pending' ? 'bg-yellow-500 text-black' :
+                    'bg-red-500 text-white'
+                  }`}>
+                    {existingApplication.status.toUpperCase()}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-[#9ca3af]">Company:</span>
+                  <span className="text-sm text-[#ededed]">{existingApplication.company}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-[#9ca3af]">Submitted:</span>
+                  <span className="text-sm text-[#ededed]">{new Date(existingApplication.created_at).toLocaleDateString()}</span>
+                </div>
+                {existingApplication.status === 'approved' && (
+                  <div className="mt-3 pt-3 border-t border-green-500/30">
+                    <p className="text-sm text-green-400">Your application has been approved! You can now access the vendor dashboard.</p>
+                    <Link href="/vendor-dashboard" className="mt-2 inline-block px-4 py-2 bg-[#3ecf8e] text-black rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors">
+                      Go to Vendor Dashboard
+                    </Link>
+                  </div>
+                )}
+                {existingApplication.status === 'pending' && (
+                  <div className="mt-3 pt-3 border-t border-yellow-500/30">
+                    <p className="text-sm text-yellow-400">Your application is under review. We'll notify you once it's processed.</p>
+                  </div>
+                )}
+                {existingApplication.status === 'rejected' && existingApplication.rejection_reason && (
+                  <div className="mt-3 pt-3 border-t border-red-500/30">
+                    <p className="text-sm text-red-400 mb-2">Rejection reason:</p>
+                    <p className="text-sm text-[#d1d5db]">{existingApplication.rejection_reason}</p>
+                    <p className="text-sm text-[#9ca3af] mt-2">You can submit a new application below if you&apos;ve addressed the concerns.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Disable form if pending or approved */}
+          {existingApplication && existingApplication.status !== 'rejected' ? (
+            <div className="text-center p-8">
+              <p className="text-[#9ca3af]">
+                {existingApplication.status === 'approved' 
+                  ? 'You already have an approved application.' 
+                  : 'You already have a pending application.'}
+              </p>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label htmlFor="company" className="block text-sm font-medium text-[#d1d5db] mb-2">
                 company name *
@@ -201,6 +274,7 @@ export default function VendorApplyPage() {
               {isSubmitting ? 'submitting...' : 'submit application'}
             </button>
           </form>
+          )}
 
           {/* Links */}
           <div className="mt-6 text-center text-sm">
