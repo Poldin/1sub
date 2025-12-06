@@ -176,6 +176,12 @@ export default function VendorAPIPage() {
 
       // Refresh the API keys list from the server
       const supabase = createClient();
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      
+      if (!authUser) {
+        throw new Error('Not authenticated');
+      }
+      
       const { data: apiKeys } = await supabase
         .from('api_keys')
         .select(`
@@ -191,7 +197,7 @@ export default function VendorAPIPage() {
             user_profile_id
           )
         `)
-        .eq('tools.user_profile_id', userId);
+        .eq('tools.user_profile_id', authUser.id);
 
       if (apiKeys) {
         const formattedKeys: ToolApiKey[] = apiKeys.map((key: {
