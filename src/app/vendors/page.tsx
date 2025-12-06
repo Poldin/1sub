@@ -49,14 +49,13 @@ export default function VendorsPage() {
 
         <div className="relative mx-auto max-w-5xl">
           <h1 className="text-4xl sm:text-5xl lg:text-7xl font-bold mb-6 leading-tight animate-fade-in-up opacity-0">
-            We connect you with{" "}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] animate-gradient">
-              users.
+              1 subscription, countless tools
             </span>
           </h1>
 
           <p className="text-lg sm:text-xl lg:text-2xl text-[#d1d5db] max-w-3xl mx-auto mb-10 leading-relaxed animate-fade-in-up delay-200 opacity-0">
-            Join 1sub to get discovered by thousands of subscribers actively looking for tools like yours.
+            Imagine a platform with users ready to try out your SaaS. That&apos;s 1sub.
           </p>
 
           <div className="animate-fade-in-up delay-400 opacity-0">
