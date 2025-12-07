@@ -25,14 +25,15 @@ import { getCurrentBalanceClient } from '@/lib/credits';
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
-  onShareAndEarnClick?: () => void; // Legacy prop, no longer used
   userId: string;
   userRole?: string;
-  hasTools?: boolean; // If user has created at least one tool
-  isVendor?: boolean; // If user is an approved vendor
+  hasTools?: boolean;
+  isVendor?: boolean;
+  onShareAndEarnClick?: () => void;
+  forceDesktopOpen?: boolean;
 }
 
-export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', hasTools = false, isVendor = false }: SidebarProps) {
+export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', hasTools = false, isVendor = false, onShareAndEarnClick, forceDesktopOpen = false }: SidebarProps) {
   const router = useRouter();
   const [isVendorMenuOpen, setIsVendorMenuOpen] = useState(false);
   const [credits, setCredits] = useState<number>(0);
@@ -79,7 +80,7 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
 
   return (
     <>
-      {/* Overlay per mobile quando menu è aperto */}
+      {/* Overlay for mobile when menu is open */}
       {isOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
@@ -92,8 +93,9 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
         fixed top-0 left-0 h-full w-full lg:w-80 bg-[#111111] border-r border-[#374151] z-50 
         transform transition-transform duration-300 ease-in-out flex flex-col
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+        ${forceDesktopOpen ? 'lg:translate-x-0' : ''}
       `}>
-        {/* Header del menu con hamburger */}
+        {/* Header with close button - always visible */}
         <div className="flex items-center justify-between p-4 border-b border-[#374151]">
           <h1 className="text-xl font-bold text-[#3ecf8e]">
             1sub<span className="text-[#9ca3af] font-normal">.io</span>
@@ -101,6 +103,7 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
           <button
             onClick={onClose}
             className="p-2 rounded-lg hover:bg-[#374151] transition-colors"
+            aria-label="Close sidebar"
           >
             <X className="w-6 h-6" />
           </button>

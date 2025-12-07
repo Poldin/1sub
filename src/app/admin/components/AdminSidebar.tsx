@@ -18,9 +18,10 @@ import {
 interface AdminSidebarProps {
   isOpen: boolean;
   onClose: () => void;
+  forceDesktopOpen?: boolean;
 }
 
-export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
+export default function AdminSidebar({ isOpen, onClose, forceDesktopOpen = false }: AdminSidebarProps) {
   const router = useRouter();
 
   const handleLogout = () => {
@@ -54,8 +55,9 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
         fixed top-0 left-0 h-full w-full lg:w-80 bg-[#111111] border-r border-[#374151] z-50 
         transform transition-transform duration-300 ease-in-out flex flex-col
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+        ${forceDesktopOpen ? 'lg:translate-x-0' : ''}
       `}>
-        {/* Header */}
+        {/* Header with close button - always visible */}
         <div className="flex items-center justify-between p-4 border-b border-[#374151]">
           <h1 className="text-xl font-bold text-[#3ecf8e]">
             1sub<span className="text-[#9ca3af] font-normal">.io</span>
@@ -63,6 +65,7 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
           <button
             onClick={onClose}
             className="p-2 rounded-lg hover:bg-[#374151] transition-colors"
+            aria-label="Close sidebar"
           >
             <X className="w-6 h-6" />
           </button>

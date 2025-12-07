@@ -24,13 +24,25 @@ function BackofficeContent() {
   const [isVendor, setIsVendor] = useState(false);
   const [highlightedToolId, setHighlightedToolId] = useState<string | null>(null);
 
-  // Load sidebar state from localStorage on mount
+  // Initialize sidebar state based on screen size
   useEffect(() => {
-    const savedSidebarState = localStorage.getItem('sidebarOpen');
-    if (savedSidebarState !== null) {
-      setIsMenuOpen(savedSidebarState === 'true');
-    }
+    const checkScreenSize = () => {
+      const isDesktop = window.innerWidth >= 1024;
+      const savedState = localStorage.getItem('sidebarOpen');
+      
+      if (isDesktop) {
+        setIsMenuOpen(savedState !== null ? savedState === 'true' : true);
+      } else {
+        setIsMenuOpen(false);
+      }
+    };
+
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
+
+  // Load sidebar state from localStorage on mount - removed, now handled in useEffect above
 
   // Fetch user data
   useEffect(() => {
@@ -239,7 +251,6 @@ function BackofficeContent() {
   const toggleMenu = () => {
     const newState = !isMenuOpen;
     setIsMenuOpen(newState);
-    // Save sidebar state to localStorage
     localStorage.setItem('sidebarOpen', String(newState));
   };
 

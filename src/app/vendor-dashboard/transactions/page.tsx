@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Menu, Download, RefreshCw, Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -26,6 +27,7 @@ interface Transaction {
 }
 
 export default function VendorTransactionsPage() {
+  const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [filter, setFilter] = useState<'all' | 'today' | 'week' | 'month'>('all');
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -38,8 +40,28 @@ export default function VendorTransactionsPage() {
   const [hasTools, setHasTools] = useState(false);
   const [isVendor, setIsVendor] = useState(false);
 
+  // Initialize sidebar state based on screen size
+  useEffect(() => {
+    const checkScreenSize = () => {
+      const isDesktop = window.innerWidth >= 1024;
+      const savedState = localStorage.getItem('sidebarOpen');
+      
+      if (isDesktop) {
+        setIsMenuOpen(savedState !== null ? savedState === 'true' : true);
+      } else {
+        setIsMenuOpen(false);
+      }
+    };
+
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
+
   const toggleMenu = () => {
-    setIsMenuOpen(!isMenuOpen);
+    const newState = !isMenuOpen;
+    setIsMenuOpen(newState);
+    localStorage.setItem('sidebarOpen', String(newState));
   };
   
   const handleShareAndEarnClick = () => {
@@ -326,12 +348,13 @@ export default function VendorTransactionsPage() {
         userRole={userRole}
         hasTools={hasTools}
         isVendor={isVendor}
+        forceDesktopOpen={true}
       />
 
       {/* Main Content Area */}
       <main className={`
         flex-1 min-w-0 transition-all duration-300 ease-in-out overflow-x-hidden
-        ${isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'}
+        lg:ml-80
       `}>
         {/* Top Bar with Hamburger */}
         <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-30 overflow-x-hidden border-b border-[#374151]">

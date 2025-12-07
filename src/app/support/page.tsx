@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { Menu, HelpCircle, Mail, ChevronDown, ChevronUp } from 'lucide-react';
 import Sidebar from '../backoffice/components/Sidebar';
 import Footer from '../components/Footer';
 import { createClient } from '@/lib/supabase/client';
+import { shouldForceDesktopOpen } from '@/lib/layoutConfig';
 
 interface FAQ {
   question: string;
@@ -15,6 +16,7 @@ interface FAQ {
 
 export default function SupportPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -29,6 +31,9 @@ export default function SupportPage() {
   const [userLoading, setUserLoading] = useState(true);
   const [userRole, setUserRole] = useState<string>('user');
   const [hasTools, setHasTools] = useState(false);
+
+  // Determine if sidebar should be forced open on desktop (false for support page)
+  const forceDesktopOpen = shouldForceDesktopOpen(pathname);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -157,12 +162,13 @@ export default function SupportPage() {
         userId={user?.id || ''}
         userRole={userRole}
         hasTools={hasTools}
+        forceDesktopOpen={forceDesktopOpen}
       />
 
       {/* Main Content Area */}
       <main className={`
         flex-1 min-w-0 transition-all duration-300 ease-in-out overflow-x-hidden
-        ${isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'}
+        ${forceDesktopOpen ? 'lg:ml-80' : isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'}
       `}>
         {/* Top Bar with Hamburger */}
         <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-30 overflow-x-hidden">

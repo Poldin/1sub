@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Menu } from 'lucide-react';
 import AdminSidebar from '../components/AdminSidebar';
+import { shouldForceDesktopOpen } from '@/lib/layoutConfig';
 
 interface Tool {
   id: string;
@@ -29,7 +30,9 @@ interface ToolsStats {
 
 export default function ToolsManagement() {
   const router = useRouter();
+  const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const forceDesktopOpen = shouldForceDesktopOpen(pathname);
   const [tools, setTools] = useState<Tool[]>([]);
   const [stats, setStats] = useState<ToolsStats>({ totalTools: 0, activeTools: 0, pendingTools: 0 });
   const [loading, setLoading] = useState(true);
@@ -107,12 +110,13 @@ export default function ToolsManagement() {
       <AdminSidebar 
         isOpen={isMenuOpen} 
         onClose={toggleMenu}
+        forceDesktopOpen={forceDesktopOpen}
       />
 
       {/* Main Content Area */}
       <main className={`
         flex-1 min-w-0 transition-all duration-300 ease-in-out overflow-x-hidden
-        ${isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'}
+        ${forceDesktopOpen ? 'lg:ml-80' : isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'}
       `}>
         {/* Top Bar with Hamburger */}
         <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-30 overflow-x-hidden">

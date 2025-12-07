@@ -515,12 +515,13 @@ export default function EditToolPage() {
         userRole={userRole}
         hasTools={hasTools}
         isVendor={isVendor}
+        forceDesktopOpen={true}
       />
 
       {/* Main Content Area */}
       <main className={`
         flex-1 min-w-0 transition-all duration-300 ease-in-out
-        ${isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'}
+        lg:ml-80
       `}>
         {/* Top Bar with Hamburger, Tool Selector, and Save */}
         <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-30 overflow-x-hidden border-b border-[#374151]">

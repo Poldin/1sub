@@ -87,11 +87,33 @@ function VendorPayoutsPageContent() {
   const [payouts, setPayouts] = useState<Payout[]>([]);
   const [loadingPayouts, setLoadingPayouts] = useState(true);
 
+  // Initialize sidebar state based on screen size
+  useEffect(() => {
+    const checkScreenSize = () => {
+      const isDesktop = window.innerWidth >= 1024;
+      const savedState = localStorage.getItem('sidebarOpen');
+      
+      if (isDesktop) {
+        setIsMenuOpen(savedState !== null ? savedState === 'true' : true);
+      } else {
+        setIsMenuOpen(false);
+      }
+    };
+
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
+
   // UI states
   const [connectingStripe, setConnectingStripe] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
+  const toggleMenu = () => {
+    const newState = !isMenuOpen;
+    setIsMenuOpen(newState);
+    localStorage.setItem('sidebarOpen', String(newState));
+  };
 
   // Fetch user data
   useEffect(() => {
@@ -296,12 +318,11 @@ function VendorPayoutsPageContent() {
         userRole={userRole}
         hasTools={hasTools}
         isVendor={isVendor}
+        forceDesktopOpen={true}
       />
 
       {/* Main Content */}
-      <main className={`flex-1 min-w-0 transition-all duration-300 ease-in-out overflow-x-hidden ${
-        isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'
-      }`}>
+      <main className={`flex-1 min-w-0 transition-all duration-300 ease-in-out overflow-x-hidden lg:ml-80`}>
         {/* Header */}
         <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-30 border-b border-[#374151]">
           <div className="flex items-center justify-between p-2 sm:p-3">

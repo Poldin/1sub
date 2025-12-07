@@ -39,8 +39,28 @@ export default function VendorUsersPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedToolId, setSelectedToolId] = useState<string>('');
 
+  // Initialize sidebar state based on screen size
+  useEffect(() => {
+    const checkScreenSize = () => {
+      const isDesktop = window.innerWidth >= 1024;
+      const savedState = localStorage.getItem('sidebarOpen');
+      
+      if (isDesktop) {
+        setIsMenuOpen(savedState !== null ? savedState === 'true' : true);
+      } else {
+        setIsMenuOpen(false);
+      }
+    };
+
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
+
   const toggleMenu = () => {
-    setIsMenuOpen(!isMenuOpen);
+    const newState = !isMenuOpen;
+    setIsMenuOpen(newState);
+    localStorage.setItem('sidebarOpen', String(newState));
   };
   
   const handleShareAndEarnClick = () => {
@@ -310,12 +330,13 @@ export default function VendorUsersPage() {
         userRole={userRole}
         hasTools={hasTools}
         isVendor={isVendor}
+        forceDesktopOpen={true}
       />
 
       {/* Main Content Area */}
       <main className={`
         flex-1 min-w-0 transition-all duration-300 ease-in-out overflow-x-hidden
-        ${isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'}
+        lg:ml-80
       `}>
         {/* Top Bar with Hamburger */}
         <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-30 overflow-x-hidden border-b border-[#374151]">

@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { Menu, Settings, Plus, BarChart3, TrendingUp, DollarSign, Users, Rocket, ArrowRight, Edit, Check } from 'lucide-react';
 import Sidebar from '../backoffice/components/Sidebar';
 import Footer from '../components/Footer';
 import { createClient } from '@/lib/supabase/client';
 import ToolSelector from './components/ToolSelector';
+import { shouldForceDesktopOpen } from '@/lib/layoutConfig';
 
 type ToolSummary = {
   id: string;
@@ -15,6 +16,7 @@ type ToolSummary = {
 
 export default function VendorDashboard() {
   const router = useRouter();
+  const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // User data states
@@ -24,6 +26,9 @@ export default function VendorDashboard() {
   const [hasTools, setHasTools] = useState(false);
   const [isVendor, setIsVendor] = useState(false);
   const [companyName, setCompanyName] = useState<string | null>(null);
+
+  // Determine if sidebar should be forced open on desktop
+  const forceDesktopOpen = shouldForceDesktopOpen(pathname);
 
   // Tool selection states
   const [selectedToolId, setSelectedToolId] = useState<string>('');
@@ -505,10 +510,11 @@ export default function VendorDashboard() {
         userRole={userRole}
         hasTools={hasTools}
         isVendor={isVendor}
+        forceDesktopOpen={forceDesktopOpen}
       />
 
       <main
-        className={`flex-1 min-w-0 transition-all duration-300 ease-in-out overflow-x-hidden ${isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'
+        className={`flex-1 min-w-0 transition-all duration-300 ease-in-out overflow-x-hidden ${forceDesktopOpen ? 'lg:ml-80' : isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'
           }`}
       >
         <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-30 overflow-x-hidden border-b border-[#374151]">
