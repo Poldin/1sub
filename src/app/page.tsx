@@ -24,11 +24,12 @@ export default function Home() {
   const { tools, loading, error, refetch } = useTools();
 
   // Add timeout mechanism for slow networks (especially mobile)
+  // Reduced timeout to 10 seconds for better mobile UX
   useEffect(() => {
     if (loading && tools.length === 0) {
       const timer = setTimeout(() => {
         setLoadingTimeout(true);
-      }, 15000);
+      }, 10000); // Reduced from 15000 to 10000
 
       return () => {
         clearTimeout(timer);
@@ -332,7 +333,8 @@ export default function Home() {
           </div>
           
           {/* Loading State - Show skeleton cards instead of spinner */}
-          {loading && tools.length === 0 && !loadingTimeout && (
+          {/* Only show skeletons if we're loading AND don't have any tools yet AND haven't timed out */}
+          {loading && tools.length === 0 && !loadingTimeout && !error && (
             <div className="mb-8 mt-8">
               <div className="flex flex-wrap gap-4 sm:gap-6 justify-center px-4 sm:px-0">
                 {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -344,12 +346,17 @@ export default function Home() {
             </div>
           )}
 
-          {/* Loading Timeout State */}
+          {/* Loading Timeout State - Higher priority than error state */}
           {loadingTimeout && tools.length === 0 && (
             <div className="text-center py-12">
-              <p className="text-yellow-400 mb-2">Unable to load tools</p>
-              <p className="text-[#9ca3af] text-sm mb-4">
-                The request is taking longer than expected. This may be due to a slow network connection.
+              <div className="inline-block p-4 mb-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                <svg className="w-12 h-12 text-yellow-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-yellow-400 mb-2 font-semibold">Taking longer than expected</p>
+              </div>
+              <p className="text-[#9ca3af] text-sm mb-4 max-w-md mx-auto">
+                The tools are taking a while to load. This might be due to a slow network connection or server delay.
               </p>
               <button
                 onClick={() => {
@@ -363,11 +370,16 @@ export default function Home() {
             </div>
           )}
 
-          {/* Error State */}
-          {error && !loading && (
+          {/* Error State - Only show if there's an error and no timeout message */}
+          {error && !loading && !loadingTimeout && (
             <div className="text-center py-12">
-              <p className="text-red-400 mb-2">Error loading tools</p>
-              <p className="text-[#9ca3af] text-sm mb-4">{error}</p>
+              <div className="inline-block p-4 mb-4 bg-red-500/10 border border-red-500/30 rounded-lg">
+                <svg className="w-12 h-12 text-red-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-red-400 mb-2 font-semibold">Error loading tools</p>
+              </div>
+              <p className="text-[#9ca3af] text-sm mb-4 max-w-md mx-auto">{error}</p>
               <button
                 onClick={() => refetch()}
                 className="px-6 py-3 bg-[#3ecf8e] text-black rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors"
@@ -378,7 +390,8 @@ export default function Home() {
           )}
 
           {/* All Tools Section - Show tools as soon as we have data (optimistic rendering) */}
-          {filteredTools.length > 0 && (
+          {/* This takes precedence over loading/error states to show cached data immediately */}
+          {!loadingTimeout && !error && filteredTools.length > 0 && (
             <div className="mb-8 mt-8">
               <div className="flex flex-wrap gap-4 sm:gap-6 justify-center px-4 sm:px-0">
                 {filteredTools.map((tool) => {
@@ -402,7 +415,12 @@ export default function Home() {
           {/* Empty State - when no tools match search or no tools available */}
           {!loading && !error && !loadingTimeout && filteredTools.length === 0 && tools.length === 0 && (
             <div className="text-center py-12">
-              <p className="text-[#9ca3af] text-lg mb-2">No tools available yet</p>
+              <div className="inline-block p-4 mb-4 bg-[#374151]/30 border border-[#374151] rounded-lg">
+                <svg className="w-12 h-12 text-[#9ca3af] mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                </svg>
+                <p className="text-[#9ca3af] text-lg mb-2">No tools available yet</p>
+              </div>
               <p className="text-[#6b7280] text-sm">Check back soon for new tools!</p>
             </div>
           )}
@@ -410,8 +428,13 @@ export default function Home() {
           {/* Empty Search Results */}
           {!loading && !loadingTimeout && filteredTools.length === 0 && tools.length > 0 && (
             <div className="text-center py-12">
-              <p className="text-[#9ca3af] text-lg mb-2">No tools found matching your search</p>
-              <p className="text-[#6b7280] text-sm">Try a different search term</p>
+              <div className="inline-block p-4 mb-4 bg-[#374151]/30 border border-[#374151] rounded-lg">
+                <svg className="w-12 h-12 text-[#9ca3af] mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <p className="text-[#9ca3af] text-lg mb-2">No tools found matching your search</p>
+              </div>
+              <p className="text-[#6b7280] text-sm">Try a different search term or clear your search</p>
             </div>
           )}
         </div>

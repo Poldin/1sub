@@ -14,16 +14,24 @@ interface UseToolsReturn {
  * Fetcher function for SWR to get tools from the public API
  * Fetches all tool data with products for complete information
  * Uses server-side API to avoid RLS and auth token issues on mobile devices
+ * Optimized with timeout for slow networks
  */
 async function fetchTools(): Promise<Tool[]> {
   try {
+    // Create abort controller for timeout handling
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
     const response = await fetch('/api/public/tools', {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
       },
       cache: 'no-store',
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' }));
@@ -40,6 +48,12 @@ async function fetchTools(): Promise<Tool[]> {
     const data = await response.json();
     return data.tools || [];
   } catch (err) {
+    // Handle abort errors gracefully
+    if (err instanceof Error && err.name === 'AbortError') {
+      console.error('Tools fetch timed out:', err);
+      throw new Error('Request timed out. Please check your connection and try again.');
+    }
+    
     console.error('Unexpected error in fetchTools:', err);
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
     throw new Error(`Failed to load tools: ${errorMessage}`);
@@ -57,33 +71,38 @@ export function useTools(): UseToolsReturn {
     'tools-list',
     fetchTools,
     {
-      // Cache for 5 minutes, revalidate on focus
+      // Cache for 5 minutes to reduce network requests on mobile
       dedupingInterval: 300000,
       revalidateOnFocus: true,
       revalidateOnReconnect: true,
-      // Keep previous data while revalidating
+      // Keep previous data while revalidating for better UX
       keepPreviousData: true,
-      // Retry on error with exponential backoff - limited retries for mobile
-      errorRetryCount: 2, // Reduced from 3 to prevent infinite loading on mobile
-      errorRetryInterval: 3000, // Reduced from 5000 for faster feedback
-      // Custom retry logic to prevent infinite retries on mobile
+      // Reduced retries for mobile - fail fast to show error state
+      errorRetryCount: 2,
+      errorRetryInterval: 2000, // Reduced to 2 seconds
+      // Custom retry logic optimized for mobile
       onErrorRetry: (error, key, config, revalidate, { retryCount }) => {
         // Don't retry if we've exceeded max retries
         if (retryCount >= 2) {
-          console.warn('Max retry count reached for tools fetch');
+          console.warn('[useTools] Max retry count reached');
           return;
         }
-        // Don't retry for specific errors that won't be fixed by retrying
-        if (error.message?.includes('network') || error.message?.includes('fetch')) {
-          console.warn('Network error, limiting retries:', error.message);
+        // Don't retry for timeout or network errors - show error state instead
+        if (error.message?.includes('timed out') || 
+            error.message?.includes('network') || 
+            error.message?.includes('fetch')) {
+          console.warn('[useTools] Network/timeout error, stopping retries:', error.message);
+          return;
         }
-        // Retry with exponential backoff
-        setTimeout(() => revalidate({ retryCount }), 3000 * (retryCount + 1));
+        // Retry with backoff
+        setTimeout(() => revalidate({ retryCount }), 2000 * (retryCount + 1));
       },
-      // Don't throw errors, handle them gracefully
       shouldRetryOnError: true,
       onError: (err) => {
-        console.error('[useTools] SWR error fetching tools:', err);
+        console.error('[useTools] SWR error:', err.message);
+      },
+      onSuccess: (data) => {
+        console.log('[useTools] Successfully loaded', data?.length || 0, 'tools');
       },
     }
   );
