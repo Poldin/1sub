@@ -29,7 +29,6 @@ export async function GET(request: NextRequest) {
         type,
         reason,
         created_at,
-        balance_after,
         metadata,
         tool_id,
         checkout_id
@@ -66,7 +65,6 @@ export async function GET(request: NextRequest) {
         amount: displayAmount,
         reason: transaction.reason || 'Unknown',
         date: transaction.created_at || new Date().toISOString(),
-        balanceAfter: transaction.balance_after || 0,
         metadata: transaction.metadata || {},
         toolId: transaction.tool_id,
         checkoutId: transaction.checkout_id

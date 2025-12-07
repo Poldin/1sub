@@ -53,7 +53,8 @@ export default function AnimatedSection({
         delay: delay,
         ease: [0.21, 0.47, 0.32, 0.98]
       }}
-      className={className}
+      className={`${className} w-full`}
+      style={{ maxWidth: '100%' }}
     >
       {children}
     </motion.div>

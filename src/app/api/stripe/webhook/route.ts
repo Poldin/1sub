@@ -187,7 +187,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     // Check for existing transaction with same idempotency key
     const { data: existingTransaction } = await supabase
       .from('credit_transactions')
-      .select('id, balance_after, credits_amount')
+      .select('id, credits_amount')
       .eq('user_id', userId)
       .eq('idempotency_key', idempotencyKey)
       .single();
@@ -201,26 +201,23 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
       return;
     }
 
-    // Get current balance
-    const { data: latestTransaction } = await supabase
-      .from('credit_transactions')
-      .select('balance_after')
+    // Get current balance from user_balances table
+    const { data: balanceRecord } = await supabase
+      .from('user_balances')
+      .select('balance')
       .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(1)
       .single();
 
-    const currentBalance = latestTransaction?.balance_after ?? 0;
+    const currentBalance = balanceRecord?.balance ?? 0;
     const newBalance = currentBalance + credits;
 
-    // Insert credit transaction
+    // Insert credit transaction (trigger will update user_balances automatically)
     const { data: transaction, error: insertError } = await supabase
       .from('credit_transactions')
       .insert({
         user_id: userId,
         credits_amount: credits,
         type: 'add',
-        balance_after: newBalance,
         reason: `Stripe credit purchase: ${packageKey || 'N/A'}`,
         idempotency_key: idempotencyKey,
         stripe_transaction_id: session.id,
@@ -263,7 +260,6 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
         metadata: {
           credits,
           balance_before: currentBalance,
-          balance_after: newBalance,
           stripe_session_id: session.id,
           stripe_payment_intent: session.payment_intent,
           amount_paid: session.amount_total ? session.amount_total / 100 : 0,
@@ -573,26 +569,23 @@ async function addCreditsToUser(
     return;
   }
 
-  // Get current balance
-  const { data: latestTransaction } = await supabase
-    .from('credit_transactions')
-    .select('balance_after')
+  // Get current balance from user_balances table
+  const { data: balanceRecord } = await supabase
+    .from('user_balances')
+    .select('balance')
     .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(1)
     .single();
 
-  const currentBalance = latestTransaction?.balance_after ?? 0;
+  const currentBalance = balanceRecord?.balance ?? 0;
   const newBalance = currentBalance + credits;
 
-  // Insert credit transaction
+  // Insert credit transaction (trigger will update user_balances automatically)
   const { data: transaction, error: insertError } = await supabase
     .from('credit_transactions')
     .insert({
       user_id: userId,
       credits_amount: credits,
       type: 'add',
-      balance_after: newBalance,
       reason,
       idempotency_key: idempotencyKey,
       metadata: {

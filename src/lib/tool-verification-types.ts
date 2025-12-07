@@ -126,6 +126,7 @@ export type WebhookEventType =
   | 'subscription.activated' 
   | 'subscription.canceled' 
   | 'subscription.updated'
+  | 'purchase.completed'
   | 'user.credit_low'
   | 'user.credit_depleted'
   | 'user.session_expired'
@@ -147,6 +148,9 @@ export interface WebhookPayload {
     toolId?: string;
     toolStatus?: boolean;
     sessionExpiredAt?: string;
+    checkoutId?: string;
+    amount?: number;
+    purchaseType?: string;
   };
 }
 

@@ -83,31 +83,43 @@ export default function VendorAPIPage() {
         
         setHasTools((toolsData?.length || 0) > 0);
 
-        // Fetch tools with API key info
-        const { data: tools, error: toolsError } = await supabase
-          .from('tools')
-          .select('id, name, metadata')
-          .eq('user_profile_id', user.id);
+        // Fetch API keys from api_keys table (joined with tools)
+        const { data: apiKeys, error: apiKeysError } = await supabase
+          .from('api_keys')
+          .select(`
+            tool_id,
+            key_hash,
+            key_prefix,
+            created_at,
+            last_used_at,
+            is_active,
+            tools!inner (
+              id,
+              name,
+              user_profile_id
+            )
+          `)
+          .eq('tools.user_profile_id', user.id);
 
-        if (!toolsError && tools) {
-          const apiKeys: ToolApiKey[] = tools
-            .filter((tool: ToolWithMetadata) => {
-              const metadata = (tool.metadata as Record<string, unknown>) || {};
-              return !!metadata.api_key_hash; // Only show tools with API keys
-            })
-            .map((tool: ToolWithMetadata) => {
-              const metadata = (tool.metadata as Record<string, unknown>) || {};
-              return {
-                toolId: tool.id,
-                toolName: tool.name,
-                apiKeyHash: (metadata.api_key_hash as string) || '',
-                createdAt: (metadata.api_key_created_at as string) || null,
-                lastUsedAt: (metadata.api_key_last_used_at as string) || null,
-                isActive: (metadata.api_key_active as boolean | undefined) !== false
-              };
-            });
+        if (!apiKeysError && apiKeys) {
+          const formattedKeys: ToolApiKey[] = apiKeys.map((key: {
+            tool_id: string;
+            key_hash: string;
+            key_prefix: string;
+            created_at: string;
+            last_used_at: string | null;
+            is_active: boolean;
+            tools: { id: string; name: string; user_profile_id: string };
+          }) => ({
+            toolId: key.tool_id,
+            toolName: key.tools.name,
+            apiKeyHash: key.key_hash,
+            createdAt: key.created_at,
+            lastUsedAt: key.last_used_at,
+            isActive: key.is_active
+          }));
 
-          setToolApiKeys(apiKeys);
+          setToolApiKeys(formattedKeys);
         }
       } catch (err) {
         console.error('Error fetching user data:', err);
@@ -145,50 +157,76 @@ export default function VendorAPIPage() {
     setRegeneratingToolId(toolId);
     
     try {
+      // Call server route to regenerate API key
+      const response = await fetch('/api/vendor/api-keys/regenerate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ tool_id: toolId }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to regenerate API key');
+      }
+
+      const newApiKey = result.api_key;
+
+      // Refresh the API keys list from the server
       const supabase = createClient();
-      const { generateApiKey, hashApiKey } = await import('@/lib/api-keys-client');
+      const { data: { user: authUser } } = await supabase.auth.getUser();
       
-      // Generate new API key
-      const newApiKey = generateApiKey();
-      const newApiKeyHash = await hashApiKey(newApiKey);
-      const createdAt = new Date().toISOString();
+      if (!authUser) {
+        throw new Error('Not authenticated');
+      }
+      
+      const { data: apiKeys } = await supabase
+        .from('api_keys')
+        .select(`
+          tool_id,
+          key_hash,
+          key_prefix,
+          created_at,
+          last_used_at,
+          is_active,
+          tools!inner (
+            id,
+            name,
+            user_profile_id
+          )
+        `)
+        .eq('tools.user_profile_id', authUser.id);
 
-      // Get current tool metadata
-      const { data: tool, error: fetchError } = await supabase
-        .from('tools')
-        .select('metadata')
-        .eq('id', toolId)
-        .single();
+      if (apiKeys) {
+        const formattedKeys: ToolApiKey[] = apiKeys.map((key: {
+          tool_id: string;
+          key_hash: string;
+          key_prefix: string;
+          created_at: string;
+          last_used_at: string | null;
+          is_active: boolean;
+          tools: { id: string; name: string; user_profile_id: string };
+        }) => ({
+          toolId: key.tool_id,
+          toolName: key.tools.name,
+          apiKeyHash: key.key_hash,
+          createdAt: key.created_at,
+          lastUsedAt: key.last_used_at,
+          isActive: key.is_active
+        }));
 
-      if (fetchError || !tool) {
-        throw new Error('Failed to fetch tool');
+        setToolApiKeys(formattedKeys);
       }
 
-      const metadata = (tool.metadata as Record<string, unknown>) || {};
-      (metadata as Record<string, unknown>).api_key_hash = newApiKeyHash;
-      (metadata as Record<string, unknown>).api_key_created_at = createdAt;
-      (metadata as Record<string, unknown>).api_key_active = true;
-      // Keep last_used_at for history
-
-      // Update tool metadata
-      const { error: updateError } = await supabase
-        .from('tools')
-        .update({ metadata })
-        .eq('id', toolId);
-
-      if (updateError) {
-        throw new Error('Failed to update API key');
-      }
-
-      // Update local state
-      setToolApiKeys(prev => prev.map(key => 
-        key.toolId === toolId 
-          ? { ...key, apiKeyHash: newApiKeyHash, createdAt, isActive: true }
-          : key
-      ));
-
-      // Show new API key to user (only once) - Using a custom modal would be better, but alert works for now
-      const shouldCopy = confirm(`API key regenerated successfully!\n\nYour new API key is:\n\n${newApiKey}\n\n⚠️ IMPORTANT: Save this key now! It will not be shown again.\n\nClick OK to copy to clipboard, or Cancel to close.`);
+      // Show new API key to user (only once)
+      const shouldCopy = confirm(
+        `✅ API key regenerated successfully!\n\n` +
+        `Your new API key is:\n${newApiKey}\n\n` +
+        `⚠️ IMPORTANT: Save this key now! It will not be shown again.\n\n` +
+        `Click OK to copy to clipboard, or Cancel to close.`
+      );
       
       if (shouldCopy) {
         navigator.clipboard.writeText(newApiKey);

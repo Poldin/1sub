@@ -86,7 +86,6 @@ export type Database = {
       }
       credit_transactions: {
         Row: {
-          balance_after: number | null
           checkout_id: string | null
           created_at: string | null
           credits_amount: number | null
@@ -100,7 +99,6 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          balance_after?: number | null
           checkout_id?: string | null
           created_at?: string | null
           credits_amount?: number | null
@@ -114,7 +112,6 @@ export type Database = {
           user_id: string
         }
         Update: {
-          balance_after?: number | null
           checkout_id?: string | null
           created_at?: string | null
           credits_amount?: number | null
@@ -147,6 +144,42 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_balances: {
+        Row: {
+          user_id: string
+          balance: number
+          last_transaction_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          balance?: number
+          last_transaction_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          balance?: number
+          last_transaction_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_balances_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_balances_last_transaction_id_fkey"
+            columns: ["last_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "credit_transactions"
             referencedColumns: ["id"]
           },
         ]

@@ -8,7 +8,6 @@ import {
   User,
   HelpCircle,
   Briefcase,
-  Gift,
   Plus,
   ChevronDown,
   ChevronUp,
@@ -17,7 +16,6 @@ import {
   Key,
   DollarSign,
   LayoutDashboard,
-  ExternalLink,
   Package,
   BookOpen,
   CreditCard
@@ -48,14 +46,19 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
   }, []);
 
   // Fetch credits independently using unified balance method
-  // Uses balance_after from latest transaction for consistency with checkout
+  // Uses user_balances table for fast and reliable balance lookups
   useEffect(() => {
     const fetchCredits = async () => {
       if (!userId) return;
 
-      const totalCredits = await getCurrentBalanceClient(userId);
-      if (totalCredits !== null) {
-        setCredits(totalCredits);
+      try {
+        const totalCredits = await getCurrentBalanceClient(userId);
+        if (totalCredits !== null) {
+          setCredits(totalCredits);
+        }
+      } catch (error) {
+        // Silently handle errors - default to 0 credits
+        // Errors are already logged in getCurrentBalanceClient
       }
     };
 
@@ -230,22 +233,6 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
             )}
           </div>
         </nav>
-
-        {/* Share and Earn Button */}
-        <div className="mx-4 mb-4">
-          <a
-            href="/shareandearn"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full flex items-center justify-between gap-2 p-2 bg-[#1f2937] hover:bg-[#374151] rounded-lg transition-colors text-[#ededed] font-medium"
-          >
-            <div className="flex items-center gap-2">
-              <Gift className="w-4 h-4 text-[#3ecf8e]" />
-              <span className="text-sm">Share & Earn</span>
-            </div>
-            <ExternalLink className="w-3.5 h-3.5 text-[#9ca3af]" />
-          </a>
-        </div>
 
         {/* Become a Vendor CTA - Only for users who are not approved vendors and don't have tools */}
         {!isVendor && !hasTools && (

@@ -256,6 +256,32 @@ export default function VendorTransactionsPage() {
     }
   }, [userId, filter]);
 
+  // Auto-refresh on window focus
+  useEffect(() => {
+    const handleFocus = () => {
+      if (userId && !loading) {
+        fetchTransactions();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [userId, loading]);
+
+  // Optional: Polling every 60 seconds when page is active
+  useEffect(() => {
+    if (!userId) return;
+
+    const interval = setInterval(() => {
+      // Only refresh if page is visible (not in background)
+      if (document.visibilityState === 'visible' && !loading) {
+        fetchTransactions();
+      }
+    }, 60000); // 60 seconds
+
+    return () => clearInterval(interval);
+  }, [userId, loading]);
+
   const filteredTransactions = transactions;
 
   const totalCredits = transactions.reduce((sum, t) => sum + t.credits_amount, 0);

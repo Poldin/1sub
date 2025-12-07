@@ -5,11 +5,12 @@
  * This file is for client-side operations only.
  * 
  * Credits are stored in the credit_transactions table as a ledger.
- * Balance is calculated dynamically by summing all credit and debit transactions.
+ * The user's current balance is stored in the user_balances table (source of truth).
  * 
  * Migration Note:
- * - Use getCurrentBalanceClient() for all balance checks (calculates from transactions)
- * - calculateCreditsFromTransactions() is the implementation used by getCurrentBalanceClient()
+ * - Use getCurrentBalanceClient() for all balance checks (uses user_balances table)
+ * - calculateCreditsFromTransactions() is kept only for validation purposes
+ * - Do NOT use calculateCreditsFromTransactions() for balance checks in production code
  */
 
 import { createClient } from '@/lib/supabase/client';
@@ -53,7 +54,7 @@ export function calculateCreditsFromTransactions(transactions: CreditTransaction
  * Get the current balance for a user (client-side)
  * This is the RECOMMENDED method for checking user balance.
  * 
- * Uses balance_after from the latest transaction for performance.
+ * Uses user_balances table for fast and reliable balance lookups.
  * This is much faster than calculating from all transactions.
  * 
  * @param userId - User ID to fetch balance for
@@ -65,24 +66,37 @@ export async function getCurrentBalanceClient(userId: string): Promise<number | 
   try {
     const supabase = createClient();
     
-    const { data: transactions, error } = await supabase
-      .from('credit_transactions')
-      .select('credits_amount, type')
+    // Get balance from user_balances table (source of truth)
+    const { data: balanceRecord, error } = await supabase
+      .from('user_balances')
+      .select('balance')
       .eq('user_id', userId)
-      .order('created_at', { ascending: true });
+      .maybeSingle();
 
     if (error) {
-      console.error('Error fetching transactions for balance:', error);
+      // Log error with proper serialization
+      console.error('Error fetching current balance:', JSON.stringify({
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        userId
+      }, null, 2));
       return null;
     }
 
-    if (!transactions || transactions.length === 0) {
-      return 0;
-    }
-
-    return calculateCreditsFromTransactions(transactions);
+    // If no balance record found, return 0 (maybeSingle returns null instead of error)
+    // This can happen for new users who haven't had any transactions yet
+    return balanceRecord?.balance ?? 0;
   } catch (err) {
-    console.error('Error in getCurrentBalanceClient:', err);
+    // Log caught errors with proper serialization
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    const errorStack = err instanceof Error ? err.stack : undefined;
+    console.error('Error in getCurrentBalanceClient:', JSON.stringify({
+      message: errorMessage,
+      stack: errorStack,
+      userId
+    }, null, 2));
     return null;
   }
 }
@@ -94,7 +108,7 @@ export async function getCurrentBalanceClient(userId: string): Promise<number | 
  * Use getCurrentBalanceClient() instead for better performance.
  * 
  * This function should only be used for:
- * - Validation of calculated balance
+ * - Validation against user_balances.balance
  * - Debugging balance inconsistencies
  * - Testing
  * 
@@ -126,12 +140,12 @@ export async function getUserCreditsClient(userId: string): Promise<number | nul
 }
 
 /**
- * Calculate balance from all credit_transactions (client-side)
+ * Get the last balance value from user_balances table (client-side)
  * 
  * This is an alias for getCurrentBalanceClient() for backward compatibility.
  * 
  * @param userId - User ID to fetch balance for
- * @returns Promise with last balance or null if error
+ * @returns Promise with current balance or null if error
  * @deprecated Use getCurrentBalanceClient() instead
  */
 export async function getLastBalanceClient(userId: string): Promise<number | null> {
@@ -139,7 +153,7 @@ export async function getLastBalanceClient(userId: string): Promise<number | nul
 }
 
 /**
- * Validate balance consistency by comparing calculated balances (client-side)
+ * Validate balance consistency by comparing user_balances.balance with calculated balance (client-side)
  * This should be used for debugging and validation purposes only.
  * 
  * @param userId - User ID to validate

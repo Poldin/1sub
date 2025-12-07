@@ -13,7 +13,7 @@ export default function Footer() {
           <p className="text-[#9ca3af] mb-4">
             1 subscription, countless tools.
           </p>
-          <div className="flex justify-center gap-6 text-sm">
+          <div className="flex justify-center gap-6 text-sm flex-wrap">
             <Link
               href="/support"
               className="text-[#9ca3af] hover:text-[#3ecf8e] transition-colors"
@@ -32,6 +32,14 @@ export default function Footer() {
             >
               Terms and Conditions
             </Link>
+            <a
+              href="https://discord.gg/R87YSYpKK"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[#9ca3af] hover:text-[#3ecf8e] transition-colors"
+            >
+              Discord
+            </a>
           </div>
         </div>
       </div>

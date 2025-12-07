@@ -19,6 +19,7 @@ export const PUBLIC_API_ROUTES = [
   '/api/v1/credits/consume', // Uses API key authentication
   '/api/cron/process-subscriptions', // Uses cron secret authentication
   '/api/auth/verify-otp',
+  '/api/public', // Public endpoints (e.g., /api/public/tools for home page)
 ];
 
 /**

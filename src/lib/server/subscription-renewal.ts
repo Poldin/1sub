@@ -112,18 +112,16 @@ async function processSubscriptionRenewal(
       billingPeriod,
     });
 
-    // Get user's current balance using credit service
+    // Get user's current balance from user_balances table
     // Note: credit service uses cookies which aren't available in cron jobs
-    // So we'll fetch balance directly for subscriptions
-    const { data: latestTransaction } = await supabase
-      .from('credit_transactions')
-      .select('balance_after')
+    // So we'll fetch balance directly from user_balances table
+    const { data: balanceRecord } = await supabase
+      .from('user_balances')
+      .select('balance')
       .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(1)
       .single();
 
-    const currentBalance = latestTransaction?.balance_after ?? 0;
+    const currentBalance = balanceRecord?.balance ?? 0;
 
     // Check for sufficient credits
     if (currentBalance < creditPrice) {
@@ -155,8 +153,6 @@ async function processSubscriptionRenewal(
       };
     }
 
-    // Calculate new balance
-    const newBalance = currentBalance - creditPrice;
     const now = new Date();
     const nextBillingDate = calculateNextBillingDate(now, billingPeriod);
 
@@ -164,6 +160,7 @@ async function processSubscriptionRenewal(
     const idempotencyKey = `subscription-renewal-${subscriptionId}-${now.toISOString()}`;
 
     // Deduct credits from user
+    // Trigger will automatically update user_balances table
     const { error: userTransactionError } = await supabase
       .from('credit_transactions')
       .insert({
@@ -171,7 +168,6 @@ async function processSubscriptionRenewal(
         tool_id: toolId,
         credits_amount: creditPrice,
         type: 'subtract',
-        balance_after: newBalance,
         reason: `Subscription renewal: ${metadata?.tool_name || 'Unknown tool'}`,
         idempotency_key: idempotencyKey,
         metadata: {
@@ -209,16 +205,7 @@ async function processSubscriptionRenewal(
 
     // Add credits to vendor
     if (vendorId) {
-      const { data: vendorTransaction } = await supabase
-        .from('credit_transactions')
-        .select('balance_after')
-        .eq('user_id', vendorId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-
-      const vendorBalance = vendorTransaction?.balance_after ?? 0;
-
+      // Trigger will automatically update user_balances table
       const { error: vendorTransactionError } = await supabase
         .from('credit_transactions')
         .insert({
@@ -226,7 +213,6 @@ async function processSubscriptionRenewal(
           tool_id: toolId,
           credits_amount: creditPrice,
           type: 'add',
-          balance_after: vendorBalance + creditPrice,
           reason: `Subscription renewal payment: ${metadata?.tool_name || 'Unknown tool'}`,
           idempotency_key: `${idempotencyKey}-vendor`,
           metadata: {
@@ -263,6 +249,15 @@ async function processSubscriptionRenewal(
       // Transaction was processed, so log but don't fail
     }
 
+    // Get updated balance after transaction
+    const { data: updatedBalanceRecord } = await supabase
+      .from('user_balances')
+      .select('balance')
+      .eq('user_id', userId)
+      .single();
+    
+    const newBalance = updatedBalanceRecord?.balance ?? currentBalance - creditPrice;
+
     console.log(`[Subscription Renewal] Successfully renewed subscription ${subscriptionId}`, {
       userId,
       vendorId,
@@ -280,7 +275,7 @@ async function processSubscriptionRenewal(
         billingPeriod,
         'active',
         nextBillingDate.toISOString(),
-        newBalance
+        newBalance ?? (currentBalance - creditPrice)
       );
     } catch (webhookError) {
       // Don't fail the renewal if webhook fails

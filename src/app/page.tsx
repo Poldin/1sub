@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useMemo, useCallback, lazy, Suspense } from 'react';
+import { useState, useMemo, useCallback, lazy, Suspense, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Users } from 'lucide-react';
 import Footer from './components/Footer';
 import ToolCard from './components/ToolCard';
+import ToolCardSkeleton from './components/ToolCardSkeleton';
 import PricingExplainer from './components/PricingExplainer';
 import TrustIndicators from './components/TrustIndicators';
 import { useTools } from '@/hooks/useTools';
@@ -18,9 +18,26 @@ export default function Home() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedToolId, setSelectedToolId] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [loadingTimeout, setLoadingTimeout] = useState(false);
   
   // Fetch tools from database
-  const { tools, loading, error } = useTools();
+  const { tools, loading, error, refetch } = useTools();
+
+  // Add timeout mechanism for slow networks (especially mobile)
+  useEffect(() => {
+    if (loading && tools.length === 0) {
+      const timer = setTimeout(() => {
+        setLoadingTimeout(true);
+      }, 15000);
+
+      return () => {
+        clearTimeout(timer);
+        setLoadingTimeout(false);
+      };
+    } else {
+      setLoadingTimeout(false);
+    }
+  }, [loading, tools.length]);
 
   // Trova il tool selezionato dal ID per evitare riferimenti instabili
   // Questo evita re-render quando SWR ricarica i dati ma il tool è lo stesso
@@ -112,12 +129,12 @@ export default function Home() {
   }, [router]);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] pb-20 sm:pb-0">
-      {/* Mobile Sticky CTA - Bottom */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a] to-transparent z-40 sm:hidden">
+    <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] pb-40 sm:pb-0 overflow-x-hidden w-full">
+      {/* Mobile Sticky CTA - Bottom - z-index set to not interfere with cards */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a] to-transparent z-30 sm:hidden pointer-events-none">
         <a
           href="/login"
-          className="flex items-center justify-center w-full px-6 py-4 text-lg font-bold text-white bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] rounded-full shadow-lg shadow-[#3ecf8e]/30 active:scale-95 transition-transform"
+          className="flex items-center justify-center w-full px-6 py-4 text-lg font-bold text-white bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] rounded-full shadow-lg shadow-[#3ecf8e]/30 active:scale-95 transition-transform pointer-events-auto"
         >
           <span className="flex items-center gap-2">
             get started now
@@ -245,8 +262,8 @@ export default function Home() {
         <PricingExplainer />
       </section>
 
-      {/* Tools Showcase */}
-      <section className="section-padding bg-[#0a0a0a]">
+      {/* Tools Showcase - Extra padding on mobile for sticky CTA */}
+      <section className="section-padding bg-[#0a0a0a] pb-28 sm:pb-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
           {/* Search Bar */}
@@ -314,32 +331,61 @@ export default function Home() {
             </div>
           </div>
           
-          {/* Loading / Error State */}
-          {loading && (
-            <div className="flex items-center justify-center py-12">
-              <div className="text-center">
-                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#3ecf8e] border-r-transparent"></div>
-                <p className="mt-4 text-[#9ca3af]">Loading tools...</p>
+          {/* Loading State - Show skeleton cards instead of spinner */}
+          {loading && tools.length === 0 && !loadingTimeout && (
+            <div className="mb-8 mt-8">
+              <div className="flex flex-wrap gap-4 sm:gap-6 justify-center px-4 sm:px-0">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <div key={`skeleton-${i}`} className="w-full sm:w-[22rem]">
+                    <ToolCardSkeleton />
+                  </div>
+                ))}
               </div>
             </div>
           )}
 
-          {error && (
+          {/* Loading Timeout State */}
+          {loadingTimeout && tools.length === 0 && (
             <div className="text-center py-12">
-              <p className="text-red-400 mb-2">Error loading tools</p>
-              <p className="text-[#9ca3af] text-sm">{error}</p>
+              <p className="text-yellow-400 mb-2">Unable to load tools</p>
+              <p className="text-[#9ca3af] text-sm mb-4">
+                The request is taking longer than expected. This may be due to a slow network connection.
+              </p>
+              <button
+                onClick={() => {
+                  setLoadingTimeout(false);
+                  refetch();
+                }}
+                className="px-6 py-3 bg-[#3ecf8e] text-black rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors"
+              >
+                Try Again
+              </button>
             </div>
           )}
 
-          {/* All Tools Section */}
-          {!loading && !error && filteredTools.length > 0 && (
+          {/* Error State */}
+          {error && !loading && (
+            <div className="text-center py-12">
+              <p className="text-red-400 mb-2">Error loading tools</p>
+              <p className="text-[#9ca3af] text-sm mb-4">{error}</p>
+              <button
+                onClick={() => refetch()}
+                className="px-6 py-3 bg-[#3ecf8e] text-black rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          {/* All Tools Section - Show tools as soon as we have data (optimistic rendering) */}
+          {filteredTools.length > 0 && (
             <div className="mb-8 mt-8">
-              <div className="flex flex-wrap gap-4 sm:gap-6 justify-center">
+              <div className="flex flex-wrap gap-4 sm:gap-6 justify-center px-4 sm:px-0">
                 {filteredTools.map((tool) => {
                   // Usa callback stabili dal Map per evitare re-render non necessari
                   const handleClick = toolClickCallbacks.get(tool.id) || (() => handleToolClick(tool));
                   return (
-                    <div key={tool.id} className="w-80 sm:w-[22rem]">
+                    <div key={tool.id} className="w-full sm:w-[22rem]">
                       <ToolCard 
                         tool={tool} 
                         mode="marketing" 
@@ -352,11 +398,27 @@ export default function Home() {
               </div>
             </div>
           )}
+          
+          {/* Empty State - when no tools match search or no tools available */}
+          {!loading && !error && !loadingTimeout && filteredTools.length === 0 && tools.length === 0 && (
+            <div className="text-center py-12">
+              <p className="text-[#9ca3af] text-lg mb-2">No tools available yet</p>
+              <p className="text-[#6b7280] text-sm">Check back soon for new tools!</p>
+            </div>
+          )}
+
+          {/* Empty Search Results */}
+          {!loading && !loadingTimeout && filteredTools.length === 0 && tools.length > 0 && (
+            <div className="text-center py-12">
+              <p className="text-[#9ca3af] text-lg mb-2">No tools found matching your search</p>
+              <p className="text-[#6b7280] text-sm">Try a different search term</p>
+            </div>
+          )}
         </div>
       </section>
 
       {/* Community & Vendor Section */}
-      <section className="section-padding bg-gradient-to-b from-[#111111] to-[#0a0a0a]">
+      <section className="section-padding bg-gradient-to-b from-[#111111] to-[#0a0a0a] px-4 sm:px-6">
         <div className="max-w-6xl mx-auto">
           <div className="grid md:grid-cols-2 gap-8">
             
@@ -384,7 +446,7 @@ export default function Home() {
                   </svg>
                 </a>
                 <a
-                  href="https://discord.com"
+                  href="https://discord.gg/R87YSYpKK"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center justify-center gap-2 px-6 py-3 bg-[#5865F2] text-white rounded-xl font-semibold hover:bg-[#4752C4] transition-colors"
@@ -433,84 +495,6 @@ export default function Home() {
               </div>
             </div>
 
-          </div>
-        </div>
-      </section>
-
-      {/* Referral Program Section */}
-      <section className="section-padding">
-        <div className="max-w-5xl mx-auto">
-          <div className="bg-gradient-to-br from-[#059669] to-[#047857] rounded-2xl p-8 sm:p-12 border border-white/20 relative overflow-hidden">
-            
-            {/* Decorative circles */}
-            <div className="absolute -top-20 -right-20 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
-            <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
-            
-            <div className="relative z-10">
-              <div className="text-center mb-8">
-                <h2 className="text-3xl sm:text-4xl font-bold mb-3 text-white">
-                  earn with referrals
-                </h2>
-                <p className="text-green-50 text-lg">
-                  lifetime commission up to 15%
-                </p>
-              </div>
-              
-              {/* Commission Tiers */}
-              <div className="flex items-end justify-center gap-3 sm:gap-4 mb-8">
-                <div className="flex flex-col items-center">
-                  <div className="bg-white/10 backdrop-blur-sm border-2 border-white/40 rounded-xl p-4 w-24 h-28 flex flex-col items-center justify-center">
-                    <div className="text-4xl font-black text-white">5%</div>
-                    <div className="flex items-center gap-1 mt-2">
-                      <Users className="w-3 h-3 text-green-100" />
-                      <span className="text-xs text-green-100">0-1K</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="flex flex-col items-center">
-                  <div className="bg-white/20 backdrop-blur-sm border-2 border-white/60 rounded-xl p-6 w-28 h-36 flex flex-col items-center justify-center">
-                    <div className="text-5xl font-black text-white">10%</div>
-                    <div className="flex items-center gap-1 mt-2">
-                      <Users className="w-4 h-4 text-green-100" />
-                      <span className="text-sm text-green-100">1K+</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="flex flex-col items-center">
-                  <div className="bg-white/30 backdrop-blur-sm border-2 border-white rounded-xl p-8 w-32 h-44 flex flex-col items-center justify-center">
-                    <div className="text-6xl font-black text-white">15%</div>
-                    <div className="flex items-center gap-1 mt-2">
-                      <Users className="w-5 h-5 text-white" />
-                      <span className="text-base text-white font-semibold">10K+</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="text-center">
-                <a
-                  href="/login"
-                  className="inline-flex items-center gap-2 bg-white text-[#059669] px-8 py-4 rounded-xl font-bold text-lg hover:scale-105 transition-transform shadow-xl"
-                >
-                  start earning
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
-                </a>
-                <p className="text-sm text-green-100 mt-4">
-                  <a 
-                    href="/tc_referral" 
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline hover:text-white transition-colors"
-                  >
-                    Terms & conditions
-                  </a>
-                </p>
-              </div>
-            </div>
           </div>
         </div>
       </section>

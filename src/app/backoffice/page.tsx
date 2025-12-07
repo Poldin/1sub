@@ -38,15 +38,102 @@ function BackofficeContent() {
       try {
         const response = await fetch('/api/user/profile');
 
+        // Check if response is valid
+        if (!response) {
+          throw new Error('No response received from server');
+        }
+
         if (!response.ok) {
           if (response.status === 401) {
             router.push('/login');
             return;
           }
-          throw new Error('Failed to fetch user profile');
+          
+          // Try to get error message from response
+          let errorMessage = 'Failed to fetch user profile';
+          let errorDetails: Record<string, unknown> = {};
+          
+          try {
+            // Clone response to read it without consuming the original
+            const responseText = await response.clone().text();
+            
+            if (responseText) {
+              try {
+                const errorData = JSON.parse(responseText);
+                if (errorData && typeof errorData === 'object') {
+                  errorDetails = errorData;
+                  if (errorData.error) {
+                    errorMessage = typeof errorData.error === 'string' 
+                      ? errorData.error 
+                      : 'Failed to fetch user profile';
+                  }
+                  if (errorData.details) {
+                    errorMessage += `: ${errorData.details}`;
+                  }
+                }
+              } catch {
+                // If not valid JSON, use the text as error message
+                if (responseText.trim()) {
+                  errorMessage = responseText;
+                }
+              }
+            }
+          } catch (parseError) {
+            // If we can't read the response, log the parse error
+            console.warn('Could not parse error response:', parseError);
+          }
+          
+          // Build error log with available information
+          const logData: Record<string, unknown> = {
+            status: response.status,
+            statusText: response.statusText || 'Unknown',
+            message: errorMessage,
+          };
+          
+          // Add URL if available
+          if (response.url) {
+            logData.url = response.url;
+          }
+          
+          // Only include errorDetails if it has meaningful content
+          if (errorDetails && Object.keys(errorDetails).length > 0) {
+            logData.details = errorDetails;
+          }
+          
+          // Log the error with all available context
+          console.error('Profile fetch error:', logData);
+          
+          // Also log the raw response for debugging if needed
+          if (process.env.NODE_ENV === 'development') {
+            console.debug('Response headers:', Object.fromEntries(response.headers.entries()));
+          }
+          
+          // For 500 errors, still try to redirect to login as the session might be invalid
+          if (response.status >= 500) {
+            console.warn('Server error fetching profile, redirecting to login');
+            router.push('/login');
+            return;
+          }
+          
+          throw new Error(errorMessage);
         }
 
-        const data = await response.json();
+        let data;
+        try {
+          const responseText = await response.text();
+          if (!responseText || !responseText.trim()) {
+            throw new Error('Empty response from server');
+          }
+          data = JSON.parse(responseText);
+        } catch (parseError) {
+          console.error('Failed to parse response:', parseError);
+          throw new Error('Invalid response format from server');
+        }
+
+        if (!data || !data.id) {
+          console.error('Invalid user profile data:', data);
+          throw new Error('Invalid user profile data received');
+        }
 
         setUser({
           id: data.id,
@@ -77,7 +164,22 @@ function BackofficeContent() {
           setHasTools(true);
         }
       } catch (error) {
-        console.error('Error fetching user data:', error);
+        // Log detailed error information
+        const errorInfo: Record<string, unknown> = {
+          message: error instanceof Error ? error.message : 'Unknown error',
+          type: error instanceof Error ? error.constructor.name : typeof error,
+        };
+        
+        if (error instanceof Error) {
+          errorInfo.stack = error.stack;
+        } else if (error && typeof error === 'object') {
+          // Include any additional error properties
+          Object.assign(errorInfo, error);
+        }
+        
+        console.error('Error fetching user data:', errorInfo);
+        // Only redirect to login if it's an authentication issue
+        // For other errors, we might want to show an error message instead
         router.push('/login');
       } finally {
         setUserLoading(false);

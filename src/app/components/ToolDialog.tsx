@@ -210,9 +210,10 @@ function ToolDialogComponent(props: ToolDialogProps) {
   const emoji = uiMeta.emoji;
   const gradient = uiMeta.gradient;
 
-  // Dynamic phase calculation based on paying user count - MEMOIZED
+  // Dynamic phase calculation based on paying user count and revenue - MEMOIZED
   const payingUserCount = tool.metadata?.paying_user_count ?? 0;
-  const calculatedPhase = useMemo(() => getToolPhase(payingUserCount), [payingUserCount]);
+  const revenue = tool.metadata?.revenue ?? 0;
+  const calculatedPhase = useMemo(() => getToolPhase(payingUserCount, revenue), [payingUserCount, revenue]);
   const phaseLabel = useMemo(() => getPhaseLabel(calculatedPhase), [calculatedPhase]);
   const phaseClasses = useMemo(() => getPhaseTailwindClasses(calculatedPhase), [calculatedPhase]);
 

@@ -89,6 +89,7 @@ export interface ToolMetadata {
 
   // Dynamic phase calculation
   paying_user_count?: number;
+  revenue?: number;  // Revenue in credits/currency for phase calculation
 
   // API key fields for external tool integration
   api_key_hash?: string;  // Hashed API key for storage

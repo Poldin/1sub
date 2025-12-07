@@ -1,9 +1,7 @@
 'use client';
 
 import useSWR from 'swr';
-import { createClient } from '@/lib/supabase/client';
 import { Tool } from '@/lib/tool-types';
-import { batchCountPayingUsers } from '@/lib/tool-payments';
 
 interface UseToolsReturn {
   tools: Tool[];
@@ -13,95 +11,38 @@ interface UseToolsReturn {
 }
 
 /**
- * Fetcher function for SWR to get tools from Supabase
+ * Fetcher function for SWR to get tools from the public API
  * Fetches all tool data with products for complete information
- * Enriches each tool with paying user counts for dynamic phase calculation
+ * Uses server-side API to avoid RLS and auth token issues on mobile devices
  */
 async function fetchTools(): Promise<Tool[]> {
   try {
-    const supabase = createClient();
+    const response = await fetch('/api/public/tools', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
+    });
 
-    const { data: toolsData, error: fetchError } = await supabase
-      .from('tools')
-      .select(`
-        *,
-        products:tool_products(*)
-      `)
-      .eq('is_active', true)
-      .order('created_at', { ascending: false });
-
-    if (fetchError) {
-      // Check if it's a refresh token error
-      const errorMessage = fetchError.message || fetchError.toString() || '';
-      if (
-        errorMessage.includes('Refresh Token') ||
-        errorMessage.includes('refresh_token') ||
-        errorMessage.includes('Invalid Refresh Token') ||
-        errorMessage.includes('Refresh Token Not Found')
-      ) {
-        console.warn('Invalid refresh token detected in fetchTools, clearing session');
-        // Clear session and cookies
-        try {
-          await supabase.auth.signOut({ scope: 'local' });
-        } catch (signOutError) {
-          // Ignore sign out errors
-        }
-        // Return empty array instead of throwing
-        return [];
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' }));
+      console.error('Error fetching tools from API:', errorData);
+      
+      // Provide friendlier error message for authentication issues
+      if (response.status === 401) {
+        throw new Error('Unable to load tools at this time. Please try again later.');
       }
-
-      console.error('Error fetching tools:', fetchError);
-      throw new Error(`Failed to load tools: ${fetchError.message}`);
+      
+      throw new Error(errorData.error || `Failed to load tools: ${response.statusText}`);
     }
 
-    // Enrich tools with paying user counts for dynamic phase calculation
-    if (toolsData && toolsData.length > 0) {
-      try {
-        const toolIds = toolsData.map((t: Tool) => t.id);
-        const payingUserCounts = await batchCountPayingUsers(toolIds);
-
-        // Add paying user count to each tool's metadata
-        return toolsData.map((tool: Tool) => ({
-          ...tool,
-          metadata: {
-            ...tool.metadata,
-            paying_user_count: payingUserCounts.get(tool.id) ?? 0
-          }
-        }));
-      } catch (countError) {
-        console.error('Error counting paying users, continuing without counts:', countError);
-        // Return tools without counts on error (will default to Alpha phase)
-        return toolsData;
-      }
-    }
-
-    return toolsData || [];
+    const data = await response.json();
+    return data.tools || [];
   } catch (err) {
-    // Check if it's a refresh token error (including AuthApiError)
-    const errorMessage = err instanceof Error ? err.message : String(err);
-    const errorName = err && typeof err === 'object' && 'name' in err ? String(err.name) : '';
-
-    if (
-      errorName === 'AuthApiError' ||
-      errorMessage.includes('Refresh Token') ||
-      errorMessage.includes('refresh_token') ||
-      errorMessage.includes('Invalid Refresh Token') ||
-      errorMessage.includes('Refresh Token Not Found')
-    ) {
-      console.warn('Refresh token error in fetchTools, clearing session and returning empty array');
-      // Try to clear session - use the helper from client.ts if available
-      try {
-        const supabase = createClient();
-        await supabase.auth.signOut({ scope: 'local' });
-      } catch (clearError) {
-        // Ignore errors - cookies will be cleared by the global handler
-      }
-      // Return empty array instead of throwing to prevent UI errors
-      return [];
-    }
-
     console.error('Unexpected error in fetchTools:', err);
-    throw err;
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    throw new Error(`Failed to load tools: ${errorMessage}`);
   }
 }
 
@@ -122,13 +63,27 @@ export function useTools(): UseToolsReturn {
       revalidateOnReconnect: true,
       // Keep previous data while revalidating
       keepPreviousData: true,
-      // Retry on error with exponential backoff
-      errorRetryCount: 3,
-      errorRetryInterval: 5000,
+      // Retry on error with exponential backoff - limited retries for mobile
+      errorRetryCount: 2, // Reduced from 3 to prevent infinite loading on mobile
+      errorRetryInterval: 3000, // Reduced from 5000 for faster feedback
+      // Custom retry logic to prevent infinite retries on mobile
+      onErrorRetry: (error, key, config, revalidate, { retryCount }) => {
+        // Don't retry if we've exceeded max retries
+        if (retryCount >= 2) {
+          console.warn('Max retry count reached for tools fetch');
+          return;
+        }
+        // Don't retry for specific errors that won't be fixed by retrying
+        if (error.message?.includes('network') || error.message?.includes('fetch')) {
+          console.warn('Network error, limiting retries:', error.message);
+        }
+        // Retry with exponential backoff
+        setTimeout(() => revalidate({ retryCount }), 3000 * (retryCount + 1));
+      },
       // Don't throw errors, handle them gracefully
       shouldRetryOnError: true,
       onError: (err) => {
-        console.error('SWR error fetching tools:', err);
+        console.error('[useTools] SWR error fetching tools:', err);
       },
     }
   );

@@ -2,7 +2,7 @@
  * Credit Balance Validation API (Admin Only)
  * 
  * Validates credit balances for all users or specific users.
- * Compares balance_after from latest transaction with calculated balance from all transactions.
+ * Compares user_balances.balance with calculated balance from all transactions.
  * 
  * Features:
  * - Admin-only access
@@ -131,16 +131,14 @@ export async function POST(request: NextRequest) {
 
     for (const user of usersToValidate) {
       try {
-        // Get balance from latest transaction (balance_after)
-        const { data: latestTransaction } = await supabase
-          .from('credit_transactions')
-          .select('balance_after')
+        // Get balance from user_balances table (source of truth)
+        const { data: balanceRecord } = await supabase
+          .from('user_balances')
+          .select('balance')
           .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
           .single();
 
-        const balanceFromLatest = latestTransaction?.balance_after ?? 0;
+        const balanceFromLatest = balanceRecord?.balance ?? 0;
 
         // Calculate balance from all transactions
         const { data: transactions } = await supabase
