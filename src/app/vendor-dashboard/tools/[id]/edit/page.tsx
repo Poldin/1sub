@@ -57,6 +57,9 @@ export default function EditToolPage() {
     longDescription: ''
   });
 
+  // Custom Pricing Email
+  const [customPricingEmail, setCustomPricingEmail] = useState('');
+
   const [originalData, setOriginalData] = useState({
     name: '',
     description: '',
@@ -67,7 +70,8 @@ export default function EditToolPage() {
     category: '',
     developmentStage: '' as 'alpha' | 'beta' | '',
     discountPercentage: 0,
-    longDescription: ''
+    longDescription: '',
+    customPricingEmail: ''
   });
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -98,9 +102,10 @@ export default function EditToolPage() {
       uiMetadata.category !== originalData.category ||
       uiMetadata.developmentStage !== originalData.developmentStage ||
       uiMetadata.discountPercentage !== originalData.discountPercentage ||
-      contentMetadata.longDescription !== originalData.longDescription;
+      contentMetadata.longDescription !== originalData.longDescription ||
+      customPricingEmail !== originalData.customPricingEmail;
     setHasChanges(changed);
-  }, [formData, imageFile, uiMetadata, contentMetadata, originalData]);
+  }, [formData, imageFile, uiMetadata, contentMetadata, customPricingEmail, originalData]);
 
   // Fetch tool data
   useEffect(() => {
@@ -183,9 +188,13 @@ export default function EditToolPage() {
           longDescription: (contentMeta.long_description as string) || ''
         };
 
+        // Get custom pricing email from metadata
+        const initialCustomPricingEmail = (metadata.custom_pricing_email as string) || '';
+
         setFormData(initialFormData);
         setUiMetadata(initialUiMetadata);
         setContentMetadata(initialContentMetadata);
+        setCustomPricingEmail(initialCustomPricingEmail);
 
         setOriginalData({
           ...initialFormData,
@@ -195,7 +204,8 @@ export default function EditToolPage() {
           category: initialUiMetadata.category,
           developmentStage: initialUiMetadata.developmentStage,
           discountPercentage: initialUiMetadata.discountPercentage,
-          longDescription: initialContentMetadata.longDescription
+          longDescription: initialContentMetadata.longDescription,
+          customPricingEmail: initialCustomPricingEmail
         });
 
         // Hero image is in metadata.ui.hero_image_url
@@ -405,7 +415,8 @@ export default function EditToolPage() {
         },
         content: {
           long_description: contentMetadata.longDescription || undefined,
-        }
+        },
+        custom_pricing_email: customPricingEmail || undefined
       };
 
       // Remove undefined values
@@ -417,6 +428,9 @@ export default function EditToolPage() {
         const typedKey = key as keyof typeof updatedMetadata.content;
         if (updatedMetadata.content[typedKey] === undefined) delete updatedMetadata.content[typedKey];
       });
+      if (updatedMetadata.custom_pricing_email === undefined) {
+        delete updatedMetadata.custom_pricing_email;
+      }
 
       // Update tool with all data
       const { error: updateError } = await supabase
@@ -449,7 +463,8 @@ export default function EditToolPage() {
         category: uiMetadata.category,
         developmentStage: uiMetadata.developmentStage,
         discountPercentage: uiMetadata.discountPercentage,
-        longDescription: contentMetadata.longDescription
+        longDescription: contentMetadata.longDescription,
+        customPricingEmail: customPricingEmail
       };
       setOriginalData(updatedOriginalData);
       setImagePreview(heroImageUrl);
@@ -719,6 +734,33 @@ Puoi usare markdown:
                       label="Long Description"
                       rows={12}
                     />
+                  </div>
+
+                  {/* Custom Pricing Contact Email */}
+                  <div>
+                    <label htmlFor="customPricingEmail" className="block text-sm font-medium text-[#d1d5db] mb-2 flex items-center gap-2">
+                      Custom Pricing Contact Email (Optional)
+                      <div className="group relative">
+                        <svg className="w-4 h-4 text-[#9ca3af] cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block w-64 p-2 bg-[#1f2937] border border-[#374151] rounded-lg text-xs text-[#d1d5db] shadow-lg z-10">
+                          This email will be used for custom pricing inquiries when users want to contact you about custom plans or pricing. If not set, product-specific contact emails will be used.
+                        </div>
+                      </div>
+                    </label>
+                    <input
+                      type="email"
+                      id="customPricingEmail"
+                      name="customPricingEmail"
+                      value={customPricingEmail}
+                      onChange={(e) => setCustomPricingEmail(e.target.value)}
+                      className="w-full px-4 py-3 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
+                      placeholder="contact@yourcompany.com"
+                    />
+                    <p className="mt-2 text-sm text-[#9ca3af]">
+                      This email will be shown to users when they want to inquire about custom pricing for your tool.
+                    </p>
                   </div>
                 </form>
               </div>
