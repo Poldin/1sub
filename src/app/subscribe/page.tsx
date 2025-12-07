@@ -68,6 +68,32 @@ function SubscribePageContent() {
     setLoading(true);
 
     try {
+      // Check if user has an active subscription
+      if (currentSubscription) {
+        // User has existing subscription - call change-platform-plan API
+        const response = await fetch('/api/subscriptions/change-platform-plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            targetPlanId: plan.id,
+            billingPeriod,
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to change plan');
+        }
+
+        const result = await response.json();
+        
+        // Show success message and reload page to reflect changes
+        alert(result.message || 'Plan changed successfully!');
+        window.location.reload();
+        return;
+      }
+
+      // No existing subscription - create new subscription via Stripe Checkout
       const response = await fetch('/api/subscriptions/create-platform-subscription', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -88,8 +114,8 @@ function SubscribePageContent() {
       window.location.href = checkoutUrl;
 
     } catch (error) {
-      console.error('Error creating subscription:', error);
-      alert(error instanceof Error ? error.message : 'Failed to create subscription. Please try again.');
+      console.error('Error with subscription:', error);
+      alert(error instanceof Error ? error.message : 'Failed to process subscription. Please try again.');
       setProcessingPlan(null);
       setLoading(false);
     }
@@ -145,11 +171,36 @@ function SubscribePageContent() {
             <span className="text-sm text-[#3ecf8e] font-semibold">Recurring Credits</span>
           </div>
           <h1 className="text-4xl sm:text-5xl font-bold mb-4">
-            Choose Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf]">Plan</span>
+            Choose a Plan, Get <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf]">Credits</span> Every Month
           </h1>
-          <p className="text-xl text-[#9ca3af] max-w-2xl mx-auto">
-            Get monthly credits automatically. Cancel anytime, no questions asked.
+          <p className="text-xl text-[#9ca3af] max-w-2xl mx-auto mb-6">
+            Subscribe and receive credits automatically each billing cycle. Use them on any tool, anytime.
           </p>
+          
+          {/* How Credits Work - Quick Explainer */}
+          <div className="max-w-3xl mx-auto bg-[#1f2937]/50 border border-[#374151] rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-[#ededed] mb-3">How Credits Work</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+              <div className="flex flex-col items-center text-center">
+                <div className="bg-[#3ecf8e]/10 p-3 rounded-full mb-2">
+                  <Check className="w-5 h-5 text-[#3ecf8e]" />
+                </div>
+                <p className="text-[#d1d5db]">1 credit = 1 unit of usage across all tools</p>
+              </div>
+              <div className="flex flex-col items-center text-center">
+                <div className="bg-[#3ecf8e]/10 p-3 rounded-full mb-2">
+                  <Check className="w-5 h-5 text-[#3ecf8e]" />
+                </div>
+                <p className="text-[#d1d5db]">Credits refresh automatically each month</p>
+              </div>
+              <div className="flex flex-col items-center text-center">
+                <div className="bg-[#3ecf8e]/10 p-3 rounded-full mb-2">
+                  <Check className="w-5 h-5 text-[#3ecf8e]" />
+                </div>
+                <p className="text-[#d1d5db]">Unused credits roll over to next period</p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Billing Period Toggle */}
@@ -187,7 +238,7 @@ function SubscribePageContent() {
             <div className="bg-blue-400/10 border border-blue-400/20 rounded-lg p-4">
               <p className="text-blue-400 text-center">
                 You currently have the <span className="font-semibold">{currentSubscription.plan_id}</span> plan (
-                {currentSubscription.billing_period}). You can upgrade or change your plan below.
+                {currentSubscription.billing_period}). Select a different plan below to upgrade, downgrade, or change your billing period.
               </p>
             </div>
           </div>
@@ -198,8 +249,25 @@ function SubscribePageContent() {
           {PLATFORM_PLANS.map((plan) => {
             const { price, period, savings } = getPriceDisplay(plan);
             const isRecommended = plan.id === recommendedPlan;
-            const isCurrent = currentSubscription?.plan_id === plan.id;
+            const isCurrent = currentSubscription?.plan_id === plan.id && currentSubscription?.billing_period === billingPeriod;
             const isProcessing = processingPlan === plan.id;
+            
+            // Determine change type for UI display
+            let changeType: 'none' | 'upgrade' | 'downgrade' | 'interval_change' = 'none';
+            if (currentSubscription) {
+              if (currentSubscription.plan_id === plan.id && currentSubscription.billing_period !== billingPeriod) {
+                changeType = 'interval_change';
+              } else {
+                const currentPlan = PLATFORM_PLANS.find(p => p.id === currentSubscription.plan_id);
+                if (currentPlan) {
+                  if (plan.creditsPerMonth > currentPlan.creditsPerMonth) {
+                    changeType = 'upgrade';
+                  } else if (plan.creditsPerMonth < currentPlan.creditsPerMonth) {
+                    changeType = 'downgrade';
+                  }
+                }
+              }
+            }
 
             return (
               <div
@@ -231,7 +299,14 @@ function SubscribePageContent() {
                 {/* Plan Name */}
                 <div className="mb-6">
                   <h3 className="text-2xl font-bold text-[#ededed] mb-2">{plan.name}</h3>
-                  <p className="text-sm text-[#9ca3af]">{plan.description}</p>
+                  <p className="text-sm text-[#9ca3af] mb-3">{plan.description}</p>
+                  {/* Credits Highlight */}
+                  <div className="bg-[#3ecf8e]/10 border border-[#3ecf8e]/20 rounded-lg px-3 py-2">
+                    <p className="text-[#3ecf8e] font-bold text-lg">
+                      {plan.creditsPerMonth} credits/{billingPeriod === 'monthly' ? 'month' : 'year'}
+                    </p>
+                    <p className="text-xs text-[#9ca3af]">≈ €{(billingPeriod === 'monthly' ? plan.price / plan.creditsPerMonth : plan.yearlyPrice / 12 / plan.creditsPerMonth).toFixed(2)} per credit</p>
+                  </div>
                 </div>
 
                 {/* Price */}
@@ -260,6 +335,17 @@ function SubscribePageContent() {
                   ))}
                 </ul>
 
+                {/* Helper text for plan changes */}
+                {!isCurrent && changeType !== 'none' && (
+                  <div className="mb-3">
+                    <p className="text-xs text-[#9ca3af] text-center">
+                      {changeType === 'upgrade' && '💡 New price applies from your next billing cycle'}
+                      {changeType === 'downgrade' && '💡 Downgrade takes effect at the end of your current period'}
+                      {changeType === 'interval_change' && '💡 Billing interval changes from your next cycle'}
+                    </p>
+                  </div>
+                )}
+
                 {/* CTA Button */}
                 <button
                   onClick={() => handleSubscribe(plan)}
@@ -279,6 +365,12 @@ function SubscribePageContent() {
                     </>
                   ) : isCurrent ? (
                     'Current Plan'
+                  ) : changeType === 'upgrade' ? (
+                    `Upgrade to ${plan.name}`
+                  ) : changeType === 'downgrade' ? (
+                    `Downgrade to ${plan.name}`
+                  ) : changeType === 'interval_change' ? (
+                    'Change Billing Period'
                   ) : (
                     'Subscribe'
                   )}
@@ -324,15 +416,18 @@ function SubscribePageContent() {
 
         {/* Alternative - One-time Purchase */}
         <div className="mt-12 text-center">
-          <p className="text-[#9ca3af] mb-4">
-            Prefer to buy credits as needed?
-          </p>
-          <button
-            onClick={() => router.push('/buy-credits')}
-            className="text-[#3ecf8e] hover:underline font-semibold"
-          >
-            Purchase One-Time Credits →
-          </button>
+          <div className="max-w-2xl mx-auto bg-[#1f2937]/50 border border-[#374151] rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-[#ededed] mb-2">Need a One-Time Top-Up?</h3>
+            <p className="text-[#9ca3af] mb-4">
+              Already have a subscription or just need extra credits occasionally? You can top up your balance anytime.
+            </p>
+            <button
+              onClick={() => router.push('/buy-credits')}
+              className="inline-flex items-center gap-2 bg-[#374151] text-[#ededed] px-6 py-3 rounded-lg font-semibold hover:bg-[#4b5563] transition-colors"
+            >
+              Top Up Credits →
+            </button>
+          </div>
         </div>
       </main>
     </div>

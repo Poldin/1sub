@@ -269,13 +269,13 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
                   onClose();
                 }}
                 className="flex items-center justify-center p-1.5 bg-[#1f2937] hover:bg-[#374151] rounded-lg transition-colors"
-                title="Add credits"
+                title="Top up credits"
               >
                 <Plus className="w-4 h-4 text-[#3ecf8e]" />
               </button>
             </div>
           </div>
-          {/* Subscribe Button */}
+          {/* Plans & Credits Button */}
           <button
             onClick={() => {
               router.push('/subscribe');
@@ -283,7 +283,7 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
             }}
             className="w-full bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] text-black px-4 py-2.5 rounded-lg font-semibold hover:opacity-90 transition-opacity text-sm"
           >
-            Subscribe for Monthly Credits
+            Plans & Credits
           </button>
         </div>
       </aside>

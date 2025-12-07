@@ -226,12 +226,15 @@ export default function CreditCheckoutPage() {
               const balanceData = await balanceResponse.json();
               setUser(balanceData.user);
 
-              // Show detailed error with shortfall information
+              // Calculate shortfall and redirect to buy-credits with context
               const shortfall = data.shortfall || (data.required - data.current_balance);
-              setError(
-                `Insufficient credits. You need ${data.required} credits but have ${balanceData.user.credits.toFixed(2)} credits. ` +
-                `You're short by ${shortfall.toFixed(2)} credits.`
+              const toolName = checkout?.metadata.tool_name || 'this tool';
+              
+              // Redirect to buy-credits page with full context
+              router.push(
+                `/buy-credits?needed=${data.required}&tool_name=${encodeURIComponent(toolName)}&tool_id=${checkout?.metadata.tool_id}&from_checkout=${checkoutId}`
               );
+              return;
             } else {
               setError(data.error || 'Purchase failed due to insufficient credits');
             }
@@ -921,16 +924,33 @@ export default function CreditCheckoutPage() {
                     <div className="flex items-start gap-3">
                       <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
                       <div className="flex-1">
-                        <p className="text-red-400 font-medium text-sm mb-1">Insufficient Credits</p>
+                        <p className="text-red-400 font-medium text-sm mb-2">Insufficient Credits</p>
                         <p className="text-xs text-[#9ca3af] mb-3">
-                          You need {selectedPrice} credits but have {user?.credits.toFixed(2)} credits.
+                          You need {selectedPrice} credits but have {user?.credits.toFixed(2)} credits. 
+                          You're short by {(selectedPrice - (user?.credits || 0)).toFixed(2)} credits.
                         </p>
-                        <button
-                          onClick={() => setShowBuyCreditsDialog(true)}
-                          className="bg-[#3ecf8e] text-black px-3 py-1.5 rounded text-xs font-semibold hover:bg-[#2dd4bf] transition-colors w-fit"
-                        >
-                          Buy More Credits
-                        </button>
+                        <div className="flex flex-col gap-2">
+                          <button
+                            onClick={() => {
+                              const toolName = checkout?.metadata.tool_name || 'this tool';
+                              router.push(
+                                `/buy-credits?needed=${selectedPrice}&tool_name=${encodeURIComponent(toolName)}&tool_id=${checkout?.metadata.tool_id}&from_checkout=${checkoutId}`
+                              );
+                            }}
+                            className="bg-[#3ecf8e] text-black px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[#2dd4bf] transition-colors w-full"
+                          >
+                            Top Up Credits
+                          </button>
+                          <button
+                            onClick={() => router.push('/subscribe')}
+                            className="bg-[#374151] text-[#ededed] px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[#4b5563] transition-colors w-full"
+                          >
+                            View Subscription Plans
+                          </button>
+                        </div>
+                        <p className="text-xs text-[#9ca3af] mt-2">
+                          💡 Tip: Subscribe for recurring monthly credits at better rates
+                        </p>
                       </div>
                     </div>
                   </div>

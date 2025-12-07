@@ -1,0 +1,171 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "1Sub Vendor Integration",
+  "description": "Integrate your tool with 1Sub in minutes and start earning revenue from subscriptions and credits",
+  "colors": {
+    "primary": "#3ecf8e",
+    "light": "#3ecf8e",
+    "dark": "#2dd4bf"
+  },
+  "logo": {
+    "light": "/logo-light.svg",
+    "dark": "/logo-dark.svg",
+    "href": "https://1sub.io"
+  },
+  "favicon": "/favicon.ico",
+  "navigation": {
+    "dropdowns": [
+      {
+        "dropdown": "Documentation",
+        "icon": "book",
+        "description": "Complete integration guide for vendors",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "index",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/authentication",
+              "concepts/tools-and-accounts",
+              "concepts/credits-and-subscriptions"
+            ]
+          },
+          {
+            "group": "REST APIs",
+            "pages": [
+              "api/overview",
+              "api/authentication",
+              "api/reference",
+              "api/errors"
+            ]
+          },
+          {
+            "group": "Webhooks",
+            "pages": [
+              "webhooks/overview",
+              "webhooks/events",
+              "webhooks/security-and-signing",
+              "webhooks/testing"
+            ]
+          },
+          {
+            "group": "Guides & Examples",
+            "pages": [
+              "guides/full-integration-walkthrough",
+              "guides/testing-sandbox",
+              "examples/node",
+              "examples/python",
+              "examples/curl"
+            ]
+          },
+          {
+            "group": "Troubleshooting",
+            "pages": [
+              "troubleshooting/common-errors",
+              "troubleshooting/checklist"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Vendor Dashboard",
+        "href": "https://1sub.io/vendor-dashboard"
+      },
+      {
+        "label": "Community",
+        "href": "https://discord.gg/1sub"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Open Dashboard",
+      "href": "https://1sub.io/vendor-dashboard"
+    }
+  },
+  "footer": {
+    "socials": {
+      "discord": "https://discord.gg/R87YSYpKK"
+    },
+    "links": [
+      {
+        "header": "Resources",
+        "items": [
+          {
+            "label": "Vendor Dashboard",
+            "href": "https://1sub.io/vendor-dashboard"
+          },
+          {
+            "label": "Buy Credits",
+            "href": "https://1sub.io/buy-credits"
+          },
+          {
+            "label": "API Status",
+            "href": "https://status.1sub.io"
+          }
+        ]
+      },
+      {
+        "header": "Support",
+        "items": [
+          {
+            "label": "Contact Support",
+            "href": "mailto:support@1sub.io"
+          },
+          {
+            "label": "Discord Community",
+            "href": "https://discord.gg/1sub"
+          },
+          {
+            "label": "Report a Bug",
+            "href": "mailto:bugs@1sub.io"
+          }
+        ]
+      },
+      {
+        "header": "Legal",
+        "items": [
+          {
+            "label": "Privacy Policy",
+            "href": "https://1sub.io/privacy"
+          },
+          {
+            "label": "Terms of Service",
+            "href": "https://1sub.io/terms"
+          }
+        ]
+      }
+    ]
+  },
+  "seo": {
+    "indexing": "navigable"
+  },
+  "search": {
+    "prompt": "Search vendor integration docs..."
+  },
+  "contextual": {
+    "options": [
+      "copy",
+      "view"
+    ]
+  },
+  "styling": {
+    "eyebrows": "breadcrumbs",
+    "codeblocks": {
+      "theme": {
+        "light": "github-light",
+        "dark": "github-dark"
+      }
+    }
+  }
+}
+

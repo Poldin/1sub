@@ -1,0 +1,94 @@
+---
+title: "cURL Examples"
+description: "Quick cURL examples for testing the 1Sub API"
+---
+
+# cURL Examples
+
+Quick reference for testing 1Sub API endpoints with cURL.
+
+## Subscription Verification
+
+```bash
+curl -X POST 'https://1sub.io/api/v1/tools/subscriptions/verify' \
+  -H 'Authorization: Bearer sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000"
+  }'
+```
+
+## Credit Consumption
+
+```bash
+curl -X POST 'https://1sub.io/api/v1/credits/consume' \
+  -H 'Authorization: Bearer sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "user_id": "550e8400-e29b-41d4-a716-446655440000",
+    "amount": 10,
+    "reason": "Generated 1 AI image",
+    "idempotency_key": "img-gen-user123-1702345678"
+  }'
+```
+
+## Exchange Link Code
+
+```bash
+curl -X POST 'https://1sub.io/api/v1/tools/link/exchange-code' \
+  -H 'Authorization: Bearer sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "code": "AB12CD",
+    "toolUserId": "user_12345"
+  }'
+```
+
+## Fetch JWKS
+
+```bash
+curl 'https://1sub.io/.well-known/1sub-jwks.json'
+```
+
+## Testing Webhooks
+
+```bash
+curl -X POST 'http://localhost:3000/webhooks/1sub' \
+  -H '1sub-signature: t=1700000000,v1=YOUR_COMPUTED_SIGNATURE' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "id": "evt_test_001",
+    "type": "subscription.activated",
+    "created": 1700000000,
+    "data": {
+      "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000",
+      "planId": "pro",
+      "status": "active"
+    }
+  }'
+```
+
+## Common Patterns
+
+### With jq for JSON Formatting
+
+```bash
+curl -X POST 'https://1sub.io/api/v1/tools/subscriptions/verify' \
+  -H 'Authorization: Bearer YOUR_API_KEY' \
+  -H 'Content-Type: application/json' \
+  -d '{"oneSubUserId": "user-id"}' \
+  | jq .
+```
+
+### Save Response to File
+
+```bash
+curl -X POST 'https://1sub.io/api/v1/tools/subscriptions/verify' \
+  -H 'Authorization: Bearer YOUR_API_KEY' \
+  -H 'Content-Type: application/json' \
+  -d '{"oneSubUserId": "user-id"}' \
+  -o response.json
+```
+
+See the [API Reference](/api/reference) for complete endpoint documentation.
+

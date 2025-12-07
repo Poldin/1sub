@@ -1,21 +1,15 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { AlertCircle, CreditCard, ArrowLeft, Check, Loader2 } from 'lucide-react';
+import { AlertCircle, CreditCard, ArrowLeft, Check, Loader2, Sparkles } from 'lucide-react';
 import { Suspense, useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { getCurrentBalanceClient } from '@/lib/credits';
 import { loadStripe } from '@stripe/stripe-js';
+import { CREDIT_PACKAGES } from '@/lib/credit-packages';
 
 // Initialize Stripe
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
-
-// Credit packages with prices (in EUR)
-const CREDIT_PACKAGES = [
-  { key: '100', credits: 100, price: 10.00, name: 'Starter Pack', popular: false },
-  { key: '500', credits: 500, price: 45.00, name: 'Pro Pack', popular: true, savings: '10% off' },
-  { key: '1000', credits: 1000, price: 80.00, name: 'Enterprise Pack', popular: false, savings: '20% off' },
-];
 
 function BuyCreditsContent() {
   const router = useRouter();
@@ -24,6 +18,7 @@ function BuyCreditsContent() {
   const needed = parseInt(searchParams.get('needed') || '0');
   const toolId = searchParams.get('tool_id');
   const toolName = searchParams.get('tool_name');
+  const fromCheckout = searchParams.get('from_checkout'); // Track if coming from a checkout page
   const success = searchParams.get('success');
   const canceled = searchParams.get('canceled');
   
@@ -111,6 +106,17 @@ function BuyCreditsContent() {
   const remainingCredits = toolName ? Math.max(0, needed - credits) : 0;
   const hasEnoughCredits = toolName ? credits >= needed : true;
 
+  // Determine return path based on context
+  const getReturnPath = () => {
+    if (fromCheckout && toolId) {
+      return `/credit_checkout/${fromCheckout}`; // Return to specific checkout
+    }
+    if (toolId) {
+      return `/backoffice?highlight=${toolId}`; // Return to dashboard with tool highlighted
+    }
+    return '/backoffice'; // Default return to dashboard
+  };
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed]">
       {/* Header */}
@@ -134,12 +140,20 @@ function BuyCreditsContent() {
           <div className="bg-green-400/10 border border-green-400/20 rounded-lg p-6 mb-8">
             <div className="flex items-start gap-4">
               <Check className="w-6 h-6 text-green-400 flex-shrink-0 mt-1" />
-              <div>
-                <h2 className="text-xl font-bold text-green-400 mb-2">Purchase Successful!</h2>
-                <p className="text-[#9ca3af]">
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-green-400 mb-2">Credits Added Successfully!</h2>
+                <p className="text-[#9ca3af] mb-4">
                   Your credits have been added to your account. Your new balance is{' '}
-                  <span className="text-[#ededed] font-semibold">{credits} credits</span>.
+                  <span className="text-[#ededed] font-semibold">{credits.toFixed(2)} credits</span>.
                 </p>
+                {toolName && hasEnoughCredits && (
+                  <button
+                    onClick={() => router.push(getReturnPath())}
+                    className="inline-flex items-center gap-2 bg-[#3ecf8e] text-black px-4 py-2 rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors text-sm"
+                  >
+                    Continue to {decodeURIComponent(toolName)} →
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -197,15 +211,34 @@ function BuyCreditsContent() {
 
         {/* Main Card */}
         <div className="bg-[#1f2937]/90 backdrop-blur-lg rounded-2xl p-8 border border-[#374151]/70">
+          {/* Subscription Recommendation Banner */}
+          <div className="bg-[#3ecf8e]/10 border border-[#3ecf8e]/20 rounded-lg p-6 mb-8">
+            <div className="flex items-start gap-4">
+              <Sparkles className="w-6 h-6 text-[#3ecf8e] flex-shrink-0 mt-1" />
+              <div>
+                <h3 className="text-lg font-bold text-[#3ecf8e] mb-2">Save More with a Subscription</h3>
+                <p className="text-[#d1d5db] text-sm mb-3">
+                  Get recurring credits every month at better rates. Perfect for regular platform usage!
+                </p>
+                <button
+                  onClick={() => router.push('/subscribe')}
+                  className="inline-flex items-center gap-2 bg-[#3ecf8e] text-black px-4 py-2 rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors text-sm"
+                >
+                  View Subscription Plans →
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div className="text-center mb-8">
             <CreditCard className="w-16 h-16 text-[#3ecf8e] mx-auto mb-4" />
-            <h1 className="text-3xl font-bold mb-2">Buy Credits</h1>
+            <h1 className="text-3xl font-bold mb-2">Top Up Credits</h1>
             <p className="text-[#9ca3af]">
-              Purchase credits to access premium tools and features
+              Purchase additional credits to use on any tool, anytime
             </p>
             {!loading && (
               <p className="text-sm text-[#9ca3af] mt-2">
-                Current balance: <span className="text-[#3ecf8e] font-semibold">{credits} credits</span>
+                Current balance: <span className="text-[#3ecf8e] font-semibold">{credits.toFixed(2)} credits</span>
               </p>
             )}
           </div>
@@ -234,7 +267,10 @@ function BuyCreditsContent() {
                     </div>
                   )}
                   <div className="text-2xl font-bold text-[#3ecf8e] mb-2">{pkg.credits} credits</div>
-                  <div className="text-sm text-[#9ca3af] mb-3">{pkg.name}</div>
+                  <div className="text-sm text-[#9ca3af] mb-1">{pkg.name}</div>
+                  {pkg.description && (
+                    <div className="text-xs text-[#9ca3af] mb-3">{pkg.description}</div>
+                  )}
                   {pkg.savings && (
                     <div className="text-xs text-[#3ecf8e] mb-3 font-semibold">{pkg.savings}</div>
                   )}
@@ -271,12 +307,12 @@ function BuyCreditsContent() {
               <li className="flex items-start gap-2">
                 <Check className="w-5 h-5 text-[#3ecf8e] flex-shrink-0 mt-0.5" />
                 <span className="text-[#9ca3af]">
-                  Access to all premium tools and features
+                  Top up your subscription credits anytime
                 </span>
               </li>
               <li className="flex items-start gap-2">
                 <Check className="w-5 h-5 text-[#3ecf8e] flex-shrink-0 mt-0.5" />
-                <span className="text-[#9ca3af]">Credits never expire</span>
+                <span className="text-[#9ca3af]">Credits stack with your monthly allocation</span>
               </li>
               <li className="flex items-start gap-2">
                 <Check className="w-5 h-5 text-[#3ecf8e] flex-shrink-0 mt-0.5" />
@@ -292,11 +328,11 @@ function BuyCreditsContent() {
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-4">
             <button
-              onClick={() => router.push('/backoffice')}
+              onClick={() => router.push(getReturnPath())}
               className="flex-1 flex items-center justify-center gap-2 bg-[#374151] text-[#ededed] px-6 py-3 rounded-lg font-semibold hover:bg-[#4b5563] transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
-              Back to Dashboard
+              {toolName ? `Back to ${decodeURIComponent(toolName)}` : 'Back to Dashboard'}
             </button>
           </div>
         </div>

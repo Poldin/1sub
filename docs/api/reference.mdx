@@ -1,0 +1,815 @@
+---
+title: "API Reference"
+description: "Complete reference for all 1Sub API endpoints"
+---
+
+# API Reference
+
+Complete documentation for all 1Sub vendor API endpoints.
+
+<Note>
+All endpoints require Bearer authentication with your tool's API key unless otherwise specified.
+</Note>
+
+## Verify User Token
+
+Verify a JWT token and retrieve user information. This endpoint is an alternative to client-side JWKS verification and is useful when redirect-based authentication is used.
+
+<Note>
+This endpoint does **not** require an API key. It's a public endpoint for JWT token verification.
+</Note>
+
+<ParamField body="token" type="string" required>
+The JWT token received from the redirect URL query parameter.
+</ParamField>
+
+**Endpoint:** `POST /api/v1/verify-user`
+
+**Authentication:** None required (public endpoint)
+
+**Rate Limit:** 60 requests per minute per IP
+
+<RequestExample>
+```bash cURL
+curl -X POST 'https://1sub.io/api/v1/verify-user' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImtleS0yMDI1LTAxIn0..."
+  }'
+```
+
+```javascript Node.js
+const response = await fetch('https://1sub.io/api/v1/verify-user', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    token: jwtToken
+  })
+});
+
+const userData = await response.json();
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'https://1sub.io/api/v1/verify-user',
+    json={'token': jwt_token},
+    headers={'Content-Type': 'application/json'}
+)
+
+user_data = response.json()
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200 OK - Valid Token
+{
+  "valid": true,
+  "user_id": "550e8400-e29b-41d4-a716-446655440000",
+  "tool_id": "660e8400-e29b-41d4-a716-446655440000",
+  "checkout_id": "770e8400-e29b-41d4-a716-446655440000",
+  "expires_at": "2025-12-07T15:30:00.000Z"
+}
+```
+
+```json 401 Unauthorized - Expired Token
+{
+  "error": "Token expired",
+  "message": "The provided token has expired"
+}
+```
+
+```json 401 Unauthorized - Invalid Token
+{
+  "error": "Invalid token",
+  "message": "The provided token is invalid"
+}
+```
+
+```json 429 Too Many Requests
+{
+  "error": "Rate limit exceeded",
+  "message": "Too many requests. Please try again later.",
+  "retryAfter": 45
+}
+```
+</ResponseExample>
+
+### Response Fields
+
+<ResponseField name="valid" type="boolean" required>
+Indicates whether the token is valid and verified.
+</ResponseField>
+
+<ResponseField name="user_id" type="string (UUID)" required>
+The 1Sub user ID. Use this to identify the user in subsequent API calls.
+</ResponseField>
+
+<ResponseField name="tool_id" type="string (UUID)" required>
+The tool ID that this token was issued for.
+</ResponseField>
+
+<ResponseField name="checkout_id" type="string (UUID)" required>
+The checkout/purchase ID associated with this user's subscription.
+</ResponseField>
+
+<ResponseField name="expires_at" type="string (ISO 8601) | null" required>
+When the token expires. Tokens are typically valid for 10 minutes.
+</ResponseField>
+
+<Tip>
+For better performance and security, consider using [client-side JWKS verification](/concepts/authentication#jwks-verification) instead of this endpoint. JWKS verification is faster and doesn't require a network call.
+</Tip>
+
+<Warning>
+Tokens expire after 10 minutes. Always verify tokens immediately upon receiving them and check the `expires_at` timestamp.
+</Warning>
+
+---
+
+## Refresh Access Token
+
+Refresh an expired access token using a valid refresh token. This allows users to maintain long-lived sessions without re-authenticating.
+
+<Note>
+This endpoint does **not** require an API key. It's a public endpoint for token refresh.
+</Note>
+
+<ParamField body="refresh_token" type="string" required>
+The refresh token received during the initial authentication flow.
+</ParamField>
+
+**Endpoint:** `POST /api/v1/refresh-token`
+
+**Authentication:** None required (public endpoint)
+
+**Rate Limit:** 30 requests per minute per IP
+
+<RequestExample>
+```bash cURL
+curl -X POST 'https://1sub.io/api/v1/refresh-token' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "refresh_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImtleS0yMDI1LTAxIn0..."
+  }'
+```
+
+```javascript Node.js
+const response = await fetch('https://1sub.io/api/v1/refresh-token', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    refresh_token: refreshToken
+  })
+});
+
+const { access_token, expires_at } = await response.json();
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'https://1sub.io/api/v1/refresh-token',
+    json={'refresh_token': refresh_token},
+    headers={'Content-Type': 'application/json'}
+)
+
+token_data = response.json()
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200 OK - Token Refreshed
+{
+  "success": true,
+  "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImtleS0yMDI1LTAxIn0...",
+  "expires_at": "2025-12-07T16:30:00.000Z",
+  "token_type": "Bearer"
+}
+```
+
+```json 401 Unauthorized - Expired Refresh Token
+{
+  "error": "Refresh token expired",
+  "message": "Your session has expired. Please re-authenticate."
+}
+```
+
+```json 401 Unauthorized - Invalid Refresh Token
+{
+  "error": "Invalid refresh token",
+  "message": "The provided refresh token is invalid."
+}
+```
+
+```json 429 Too Many Requests
+{
+  "error": "Rate limit exceeded",
+  "message": "Too many refresh requests. Please try again later.",
+  "retryAfter": 30
+}
+```
+</ResponseExample>
+
+### Response Fields
+
+<ResponseField name="success" type="boolean" required>
+Indicates whether the token refresh was successful.
+</ResponseField>
+
+<ResponseField name="access_token" type="string" required>
+The new JWT access token. Use this for subsequent API requests.
+</ResponseField>
+
+<ResponseField name="expires_at" type="string (ISO 8601)" required>
+When the new access token expires. Access tokens are valid for 1 hour.
+</ResponseField>
+
+<ResponseField name="token_type" type="string" required>
+Always `"Bearer"`. Used for the Authorization header format.
+</ResponseField>
+
+<Tip>
+**Token Lifetimes:**
+- **Access tokens**: 1 hour
+- **Refresh tokens**: 7 days
+
+Implement automatic token refresh before the access token expires to maintain seamless user sessions.
+</Tip>
+
+<Warning>
+Store refresh tokens securely on the server side. Never expose refresh tokens in client-side code or localStorage.
+</Warning>
+
+---
+
+## Verify Subscription
+
+Check if a user has an active subscription to your tool.
+
+<ParamField header="Authorization" type="string" required>
+Bearer token with your tool API key (format: `Bearer sk-tool-xxxxx`)
+</ParamField>
+
+<ParamField body="oneSubUserId" type="string (UUID)">
+The 1Sub user ID to check. Either this or `emailSha256` is required.
+</ParamField>
+
+<ParamField body="emailSha256" type="string">
+SHA-256 hash of the user's lowercase email. Either this or `oneSubUserId` is required.
+</ParamField>
+
+**Endpoint:** `POST /api/v1/tools/subscriptions/verify`
+
+**Rate Limit:** 100 requests per minute
+
+<RequestExample>
+```bash cURL
+curl -X POST 'https://1sub.io/api/v1/tools/subscriptions/verify' \
+  -H 'Authorization: Bearer sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000"
+  }'
+```
+
+```javascript Node.js
+const response = await fetch('https://1sub.io/api/v1/tools/subscriptions/verify', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${process.env.ONESUB_API_KEY}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    oneSubUserId: 'uuid-abc-123'
+  })
+});
+
+const subscription = await response.json();
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'https://1sub.io/api/v1/tools/subscriptions/verify',
+    json={'oneSubUserId': 'uuid-abc-123'},
+    headers={
+        'Authorization': f'Bearer {os.environ["ONESUB_API_KEY"]}',
+        'Content-Type': 'application/json'
+    }
+)
+
+subscription = response.json()
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200 OK - Active Subscription
+{
+  "active": true,
+  "status": "active",
+  "planId": "monthly",
+  "productId": "tool-uuid-123",
+  "currentPeriodStart": "2025-11-01T00:00:00Z",
+  "currentPeriodEnd": "2025-12-01T00:00:00Z",
+  "cancelAtPeriodEnd": false,
+  "seats": 1,
+  "quantity": 1,
+  "creditsRemaining": 1200,
+  "trialEndsAt": null,
+  "lastPaymentStatus": "paid"
+}
+```
+
+```json 200 OK - Trialing
+{
+  "active": true,
+  "status": "trialing",
+  "planId": "pro",
+  "currentPeriodStart": "2025-11-15T00:00:00Z",
+  "currentPeriodEnd": "2025-12-15T00:00:00Z",
+  "cancelAtPeriodEnd": false,
+  "trialEndsAt": "2025-11-22T00:00:00Z"
+}
+```
+
+```json 404 Not Found
+{
+  "error": "Not found",
+  "message": "No subscription found for this tool"
+}
+```
+
+```json 401 Unauthorized
+{
+  "error": "Unauthorized",
+  "message": "Invalid API key"
+}
+```
+
+```json 422 Unprocessable Entity
+{
+  "error": "Invalid request",
+  "message": "Either oneSubUserId or emailSha256 is required"
+}
+```
+</ResponseExample>
+
+### Response Fields
+
+<ResponseField name="active" type="boolean" required>
+Whether the subscription allows access. `true` for `active`, `trialing`, or `past_due` (within grace period).
+</ResponseField>
+
+<ResponseField name="status" type="string" required>
+Current subscription state: `trialing`, `active`, `past_due`, `canceled`, `incomplete`, or `incomplete_expired`
+</ResponseField>
+
+<ResponseField name="planId" type="string" required>
+Plan identifier (e.g., `"monthly"`, `"annual"`, `"pro"`)
+</ResponseField>
+
+<ResponseField name="productId" type="string" required>
+Your tool's unique product ID (UUID)
+</ResponseField>
+
+<ResponseField name="currentPeriodStart" type="string (ISO 8601)" required>
+Start date/time of current billing period
+</ResponseField>
+
+<ResponseField name="currentPeriodEnd" type="string (ISO 8601)" required>
+End date/time of current billing period (next renewal date)
+</ResponseField>
+
+<ResponseField name="cancelAtPeriodEnd" type="boolean" required>
+Whether subscription will cancel at period end (user has canceled but still has access)
+</ResponseField>
+
+<ResponseField name="seats" type="number">
+Number of seats/licenses for this subscription
+</ResponseField>
+
+<ResponseField name="quantity" type="number">
+Quantity of this subscription
+</ResponseField>
+
+<ResponseField name="creditsRemaining" type="number">
+Credits remaining if subscription includes credits
+</ResponseField>
+
+<ResponseField name="trialEndsAt" type="string (ISO 8601) | null">
+When trial ends, if applicable
+</ResponseField>
+
+<ResponseField name="lastPaymentStatus" type="string">
+Status of most recent payment: `paid`, `failed`, `pending`
+</ResponseField>
+
+---
+
+## Consume Credits
+
+Deduct credits from a user's balance for tool usage.
+
+<ParamField header="Authorization" type="string" required>
+Bearer token with your tool API key
+</ParamField>
+
+<ParamField body="user_id" type="string (UUID)" required>
+The 1Sub user ID whose credits to consume
+</ParamField>
+
+<ParamField body="amount" type="number" required>
+Number of credits to consume (positive integer, max 1,000,000)
+</ParamField>
+
+<ParamField body="reason" type="string" required>
+Description of what credits were used for (1-500 characters)
+</ParamField>
+
+<ParamField body="idempotency_key" type="string" required>
+Unique key to prevent duplicate charges (persisted for 24 hours)
+</ParamField>
+
+**Endpoint:** `POST /api/v1/credits/consume`
+
+**Rate Limit:** 100 requests per minute
+
+<RequestExample>
+```bash cURL
+curl -X POST 'https://1sub.io/api/v1/credits/consume' \
+  -H 'Authorization: Bearer sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "user_id": "550e8400-e29b-41d4-a716-446655440000",
+    "amount": 10,
+    "reason": "Generated 1 AI image (1024x1024)",
+    "idempotency_key": "img-gen-user123-1702345678"
+  }'
+```
+
+```javascript Node.js
+const response = await fetch('https://1sub.io/api/v1/credits/consume', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${process.env.ONESUB_API_KEY}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    user_id: oneSubUserId,
+    amount: 10,
+    reason: 'Generated 1 AI image',
+    idempotency_key: `img-gen-${userId}-${Date.now()}`
+  })
+});
+
+const result = await response.json();
+console.log(`New balance: ${result.new_balance}`);
+```
+
+```python Python
+import time
+
+response = requests.post(
+    'https://1sub.io/api/v1/credits/consume',
+    json={
+        'user_id': onesub_user_id,
+        'amount': 10,
+        'reason': 'Generated 1 AI image',
+        'idempotency_key': f'img-gen-{user_id}-{int(time.time())}'
+    },
+    headers={
+        'Authorization': f'Bearer {os.environ["ONESUB_API_KEY"]}',
+        'Content-Type': 'application/json'
+    }
+)
+
+result = response.json()
+print(f"New balance: {result['new_balance']}")
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200 OK - Success
+{
+  "success": true,
+  "new_balance": 90,
+  "transaction_id": "txn-abc123def456"
+}
+```
+
+```json 400 Bad Request - Insufficient Credits
+{
+  "error": "Insufficient credits",
+  "message": "User does not have sufficient credits",
+  "current_balance": 5,
+  "required": 10,
+  "shortfall": 5
+}
+```
+
+```json 401 Unauthorized
+{
+  "error": "Invalid API key",
+  "message": "The provided API key is invalid or does not exist"
+}
+```
+
+```json 409 Conflict - Duplicate Request
+{
+  "success": true,
+  "new_balance": 90,
+  "transaction_id": "txn-abc123def456",
+  "is_duplicate": true,
+  "message": "This request has already been processed"
+}
+```
+  "success": true,
+  "message": "Idempotent request already processed",
+  "transaction_id": "txn-abc123def456",
+  "new_balance": 90
+}
+```
+</ResponseExample>
+
+### Response Fields
+
+<ResponseField name="success" type="boolean" required>
+Whether credits were successfully consumed
+</ResponseField>
+
+<ResponseField name="new_balance" type="number" required>
+User's credit balance after consumption
+</ResponseField>
+
+<ResponseField name="transaction_id" type="string" required>
+Unique ID for this transaction
+</ResponseField>
+
+<Tip>
+Store the `transaction_id` for auditing and support purposes.
+</Tip>
+
+---
+
+## Exchange Link Code
+
+Exchange a short-lived link code for a user link mapping.
+
+<ParamField header="Authorization" type="string" required>
+Bearer token with your tool API key
+</ParamField>
+
+<ParamField body="code" type="string" required>
+6-character link code provided by user (format: `AB12CD`)
+</ParamField>
+
+<ParamField body="toolUserId" type="string" required>
+Your tool's internal user ID to link
+</ParamField>
+
+**Endpoint:** `POST /api/v1/tools/link/exchange-code`
+
+**Rate Limit:** 30 requests per minute
+
+<RequestExample>
+```bash cURL
+curl -X POST 'https://1sub.io/api/v1/tools/link/exchange-code' \
+  -H 'Authorization: Bearer sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "code": "AB12CD",
+    "toolUserId": "user_12345"
+  }'
+```
+
+```javascript Node.js
+const response = await fetch('https://1sub.io/api/v1/tools/link/exchange-code', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${process.env.ONESUB_API_KEY}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    code: userEnteredCode,
+    toolUserId: internalUserId
+  })
+});
+
+const link = await response.json();
+console.log(`Linked to 1Sub user: ${link.oneSubUserId}`);
+```
+
+```python Python
+response = requests.post(
+    'https://1sub.io/api/v1/tools/link/exchange-code',
+    json={
+        'code': user_entered_code,
+        'toolUserId': internal_user_id
+    },
+    headers={
+        'Authorization': f'Bearer {os.environ["ONESUB_API_KEY"]}',
+        'Content-Type': 'application/json'
+    }
+)
+
+link = response.json()
+print(f"Linked to 1Sub user: {link['oneSubUserId']}")
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200 OK - Success
+{
+  "linked": true,
+  "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000",
+  "toolUserId": "user_12345",
+  "linkedAt": "2025-11-16T12:34:56Z"
+}
+```
+
+```json 400 Bad Request - Invalid Code
+{
+  "error": "Invalid code",
+  "message": "Invalid or expired code"
+}
+```
+
+```json 409 Conflict - Already Linked
+{
+  "error": "Conflict",
+  "message": "Tool user already linked to different 1sub user"
+}
+```
+</ResponseExample>
+
+### Response Fields
+
+<ResponseField name="linked" type="boolean" required>
+Whether the link was successfully created
+</ResponseField>
+
+<ResponseField name="oneSubUserId" type="string (UUID)" required>
+The 1Sub user ID that was linked
+</ResponseField>
+
+<ResponseField name="toolUserId" type="string" required>
+Your tool's user ID that was linked
+</ResponseField>
+
+<ResponseField name="linkedAt" type="string (ISO 8601)" required>
+When the link was created
+</ResponseField>
+
+<Note>
+Link codes expire after 10 minutes and are single-use. Repeated calls with the same valid data return the existing link (idempotent).
+</Note>
+
+---
+
+## Get JWKS
+
+Fetch public keys for JWT verification (public endpoint, no authentication required).
+
+**Endpoint:** `GET /.well-known/1sub-jwks.json`
+
+**Authentication:** None (public endpoint)
+
+**Rate Limit:** None
+
+**Caching:** Response can be cached for up to 1 hour
+
+<RequestExample>
+```bash cURL
+curl 'https://1sub.io/.well-known/1sub-jwks.json'
+```
+
+```javascript Node.js (jose)
+import { createRemoteJWKSet } from 'jose';
+
+// Automatically fetches and caches JWKS
+const JWKS = createRemoteJWKSet(
+  new URL('https://1sub.io/.well-known/1sub-jwks.json')
+);
+
+// Use for JWT verification
+const { payload } = await jwtVerify(token, JWKS, {
+  issuer: '1sub',
+  audience: toolId
+});
+```
+
+```python Python
+import requests
+
+response = requests.get('https://1sub.io/.well-known/1sub-jwks.json')
+jwks = response.json()
+
+# Use jwks for JWT verification
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200 OK
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "kid": "key-2025-01",
+      "use": "sig",
+      "alg": "RS256",
+      "n": "xGOr1KqT...",
+      "e": "AQAB"
+    }
+  ]
+}
+```
+</ResponseExample>
+
+### Response Fields
+
+<ResponseField name="keys" type="array" required>
+Array of JWK (JSON Web Key) objects
+
+<Expandable title="JWK Properties">
+  <ResponseField name="kty" type="string" required>
+  Key type, always `"RSA"`
+  </ResponseField>
+  
+  <ResponseField name="kid" type="string" required>
+  Key ID, used to identify which key signed a JWT
+  </ResponseField>
+  
+  <ResponseField name="use" type="string" required>
+  Key usage, always `"sig"` (signature)
+  </ResponseField>
+  
+  <ResponseField name="alg" type="string" required>
+  Algorithm, always `"RS256"`
+  </ResponseField>
+  
+  <ResponseField name="n" type="string" required>
+  RSA modulus (base64url encoded)
+  </ResponseField>
+  
+  <ResponseField name="e" type="string" required>
+  RSA exponent (base64url encoded)
+  </ResponseField>
+</Expandable>
+</ResponseField>
+
+<Tip>
+Use a library like `jose` (Node.js) or `python-jose` (Python) to handle JWKS verification automatically.
+</Tip>
+
+---
+
+## Error Handling
+
+All endpoints return standard error responses:
+
+```json
+{
+  "error": "Error type",
+  "message": "Human-readable message",
+  "details": {}
+}
+```
+
+### Common Error Codes
+
+| Status | Error | Meaning | Action |
+|--------|-------|---------|--------|
+| 400 | Bad Request | Invalid parameters or insufficient credits | Check request body |
+| 401 | Unauthorized | Invalid/missing API key | Verify API key |
+| 403 | Forbidden | Valid auth but no permission | Check tool/user access |
+| 404 | Not Found | Resource doesn't exist | Verify user/subscription exists |
+| 409 | Conflict | Duplicate/conflicting request | Check idempotency key or existing links |
+| 422 | Unprocessable Entity | Validation failed | Fix validation errors |
+| 429 | Rate Limit Exceeded | Too many requests | Implement backoff, respect `Retry-After` |
+| 500 | Internal Server Error | Server error | Retry with exponential backoff |
+
+<Warning>
+Always implement proper error handling and retry logic, especially for 429 and 500 errors.
+</Warning>
+
+## Rate Limit Headers
+
+All authenticated endpoints return rate limit information:
+
+```http
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 95
+X-RateLimit-Reset: 2025-12-01T12:35:00Z
+```
+
+Use these headers to track your usage and avoid hitting rate limits.
+

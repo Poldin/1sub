@@ -1,0 +1,158 @@
+---
+title: "Welcome to 1Sub Vendor Integration"
+description: "Integrate your tool with 1Sub in minutes and start earning revenue from your users"
+---
+
+# Welcome to 1Sub Vendor Integration
+
+Integrate your tool with 1Sub to monetize through our credit system and subscription platform. Users purchase credits or subscribe on our platform and use them on your tool, while you earn revenue for each transaction.
+
+<CardGroup cols={2}>
+<Card title="Quickstart Guide" icon="rocket" href="/quickstart">
+  Get your tool integrated in under 15 minutes
+</Card>
+
+<Card title="API Reference" icon="code" href="/api/overview">
+  Complete API documentation and endpoints
+</Card>
+
+<Card title="Webhooks" icon="webhook" href="/webhooks/overview">
+  Real-time notifications for subscription events
+</Card>
+
+<Card title="Code Examples" icon="file-code" href="/examples/node">
+  Ready-to-use integration examples
+</Card>
+</CardGroup>
+
+## Why Integrate with 1Sub?
+
+<CardGroup cols={3}>
+<Card title="Quick Setup" icon="zap">
+  Simple REST API with JWT authentication. Get integrated in minutes, not days.
+</Card>
+
+<Card title="Secure & Reliable" icon="shield-check">
+  Enterprise-grade security with HMAC signatures, rate limiting, and comprehensive audit logs.
+</Card>
+
+<Card title="Flexible Monetization" icon="dollar-sign">
+  Support both credits and subscription models. Choose what works best for your tool.
+</Card>
+</CardGroup>
+
+## Integration Overview
+
+The integration process follows these simple steps:
+
+<Steps>
+<Step title="Publish your tool">
+  Create your tool listing on the 1Sub vendor dashboard and configure your redirect URL.
+</Step>
+
+<Step title="Get your credentials">
+  Receive your API key and webhook secret (shown once — save them securely!).
+  
+  <Warning>
+  API keys are shown only once. If lost, you'll need to regenerate them from the vendor dashboard.
+  </Warning>
+</Step>
+
+<Step title="Implement authentication">
+  Handle user redirects from 1Sub and verify JWT tokens using our JWKS endpoint.
+</Step>
+
+<Step title="Verify subscriptions">
+  Check if users have active subscriptions before granting access to premium features.
+</Step>
+
+<Step title="Set up webhooks">
+  Receive real-time notifications when subscriptions are activated, updated, or canceled.
+</Step>
+</Steps>
+
+## Integration Patterns
+
+Choose the integration pattern that best fits your tool:
+
+<Tabs>
+<Tab title="Subscription-Based">
+  **Best for:** SaaS tools with recurring access
+
+  - Users subscribe to plans on 1Sub
+  - Verify subscription status via API
+  - Receive webhook notifications on changes
+  - Support tiered plans with different features
+</Tab>
+
+<Tab title="Credit-Based">
+  **Best for:** Usage-based tools (API calls, generations, etc.)
+
+  - Users purchase credit packages on 1Sub
+  - Consume credits for each tool usage
+  - Real-time balance tracking
+  - Automatic refunds on failures
+</Tab>
+
+<Tab title="Hybrid">
+  **Best for:** Tools with base access + usage charges
+
+  - Subscription grants base access
+  - Credits used for premium features
+  - Best of both models
+</Tab>
+</Tabs>
+
+## What You'll Need
+
+<AccordionGroup>
+<Accordion title="Development Environment">
+  - A server-side environment (Node.js, Python, Go, etc.)
+  - HTTPS endpoint for webhooks
+  - Ability to store user sessions and credentials
+</Accordion>
+
+<Accordion title="Credentials from 1Sub">
+  - **API Key**: For authenticating API requests (format: `sk-tool-xxxxx`)
+  - **Webhook Secret**: For verifying webhook signatures (format: `whsec-xxxxx`)
+  - **Tool ID**: Your unique tool identifier (UUID format)
+</Accordion>
+
+<Accordion title="Technical Knowledge">
+  - REST API integration
+  - JWT token verification
+  - HMAC signature validation
+  - Basic error handling
+</Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+<Card title="Start with Quickstart" icon="play" href="/quickstart">
+  Follow our step-by-step guide to get your first integration working
+</Card>
+
+<Card title="Explore Core Concepts" icon="book" href="/concepts/authentication">
+  Understand authentication, user linking, and subscription verification
+</Card>
+
+<Card title="View API Reference" icon="terminal" href="/api/reference">
+  Explore all available endpoints and their parameters
+</Card>
+
+<Card title="Check Examples" icon="brackets-curly" href="/examples/node">
+  Browse complete working examples in multiple languages
+</Card>
+</CardGroup>
+
+## Need Help?
+
+<Card title="Get Support" icon="headset" href="/support">
+  Contact our developer support team at support@1sub.io or join our [Discord community](https://discord.gg/1sub).
+</Card>
+
+<Info>
+All code examples in this documentation are tested and production-ready. Feel free to copy and adapt them for your integration.
+</Info>
+

@@ -120,7 +120,7 @@ function SubscriptionSuccessContent() {
               Subscription Activated!
             </h2>
             <p className="text-[#9ca3af]">
-              Welcome to the {subscriptionData?.planName || 'platform'}! Your credits have been added to your account.
+              Welcome to the {subscriptionData?.planName || 'platform'}! Your monthly credits are now active.
             </p>
           </div>
 
@@ -132,12 +132,18 @@ function SubscriptionSuccessContent() {
                 <span className="text-[#ededed] font-semibold">{subscriptionData.planName}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-[#9ca3af]">Credits per {subscriptionData.billingPeriod === 'monthly' ? 'month' : 'year'}:</span>
-                <span className="text-[#3ecf8e] font-semibold">{subscriptionData.creditsPerMonth}</span>
+                <span className="text-[#9ca3af]">Monthly Credits:</span>
+                <span className="text-[#3ecf8e] font-semibold text-lg">{subscriptionData.creditsPerMonth} credits</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-[#9ca3af]">Billing:</span>
                 <span className="text-[#ededed] font-semibold capitalize">{subscriptionData.billingPeriod}</span>
+              </div>
+              <div className="bg-[#3ecf8e]/10 border border-[#3ecf8e]/20 rounded p-3 mt-3">
+                <p className="text-xs text-[#d1d5db]">
+                  💡 Your credits refresh automatically each {subscriptionData.billingPeriod === 'monthly' ? 'month' : 'year'}. 
+                  Unused credits roll over to the next period!
+                </p>
               </div>
             </div>
           )}

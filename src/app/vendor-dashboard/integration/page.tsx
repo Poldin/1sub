@@ -179,7 +179,7 @@ export default function IntegrationGuidePage() {
               <Zap className="w-5 h-5 text-[#3ecf8e] mt-1 flex-shrink-0" />
               <div>
                 <h3 className="font-semibold text-[#ededed]">Quick Setup</h3>
-                <p className="text-sm text-[#9ca3af]">Get integrated in under 30 minutes</p>
+                <p className="text-sm text-[#9ca3af]">Get integrated in under 15 minutes</p>
               </div>
             </div>
             <div className="flex items-start gap-3">
@@ -195,6 +195,39 @@ export default function IntegrationGuidePage() {
                 <h3 className="font-semibold text-[#ededed]">Start Earning</h3>
                 <p className="text-sm text-[#9ca3af]">Get paid for every credit used</p>
               </div>
+            </div>
+          </div>
+          
+          {/* Quick Links to Mintlify Docs */}
+          <div className="mt-6 pt-6 border-t border-[#374151]">
+            <div className="flex flex-wrap gap-3">
+              <a
+                href="/docs"
+                target="_blank"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-[#3ecf8e] text-[#111111] rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors"
+              >
+                <FileText className="w-4 h-4" />
+                View Complete Documentation
+                <ExternalLink className="w-4 h-4" />
+              </a>
+              <a
+                href="/docs/quickstart"
+                target="_blank"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-[#1f2937] text-[#ededed] border border-[#374151] rounded-lg font-semibold hover:bg-[#374151] transition-colors"
+              >
+                <Zap className="w-4 h-4" />
+                Quickstart Guide
+                <ExternalLink className="w-4 h-4" />
+              </a>
+              <a
+                href="/docs/api/reference"
+                target="_blank"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-[#1f2937] text-[#ededed] border border-[#374151] rounded-lg font-semibold hover:bg-[#374151] transition-colors"
+              >
+                <Code className="w-4 h-4" />
+                API Reference
+                <ExternalLink className="w-4 h-4" />
+              </a>
             </div>
           </div>
         </div>

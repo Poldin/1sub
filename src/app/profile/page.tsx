@@ -20,6 +20,12 @@ interface PlatformSubscription {
   next_billing_date: string;
   created_at: string;
   stripe_subscription_id: string;
+  pending_plan_change?: {
+    target_plan_id?: string;
+    change_type?: string;
+    requested_at?: string;
+    effective_at?: string;
+  } | null;
 }
 
 interface ToolSubscription {
@@ -667,7 +673,7 @@ export default function ProfilePage() {
                   onClick={() => router.push('/buy-credits')}
                   className="px-6 py-3 bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] text-black rounded-lg font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-[#3ecf8e]/20"
                 >
-                  Add Credits
+                  Top Up Credits
                 </button>
               </div>
             </div>
@@ -704,14 +710,62 @@ export default function ProfilePage() {
                 </div>
               </div>
 
+              {/* Pending Plan Change Notice */}
+              {platformSub.pending_plan_change && (
+                <div className="bg-blue-400/10 border border-blue-400/20 rounded-lg p-4 mb-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-blue-400 mb-1">Scheduled Plan Change</p>
+                      <p className="text-xs text-[#d1d5db]">
+                        Your plan will change to{' '}
+                        <span className="font-semibold">
+                          {(platformSub.pending_plan_change as { target_plan_id?: string }).target_plan_id}
+                        </span>{' '}
+                        on{' '}
+                        <span className="font-semibold">
+                          {new Date((platformSub.pending_plan_change as { effective_at?: string }).effective_at || '').toLocaleDateString()}
+                        </span>
+                      </p>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (confirm('Are you sure you want to cancel this scheduled plan change?')) {
+                          try {
+                            const response = await fetch('/api/subscriptions/change-platform-plan', {
+                              method: 'DELETE',
+                            });
+                            if (response.ok) {
+                              alert('Scheduled plan change cancelled');
+                              window.location.reload();
+                            } else {
+                              const error = await response.json();
+                              alert(error.error || 'Failed to cancel plan change');
+                            }
+                          } catch (error) {
+                            console.error('Error cancelling plan change:', error);
+                            alert('Failed to cancel plan change');
+                          }
+                        }
+                      }}
+                      className="text-xs text-red-400 hover:text-red-300 underline ml-4"
+                    >
+                      Cancel Change
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                 <div className="bg-[#0a0a0a]/50 rounded-lg p-4 border border-[#374151]">
                   <div className="flex items-center gap-2 text-[#9ca3af] text-sm mb-2">
                     <CreditCard className="w-4 h-4" />
-                    Credits
+                    Monthly Credits
                   </div>
-                  <p className="text-lg font-semibold text-[#ededed]">
-                    {platformSub.credits_per_period} / {platformSub.billing_period === 'monthly' ? 'month' : 'year'}
+                  <p className="text-lg font-semibold text-[#3ecf8e]">
+                    {platformSub.credits_per_period} credits
+                  </p>
+                  <p className="text-xs text-[#9ca3af] mt-1">
+                    Every {platformSub.billing_period === 'monthly' ? 'month' : 'year'}
                   </p>
                 </div>
                 <div className="bg-[#0a0a0a]/50 rounded-lg p-4 border border-[#374151]">
@@ -726,10 +780,13 @@ export default function ProfilePage() {
                 <div className="bg-[#0a0a0a]/50 rounded-lg p-4 border border-[#374151]">
                   <div className="flex items-center gap-2 text-[#9ca3af] text-sm mb-2">
                     <Shield className="w-4 h-4" />
-                    Overdraft
+                    Overdraft Limit
                   </div>
                   <p className="text-lg font-semibold text-[#ededed]">
                     {platformSub.max_overdraft} credits
+                  </p>
+                  <p className="text-xs text-[#9ca3af] mt-1">
+                    {platformSub.max_overdraft > 0 ? 'Protection enabled' : 'No overdraft'}
                   </p>
                 </div>
               </div>
@@ -762,14 +819,18 @@ export default function ProfilePage() {
                 <div className="inline-flex items-center justify-center w-16 h-16 bg-[#3ecf8e]/10 rounded-full mb-4">
                   <Shield className="w-8 h-8 text-[#3ecf8e]/50" />
                 </div>
-                <p className="text-[#9ca3af] mb-4">No active platform subscription</p>
+                <h3 className="text-lg font-semibold text-[#ededed] mb-2">No Active Subscription</h3>
+                <p className="text-[#9ca3af] mb-4">Subscribe to get recurring credits every month at better rates</p>
                 <button
                   onClick={() => router.push('/subscribe')}
                   className="bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] text-black px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity inline-flex items-center gap-2"
                 >
                   <ExternalLink className="w-4 h-4" />
-                  View Plans
+                  View Plans & Pricing
                 </button>
+                <p className="text-xs text-[#9ca3af] mt-3">
+                  Or <button onClick={() => router.push('/buy-credits')} className="text-[#3ecf8e] hover:underline">top up credits</button> for occasional use
+                </p>
               </div>
             )}
           </div>

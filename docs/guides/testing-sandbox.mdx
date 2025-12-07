@@ -1,0 +1,101 @@
+---
+title: "Testing & Sandbox"
+description: "How to test your integration before going live"
+---
+
+# Testing & Sandbox
+
+Learn how to test your 1Sub integration safely before launching to production.
+
+## Local Testing
+
+### Using ngrok
+
+The best way to test webhooks locally:
+
+```bash
+# Install ngrok
+npm install -g ngrok
+
+# Expose your local server
+ngrok http 3000
+
+# Use the ngrok URL in your webhook settings
+https://abc123.ngrok.io/webhooks/1sub
+```
+
+See [Testing Webhooks](/webhooks/testing) for complete details.
+
+### Manual API Testing
+
+Test API endpoints with curl:
+
+```bash
+# Test subscription verification
+curl -X POST 'https://1sub.io/api/v1/tools/subscriptions/verify' \
+  -H 'Authorization: Bearer YOUR_API_KEY' \
+  -H 'Content-Type: application/json' \
+  -d '{"oneSubUserId": "test-user-id"}'
+```
+
+## Testing Strategies
+
+<AccordionGroup>
+<Accordion title="Unit Testing">
+Test individual components in isolation:
+
+```typescript
+describe('Webhook Signature Verification', () => {
+  it('accepts valid signatures', () => {
+    const payload = '{"test":"data"}';
+    const signature = generateSignature(payload);
+    expect(verifySignature(payload, signature)).toBe(true);
+  });
+  
+  it('rejects invalid signatures', () => {
+    expect(verifySignature('payload', 'bad-sig')).toBe(false);
+  });
+});
+```
+</Accordion>
+
+<Accordion title="Integration Testing">
+Test the full flow end-to-end with test subscriptions.
+</Accordion>
+
+<Accordion title="Manual Testing">
+Subscribe to your own tool and test the complete user experience.
+</Accordion>
+</AccordionGroup>
+
+## Test Data
+
+Use these test values during development:
+
+```typescript
+// Test user ID (UUID format)
+const testUserId = '550e8400-e29b-41d4-a716-446655440000';
+
+// Test subscription data
+const testSubscription = {
+  active: true,
+  status: 'active',
+  planId: 'test-plan',
+  currentPeriodEnd: '2025-12-31T23:59:59Z'
+};
+```
+
+## Pre-Production Checklist
+
+Before launching:
+
+- ✅ All unit tests passing
+- ✅ Integration tests passing
+- ✅ Manual testing completed
+- ✅ Error scenarios tested
+- ✅ Webhooks verified
+- ✅ Rate limiting tested
+- ✅ Security review completed
+
+See the full [Integration Checklist](/troubleshooting/checklist).
+

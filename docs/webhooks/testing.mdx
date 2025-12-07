@@ -1,0 +1,448 @@
+---
+title: "Testing Webhooks"
+description: "How to test webhook integration locally and in development"
+---
+
+# Testing Webhooks
+
+Learn how to test your webhook integration during development and before going to production.
+
+## Local Development with ngrok
+
+The easiest way to test webhooks locally is to expose your local server using ngrok.
+
+<Steps>
+<Step title="Install ngrok">
+Install ngrok globally:
+
+```bash
+npm install -g ngrok
+```
+
+Or download from [ngrok.com](https://ngrok.com/)
+</Step>
+
+<Step title="Start your local server">
+Run your app locally on a specific port:
+
+```bash
+# Node.js
+npm run dev
+
+# Python
+python app.py
+
+# Your server should be running on http://localhost:3000 (or another port)
+```
+</Step>
+
+<Step title="Expose with ngrok">
+Create a public URL for your local server:
+
+```bash
+ngrok http 3000
+```
+
+ngrok will output a public URL:
+
+```
+Forwarding https://abc123.ngrok.io -> http://localhost:3000
+```
+</Step>
+
+<Step title="Configure webhook URL in 1Sub dashboard">
+Use the ngrok URL in your vendor dashboard webhook settings:
+
+```
+https://abc123.ngrok.io/webhooks/1sub
+```
+
+<Tip>
+ngrok free tier URLs change each time you restart. For persistent URLs, upgrade to ngrok Pro.
+</Tip>
+</Step>
+
+<Step title="Test webhook delivery">
+Trigger a subscription event (subscribe, cancel, etc.) and watch your server logs:
+
+```
+Valid webhook received: subscription.activated
+User: uuid-abc-123
+Plan: pro
+```
+</Step>
+</Steps>
+
+## Manual Webhook Testing
+
+Send test webhooks manually using curl or Postman.
+
+### Generate Test Signature
+
+Create a valid signature for your test payload:
+
+```typescript
+import crypto from 'crypto';
+
+function generateWebhookSignature(
+  payload: string,
+  secret: string
+): string {
+  const timestamp = Math.floor(Date.now() / 1000);
+  const signedPayload = `${timestamp}.${payload}`;
+  const sig = crypto
+    .createHmac('sha256', secret)
+    .update(signedPayload)
+    .digest('hex');
+  
+  return `t=${timestamp},v1=${sig}`;
+}
+
+// Usage
+const testPayload = JSON.stringify({
+  id: 'evt_test_001',
+  type: 'subscription.activated',
+  created: Math.floor(Date.now() / 1000),
+  data: {
+    oneSubUserId: '550e8400-e29b-41d4-a716-446655440000',
+    planId: 'pro',
+    productId: '660e8400-e29b-41d4-a716-446655440000',
+    status: 'active',
+    currentPeriodStart: '2025-11-01T00:00:00Z',
+    currentPeriodEnd: '2025-12-01T00:00:00Z',
+    quantity: 1
+  }
+});
+
+const secret = 'your-webhook-secret';
+const signature = generateWebhookSignature(testPayload, secret);
+
+console.log('Signature:', signature);
+console.log('Payload:', testPayload);
+```
+
+### Send Test Webhook with curl
+
+```bash
+curl -X POST 'http://localhost:3000/webhooks/1sub' \
+  -H '1sub-signature: t=1700000000,v1=your-computed-signature' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "id": "evt_test_001",
+    "type": "subscription.activated",
+    "created": 1700000000,
+    "data": {
+      "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000",
+      "planId": "pro",
+      "productId": "660e8400-e29b-41d4-a716-446655440000",
+      "status": "active",
+      "currentPeriodStart": "2025-11-01T00:00:00Z",
+      "currentPeriodEnd": "2025-12-01T00:00:00Z",
+      "quantity": 1
+    }
+  }'
+```
+
+<Warning>
+Make sure to generate a fresh signature each time. Old timestamps (>5 minutes) will be rejected.
+</Warning>
+
+## Automated Testing
+
+Write unit tests for your webhook handler:
+
+```typescript
+import request from 'supertest';
+import crypto from 'crypto';
+import app from './app';
+
+const WEBHOOK_SECRET = 'test-webhook-secret';
+
+function generateSignature(payload: string): string {
+  const timestamp = Math.floor(Date.now() / 1000);
+  const signedPayload = `${timestamp}.${payload}`;
+  const sig = crypto
+    .createHmac('sha256', WEBHOOK_SECRET)
+    .update(signedPayload)
+    .digest('hex');
+  return `t=${timestamp},v1=${sig}`;
+}
+
+describe('Webhook Handler', () => {
+  beforeEach(() => {
+    // Clear subscription cache, processed events, etc.
+    subscriptionCache.clear();
+    processedEvents.clear();
+  });
+  
+  describe('Signature Verification', () => {
+    it('accepts valid signature', async () => {
+      const payload = {
+        id: 'evt_test_001',
+        type: 'subscription.activated',
+        created: Math.floor(Date.now() / 1000),
+        data: {
+          oneSubUserId: 'test-user-123',
+          planId: 'pro',
+          status: 'active'
+        }
+      };
+      
+      const body = JSON.stringify(payload);
+      const signature = generateSignature(body);
+      
+      const response = await request(app)
+        .post('/webhooks/1sub')
+        .set('1sub-signature', signature)
+        .set('Content-Type', 'application/json')
+        .send(body);
+      
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ received: true });
+    });
+    
+    it('rejects invalid signature', async () => {
+      const payload = { id: 'evt_test', type: 'subscription.activated', data: {} };
+      
+      const response = await request(app)
+        .post('/webhooks/1sub')
+        .set('1sub-signature', 't=123,v1=invalid')
+        .set('Content-Type', 'application/json')
+        .send(payload);
+      
+      expect(response.status).toBe(401);
+    });
+    
+    it('rejects old timestamp', async () => {
+      const payload = JSON.stringify({ id: 'evt_test', type: 'subscription.activated', data: {} });
+      const oldTimestamp = Math.floor(Date.now() / 1000) - 400; // 6+ minutes ago
+      const sig = crypto
+        .createHmac('sha256', WEBHOOK_SECRET)
+        .update(`${oldTimestamp}.${payload}`)
+        .digest('hex');
+      
+      const response = await request(app)
+        .post('/webhooks/1sub')
+        .set('1sub-signature', `t=${oldTimestamp},v1=${sig}`)
+        .set('Content-Type', 'application/json')
+        .send(payload);
+      
+      expect(response.status).toBe(401);
+    });
+  });
+  
+  describe('Event Processing', () => {
+    it('handles subscription.activated event', async () => {
+      const payload = {
+        id: 'evt_activated_001',
+        type: 'subscription.activated',
+        created: Math.floor(Date.now() / 1000),
+        data: {
+          oneSubUserId: 'user-123',
+          planId: 'pro',
+          productId: 'tool-123',
+          status: 'active',
+          currentPeriodStart: '2025-11-01T00:00:00Z',
+          currentPeriodEnd: '2025-12-01T00:00:00Z'
+        }
+      };
+      
+      const body = JSON.stringify(payload);
+      const signature = generateSignature(body);
+      
+      const response = await request(app)
+        .post('/webhooks/1sub')
+        .set('1sub-signature', signature)
+        .send(body);
+      
+      expect(response.status).toBe(200);
+      
+      // Verify side effects
+      expect(subscriptionCache.has('user-123')).toBe(false); // Cache cleared
+      expect(mockEmailService.sendWelcomeEmail).toHaveBeenCalledWith('user-123');
+    });
+    
+    it('handles subscription.canceled event', async () => {
+      const payload = {
+        id: 'evt_canceled_001',
+        type: 'subscription.canceled',
+        created: Math.floor(Date.now() / 1000),
+        data: {
+          oneSubUserId: 'user-123',
+          planId: 'pro',
+          productId: 'tool-123',
+          status: 'canceled',
+          cancellationReason: 'user_requested',
+          effectiveDate: '2025-12-01T00:00:00Z',
+          canceledAt: '2025-11-15T10:30:00Z'
+        }
+      };
+      
+      const body = JSON.stringify(payload);
+      const signature = generateSignature(body);
+      
+      const response = await request(app)
+        .post('/webhooks/1sub')
+        .set('1sub-signature', signature)
+        .send(body);
+      
+      expect(response.status).toBe(200);
+      
+      // Verify access was scheduled for revocation
+      expect(mockAccessService.scheduleRevocation).toHaveBeenCalledWith(
+        'user-123',
+        new Date('2025-12-01T00:00:00Z')
+      );
+    });
+    
+    it('deduplicates repeat events', async () => {
+      const payload = {
+        id: 'evt_dup_001',
+        type: 'subscription.updated',
+        created: Math.floor(Date.now() / 1000),
+        data: {
+          oneSubUserId: 'user-123',
+          planId: 'enterprise',
+          previousPlanId: 'pro',
+          status: 'active'
+        }
+      };
+      
+      const body = JSON.stringify(payload);
+      const signature = generateSignature(body);
+      
+      // First call
+      await request(app)
+        .post('/webhooks/1sub')
+        .set('1sub-signature', signature)
+        .send(body);
+      
+      // Second call (duplicate)
+      const response = await request(app)
+        .post('/webhooks/1sub')
+        .set('1sub-signature', signature)
+        .send(body);
+      
+      expect(response.status).toBe(200);
+      
+      // Verify update only happened once
+      expect(mockPlanService.updatePlan).toHaveBeenCalledTimes(1);
+    });
+  });
+});
+```
+
+## Integration Testing with Webhook Relay
+
+For staging/production-like testing, use a webhook relay service:
+
+<Tabs>
+<Tab title="Hookdeck">
+[Hookdeck](https://hookdeck.com/) provides webhook testing and debugging:
+
+1. Create a Hookdeck account
+2. Set up a connection from 1Sub to your app
+3. Configure webhook URL in 1Sub dashboard as Hookdeck URL
+4. Hookdeck forwards to your local/staging endpoint
+5. View webhook history, retry failed webhooks, etc.
+</Tab>
+
+<Tab title="RequestBin">
+[RequestBin](https://requestbin.com/) captures webhooks for inspection:
+
+1. Create a temporary RequestBin
+2. Use as webhook URL temporarily
+3. Trigger events and inspect payloads
+4. Verify signatures match expected format
+</Tab>
+</Tabs>
+
+## Testing Checklist
+
+Before going to production, verify:
+
+<AccordionGroup>
+<Accordion title="✅ Signature Verification">
+- [ ] Valid signatures are accepted
+- [ ] Invalid signatures are rejected with 401
+- [ ] Tampered payloads are rejected
+- [ ] Old timestamps (>5 minutes) are rejected
+- [ ] Uses timing-safe comparison
+- [ ] Uses raw request body
+</Accordion>
+
+<Accordion title="✅ Event Processing">
+- [ ] `subscription.activated` grants access
+- [ ] `subscription.canceled` revokes access
+- [ ] `subscription.updated` updates user plan
+- [ ] Events are deduplicated by `id`
+- [ ] Out-of-order events are handled correctly
+- [ ] Subscription cache is invalidated
+</Accordion>
+
+<Accordion title="✅ Error Handling">
+- [ ] Returns 200 for successful processing
+- [ ] Returns 401 for signature failures
+- [ ] Responds within 30 seconds
+- [ ] Handles malformed JSON gracefully
+- [ ] Logs errors without exposing secrets
+</Accordion>
+
+<Accordion title="✅ Side Effects">
+- [ ] Emails are sent for appropriate events
+- [ ] Database is updated correctly
+- [ ] Access control is updated
+- [ ] Analytics events are tracked
+- [ ] Webhook events are logged for audit
+</Accordion>
+</AccordionGroup>
+
+## Debugging Tips
+
+<AccordionGroup>
+<Accordion title="Webhook not received">
+**Possible causes:**
+- Webhook URL not configured in dashboard
+- URL not publicly accessible (firewall, local network)
+- HTTPS required (not HTTP)
+- Server not running
+
+**Debug:**
+- Check ngrok/server is running
+- Verify URL is correct and accessible
+- Check firewall settings
+- Look for errors in 1Sub dashboard webhook logs
+</Accordion>
+
+<Accordion title="Signature verification fails">
+**Possible causes:**
+- Using parsed JSON instead of raw body
+- Wrong webhook secret
+- Not checking exact signature format
+- Clock skew between servers
+
+**Debug:**
+- Log the raw body and signature
+- Verify webhook secret is correct
+- Use `express.raw()` middleware
+- Check timestamp is reasonable
+</Accordion>
+
+<Accordion title="Events not processing">
+**Possible causes:**
+- Exception thrown before acknowledging
+- Not deduplicating events
+- Database/external service errors
+
+**Debug:**
+- Add extensive logging
+- Acknowledge receipt before async processing
+- Check for exceptions in logs
+- Verify database connectivity
+</Accordion>
+</AccordionGroup>
+
+<Tip>
+Use ngrok's web interface (http://localhost:4040) to inspect all incoming webhooks in real-time.
+</Tip>
+

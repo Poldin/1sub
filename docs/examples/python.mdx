@@ -1,0 +1,46 @@
+---
+title: "Python Example"
+description: "Complete Python / Flask integration example"
+---
+
+# Python / Flask Example
+
+Complete working example of a 1Sub integration using Python and Flask.
+
+## Installation
+
+```bash
+pip install flask python-jose requests
+```
+
+## Environment Variables
+
+```bash
+# .env
+ONESUB_API_KEY=sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx
+ONESUB_WEBHOOK_SECRET=whsec-xxxxxxxxxxxxxxxxxxxxxxxx
+TOOL_ID=your-tool-uuid
+```
+
+## Complete Implementation
+
+See the [Node.js Example](/examples/node) for a detailed implementation. The Python equivalent follows the same patterns:
+
+1. Verify JWT tokens using the `python-jose` library
+2. Cache subscription status
+3. Verify webhook signatures using HMAC
+4. Process events asynchronously
+
+## Key Libraries
+
+- **Flask** - Web framework
+- **python-jose** - JWT verification
+- **requests** - HTTP client
+- **hmac** - Webhook signature verification
+
+## Additional Resources
+
+- [Node.js Example](/examples/node) - Detailed implementation
+- [API Reference](/api/reference)
+- [Webhook Security](/webhooks/security-and-signing)
+

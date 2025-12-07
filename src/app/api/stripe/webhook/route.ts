@@ -422,54 +422,182 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
       return;
     }
 
+    // Check if there's a pending plan change to apply
+    const pendingChange = subscription.pending_plan_change as {
+      target_plan_id: string;
+      target_billing_period: string;
+      change_type: string;
+      requested_at: string;
+      effective_at: string;
+      target_credits_per_month: number;
+      target_max_overdraft: number;
+    } | null;
+
+    let creditsToAdd = subscription.credits_per_period;
+    let planIdForCredits = subscription.plan_id;
+    let updatedFields: Record<string, unknown> = {
+      current_period_start: new Date(invoice.period_start * 1000).toISOString(),
+      current_period_end: new Date(invoice.period_end * 1000).toISOString(),
+      last_billing_date: new Date().toISOString(),
+    };
+
+    // Apply pending downgrade if effective date has passed
+    if (pendingChange && new Date(pendingChange.effective_at) <= new Date()) {
+      console.log('[Stripe Webhook] Applying pending plan change:', {
+        userId: subscription.user_id,
+        fromPlan: subscription.plan_id,
+        toPlan: pendingChange.target_plan_id,
+        changeType: pendingChange.change_type,
+      });
+
+      // Update the Stripe subscription to new price
+      // Create new price for the target plan
+      const targetPlanPrice = pendingChange.target_billing_period === 'monthly' 
+        ? (await getPlanPrice(pendingChange.target_plan_id, 'monthly'))
+        : (await getPlanPrice(pendingChange.target_plan_id, 'yearly'));
+
+      if (targetPlanPrice) {
+        try {
+          const stripeSubscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
+          
+          const stripePriceData: Stripe.PriceCreateParams = {
+            currency: 'eur',
+            product_data: {
+              name: `1sub ${pendingChange.target_plan_id} Plan`,
+            },
+            unit_amount: Math.round(targetPlanPrice * 100),
+            recurring: {
+              interval: pendingChange.target_billing_period === 'monthly' ? 'month' : 'year',
+              interval_count: 1,
+            },
+          };
+
+          const newStripePrice = await stripe.prices.create(stripePriceData);
+
+          await stripe.subscriptions.update(stripeSubscriptionId, {
+            items: [
+              {
+                id: stripeSubscription.items.data[0].id,
+                price: newStripePrice.id,
+              },
+            ],
+            proration_behavior: 'none',
+            metadata: {
+              ...stripeSubscription.metadata,
+              planId: pendingChange.target_plan_id,
+              billingPeriod: pendingChange.target_billing_period,
+              creditsPerMonth: pendingChange.target_credits_per_month.toString(),
+              maxOverdraft: pendingChange.target_max_overdraft.toString(),
+            },
+          });
+
+          console.log('[Stripe Webhook] Stripe subscription updated with new price');
+        } catch (stripeError) {
+          console.error('[Stripe Webhook] Error updating Stripe subscription:', stripeError);
+          // Continue with DB update even if Stripe update fails - can be fixed manually
+        }
+      }
+
+      // Update database with new plan
+      updatedFields = {
+        ...updatedFields,
+        previous_plan_id: subscription.plan_id,
+        plan_id: pendingChange.target_plan_id,
+        billing_period: pendingChange.target_billing_period,
+        credits_per_period: pendingChange.target_credits_per_month,
+        max_overdraft: pendingChange.target_max_overdraft,
+        pending_plan_change: null, // Clear pending change
+        plan_changed_at: new Date().toISOString(),
+      };
+
+      // Use new plan's credits for this billing cycle
+      creditsToAdd = pendingChange.target_credits_per_month;
+      planIdForCredits = pendingChange.target_plan_id;
+
+      // Log plan change to audit
+      await supabase
+        .from('audit_logs')
+        .insert({
+          user_id: subscription.user_id,
+          action: 'plan_changed',
+          resource_type: 'platform_subscriptions',
+          resource_id: subscription.id,
+          metadata: {
+            old_plan_id: subscription.plan_id,
+            new_plan_id: pendingChange.target_plan_id,
+            change_type: pendingChange.change_type,
+            requested_at: pendingChange.requested_at,
+            effective_at: pendingChange.effective_at,
+            trigger: 'webhook_renewal',
+          },
+        });
+    }
+
     // Add credits for this billing period
-    const credits = subscription.credits_per_period;
     const idempotencyKey = `platform-sub-invoice-${invoice.id}`;
 
     await addCreditsToUser(
       subscription.user_id,
-      credits,
-      `Platform subscription renewal: ${subscription.plan_id}`,
+      creditsToAdd,
+      `Platform subscription renewal: ${planIdForCredits}`,
       idempotencyKey,
       {
         subscription_id: subscription.id,
         stripe_subscription_id: stripeSubscriptionId,
         stripe_invoice_id: invoice.id,
-        plan_id: subscription.plan_id,
-        billing_period: subscription.billing_period,
+        plan_id: planIdForCredits,
+        billing_period: updatedFields.billing_period || subscription.billing_period,
       }
     );
 
-    // Update subscription billing dates
+    // Calculate next billing date
     const periodEnd = new Date(invoice.period_end * 1000);
     const nextBilling = new Date(periodEnd);
-    if (subscription.billing_period === 'monthly') {
+    const billingPeriod = (updatedFields.billing_period as string) || subscription.billing_period;
+    if (billingPeriod === 'monthly') {
       nextBilling.setMonth(nextBilling.getMonth() + 1);
     } else {
       nextBilling.setFullYear(nextBilling.getFullYear() + 1);
     }
 
+    // Update subscription with all fields
     await supabase
       .from('platform_subscriptions')
       .update({
-        current_period_start: new Date(invoice.period_start * 1000).toISOString(),
-        current_period_end: periodEnd.toISOString(),
+        ...updatedFields,
         next_billing_date: nextBilling.toISOString(),
-        last_billing_date: new Date().toISOString(),
       })
       .eq('id', subscription.id);
 
     console.log('[Stripe Webhook] Recurring credits added:', {
       subscriptionId: subscription.id,
       userId: subscription.user_id,
-      credits,
+      credits: creditsToAdd,
+      planId: planIdForCredits,
       invoiceId: invoice.id,
+      pendingChangeApplied: !!pendingChange,
     });
 
   } catch (error) {
     console.error('[Stripe Webhook] Error handling invoice paid:', error);
     throw error;
   }
+}
+
+// Helper function to get plan price (imported from subscription-plans)
+async function getPlanPrice(planId: string, billingPeriod: 'monthly' | 'yearly'): Promise<number | undefined> {
+  // This is a simplified version - in real code, import from subscription-plans
+  const plans: Record<string, { price: number; yearlyPrice: number }> = {
+    starter: { price: 50, yearlyPrice: 540 },
+    professional: { price: 150, yearlyPrice: 1620 },
+    business: { price: 300, yearlyPrice: 3240 },
+    enterprise: { price: 1000, yearlyPrice: 10800 },
+  };
+  
+  const plan = plans[planId];
+  if (!plan) return undefined;
+  
+  return billingPeriod === 'monthly' ? plan.price : plan.yearlyPrice;
 }
 
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
