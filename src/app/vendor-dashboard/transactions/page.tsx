@@ -39,6 +39,7 @@ export default function VendorTransactionsPage() {
   const [userRole, setUserRole] = useState<string>('user');
   const [hasTools, setHasTools] = useState(false);
   const [isVendor, setIsVendor] = useState(false);
+  const [selectedToolId, setSelectedToolId] = useState<string>('');
 
   // Initialize sidebar state based on screen size
   useEffect(() => {
@@ -370,7 +371,13 @@ export default function VendorTransactionsPage() {
               
               {/* Tool Selector */}
               {hasTools && userId && (
-                <ToolSelector userId={userId} />
+                <ToolSelector 
+                  userId={userId}
+                  currentToolId={selectedToolId}
+                  onToolChange={(toolId, toolName) => {
+                    setSelectedToolId(toolId);
+                  }}
+                />
               )}
               
               {/* Page Title */}

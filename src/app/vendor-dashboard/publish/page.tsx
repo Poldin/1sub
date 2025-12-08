@@ -452,7 +452,10 @@ export default function PublishToolPage() {
 
               {/* Tool Selector */}
               {hasTools && userId && (
-                <ToolSelector userId={userId} />
+                <ToolSelector 
+                  userId={userId}
+                  currentToolId={''}
+                />
               )}
 
               {/* Page Title */}

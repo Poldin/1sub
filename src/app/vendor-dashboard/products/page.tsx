@@ -256,7 +256,11 @@ export default function ProductsPage() {
               
               {/* Tool Selector - Only show if user has tools */}
               {hasTools && user?.id && (
-                <ToolSelector userId={user.id} onToolChange={handleToolChange} />
+                <ToolSelector 
+                  userId={user.id} 
+                  currentToolId={selectedToolId}
+                  onToolChange={handleToolChange} 
+                />
               )}
               
               {/* Page Title */}
@@ -304,7 +308,12 @@ export default function ProductsPage() {
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-2 h-8 bg-[#3ecf8e] rounded-full"></div>
                   <h2 className="text-3xl font-bold text-[#ededed]">
-                    Products for {selectedToolName}
+                    Products for{' '}
+                    {selectedToolName ? (
+                      <span>{selectedToolName}</span>
+                    ) : (
+                      <span className="inline-block h-8 w-32 bg-[#374151] rounded animate-pulse ml-2"></span>
+                    )}
                   </h2>
                 </div>
                 <p className="text-[#9ca3af] ml-5">

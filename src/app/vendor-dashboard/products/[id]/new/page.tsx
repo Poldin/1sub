@@ -246,7 +246,11 @@ export default function NewProductPage() {
               </button>
               <div>
                 <h1 className="text-2xl font-bold text-[#ededed]">Create New Product</h1>
-                <p className="text-sm text-[#9ca3af]">for {toolName}</p>
+                <p className="text-sm text-[#9ca3af]">
+                  for {toolName || (
+                    <span className="inline-block h-4 w-24 bg-[#374151] rounded animate-pulse"></span>
+                  )}
+                </p>
               </div>
             </div>
             

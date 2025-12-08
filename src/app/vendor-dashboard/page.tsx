@@ -789,13 +789,18 @@ export default function VendorDashboard() {
                 </div>
               </div>
 
-              {selectedToolName && (
+              {(selectedToolName || selectedToolId) && (
                 <>
                   <div className="mb-8">
                     <div className="flex items-center gap-3 mb-6">
                       <div className="w-2 h-8 bg-[#3ecf8e] rounded-full"></div>
                       <h2 className="text-3xl font-bold text-[#ededed]">
-                        Currently Viewing: {selectedToolName}
+                        Currently Viewing:{' '}
+                        {selectedToolName ? (
+                          <span>{selectedToolName}</span>
+                        ) : (
+                          <span className="inline-block h-8 w-32 bg-[#374151] rounded animate-pulse ml-2"></span>
+                        )}
                       </h2>
                     </div>
                   </div>

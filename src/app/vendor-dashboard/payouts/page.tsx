@@ -74,6 +74,7 @@ function VendorPayoutsPageContent() {
   const [userRole, setUserRole] = useState<string>('user');
   const [hasTools, setHasTools] = useState(false);
   const [isVendor, setIsVendor] = useState(false);
+  const [selectedToolId, setSelectedToolId] = useState<string>('');
 
   // Stripe Connect states
   const [accountStatus, setAccountStatus] = useState<StripeAccountStatus | null>(null);
@@ -334,7 +335,15 @@ function VendorPayoutsPageContent() {
                 <Menu className="w-6 h-6" />
               </button>
               
-              {hasTools && userId && <ToolSelector userId={userId} />}
+              {hasTools && userId && (
+                <ToolSelector 
+                  userId={userId}
+                  currentToolId={selectedToolId}
+                  onToolChange={(toolId, toolName) => {
+                    setSelectedToolId(toolId);
+                  }}
+                />
+              )}
               
               <h1 className="text-xl sm:text-2xl font-bold">Payouts</h1>
             </div>

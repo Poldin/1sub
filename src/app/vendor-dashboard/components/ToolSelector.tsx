@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronDown } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -29,6 +29,14 @@ export default function ToolSelector({
   const [tools, setTools] = useState<Tool[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedToolId, setSelectedToolId] = useState<string>('');
+  const hasCalledInitialCallback = useRef(false);
+  const lastCallbackToolId = useRef<string>('');
+  const onToolChangeRef = useRef(onToolChange);
+  
+  // Keep ref updated with latest callback
+  useEffect(() => {
+    onToolChangeRef.current = onToolChange;
+  }, [onToolChange]);
 
   useEffect(() => {
     const fetchTools = async () => {
@@ -70,8 +78,24 @@ export default function ToolSelector({
             setSelectedToolId(initialToolId);
             localStorage.setItem('selectedToolId', initialToolId);
             const initialTool = data.find((tool: Tool) => tool.id === initialToolId);
-            if (initialTool && onToolChange) {
-              onToolChange(initialTool.id, initialTool.name);
+            
+            // Only call onToolChange if the tool actually changed
+            // If currentToolId is provided and matches, parent already knows - skip callback
+            const shouldCallCallback = 
+              initialTool && 
+              onToolChangeRef.current && 
+              (initialToolId !== lastCallbackToolId.current) &&
+              (!currentToolId || initialToolId !== currentToolId || !hasCalledInitialCallback.current);
+            
+            if (shouldCallCallback && onToolChangeRef.current) {
+              onToolChangeRef.current(initialTool.id, initialTool.name);
+              lastCallbackToolId.current = initialToolId;
+              hasCalledInitialCallback.current = true;
+            } else if (currentToolId && initialToolId === currentToolId) {
+              // If currentToolId matches, parent already knows about this tool
+              // Mark as called to prevent duplicate callbacks
+              lastCallbackToolId.current = initialToolId;
+              hasCalledInitialCallback.current = true;
             }
           }
         }
@@ -84,21 +108,29 @@ export default function ToolSelector({
 
     fetchTools();
   }, [userId, currentToolId, refreshToken]);
+  
+  // Reset callback tracking when currentToolId changes externally
+  useEffect(() => {
+    if (currentToolId && currentToolId !== lastCallbackToolId.current) {
+      hasCalledInitialCallback.current = false;
+    }
+  }, [currentToolId]);
 
   const handleToolChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value;
 
     if (value === 'create-new') {
       router.push('/vendor-dashboard/publish');
-    } else if (value) {
+    } else if (value && value !== lastCallbackToolId.current) {
       // Save selection to localStorage
       localStorage.setItem('selectedToolId', value);
       setSelectedToolId(value);
 
-      // Find the tool name and call the callback
+      // Find the tool name and call the callback only if tool actually changed
       const selectedTool = tools.find((tool: Tool) => tool.id === value);
-      if (selectedTool && onToolChange) {
-        onToolChange(value, selectedTool.name);
+      if (selectedTool && onToolChangeRef.current) {
+        onToolChangeRef.current(value, selectedTool.name);
+        lastCallbackToolId.current = value;
       }
     }
   };

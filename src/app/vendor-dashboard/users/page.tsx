@@ -353,8 +353,9 @@ export default function VendorUsersPage() {
               {/* Tool Selector */}
               {hasTools && userId && (
                 <ToolSelector 
-                  userId={userId} 
-                  onToolChange={(toolId) => {
+                  userId={userId}
+                  currentToolId={selectedToolId}
+                  onToolChange={(toolId, toolName) => {
                     setSelectedToolId(toolId);
                   }}
                 />
