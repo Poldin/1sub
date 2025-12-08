@@ -881,7 +881,7 @@ export default function PublishToolPage() {
 
                 {/* Development Stage Badge - calculated dynamically, defaults to Alpha for new tools */}
                 <div className="px-4 pt-4">
-                  <span className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-purple-500 text-white shadow-lg border border-purple-400/50">
+                  <span className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-[#166534] text-white shadow-lg border border-[#166534]/50">
                     Alpha
                   </span>
                 </div>

@@ -483,68 +483,68 @@ export default function VendorsPage() {
           {/* Phase Timeline */}
           <div className="relative mb-12">
             {/* Connecting Line */}
-            <div className="hidden md:block absolute top-1/2 left-0 right-0 h-1 bg-gradient-to-r from-[#ef4444] via-[#f59e0b] to-[#3ecf8e] transform -translate-y-1/2"></div>
+            <div className="hidden md:block absolute top-1/2 left-0 right-0 h-1 bg-gradient-to-r from-[#166534] via-[#22c55e] to-[#4ade80] transform -translate-y-1/2"></div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative z-10">
               {/* Phase 1: Alpha */}
-              <div className="bg-gradient-to-br from-[#1f2937] to-[#111827] border-2 border-[#ef4444] rounded-lg p-6 text-center relative">
-                <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-[#ef4444] text-white px-4 py-1 rounded-full text-sm font-bold">
+              <div className="bg-gradient-to-br from-[#1f2937] to-[#111827] border-2 border-[#166534] rounded-lg p-6 text-center relative">
+                <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-[#166534] text-white px-4 py-1 rounded-full text-sm font-bold">
                   Phase 1
                 </div>
                 <div className="mt-4">
-                  <h3 className="text-2xl font-black text-[#ef4444] mb-3">α ALPHA</h3>
+                  <h3 className="text-2xl font-black text-[#166534] mb-3">α ALPHA</h3>
                   <p className="text-[#d1d5db] text-sm mb-4 leading-relaxed">
                     Your tool enters the platform. Users know it&apos;s in early access.
                   </p>
-                  <div className="bg-[#ef4444]/10 border border-[#ef4444]/30 rounded-lg p-4 mb-3">
-                    <div className="text-3xl font-black text-[#ef4444] mb-1">100</div>
+                  <div className="bg-[#166534]/10 border border-[#166534]/30 rounded-lg p-4 mb-3">
+                    <div className="text-3xl font-black text-[#166534] mb-1">100</div>
                     <p className="text-xs text-[#9ca3af] mb-2">users and</p>
-                    <div className="text-3xl font-black text-[#ef4444] mb-1">1k</div>
+                    <div className="text-3xl font-black text-[#166534] mb-1">1k</div>
                     <p className="text-xs text-[#9ca3af]">revenue to exit</p>
                   </div>
-                  <div className="inline-block bg-[#ef4444]/20 text-[#ef4444] px-3 py-1 rounded text-xs font-semibold">
+                  <div className="inline-block bg-[#166534]/20 text-[#166534] px-3 py-1 rounded text-xs font-semibold">
                     Users pay • Phase visible
                   </div>
                 </div>
               </div>
 
               {/* Phase 2: Beta */}
-              <div className="bg-gradient-to-br from-[#1f2937] to-[#111827] border-2 border-[#f59e0b] rounded-lg p-6 text-center relative">
-                <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-[#f59e0b] text-black px-4 py-1 rounded-full text-sm font-bold">
+              <div className="bg-gradient-to-br from-[#1f2937] to-[#111827] border-2 border-[#22c55e] rounded-lg p-6 text-center relative">
+                <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-[#22c55e] text-black px-4 py-1 rounded-full text-sm font-bold">
                   Phase 2
                 </div>
                 <div className="mt-4">
-                  <h3 className="text-2xl font-black text-[#f59e0b] mb-3">β BETA</h3>
+                  <h3 className="text-2xl font-black text-[#22c55e] mb-3">β BETA</h3>
                   <p className="text-[#d1d5db] text-sm mb-4 leading-relaxed">
                     Proven interest. Your tool is gaining traction and users.
                   </p>
-                  <div className="bg-[#f59e0b]/10 border border-[#f59e0b]/30 rounded-lg p-4 mb-3">
-                    <div className="text-3xl font-black text-[#f59e0b] mb-1">1000</div>
+                  <div className="bg-[#22c55e]/10 border border-[#22c55e]/30 rounded-lg p-4 mb-3">
+                    <div className="text-3xl font-black text-[#22c55e] mb-1">1000</div>
                     <p className="text-xs text-[#9ca3af] mb-2">users and</p>
-                    <div className="text-3xl font-black text-[#f59e0b] mb-1">10k</div>
+                    <div className="text-3xl font-black text-[#22c55e] mb-1">10k</div>
                     <p className="text-xs text-[#9ca3af]">revenue to exit</p>
                   </div>
-                  <div className="inline-block bg-[#f59e0b]/20 text-[#f59e0b] px-3 py-1 rounded text-xs font-semibold">
+                  <div className="inline-block bg-[#22c55e]/20 text-[#22c55e] px-3 py-1 rounded text-xs font-semibold">
                     Users pay • Phase visible
                   </div>
                 </div>
               </div>
 
               {/* Phase 3: Public */}
-              <div className="bg-gradient-to-br from-[#1f2937] to-[#111827] border-2 border-[#3ecf8e] rounded-lg p-6 text-center relative">
-                <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-[#3ecf8e] text-black px-4 py-1 rounded-full text-sm font-bold">
+              <div className="bg-gradient-to-br from-[#1f2937] to-[#111827] border-2 border-[#4ade80] rounded-lg p-6 text-center relative">
+                <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-[#4ade80] text-black px-4 py-1 rounded-full text-sm font-bold">
                   Phase 3
                 </div>
                 <div className="mt-4">
-                  <h3 className="text-2xl font-black text-[#3ecf8e] mb-3">PUBLIC</h3>
+                  <h3 className="text-2xl font-black text-[#4ade80] mb-3">PUBLIC</h3>
                   <p className="text-[#d1d5db] text-sm mb-4 leading-relaxed">
                     Fully established. Your tool is a trusted part of 1sub.
                   </p>
-                  <div className="bg-[#3ecf8e]/10 border border-[#3ecf8e]/30 rounded-lg p-4 mb-3">
-                    <div className="text-2xl font-black text-[#3ecf8e] mb-1">FULL</div>
+                  <div className="bg-[#4ade80]/10 border border-[#4ade80]/30 rounded-lg p-4 mb-3">
+                    <div className="text-2xl font-black text-[#4ade80] mb-1">FULL</div>
                     <p className="text-xs text-[#9ca3af]">Fully launched</p>
                   </div>
-                  <div className="inline-block bg-[#3ecf8e]/20 text-[#3ecf8e] px-3 py-1 rounded text-xs font-semibold">
+                  <div className="inline-block bg-[#4ade80]/20 text-[#4ade80] px-3 py-1 rounded text-xs font-semibold">
                     Fully launched
                   </div>
                 </div>

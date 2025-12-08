@@ -3,9 +3,9 @@
  * 
  * Automatically calculates tool development phases based on paying user counts and revenue.
  * Phase thresholds (both conditions must be met to exit):
- * - Alpha: < 100 users OR < 1k revenue (Red #ef4444)
- * - Beta: >= 100 users AND >= 1k revenue, but < 1000 users OR < 10k revenue (Orange #f59e0b)
- * - Public: >= 1000 users AND >= 10k revenue (Green #3ecf8e)
+ * - Alpha: < 100 users OR < 1k revenue (Dark Green #166534)
+ * - Beta: >= 100 users AND >= 1k revenue, but < 1000 users OR < 10k revenue (Medium Green #22c55e)
+ * - Public: >= 1000 users AND >= 10k revenue (Light Green #4ade80)
  */
 
 export type ToolPhase = 'alpha' | 'beta' | 'public';
@@ -48,24 +48,24 @@ export function getPhaseColors(phase: ToolPhase): PhaseColors {
     switch (phase) {
         case 'alpha':
             return {
-                border: '#ef4444', // Red
-                badge: '#ef4444',
+                border: '#166534', // Dark Green
+                badge: '#166534',
                 text: '#ffffff',
-                hover: '#dc2626', // Darker red for hover
+                hover: '#14532d', // Darker green for hover
             };
         case 'beta':
             return {
-                border: '#f59e0b', // Orange/Amber
-                badge: '#f59e0b',
-                text: '#ffffff',
-                hover: '#d97706', // Darker orange for hover
+                border: '#22c55e', // Medium Green
+                badge: '#22c55e',
+                text: '#000000',
+                hover: '#16a34a', // Slightly darker green for hover
             };
         case 'public':
             return {
-                border: '#3ecf8e', // Green
-                badge: '#3ecf8e',
+                border: '#4ade80', // Light Green
+                badge: '#4ade80',
                 text: '#000000',
-                hover: '#2dd4bf', // Darker green for hover
+                hover: '#3ecf8e', // Slightly darker green for hover
             };
     }
 }
@@ -96,21 +96,21 @@ export function getPhaseTailwindClasses(phase: ToolPhase) {
     switch (phase) {
         case 'alpha':
             return {
-                border: 'border-2 border-[#ef4444]',
-                badge: 'bg-[#ef4444] text-white',
-                hover: 'hover:border-[#dc2626] hover:shadow-lg hover:shadow-[#ef4444]/30 hover:-translate-y-1',
+                border: 'border-2 border-[#166534]',
+                badge: 'bg-[#166534] text-white',
+                hover: 'hover:border-[#14532d] hover:shadow-lg hover:shadow-[#166534]/30 hover:-translate-y-1',
             };
         case 'beta':
             return {
-                border: 'border-2 border-[#f59e0b]',
-                badge: 'bg-[#f59e0b] text-white',
-                hover: 'hover:border-[#d97706] hover:shadow-lg hover:shadow-[#f59e0b]/30 hover:-translate-y-1',
+                border: 'border-2 border-[#22c55e]',
+                badge: 'bg-[#22c55e] text-black',
+                hover: 'hover:border-[#16a34a] hover:shadow-lg hover:shadow-[#22c55e]/30 hover:-translate-y-1',
             };
         case 'public':
             return {
-                border: 'border-2 border-[#3ecf8e]',
-                badge: 'bg-[#3ecf8e] text-black',
-                hover: 'hover:border-[#2dd4bf] hover:shadow-lg hover:shadow-[#3ecf8e]/30 hover:-translate-y-1',
+                border: 'border-2 border-[#4ade80]',
+                badge: 'bg-[#4ade80] text-black',
+                hover: 'hover:border-[#3ecf8e] hover:shadow-lg hover:shadow-[#4ade80]/30 hover:-translate-y-1',
             };
     }
 }

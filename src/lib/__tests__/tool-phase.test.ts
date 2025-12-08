@@ -77,20 +77,20 @@ describe('Tool Phase Utilities', () => {
     describe('getPhaseTailwindClasses', () => {
         it('should return correct classes for alpha', () => {
             const classes = getPhaseTailwindClasses('alpha');
-            expect(classes.border).toContain('border-[#ef4444]');
-            expect(classes.badge).toContain('bg-[#ef4444]');
+            expect(classes.border).toContain('border-[#166534]');
+            expect(classes.badge).toContain('bg-[#166534]');
         });
 
         it('should return correct classes for beta', () => {
             const classes = getPhaseTailwindClasses('beta');
-            expect(classes.border).toContain('border-[#f59e0b]');
-            expect(classes.badge).toContain('bg-[#f59e0b]');
+            expect(classes.border).toContain('border-[#22c55e]');
+            expect(classes.badge).toContain('bg-[#22c55e]');
         });
 
         it('should return correct classes for public', () => {
             const classes = getPhaseTailwindClasses('public');
-            expect(classes.border).toContain('border-[#3ecf8e]');
-            expect(classes.badge).toContain('bg-[#3ecf8e]');
+            expect(classes.border).toContain('border-[#4ade80]');
+            expect(classes.badge).toContain('bg-[#4ade80]');
         });
     });
 });
