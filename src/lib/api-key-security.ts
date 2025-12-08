@@ -47,23 +47,52 @@ export async function storeApiKey(
     const keyHash = await hashApiKey(apiKey);
     const keyPrefix = apiKey.substring(0, 8);
 
-    // Get tool name
-    const { data: tool } = await supabase
+    // Get tool name and verify ownership
+    const { data: tool, error: toolError } = await supabase
       .from('tools')
-      .select('name')
+      .select('name, user_profile_id')
       .eq('id', toolId)
       .single();
 
-    if (!tool) {
-      return { success: false, error: 'Tool not found' };
+    if (toolError || !tool) {
+      console.error('Error fetching tool:', toolError);
+      return { success: false, error: `Tool not found: ${toolError?.message || 'Unknown error'}` };
+    }
+
+    // Verify user is vendor (defense-in-depth check)
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return { success: false, error: 'Authentication error' };
+    }
+
+    // Check vendor status
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('is_vendor')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile?.is_vendor) {
+      return { success: false, error: 'User is not a vendor. RLS policy requires vendor status.' };
+    }
+
+    // Verify tool ownership
+    if (tool.user_profile_id !== user.id) {
+      return { success: false, error: 'Tool ownership mismatch. RLS policy requires tool ownership.' };
     }
 
     // Check if API key already exists for this tool
-    const { data: existing } = await supabase
+    const { data: existing, error: checkError } = await supabase
       .from('api_keys')
       .select('id')
       .eq('tool_id', toolId)
-      .single();
+      .maybeSingle();
+
+    // Note: maybeSingle() returns null if no row found, doesn't throw error
+    if (checkError && checkError.code !== 'PGRST116') {
+      console.error('Error checking existing API key:', checkError);
+      return { success: false, error: `Database error: ${checkError.message}` };
+    }
 
     if (existing) {
       // Update existing key
@@ -80,23 +109,34 @@ export async function storeApiKey(
 
       if (error) {
         console.error('Error updating API key:', error);
-        return { success: false, error: `Failed to update API key: ${error.message}` };
+        console.error('Error details:', JSON.stringify(error, null, 2));
+        return { 
+          success: false, 
+          error: `Failed to update API key: ${error.message}. Code: ${error.code}. Hint: ${error.hint || 'Check RLS policies and vendor status.'}` 
+        };
       }
     } else {
       // Insert new key
+      // Note: tool_name is not stored in api_keys table (it's retrieved via JOIN with tools table)
       const { error } = await supabase
         .from('api_keys')
         .insert({
           tool_id: toolId,
           key_hash: keyHash,
           key_prefix: keyPrefix,
-          tool_name: tool.name,
           is_active: true,
         });
 
       if (error) {
         console.error('Error inserting API key:', error);
-        return { success: false, error: `Failed to store API key: ${error.message}` };
+        console.error('Error details:', JSON.stringify(error, null, 2));
+        console.error('Tool ID:', toolId);
+        console.error('User ID:', user.id);
+        console.error('Is Vendor:', profile?.is_vendor);
+        return { 
+          success: false, 
+          error: `Failed to store API key: ${error.message}. Code: ${error.code}. Hint: ${error.hint || 'Check RLS policies are applied and user has vendor status.'}` 
+        };
       }
     }
 

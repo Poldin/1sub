@@ -77,8 +77,12 @@ export async function POST(request: NextRequest) {
     if (!storeResult.success) {
       // Rollback: delete the tool if API key creation failed
       await supabase.from('tools').delete().eq('id', toolData.id);
+      console.error('API key storage failed:', storeResult.error);
       return NextResponse.json(
-        { error: 'Failed to generate API key' },
+        { 
+          error: 'Failed to generate API key',
+          details: storeResult.error || 'Unknown error occurred. Please check if RLS policies are properly configured.'
+        },
         { status: 500 }
       );
     }
