@@ -121,6 +121,10 @@ export default function VendorAPIPage() {
           `)
           .eq('tools.user_profile_id', user.id);
 
+        if (apiKeysError) {
+          console.error('Error fetching API keys:', apiKeysError);
+        }
+
         if (!apiKeysError && apiKeys) {
           const formattedKeys: ToolApiKey[] = apiKeys.map((key: {
             tool_id: string;
@@ -189,7 +193,9 @@ export default function VendorAPIPage() {
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Failed to regenerate API key');
+        const errorDetails = result.error || 'Failed to regenerate API key';
+        console.error('API key regeneration failed:', { status: response.status, error: errorDetails });
+        throw new Error(errorDetails);
       }
 
       const newApiKey = result.api_key;
@@ -254,7 +260,8 @@ export default function VendorAPIPage() {
       }
     } catch (error) {
       console.error('Error regenerating API key:', error);
-      alert('Failed to regenerate API key. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Failed to regenerate API key: ${errorMessage}\n\nPlease try again or contact support if the issue persists.`);
     } finally {
       setRegeneratingToolId(null);
     }

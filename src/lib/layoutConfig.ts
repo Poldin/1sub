@@ -62,3 +62,4 @@ export function shouldForceDesktopOpen(pathname: string): boolean {
   return isBackOfficePage(pathname) || isVendorDashboardPage(pathname) || isAdminPage(pathname);
 }
 
+

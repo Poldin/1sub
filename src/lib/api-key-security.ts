@@ -74,12 +74,13 @@ export async function storeApiKey(
           key_prefix: keyPrefix,
           created_at: new Date().toISOString(),
           last_used_at: null,
+          is_active: true, // Ensure key is active when regenerated
         })
         .eq('tool_id', toolId);
 
       if (error) {
         console.error('Error updating API key:', error);
-        return { success: false, error: 'Failed to update API key' };
+        return { success: false, error: `Failed to update API key: ${error.message}` };
       }
     } else {
       // Insert new key
@@ -95,7 +96,7 @@ export async function storeApiKey(
 
       if (error) {
         console.error('Error inserting API key:', error);
-        return { success: false, error: 'Failed to store API key' };
+        return { success: false, error: `Failed to store API key: ${error.message}` };
       }
     }
 
