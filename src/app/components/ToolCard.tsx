@@ -292,7 +292,7 @@ function ToolCardComponent(props: ToolCardProps) {
     borderClasses += ' ' + phaseClasses.border + ' ' + phaseClasses.hover;
   }
 
-  const cardClassName = `group bg-[#1a1a1a] ${borderClasses} rounded-lg p-4 pt-10 flex flex-col h-full transition-all duration-300 relative cursor-pointer`;
+  const cardClassName = `group bg-[#1a1a1a] ${borderClasses} rounded-lg p-4 flex flex-col h-full transition-all duration-300 relative cursor-pointer`;
 
   const handleCardClick = () => {
     if (onViewClick) {
@@ -302,13 +302,6 @@ function ToolCardComponent(props: ToolCardProps) {
 
   return (
     <div className={cardClassName} onClick={handleCardClick}>
-      {/* Phase Badge - Always shown */}
-      <div className="absolute top-2 left-1/2 transform -translate-x-1/2 z-10">
-        <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase shadow-lg ${phaseClasses.badge}`}>
-          {phaseLabel}
-        </span>
-      </div>
-
       <div className="flex items-start gap-3 mb-3">
         <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-[#2a2a2a] flex items-center justify-center overflow-hidden relative">
           {canShowLogoImage ? (
@@ -444,6 +437,10 @@ function ToolCardComponent(props: ToolCardProps) {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Phase Badge - Always shown */}
+          <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase shadow-lg ${phaseClasses.badge}`}>
+            {phaseLabel}
+          </span>
 
           {onLaunchClick && (
             <button
