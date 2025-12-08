@@ -64,3 +64,4 @@ After investigation, the actual issue was not that tools weren't rendering, but 
 - Consider lazy loading or pagination if tool count grows significantly
 - Add service worker for offline support
 
+

@@ -139,3 +139,4 @@ The custom pricing email integrates with:
 - Auto-populate from vendor profile
 - Email templates for custom pricing inquiries
 
+

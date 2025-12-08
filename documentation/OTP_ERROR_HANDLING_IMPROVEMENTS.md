@@ -246,3 +246,4 @@ FROM_EMAIL=your-verified-email@yourdomain.com
 4. **Email Queue**: Queue emails for async processing
 5. **Health Check Endpoint**: Validate email configuration on startup
 
+
