@@ -168,66 +168,8 @@ export default function VendorsPage() {
           </div>
 
           <p className="text-lg sm:text-xl text-[#d1d5db] mb-8 text-center leading-relaxed max-w-4xl mx-auto">
-            Our mission is to build a large community of subscribers and convert them into active users of your digital tool.
+            Our mission is to build a large subscriber community and convert them into active users.
           </p>
-          <p className="text-base text-[#9ca3af] mb-12 text-center leading-relaxed max-w-3xl mx-auto">
-            We handle user acquisition and management. You integrate with two simple API endpoints, and we&apos;ll bring thousands of potential subscribers directly to your product.
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
-            {/* Endpoint 1 */}
-            <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-8 hover:border-[#3ecf8e] transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-[#3ecf8e]/10 group">
-              <div className="flex items-start gap-4 mb-4">
-                <div className="bg-gradient-to-br from-[#3ecf8e] to-[#2dd4bf] text-black rounded-xl px-4 py-2 font-black text-lg shadow-lg shadow-[#3ecf8e]/20">1</div>
-                <div>
-                  <h3 className="text-xl font-bold text-[#3ecf8e] mb-2 group-hover:text-[#2dd4bf] transition-colors">Secure Verification</h3>
-                  <p className="text-sm text-[#9ca3af] font-mono mb-3 bg-[#111827] px-2 py-1 rounded inline-block">JWT & Redirect Flow</p>
-                </div>
-              </div>
-              <p className="text-[#d1d5db] text-base leading-relaxed">
-                We redirect users to your tool with a signed JWT token. Simply verify the signature to instantly confirm their subscription status and entitlements. No complex API calls needed for initial access.
-              </p>
-            </div>
-
-            {/* Endpoint 2 */}
-            <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-8 hover:border-[#3ecf8e] transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-[#3ecf8e]/10 group">
-              <div className="flex items-start gap-4 mb-4">
-                <div className="bg-gradient-to-br from-[#3ecf8e] to-[#2dd4bf] text-black rounded-xl px-4 py-2 font-black text-lg shadow-lg shadow-[#3ecf8e]/20">2</div>
-                <div>
-                  <h3 className="text-xl font-bold text-[#3ecf8e] mb-2 group-hover:text-[#2dd4bf] transition-colors">Real-time Events</h3>
-                  <p className="text-sm text-[#9ca3af] font-mono mb-3 bg-[#111827] px-2 py-1 rounded inline-block">Webhooks</p>
-                </div>
-              </div>
-              <p className="text-[#d1d5db] text-base leading-relaxed">
-                Stay in sync with subscription changes. We send real-time webhook events when users subscribe, cancel, or upgrade, so you can automatically provision or revoke access without polling.
-              </p>
-            </div>
-          </div>
-
-          {/* Business Model Flexibility */}
-          <div className="py-16 text-center">
-            <h3 className="text-3xl sm:text-4xl font-bold mb-6 text-white">Your business, your rules</h3>
-            <p className="text-lg text-[#d1d5db] leading-relaxed mb-10 max-w-3xl mx-auto">
-              We don&apos;t limit your creativity. We simply want to be the primary access channel for users to discover and use your tool. Choose any business model that works best for you.
-            </p>
-            <div className="flex flex-wrap justify-center gap-4">
-              <span className="px-6 py-3 bg-[#1f2937] border border-[#374151] rounded-full text-[#ededed] font-medium hover:border-[#3ecf8e] transition-colors cursor-default">
-                Pay-as-you-go
-              </span>
-              <span className="px-6 py-3 bg-[#1f2937] border border-[#374151] rounded-full text-[#ededed] font-medium hover:border-[#3ecf8e] transition-colors cursor-default">
-                Fixed monthly
-              </span>
-              <span className="px-6 py-3 bg-[#1f2937] border border-[#374151] rounded-full text-[#ededed] font-medium hover:border-[#3ecf8e] transition-colors cursor-default">
-                Tiered pricing
-              </span>
-              <span className="px-6 py-3 bg-[#1f2937] border border-[#374151] rounded-full text-[#ededed] font-medium hover:border-[#3ecf8e] transition-colors cursor-default">
-                Usage-based
-              </span>
-              <span className="px-6 py-3 bg-[#1f2937] border border-[#374151] rounded-full text-[#ededed] font-medium hover:border-[#3ecf8e] transition-colors cursor-default">
-                Hybrid model
-              </span>
-            </div>
-          </div>
 
           {/* Why Users Love 1sub */}
           <div className="py-12">
@@ -266,101 +208,14 @@ export default function VendorsPage() {
             </div>
           </div>
 
-          {/* Additional Benefits */}
-          <div className="py-12 border-t border-[#374151]/50">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
-              <div className="text-center">
-                <div className="text-[#3ecf8e] mb-3">
-                  <svg className="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                </div>
-                <h4 className="font-bold text-white mb-2">Real-time verification</h4>
-                <p className="text-sm text-[#9ca3af]">Instant user validation with every request</p>
-              </div>
-              <div className="text-center">
-                <div className="text-[#3ecf8e] mb-3">
-                  <svg className="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                </div>
-                <h4 className="font-bold text-white mb-2">Automated billing</h4>
-                <p className="text-sm text-[#9ca3af]">Zero manual work, we handle everything</p>
-              </div>
-              <div className="text-center">
-                <div className="text-[#3ecf8e] mb-3">
-                  <svg className="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-                </div>
-                <h4 className="font-bold text-white mb-2">Usage analytics</h4>
-                <p className="text-sm text-[#9ca3af]">Track your growth and user engagement</p>
-              </div>
-            </div>
-          </div>
-
           {/* Documentation CTA */}
           <div className="text-center">
             <Link
               href="/vendors/apply"
-              className="group inline-flex items-center gap-2 px-6 py-3 bg-[#1f2937] border border-[#374151] hover:border-[#3ecf8e] text-[#ededed] rounded-full font-semibold transition-all duration-300 hover:shadow-lg hover:shadow-[#3ecf8e]/10"
-            >
-              <span>start your integration now</span>
-              <svg className="w-4 h-4 text-[#3ecf8e] transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Early Adopter Bonus Section */}
-      <section className="section-padding bg-gradient-to-br from-[#3ecf8e] to-[#059669]">
-        <div className="max-w-5xl mx-auto text-center">
-          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-8 sm:p-12 border-4 border-white/60 shadow-2xl">
-            <div className="inline-block bg-black/20 text-white px-6 py-2 rounded-full text-sm font-bold mb-4">
-              🚀 EARLY ADOPTER SPECIAL
-            </div>
-            <h2 className="text-3xl sm:text-5xl font-black mb-6 text-white">
-              Join early, pay less forever
-            </h2>
-            <p className="text-lg sm:text-2xl text-white mb-8 leading-relaxed font-semibold">
-              We&apos;re small and growing. The earlier you join, the better your rate!
-            </p>
-
-            <div className="bg-white/95 rounded-xl p-6 sm:p-8 max-w-3xl mx-auto">
-              <div className="space-y-4 text-left">
-                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-[#fbbf24] to-[#f59e0b] rounded-lg">
-                  <span className="font-bold text-black text-lg">Tools 1-10</span>
-                  <span className="text-3xl font-black text-black">Start at 10%</span>
-                </div>
-                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-[#3ecf8e] to-[#059669] rounded-lg">
-                  <span className="font-bold text-white text-lg">Tools 11-15</span>
-                  <span className="text-3xl font-black text-white">Start at 15%</span>
-                </div>
-                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-[#10b981] to-[#047857] rounded-lg">
-                  <span className="font-bold text-white text-lg">Tools 16-20</span>
-                  <span className="text-3xl font-black text-white">Start at 20%</span>
-                </div>
-                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-[#6b7280] to-[#4b5563] rounded-lg">
-                  <span className="font-bold text-white text-lg">Tools 21-25</span>
-                  <span className="text-3xl font-black text-white">Start at 25%</span>
-                </div>
-                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-[#9ca3af] to-[#6b7280] rounded-lg">
-                  <span className="font-bold text-white text-lg">Tools 26-30</span>
-                  <span className="text-3xl font-black text-white">Start at 30%</span>
-                </div>
-                <div className="flex items-center justify-between p-4 bg-[#e5e7eb] rounded-lg border-2 border-[#9ca3af]">
-                  <span className="font-bold text-black text-lg">Tools 31+</span>
-                  <span className="text-3xl font-black text-black">Start at 35%</span>
-                </div>
-              </div>
-
-              <p className="text-sm text-[#6b7280] mt-6 font-semibold">
-                Your starting rate is locked in forever. As you grow, your fees only go down!
-              </p>
-            </div>
-
-            <Link
-              href="/vendors/apply"
-              className="group relative inline-flex items-center justify-center px-10 py-4 text-xl font-black text-black bg-white rounded-xl overflow-hidden transition-all duration-300 hover:scale-105 hover:shadow-2xl mt-8"
+              className="group relative inline-flex items-center justify-center px-8 py-4 text-lg font-bold text-white bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] rounded-full overflow-hidden transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-[#3ecf8e]/30"
             >
               <span className="relative z-10 flex items-center gap-2">
-                claim your spot now
+                start your integration now
                 <svg className="w-5 h-5 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                 </svg>
@@ -383,88 +238,81 @@ export default function VendorsPage() {
 
           {/* Fee Structure */}
           <div className="max-w-4xl mx-auto">
-            <div className="bg-gradient-to-br from-[#1f2937] to-[#111827] rounded-lg p-8 sm:p-12 border border-[#374151]">
-              <h3 className="text-2xl sm:text-3xl font-bold mb-4 text-[#3ecf8e]">
-                Transparent pricing
-              </h3>
-              <p className="text-base text-[#9ca3af] mb-8">
-                Our fees are calculated annually (cycle resets at the beginning of each year)
-              </p>
-
-              {/* First Month Free Banner */}
-              <div className="bg-[#3ecf8e] text-black px-6 py-3 rounded-lg mb-8 inline-block">
-                <span className="font-bold text-lg">First month is FREE</span>
-              </div>
-
-              {/* Fee Tiers Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                {/* 35% Tier */}
-                <div className="bg-[#1f2937] border border-[#374151] rounded-lg p-6 hover:border-[#3ecf8e] transition-colors">
-                  <div className="text-4xl font-black text-white mb-2">35%</div>
-                  <div className="flex items-center justify-center gap-2 text-[#9ca3af]">
-                    <span className="text-lg font-bold">€</span>
-                    <span className="text-sm">€0 - €1K</span>
-                  </div>
-                </div>
-
-                {/* 30% Tier */}
-                <div className="bg-[#1f2937] border border-[#374151] rounded-lg p-6 hover:border-[#3ecf8e] transition-colors">
-                  <div className="text-4xl font-black text-white mb-2">30%</div>
-                  <div className="flex items-center justify-center gap-2 text-[#9ca3af]">
-                    <span className="text-lg font-bold">€</span>
-                    <span className="text-sm">€1K - €5K</span>
-                  </div>
-                </div>
-
-                {/* 25% Tier */}
-                <div className="bg-[#1f2937] border border-[#374151] rounded-lg p-6 hover:border-[#3ecf8e] transition-colors">
-                  <div className="text-4xl font-black text-white mb-2">25%</div>
-                  <div className="flex items-center justify-center gap-2 text-[#9ca3af]">
-                    <span className="text-lg font-bold">€</span>
-                    <span className="text-sm">€5K - €10K</span>
-                  </div>
-                </div>
-
-                {/* 20% Tier */}
-                <div className="bg-[#1f2937] border border-[#374151] rounded-lg p-6 hover:border-[#3ecf8e] transition-colors">
-                  <div className="text-4xl font-black text-white mb-2">20%</div>
-                  <div className="flex items-center justify-center gap-2 text-[#9ca3af]">
-                    <span className="text-lg font-bold">€</span>
-                    <span className="text-sm">€10K - €20K</span>
-                  </div>
-                </div>
-
-                {/* 15% Tier */}
-                <div className="bg-[#1f2937] border border-[#374151] rounded-lg p-6 hover:border-[#3ecf8e] transition-colors">
-                  <div className="text-4xl font-black text-white mb-2">15%</div>
-                  <div className="flex items-center justify-center gap-2 text-[#9ca3af]">
-                    <span className="text-lg font-bold">€</span>
-                    <span className="text-sm">€20K - €50K</span>
-                  </div>
-                </div>
-
-                {/* 10% Tier */}
-                <div className="bg-[#1f2937] border border-[#374151] rounded-lg p-6 hover:border-[#3ecf8e] transition-colors">
-                  <div className="text-4xl font-black text-white mb-2">10%</div>
-                  <div className="flex items-center justify-center gap-2 text-[#9ca3af]">
-                    <span className="text-lg font-bold">€</span>
-                    <span className="text-sm">€50K - €100K</span>
-                  </div>
-                </div>
-
-                {/* 6% Tier */}
-                <div className="bg-[#1f2937] border-2 border-[#3ecf8e] rounded-lg p-6 hover:shadow-lg hover:shadow-[#3ecf8e]/20 transition-all sm:col-span-2 lg:col-span-3">
-                  <div className="text-5xl font-black text-[#3ecf8e] mb-2">6%</div>
-                  <div className="flex items-center justify-center gap-2 text-[#d1d5db]">
-                    <span className="text-xl font-bold text-[#3ecf8e]">€</span>
-                    <span className="text-base font-semibold">€100K+</span>
-                  </div>
+            <div className="bg-gradient-to-br from-[#1f2937] to-[#111827] rounded-2xl p-10 sm:p-16 border-2 border-[#374151] shadow-2xl">
+              <div className="text-center mb-8">
+                <h3 className="text-3xl sm:text-4xl font-bold mb-6 text-[#3ecf8e]">
+                  Transparent pricing
+                </h3>
+                
+                {/* First Month Free Banner */}
+                <div className="bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] text-black px-8 py-4 rounded-full mb-12 inline-block shadow-lg shadow-[#3ecf8e]/30">
+                  <span className="font-black text-xl">First month is FREE</span>
                 </div>
               </div>
 
-              <p className="text-sm text-[#9ca3af] mt-6">
-                Fees are based on annual revenue generated through 1sub
-              </p>
+              {/* 15% Fee Display */}
+              <div className="flex justify-center">
+                <div className="bg-gradient-to-br from-[#1f2937] to-[#0f172a] border-4 border-[#3ecf8e] rounded-2xl p-12 sm:p-16 hover:shadow-2xl hover:shadow-[#3ecf8e]/30 hover:scale-105 transition-all duration-300 relative overflow-hidden group">
+                  {/* Animated background glow */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-[#3ecf8e]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                  <div className="relative z-10">
+                    <div className="text-7xl sm:text-8xl font-black text-[#3ecf8e] mb-2 tracking-tight">15%</div>
+                    <div className="text-lg sm:text-xl text-[#9ca3af] font-semibold">Platform fee</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Business Model Flexibility */}
+          <div className="py-16 text-center">
+            <h3 className="text-3xl sm:text-4xl font-bold mb-6 text-white">Your business, your rules</h3>
+            <p className="text-lg text-[#d1d5db] leading-relaxed mb-10 max-w-3xl mx-auto">
+              We don&apos;t limit your creativity. We just aim to be the main channel for users to discover and use your tool. Choose any business model that suits you.
+            </p>
+            <div className="flex flex-wrap justify-center gap-4">
+              <span className="px-6 py-3 bg-[#1f2937] border border-[#374151] rounded-full text-[#ededed] font-medium hover:border-[#3ecf8e] transition-colors cursor-default">
+                Fixed monthly
+              </span>
+              <span className="px-6 py-3 bg-[#1f2937] border border-[#374151] rounded-full text-[#ededed] font-medium hover:border-[#3ecf8e] transition-colors cursor-default">
+                Tiered pricing
+              </span>
+              <span className="px-6 py-3 bg-[#1f2937] border border-[#374151] rounded-full text-[#ededed] font-medium hover:border-[#3ecf8e] transition-colors cursor-default">
+                Usage-based
+              </span>
+              <span className="px-6 py-3 bg-[#1f2937] border border-[#374151] rounded-full text-[#ededed] font-medium hover:border-[#3ecf8e] transition-colors cursor-default">
+                Hybrid model
+              </span>
+            </div>
+          </div>
+
+          {/* Additional Benefits */}
+          <div className="mt-12 pt-12 border-t border-[#374151]/50">
+            <h3 className="text-3xl sm:text-4xl font-bold mb-10 text-center text-white">
+              Everything you need to succeed
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 lg:gap-8">
+              <div className="group text-center bg-[#1f2937]/50 border border-[#374151] rounded-2xl p-8 hover:border-[#3ecf8e] hover:bg-[#1f2937] transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-[#3ecf8e]/10">
+                <div className="w-16 h-16 bg-[#3ecf8e]/10 rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:bg-[#3ecf8e]/20 transition-colors">
+                  <svg className="w-8 h-8 text-[#3ecf8e] group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </div>
+                <h4 className="font-bold text-white mb-3 text-xl group-hover:text-[#3ecf8e] transition-colors">Real-time verification</h4>
+                <p className="text-sm text-[#9ca3af] leading-relaxed">Instant user validation with every request</p>
+              </div>
+              <div className="group text-center bg-[#1f2937]/50 border border-[#374151] rounded-2xl p-8 hover:border-[#3ecf8e] hover:bg-[#1f2937] transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-[#3ecf8e]/10">
+                <div className="w-16 h-16 bg-[#3ecf8e]/10 rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:bg-[#3ecf8e]/20 transition-colors">
+                  <svg className="w-8 h-8 text-[#3ecf8e] group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </div>
+                <h4 className="font-bold text-white mb-3 text-xl group-hover:text-[#3ecf8e] transition-colors">Automated billing</h4>
+                <p className="text-sm text-[#9ca3af] leading-relaxed">Zero manual work, we handle everything</p>
+              </div>
+              <div className="group text-center bg-[#1f2937]/50 border border-[#374151] rounded-2xl p-8 hover:border-[#3ecf8e] hover:bg-[#1f2937] transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-[#3ecf8e]/10">
+                <div className="w-16 h-16 bg-[#3ecf8e]/10 rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:bg-[#3ecf8e]/20 transition-colors">
+                  <svg className="w-8 h-8 text-[#3ecf8e] group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                </div>
+                <h4 className="font-bold text-white mb-3 text-xl group-hover:text-[#3ecf8e] transition-colors">Usage analytics</h4>
+                <p className="text-sm text-[#9ca3af] leading-relaxed">Track your growth and user engagement</p>
+              </div>
             </div>
           </div>
         </div>
@@ -597,13 +445,6 @@ export default function VendorsPage() {
                 Don&apos;t attempt to migrate 1sub users to other subscription models. They&apos;re 1sub users, and must remain so until they choose to leave.
               </p>
             </div>
-          </div>
-
-          {/* Legal Disclaimer */}
-          <div className="bg-[#111827] border border-[#374151] rounded-lg p-4 text-center">
-            <p className="text-xs text-[#9ca3af] leading-relaxed">
-              Failure to comply with these guidelines will result in an immediate penalty of €10,000 plus any additional damages identified and proven.
-            </p>
           </div>
         </div>
       </section>
