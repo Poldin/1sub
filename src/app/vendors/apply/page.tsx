@@ -96,9 +96,9 @@ export default function VendorApplyPage() {
       if (response.ok) {
         setMessage({ type: 'success', text: 'Congratulations! You are now a vendor. Redirecting to your vendor dashboard...' });
         setFormData({ company: '', website: '', description: '' });
-        // Redirect to backoffice after a short delay
+        // Redirect to backoffice after a short delay with refresh parameter
         setTimeout(() => {
-          router.push('/backoffice');
+          router.push('/backoffice?vendor_applied=true');
         }, 2000);
       } else {
         setMessage({ type: 'error', text: result.error || 'Something went wrong. Please try again.' });
@@ -179,7 +179,7 @@ export default function VendorApplyPage() {
                   <div className="mt-3 pt-3 border-t border-green-500/30">
                     <p className="text-sm text-green-400">Your application has been approved! You can now access the vendor dashboard.</p>
                     <button
-                      onClick={() => router.push('/backoffice')}
+                      onClick={() => router.push('/backoffice?vendor_applied=true')}
                       className="mt-2 inline-block px-4 py-2 bg-[#3ecf8e] text-black rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors cursor-pointer"
                     >
                       Go to Vendor Dashboard

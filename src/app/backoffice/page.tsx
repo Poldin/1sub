@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { Menu, User, LogOut, ExternalLink, Briefcase, Check } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -44,11 +44,15 @@ function BackofficeContent() {
 
   // Load sidebar state from localStorage on mount - removed, now handled in useEffect above
 
-  // Fetch user data
-  useEffect(() => {
-    const fetchUserData = async () => {
+  // Fetch user data function (extracted for reuse)
+  const fetchUserData = useCallback(async () => {
       try {
-        const response = await fetch('/api/user/profile');
+        const response = await fetch('/api/user/profile', {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache',
+          },
+        });
 
         // Check if response is valid
         if (!response) {
@@ -196,10 +200,22 @@ function BackofficeContent() {
       } finally {
         setUserLoading(false);
       }
-    };
-
-    fetchUserData();
   }, [router]);
+
+  // Fetch user data on mount
+  useEffect(() => {
+    fetchUserData();
+  }, [fetchUserData]);
+
+  // Handle vendor_applied parameter to force refresh user data
+  useEffect(() => {
+    if (searchParams.get('vendor_applied') === 'true') {
+      // Refetch user data to get updated vendor status
+      fetchUserData();
+      // Clean up URL parameter
+      window.history.replaceState({}, '', '/backoffice');
+    }
+  }, [searchParams, fetchUserData]);
 
   // Handle URL params for purchase success and highlighted tools
   useEffect(() => {
