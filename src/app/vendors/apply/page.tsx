@@ -178,9 +178,12 @@ export default function VendorApplyPage() {
                 {existingApplication.status === 'approved' && (
                   <div className="mt-3 pt-3 border-t border-green-500/30">
                     <p className="text-sm text-green-400">Your application has been approved! You can now access the vendor dashboard.</p>
-                    <Link href="/vendor-dashboard" className="mt-2 inline-block px-4 py-2 bg-[#3ecf8e] text-black rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors">
+                    <button
+                      onClick={() => router.push('/vendor-dashboard')}
+                      className="mt-2 inline-block px-4 py-2 bg-[#3ecf8e] text-black rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors cursor-pointer"
+                    >
                       Go to Vendor Dashboard
-                    </Link>
+                    </button>
                   </div>
                 )}
                 {existingApplication.status === 'pending' && (
@@ -202,12 +205,9 @@ export default function VendorApplyPage() {
           {/* Disable form if approved */}
           {existingApplication && existingApplication.status === 'approved' ? (
             <div className="text-center p-8">
-              <p className="text-[#9ca3af] mb-4">
+              <p className="text-[#9ca3af]">
                 You are already a vendor!
               </p>
-              <Link href="/vendor-dashboard" className="inline-block px-4 py-2 bg-[#3ecf8e] text-black rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors">
-                Go to Vendor Dashboard
-              </Link>
             </div>
           ) : existingApplication && existingApplication.status === 'pending' ? (
             <div className="text-center p-8">
