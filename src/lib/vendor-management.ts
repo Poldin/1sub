@@ -59,7 +59,7 @@ export async function createVendorApplication(params: {
       };
     }
 
-    // Create new application
+    // Create new application with approved status (auto-approval)
     const { data, error } = await supabase
       .from('vendor_applications')
       .insert({
@@ -67,7 +67,7 @@ export async function createVendorApplication(params: {
         company: params.company,
         website: params.website || null,
         description: params.description,
-        status: 'pending',
+        status: 'approved',
       })
       .select()
       .single();
@@ -78,6 +78,21 @@ export async function createVendorApplication(params: {
         success: false,
         error: 'Failed to create application',
       };
+    }
+
+    // Immediately set user as vendor (auto-approval)
+    const { error: profileError } = await supabase
+      .from('user_profiles')
+      .update({
+        is_vendor: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', params.userId);
+
+    if (profileError) {
+      console.error('Error updating user profile to vendor:', profileError);
+      // Don't fail the whole operation, but log the error
+      // The application is created, but is_vendor flag update failed
     }
 
     return {

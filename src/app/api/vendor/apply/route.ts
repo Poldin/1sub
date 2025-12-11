@@ -54,21 +54,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('Vendor application created:', {
+    console.log('Vendor application created and approved:', {
       applicationId: result.application?.id,
       userId: authUser.id,
       company,
     });
 
-    // Application successfully created and stored in database
-    // 1. Store the application in a database table (vendor_applications)
-    // 2. Send a notification email to administrators
-    // 3. Send a confirmation email to the applicant
-    // 4. Create a review/approval workflow
-
     return NextResponse.json({
       success: true,
-      message: 'Application submitted successfully',
+      message: 'You are now a vendor! You can access the vendor dashboard immediately.',
     });
   } catch (error) {
     console.error('Vendor apply error:', error);

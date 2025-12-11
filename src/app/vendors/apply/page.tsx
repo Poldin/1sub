@@ -94,12 +94,12 @@ export default function VendorApplyPage() {
       const result = await response.json();
 
       if (response.ok) {
-        setMessage({ type: 'success', text: 'Application submitted successfully! We\'ll review your application and get back to you soon.' });
+        setMessage({ type: 'success', text: 'Congratulations! You are now a vendor. Redirecting to your vendor dashboard...' });
         setFormData({ company: '', website: '', description: '' });
-        // Redirect after a delay
+        // Redirect to vendor dashboard after a short delay
         setTimeout(() => {
-          router.push('/vendors');
-        }, 3000);
+          router.push('/vendor-dashboard');
+        }, 2000);
       } else {
         setMessage({ type: 'error', text: result.error || 'Something went wrong. Please try again.' });
       }
@@ -136,7 +136,8 @@ export default function VendorApplyPage() {
 
         {/* Apply Form */}
         <div className="bg-[#111111] rounded-2xl p-8 shadow-2xl border border-[#374151]">
-          <h2 className="text-2xl font-bold mb-6 text-center">apply to become a vendor</h2>
+          <h2 className="text-2xl font-bold mb-6 text-center">become a vendor</h2>
+          <p className="text-sm text-[#9ca3af] text-center mb-6">Start selling your tools immediately - no approval required!</p>
           
           {/* User Info Display */}
           {user && (
@@ -198,13 +199,20 @@ export default function VendorApplyPage() {
             </div>
           )}
 
-          {/* Disable form if pending or approved */}
-          {existingApplication && existingApplication.status !== 'rejected' ? (
+          {/* Disable form if approved */}
+          {existingApplication && existingApplication.status === 'approved' ? (
+            <div className="text-center p-8">
+              <p className="text-[#9ca3af] mb-4">
+                You are already a vendor!
+              </p>
+              <Link href="/vendor-dashboard" className="inline-block px-4 py-2 bg-[#3ecf8e] text-black rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors">
+                Go to Vendor Dashboard
+              </Link>
+            </div>
+          ) : existingApplication && existingApplication.status === 'pending' ? (
             <div className="text-center p-8">
               <p className="text-[#9ca3af]">
-                {existingApplication.status === 'approved' 
-                  ? 'You already have an approved application.' 
-                  : 'You already have a pending application.'}
+                You have a pending application from before the auto-approval system was implemented. Please contact support if you need assistance.
               </p>
             </div>
           ) : (
@@ -271,7 +279,7 @@ export default function VendorApplyPage() {
               disabled={isSubmitting}
               className="w-full bg-[#3ecf8e] text-white py-3 px-4 rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? 'submitting...' : 'submit application'}
+              {isSubmitting ? 'becoming a vendor...' : 'become a vendor'}
             </button>
           </form>
           )}
