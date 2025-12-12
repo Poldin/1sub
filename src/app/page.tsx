@@ -160,14 +160,13 @@ export default function Home() {
             {/* Navigation Links */}
             <div className="flex items-center gap-4">
               <span className="hidden md:flex items-center gap-2 text-sm text-[#9ca3af]">
-                <span className="w-2 h-2 bg-[#3ecf8e] rounded-full animate-pulse"></span>
                 {loading ? 'Loading...' : `${tools.length}+ tools available`}
               </span>
               <a
                 href="/login"
-                className="group relative inline-flex items-center justify-center px-6 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] rounded-full overflow-hidden transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-[#3ecf8e]/30"
+                className="group relative inline-flex items-center justify-center px-6 py-2.5 text-sm font-bold bg-transparent border-2 border-[#3ecf8e] rounded-full transition-all duration-300 hover:scale-105 shadow-lg shadow-[#3ecf8e]/20"
               >
-                <span className="relative z-10 flex items-center gap-2">
+                <span className="relative z-10 flex items-center gap-2 text-[#3ecf8e]">
                   get started
                   <svg className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
@@ -204,33 +203,18 @@ export default function Home() {
             access a vast collection of tools with 1 single subscription. 
           </p>
           
-          {/* Tools Counter Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-2 mb-8 bg-[#1f2937] border border-[#374151] rounded-full animate-scale-in delay-300 opacity-0">
-            <div className="w-2 h-2 bg-[#3ecf8e] rounded-full animate-pulse"></div>
-            <span className="text-sm text-[#d1d5db]">
-              {loading ? (
-                'Loading tools...'
-              ) : (
-                <>
-                  <span className="text-[#3ecf8e] font-semibold">{tools.length}+ tools</span> available now
-                </>
-              )}
-            </span>
-          </div>
-          
           <div className="animate-fade-in-up delay-400 opacity-0">
             <a
               href="/login"
               id="join"
-              className="group relative inline-flex items-center justify-center px-10 py-5 text-lg sm:text-xl font-bold bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] rounded-full overflow-hidden transition-all duration-300 hover:scale-105 animate-pulse-glow active:scale-95"
+              className="group relative inline-flex items-center justify-center px-10 py-5 text-lg sm:text-xl font-bold bg-transparent border-2 border-[#3ecf8e] rounded-full transition-all duration-300 hover:scale-105 animate-pulse-glow active:scale-95"
             >
-              <span className="relative z-10 flex items-center gap-3 text-white">
+              <span className="relative z-10 flex items-center gap-3 text-[#3ecf8e]">
                 join us today!
                 <svg className="w-6 h-6 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                 </svg>
               </span>
-              <div className="absolute inset-0 bg-gradient-to-r from-[#2dd4bf] to-[#3ecf8e] opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             </a>
           </div>
 
