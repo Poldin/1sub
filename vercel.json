@@ -1,0 +1,27 @@
+{
+  "rewrites": [
+    {
+      "source": "/docs",
+      "destination": "https://1sub-6e656888.mintlify.dev/docs"
+    },
+    {
+      "source": "/docs/:match*",
+      "destination": "https://1sub-6e656888.mintlify.dev/docs/:match*"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/vendor/payouts/schedule",
+      "schedule": "0 0 1 * *"
+    },
+    {
+      "path": "/api/vendor/payouts/process",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/process-subscriptions",
+      "schedule": "0 2 * * *"
+    }
+  ]
+}
+

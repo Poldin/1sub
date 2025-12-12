@@ -30,8 +30,16 @@ export default function Footer() {
               href="/terms"
               className="text-[#9ca3af] hover:text-[#3ecf8e] transition-colors"
             >
-              Terms and Conditions
+              T&C
             </Link>
+            <a
+              href="/docs"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[#9ca3af] hover:text-[#3ecf8e] transition-colors"
+            >
+              Docs
+            </a>
             <a
               href="https://discord.gg/R87YSYpKK"
               target="_blank"
