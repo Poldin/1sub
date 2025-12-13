@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback, lazy, Suspense, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Header from './components/Header';
 import Footer from './components/Footer';
 import ToolCard from './components/ToolCard';
 import ToolCardSkeleton from './components/ToolCardSkeleton';
@@ -146,37 +147,7 @@ export default function Home() {
         </a>
       </div>
 
-      {/* Header with Sticky CTA */}
-      <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm border-b border-[#374151] z-50 transition-all duration-300">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            {/* Logo */}
-            <div className="flex-shrink-0">
-              <h1 className="text-2xl font-bold text-[#3ecf8e]">
-                1sub<span className="text-[#9ca3af] font-normal">.io</span>
-              </h1>
-            </div>
-            
-            {/* Navigation Links */}
-            <div className="flex items-center gap-4">
-              <span className="hidden md:flex items-center gap-2 text-sm text-[#9ca3af]">
-                {loading ? 'Loading...' : `${tools.length}+ tools available`}
-              </span>
-              <a
-                href="/login"
-                className="group relative inline-flex items-center justify-center px-6 py-2.5 text-sm font-bold bg-transparent border-2 border-[#3ecf8e] rounded-full transition-all duration-300 hover:scale-105 shadow-lg shadow-[#3ecf8e]/20"
-              >
-                <span className="relative z-10 flex items-center gap-2 text-[#3ecf8e]">
-                  get started
-                  <svg className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
-                </span>
-              </a>
-            </div>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       {/* Hero Section */}
       <section className="relative section-padding text-center overflow-hidden">
@@ -219,23 +190,11 @@ export default function Home() {
           </div>
 
           {/* Trust Indicators Mini */}
-          <div className="mt-8 flex flex-wrap justify-center items-center gap-6 text-sm text-[#9ca3af] animate-fade-in-up delay-500 opacity-0">
+          <div className="mt-8 flex flex-wrap justify-center items-center gap-4 text-sm text-[#9ca3af] animate-fade-in-up delay-500 opacity-0">
             <div className="flex items-center gap-2">
-              <svg className="w-5 h-5 text-[#3ecf8e]" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
-              </svg>
-              <span>1,000+ active users</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <svg className="w-5 h-5 text-[#3ecf8e]" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
               <span>secure & trusted</span>
             </div>
             <div className="flex items-center gap-2">
-              <svg className="w-5 h-5 text-[#3ecf8e]" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-              </svg>
               <span>cancel anytime</span>
             </div>
           </div>
@@ -424,90 +383,104 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Community & Vendor Section */}
+      {/* Community Section */}
       <section className="section-padding bg-gradient-to-b from-[#111111] to-[#0a0a0a] px-4 sm:px-6">
         <div className="max-w-6xl mx-auto">
-          <div className="grid md:grid-cols-2 gap-8">
-            
-            {/* Community Card */}
-            <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-8 hover:border-[#3ecf8e] transition-all group">
-              <div className="flex items-center gap-3 mb-4">
-                <svg className="w-6 h-6 text-[#d1d5db]" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
-                </svg>
-                <h2 className="text-2xl font-bold">join our community</h2>
+          {/* Community - Simple Text + CTA */}
+          <div className="text-center mb-12">
+            <p className="text-lg text-[#d1d5db] mb-4">
+              Connect with users, share tips, and discover new tools together.
+            </p>
+            <a
+              href="https://discord.gg/R87YSYpKK"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-[#5865F2] text-white rounded-xl font-semibold hover:bg-[#4752C4] transition-all hover:scale-105"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0 a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+              </svg>
+              join Discord
+            </a>
+          </div>
+
+          {/* Vendor Box - Full Width */}
+          <div className="bg-[#1f2937] border-2 border-[#374151] rounded-3xl p-8 md:p-12 hover:border-[#3ecf8e] transition-all">
+            {/* Header */}
+            <div className="mb-8 flex items-start justify-between flex-wrap gap-4">
+              <div>
+                <h2 className="text-3xl md:text-4xl font-bold mb-4">
+                  want to publish your tool in 1sub?
+                </h2>
+                <p className="text-xl text-[#d1d5db]">
+                  Get discovered by a community of adopters.
+                </p>
               </div>
-              
-              <p className="text-[#d1d5db] mb-6 leading-relaxed">
-                Connect with users, share tips, and discover new tools together.
-              </p>
-              
-              <div className="flex flex-col gap-3">
-                <a
-                  href="/login"
-                  className="group/btn flex items-center justify-center gap-2 px-6 py-3 bg-[#374151] text-[#d1d5db] rounded-xl font-semibold hover:bg-[#4B5563] transition-colors"
-                >
-                  get started
-                  <svg className="w-5 h-5 transition-transform group-hover/btn:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
-                </a>
-                <a
-                  href="https://discord.gg/R87YSYpKK"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 px-6 py-3 bg-[#5865F2] text-white rounded-xl font-semibold hover:bg-[#4752C4] transition-colors"
-                >
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0 a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
-                  </svg>
-                  join Discord
-                </a>
+              <span className="bg-[#3ecf8e]/20 text-[#3ecf8e] px-4 py-2 rounded-lg text-sm font-bold border border-[#3ecf8e]/30 whitespace-nowrap">
+                1st month is free
+              </span>
+            </div>
+
+            {/* Platform Fee + Business Rules Section */}
+            <div className="bg-[#1a1a1a] rounded-2xl p-8 mb-8">
+              <div className="grid md:grid-cols-[auto_1fr] gap-8 items-center">
+                {/* 15% Badge - Left */}
+                <div className="flex justify-center md:justify-start">
+                  <div className="text-center">
+                    <div className="text-6xl font-bold text-[#3ecf8e] mb-2">15%</div>
+                    <div className="text-lg text-[#9ca3af]">Platform fee</div>
+                  </div>
+                </div>
+
+                {/* Business Rules - Right */}
+                <div>
+                  <h3 className="text-2xl font-bold mb-4">Your business, your rules</h3>
+                  <p className="text-[#d1d5db] mb-6 leading-relaxed">
+                    We don't limit your creativity. We just aim to be the main channel for users to discover and use your tool. Choose any business model that suits you.
+                  </p>
+                  
+                  {/* Pricing Models */}
+                  <div className="flex flex-wrap gap-3">
+                    <button className="px-6 py-3 bg-[#1f2937] border border-[#374151] text-[#d1d5db] rounded-full font-semibold hover:border-[#3ecf8e] hover:text-[#3ecf8e] transition-all">
+                      one time (OT)
+                    </button>
+                    <button className="px-6 py-3 bg-[#1f2937] border border-[#374151] text-[#d1d5db] rounded-full font-semibold hover:border-[#3ecf8e] hover:text-[#3ecf8e] transition-all">
+                      subscription (S)
+                    </button>
+                    <button className="px-6 py-3 bg-[#1f2937] border border-[#374151] text-[#d1d5db] rounded-full font-semibold hover:border-[#3ecf8e] hover:text-[#3ecf8e] transition-all">
+                      consumption based (CB)
+                    </button>
+                    <button className="px-6 py-3 bg-[#1f2937] border border-[#374151] text-[#d1d5db] rounded-full font-semibold hover:border-[#3ecf8e] hover:text-[#3ecf8e] transition-all">
+                      hybrid model
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Vendor Card */}
-            <div className="bg-[#1f2937] border border-[#374151] rounded-2xl p-8 hover:border-[#3ecf8e] transition-all group">
-              <div className="flex items-center gap-3 mb-4">
-                <svg className="w-6 h-6 text-[#d1d5db]" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M6 6V5a3 3 0 013-3h2a3 3 0 013 3v1h2a2 2 0 012 2v3.57A22.952 22.952 0 0110 13a22.95 22.95 0 01-8-1.43V8a2 2 0 012-2h2zm2-1a1 1 0 011-1h2a1 1 0 011 1v1H8V5zm1 5a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clipRule="evenodd" />
-                  <path d="M2 13.692V16a2 2 0 002 2h12a2 2 0 002-2v-2.308A24.974 24.974 0 0110 15c-2.796 0-5.487-.46-8-1.308z" />
+            {/* CTA Links */}
+            <div className="flex flex-col sm:flex-row gap-4 justify-end">
+              <a
+                href="/register"
+                className="group/btn text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] hover:opacity-80 transition-opacity"
+              >
+                submit your tool
+              </a>
+              <a
+                href="/vendors"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-base text-[#d1d5db] hover:text-[#3ecf8e] transition-colors"
+              >
+                learn more to become a vendor
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                 </svg>
-                <h2 className="text-2xl font-bold">for vendors</h2>
-                <span className="bg-[#3ecf8e]/20 text-[#3ecf8e] px-2 py-1 rounded text-xs font-bold border border-[#3ecf8e]/30">
-                  1st month is free
-                </span>
-              </div>
-              
-              <p className="text-[#d1d5db] mb-6 leading-relaxed">
-                Get discovered by thousands of subscribers.
-              </p>
-              
-              <div className="flex flex-col gap-3">
-                <a
-                  href="/register"
-                  className="group/btn flex items-center justify-center gap-2 px-6 py-3 bg-[#374151] text-[#d1d5db] rounded-xl font-semibold hover:bg-[#4B5563] transition-colors"
-                >
-                  submit your tool
-                  <svg className="w-5 h-5 transition-transform group-hover/btn:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
-                </a>
-                <a
-                  href="/vendors"
-                  className="flex items-center justify-center gap-2 px-6 py-3 text-[#d1d5db] underline hover:text-[#ededed] transition-colors"
-                >
-                  learn more
-                </a>
-              </div>
+              </a>
             </div>
-
           </div>
         </div>
       </section>
-
-      {/* Trust Indicators & Social Proof */}
-      <TrustIndicators />
 
       {/* Footer */}
       <Footer />
