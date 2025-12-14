@@ -120,6 +120,35 @@ export async function POST(request: NextRequest) {
 
     const { oneSubUserId, toolUserId, emailSha256 } = body;
 
+    // Additional rate limit for email-based lookups (more expensive)
+    if (emailSha256) {
+      const emailRateLimitResult = checkRateLimit(
+        `verify-subscription-email:${apiKey.substring(0, 20)}`,
+        {
+          limit: 30,
+          windowMs: 60000, // 1 minute
+        }
+      );
+
+      if (!emailRateLimitResult.success) {
+        return NextResponse.json<APIError>(
+          {
+            error: 'Rate limit exceeded',
+            message: 'Too many email-based lookups. Use oneSubUserId for better performance.',
+          },
+          {
+            status: 429,
+            headers: {
+              'X-RateLimit-Limit': '30',
+              'X-RateLimit-Remaining': emailRateLimitResult.remaining.toString(),
+              'X-RateLimit-Reset': new Date(emailRateLimitResult.resetAt).toISOString(),
+              'Retry-After': emailRateLimitResult.retryAfter?.toString() || '60'
+            }
+          }
+        );
+      }
+    }
+
     // Must provide at least one identifier
     if (!oneSubUserId && !toolUserId && !emailSha256) {
       return NextResponse.json<APIError>(
@@ -164,12 +193,20 @@ export async function POST(request: NextRequest) {
         resolvedUserId = linkData.onesub_user_id;
       }
     } else if (emailSha256) {
-      // Fallback: Email hash lookup
-      // Query auth.users to find user by email hash
-      const { data: users, error: usersError } = await supabase.auth.admin.listUsers();
-      
-      if (usersError) {
-        console.error('[Verify Subscription] Error listing users:', usersError);
+      // Fallback: Email hash lookup using indexed column
+      // This is much faster than the old O(n) scan approach
+
+      // Timing protection: Track start time to prevent timing attacks
+      const lookupStartTime = Date.now();
+
+      const { data: lookupResult, error: lookupError } = await supabase
+        .rpc('lookup_user_by_email_sha256', {
+          p_email_sha256: emailSha256.toLowerCase()
+        })
+        .maybeSingle();
+
+      if (lookupError) {
+        console.error('[Verify Subscription] Error looking up user by email:', lookupError);
         return NextResponse.json<APIError>(
           {
             error: 'Internal error',
@@ -179,16 +216,14 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Find user with matching email hash
-      const matchingUser = users.users.find(user => {
-        if (!user.email) return false;
-        const normalizedEmail = user.email.toLowerCase().trim();
-        const hash = crypto.createHash('sha256').update(normalizedEmail).digest('hex');
-        return hash === emailSha256.toLowerCase();
-      });
+      if (lookupResult) {
+        resolvedUserId = lookupResult.user_id;
+      }
 
-      if (matchingUser) {
-        resolvedUserId = matchingUser.id;
+      // Ensure minimum response time to prevent timing-based enumeration
+      const lookupDuration = Date.now() - lookupStartTime;
+      if (lookupDuration < 100) {
+        await new Promise(resolve => setTimeout(resolve, 100 - lookupDuration));
       }
     }
 
@@ -274,12 +309,40 @@ export async function POST(request: NextRequest) {
         .from('tool_user_links')
         .update({ last_verified_at: new Date().toISOString() })
         .eq('id', linkData.id);
+    } else if (emailSha256 && resolvedUserId) {
+      // Auto-create tool_user_link for email-based lookups for efficiency
+      // This allows future verifications to use toolUserId (faster)
+      try {
+        const { error: linkError } = await supabase
+          .from('tool_user_links')
+          .insert({
+            tool_id: toolData.toolId,
+            onesub_user_id: resolvedUserId,
+            tool_user_id: `email_${emailSha256.substring(0, 12)}`,
+            link_method: 'email_link',
+            metadata: {
+              auto_linked: true,
+              linked_via: 'email_sha256_lookup',
+              email_sha256: emailSha256,
+              created_at: new Date().toISOString()
+            }
+          });
+
+        if (linkError) {
+          console.error('[Verify Subscription] Failed to create auto-link:', linkError);
+          // Don't fail the request, just log the error
+        }
+      } catch (error) {
+        console.error('[Verify Subscription] Exception creating auto-link:', error);
+        // Don't fail the request
+      }
     }
 
     // =======================================================================
     // 10. Build and Return Response
     // =======================================================================
     const response: VerifySubscriptionResponse = {
+      oneSubUserId: resolvedUserId, // Return user ID for caching
       active: isActive,
       status: status as VerifySubscriptionResponse['status'],
       planId: subscription.period, // period is 'monthly' or 'yearly'

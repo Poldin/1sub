@@ -601,27 +601,35 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 10. Generate JWT tokens for tool access (both access and refresh)
-    let toolAccessToken: string | null = null;
-    let refreshToken: string | null = null;
-    let accessTokenExpiresAt: string | null = null;
-    let refreshTokenExpiresAt: string | null = null;
-    
-    try {
-      const { generateTokenPair } = await import('@/lib/token-refresh');
-      const tokens = generateTokenPair(
-        authUser.id,
-        metadata.tool_id as string,
-        checkout.id
-      );
-      
-      toolAccessToken = tokens.accessToken;
-      refreshToken = tokens.refreshToken;
-      accessTokenExpiresAt = tokens.accessTokenExpiresAt;
-      refreshTokenExpiresAt = tokens.refreshTokenExpiresAt;
-    } catch (error) {
-      console.error('Error generating tool access tokens:', error);
-      // Don't fail the checkout if token generation fails
+    // 10. Generate link code for subscriptions (replaces JWT tokens)
+    let linkCode: string | null = null;
+    let linkCodeExpiresAt: string | null = null;
+
+    if (checkoutType === 'tool_subscription') {
+      try {
+        const { data: linkCodeData, error: linkCodeError } = await supabase
+          .rpc('create_tool_link_code', {
+            p_tool_id: metadata.tool_id as string,
+            p_onesub_user_id: authUser.id,
+            p_ttl_minutes: 10
+          })
+          .single();
+
+        type CreateCodeResult = { code: string; expires_at: string };
+        const linkCodeResult = (linkCodeData as unknown as CreateCodeResult | null);
+
+        if (linkCodeError || !linkCodeResult) {
+          console.error('[Checkout] Failed to generate link code:', linkCodeError);
+          // Don't fail checkout, but log warning
+        } else {
+          linkCode = linkCodeResult.code;
+          linkCodeExpiresAt = linkCodeResult.expires_at;
+          console.log('[Checkout] Link code generated successfully for subscription');
+        }
+      } catch (error) {
+        console.error('[Checkout] Exception generating link code:', error);
+        // Don't fail the checkout if link code generation fails
+      }
     }
 
     // 11. Update checkout status to completed (IDEMPOTENT)
@@ -681,17 +689,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 12. Return success with both tokens
+    // 12. Return success with link code (for subscriptions)
     return NextResponse.json({
       success: true,
-      message: checkoutType === 'tool_subscription' 
-        ? 'Subscription activated successfully' 
+      message: checkoutType === 'tool_subscription'
+        ? 'Subscription activated successfully'
         : 'Purchase completed successfully',
       tool_url: metadata.tool_url,
-      tool_access_token: toolAccessToken, // Include access token in response
-      refresh_token: refreshToken, // Include refresh token for session renewal
-      access_token_expires_at: accessTokenExpiresAt,
-      refresh_token_expires_at: refreshTokenExpiresAt,
+      link_code: linkCode || undefined, // Include link code for subscriptions
+      link_code_expires_at: linkCodeExpiresAt || undefined,
       new_balance: userTransactionResultCompat.balanceAfter,
       is_subscription: checkoutType === 'tool_subscription',
       selected_pricing: selected_pricing || null,

@@ -280,20 +280,6 @@ export async function notifyUserCreditDepleted(
 }
 
 /**
- * Notify tool when user session expires
- */
-export async function notifyUserSessionExpired(
-  toolId: string,
-  oneSubUserId: string,
-  sessionExpiredAt: string
-): Promise<boolean> {
-  return sendToolWebhook(toolId, 'user.session_expired', {
-    oneSubUserId,
-    sessionExpiredAt,
-  });
-}
-
-/**
  * Notify tool when tool status changes
  */
 export async function notifyToolStatusChanged(

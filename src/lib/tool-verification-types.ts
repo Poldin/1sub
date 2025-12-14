@@ -11,7 +11,7 @@ export interface ToolUserLink {
   tool_id: string;
   onesub_user_id: string;
   tool_user_id: string;
-  link_method: 'jwt_redirect' | 'link_code';
+  link_method: 'jwt_redirect' | 'link_code' | 'email_link';
   linked_at: string;
   last_verified_at: string | null;
   metadata?: Record<string, unknown>;
@@ -75,6 +75,7 @@ export type SubscriptionStatus =
 export type PaymentStatus = 'paid' | 'failed' | 'pending';
 
 export interface VerifySubscriptionResponse {
+  oneSubUserId?: string;
   active: boolean;
   status: SubscriptionStatus;
   planId: string;
@@ -122,14 +123,13 @@ export interface ToolAccessJWTClaims {
 // Webhook Types
 // ===========================================================================
 
-export type WebhookEventType = 
-  | 'subscription.activated' 
-  | 'subscription.canceled' 
+export type WebhookEventType =
+  | 'subscription.activated'
+  | 'subscription.canceled'
   | 'subscription.updated'
   | 'purchase.completed'
   | 'user.credit_low'
   | 'user.credit_depleted'
-  | 'user.session_expired'
   | 'tool.status_changed';
 
 export interface WebhookPayload {
