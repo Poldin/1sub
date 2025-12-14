@@ -1,4 +1,9 @@
 import type { NextConfig } from "next";
+import nextra from 'nextra';
+
+const withNextra = nextra({
+  // Nextra 4 configuration - theme is configured via layout
+});
 
 const nextConfig: NextConfig = {
   // Fix for multiple lockfiles warning
@@ -100,4 +105,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withNextra(nextConfig);

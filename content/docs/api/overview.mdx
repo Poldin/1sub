@@ -1,0 +1,326 @@
+---
+title: "API Overview"
+description: "Introduction to the 1Sub API for vendor integrations"
+---
+
+# API Overview
+
+The 1Sub API enables your tool to verify user subscriptions, consume credits, and manage user accounts programmatically.
+
+## Base URL
+
+All API requests are made to:
+
+```
+https://1sub.io/api/v1
+```
+
+<Note>
+All endpoints require HTTPS. HTTP requests will be rejected.
+</Note>
+
+## Authentication
+
+API requests use Bearer token authentication with your tool's API key:
+
+```http
+Authorization: Bearer sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+<Tip>
+Get your API key from the vendor dashboard after publishing your tool.
+</Tip>
+
+## Request Format
+
+All API requests should:
+- Use HTTPS
+- Include the `Authorization` header
+- Set `Content-Type: application/json` for POST/PUT requests
+- Send JSON payloads for request bodies
+
+**Example request:**
+
+```bash
+curl -X POST 'https://1sub.io/api/v1/tools/subscriptions/verify' \
+  -H 'Authorization: Bearer sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx' \
+  -H 'Content-Type: application/json' \
+  -d '{"oneSubUserId": "uuid-abc-123"}'
+```
+
+## Response Format
+
+All API responses return JSON with appropriate HTTP status codes.
+
+### Success Response
+
+```json
+{
+  "active": true,
+  "status": "active",
+  "planId": "monthly"
+}
+```
+
+### Error Response
+
+```json
+{
+  "error": "Error type",
+  "message": "Human-readable error message",
+  "details": {}
+}
+```
+
+## Status Codes
+
+| Code | Meaning | Description |
+|------|---------|-------------|
+| 200 | Success | Request completed successfully |
+| 400 | Bad Request | Invalid request data or insufficient credits |
+| 401 | Unauthorized | Invalid or missing API key |
+| 403 | Forbidden | Valid auth but insufficient permissions |
+| 404 | Not Found | Resource does not exist |
+| 409 | Conflict | Request conflicts with existing resource |
+| 422 | Unprocessable Entity | Validation failed |
+| 429 | Too Many Requests | Rate limit exceeded |
+| 500 | Internal Server Error | Server error (rare) |
+
+<Warning>
+Always check the HTTP status code before parsing the response body.
+</Warning>
+
+## Rate Limits
+
+API endpoints have the following rate limits:
+
+| Endpoint | Limit | Window |
+|----------|-------|--------|
+| `/verify-user` | 60 requests | 1 minute |
+| `/refresh-token` | 30 requests | 1 minute |
+| `/tools/subscriptions/verify` | 100 requests | 1 minute |
+| `/tools/link/exchange-code` | 30 requests | 1 minute |
+| `/credits/consume` | 100 requests | 1 minute |
+
+### Rate Limit Headers
+
+All responses include rate limit information:
+
+```http
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 95
+X-RateLimit-Reset: 2025-12-01T12:35:00Z
+```
+
+### Handling Rate Limits
+
+When you exceed the rate limit, you'll receive a `429` response:
+
+```json
+{
+  "error": "Rate limit exceeded",
+  "message": "Too many requests. Please try again later.",
+  "retryAfter": 60
+}
+```
+
+**Recommended retry logic:**
+
+```typescript
+async function callAPIWithRetry(fn, maxRetries = 3) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (error.response?.status === 429) {
+        const retryAfter = error.response.headers['retry-after'] || 60;
+        await sleep(retryAfter * 1000);
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+```
+
+## Idempotency
+
+Certain endpoints support idempotency to prevent duplicate operations:
+
+- **Credit consumption** uses `idempotency_key` parameter
+- Idempotency keys are stored for 24 hours
+- Repeat requests with the same key return the original result
+
+**Example:**
+
+```typescript
+// First request
+await consumeCredits({
+  user_id: 'uuid-123',
+  amount: 10,
+  reason: 'Generated image',
+  idempotency_key: 'img-gen-123-abc',
+});
+// Credits consumed, returns transaction
+
+// Retry (network error, etc.)
+await consumeCredits({
+  user_id: 'uuid-123',
+  amount: 10,
+  reason: 'Generated image',
+  idempotency_key: 'img-gen-123-abc', // Same key
+});
+// Returns cached result, NO duplicate charge
+```
+
+<Check>
+Always use unique idempotency keys for distinct operations to prevent duplicate charges.
+</Check>
+
+## Pagination
+
+Endpoints that return lists use cursor-based pagination:
+
+```json
+{
+  "data": [ ... ],
+  "pagination": {
+    "hasMore": true,
+    "nextCursor": "abc123"
+  }
+}
+```
+
+**Request next page:**
+
+```bash
+curl 'https://1sub.io/api/v1/resource?cursor=abc123&limit=50'
+```
+
+<Note>
+Default page size is 20 items. Maximum is 100.
+</Note>
+
+## Versioning
+
+The API is versioned via the URL path (`/api/v1`).
+
+- Current version: **v1**
+- Breaking changes will result in a new version (`/api/v2`)
+- Deprecated endpoints will be supported for at least 6 months
+
+<Tip>
+Subscribe to our changelog to be notified of API changes and deprecations.
+</Tip>
+
+## Environments
+
+| Environment | Base URL | Purpose |
+|-------------|----------|---------|
+| Production | `https://1sub.io` | Live traffic |
+| Sandbox | Coming soon | Testing without real charges |
+
+<Info>
+Sandbox environment is coming soon. For now, use small credit amounts for testing.
+</Info>
+
+## API Endpoints
+
+<CardGroup cols={2}>
+<Card title="Subscription Verification" icon="check-circle" href="/api/reference#verify-subscription">
+  Check if a user has an active subscription
+</Card>
+
+<Card title="Credit Consumption" icon="coins" href="/api/reference#consume-credits">
+  Deduct credits from a user's balance
+</Card>
+
+<Card title="Link Code Exchange" icon="link" href="/api/reference#exchange-link-code">
+  Exchange a link code for a user mapping
+</Card>
+
+<Card title="JWKS Endpoint" icon="key" href="/api/reference#jwks">
+  Fetch public keys for JWT verification
+</Card>
+</CardGroup>
+
+## SDKs and Libraries
+
+<Tabs>
+<Tab title="JavaScript / TypeScript">
+**Recommended libraries:**
+- `jose` - JWT verification with JWKS support
+- `axios` or `fetch` - HTTP requests
+
+```bash
+npm install jose axios
+```
+</Tab>
+
+<Tab title="Python">
+**Recommended libraries:**
+- `python-jose` - JWT verification
+- `requests` - HTTP client
+
+```bash
+pip install python-jose requests
+```
+</Tab>
+
+<Tab title="Go">
+**Recommended libraries:**
+- `golang-jwt/jwt` - JWT verification
+- `net/http` - Standard library HTTP client
+
+```bash
+go get github.com/golang-jwt/jwt/v5
+```
+</Tab>
+</Tabs>
+
+<Note>
+Official SDKs are coming soon. For now, use standard HTTP libraries as shown in our examples.
+</Note>
+
+## Testing
+
+### Testing Checklist
+
+Before going live, test:
+
+- ✅ JWT verification with real tokens
+- ✅ Subscription verification (active, canceled, not found)
+- ✅ Credit consumption (success, insufficient credits)
+- ✅ Idempotency (retry with same key)
+- ✅ Error handling (401, 404, 429, 500)
+- ✅ Webhook signature verification
+- ✅ Rate limit handling
+
+### Test Tools
+
+Use these tools for testing:
+
+- **Postman/Insomnia** - API client for manual testing
+- **ngrok** - Expose local server for webhook testing
+- **RequestBin** - Capture and inspect webhooks
+
+## Support
+
+<CardGroup cols={2}>
+<Card title="View API Reference" icon="book" href="/api/reference">
+  Complete endpoint documentation with examples
+</Card>
+
+<Card title="Check Error Codes" icon="triangle-exclamation" href="/api/errors">
+  Understand error responses and how to handle them
+</Card>
+
+<Card title="Get Help" icon="headset">
+  Email support@1sub.io or join our [Discord](https://discord.gg/1sub)
+</Card>
+
+<Card title="Report Issues" icon="bug">
+  Found a bug? Email bugs@1sub.io with reproduction steps
+</Card>
+</CardGroup>
+

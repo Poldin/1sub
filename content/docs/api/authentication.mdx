@@ -1,0 +1,295 @@
+---
+title: "API Authentication"
+description: "How to authenticate API requests to 1Sub"
+---
+
+# API Authentication
+
+All API requests to 1Sub require authentication using your tool's API key.
+
+## API Key Format
+
+API keys follow this format:
+
+```
+sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+- Prefix: `sk-tool-` (identifies it as a tool API key)
+- Body: Random alphanumeric string
+
+<Warning>
+API keys are shown **only once** when you publish your tool. Save them securely immediately.
+</Warning>
+
+## Getting Your API Key
+
+<Steps>
+<Step title="Publish your tool">
+  Complete your tool listing in the 1Sub vendor dashboard and publish it.
+</Step>
+
+<Step title="Save your API key">
+  After publishing, you'll receive your API key. **Copy it immediately** — you won't see it again.
+  
+```
+Your API Key: sk-tool-abc123def456ghi789jkl012mno345pqr678stu901vwx234yz
+```
+</Step>
+
+<Step title="Store securely">
+  Add it to your environment variables:
+  
+```bash
+# .env
+ONESUB_API_KEY=sk-tool-abc123def456ghi789jkl012mno345pqr678stu901vwx234yz
+```
+</Step>
+</Steps>
+
+## Making Authenticated Requests
+
+Include your API key in the `Authorization` header using Bearer authentication:
+
+```http
+Authorization: Bearer sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+### Examples
+
+<CodeGroup>
+```bash cURL
+curl -X POST 'https://1sub.io/api/v1/tools/subscriptions/verify' \
+  -H 'Authorization: Bearer sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx' \
+  -H 'Content-Type: application/json' \
+  -d '{"oneSubUserId": "uuid-abc-123"}'
+```
+
+```javascript Node.js (fetch)
+const response = await fetch('https://1sub.io/api/v1/tools/subscriptions/verify', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${process.env.ONESUB_API_KEY}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    oneSubUserId: 'uuid-abc-123'
+  })
+});
+```
+
+```javascript Node.js (axios)
+import axios from 'axios';
+
+const response = await axios.post(
+  'https://1sub.io/api/v1/tools/subscriptions/verify',
+  { oneSubUserId: 'uuid-abc-123' },
+  {
+    headers: {
+      'Authorization': `Bearer ${process.env.ONESUB_API_KEY}`,
+      'Content-Type': 'application/json'
+    }
+  }
+);
+```
+
+```python Python
+import os
+import requests
+
+response = requests.post(
+    'https://1sub.io/api/v1/tools/subscriptions/verify',
+    json={'oneSubUserId': 'uuid-abc-123'},
+    headers={
+        'Authorization': f'Bearer {os.environ["ONESUB_API_KEY"]}',
+        'Content-Type': 'application/json'
+    }
+)
+```
+</CodeGroup>
+
+## Authentication Errors
+
+### 401 Unauthorized
+
+Returned when authentication fails:
+
+```json
+{
+  "error": "Unauthorized",
+  "message": "Invalid API key"
+}
+```
+
+**Common causes:**
+- Missing `Authorization` header
+- Invalid API key format
+- Expired or revoked API key
+- API key doesn't match the requesting tool
+
+**How to fix:**
+1. Verify API key is correct
+2. Check you're using `Bearer` prefix
+3. Ensure no extra spaces or characters
+4. Regenerate key if compromised
+
+### 403 Forbidden
+
+Returned when auth succeeds but you don't have permission:
+
+```json
+{
+  "error": "Forbidden",
+  "message": "Tool is inactive"
+}
+```
+
+**Common causes:**
+- Tool is suspended or deactivated
+- API key doesn't have required permissions
+- Trying to access another tool's resources
+
+## Security Best Practices
+
+<AccordionGroup>
+<Accordion title="Store API keys securely">
+**Never:**
+- ❌ Hardcode in source code
+- ❌ Commit to version control
+- ❌ Expose in client-side code
+- ❌ Include in logs or error messages
+- ❌ Share via insecure channels (email, Slack, etc.)
+
+**Always:**
+- ✅ Store in environment variables
+- ✅ Use secrets management (AWS Secrets Manager, etc.)
+- ✅ Restrict access to production keys
+- ✅ Use different keys for dev/staging/production
+- ✅ Rotate keys if compromised
+</Accordion>
+
+<Accordion title="Use HTTPS only">
+All API requests **must** use HTTPS. HTTP requests will be rejected.
+
+```bash
+# ✅ Good
+https://1sub.io/api/v1/...
+
+# ❌ Bad - will fail
+http://1sub.io/api/v1/...
+```
+</Accordion>
+
+<Accordion title="Rotate keys on compromise">
+If an API key is exposed:
+
+1. **Immediately** regenerate it in the vendor dashboard
+2. Update all services using the old key
+3. Monitor for unauthorized usage
+4. Investigate how the key was exposed
+
+<Tip>
+Set up alerts for unusual API usage patterns to detect compromised keys early.
+</Tip>
+</Accordion>
+
+<Accordion title="Server-side only">
+API keys should **never** be used in client-side code (web, mobile):
+
+```javascript
+// ❌ Bad - exposed to users
+const apiKey = 'sk-tool-abc123...'; // In frontend code!
+fetch('/api/verify', {
+  headers: { Authorization: `Bearer ${apiKey}` }
+});
+```
+
+```javascript
+// ✅ Good - server-side only
+// Server endpoint that uses API key
+app.post('/api/verify-subscription', async (req, res) => {
+  // API key is in server environment
+  const result = await verifySubscription(
+    req.body.userId,
+    process.env.ONESUB_API_KEY
+  );
+  res.json(result);
+});
+```
+</Accordion>
+</AccordionGroup>
+
+## Key Management
+
+### Regenerating API Keys
+
+If you need to regenerate your API key:
+
+<Steps>
+<Step title="Generate new key">
+  Go to vendor dashboard → Your Tool → Settings → Regenerate API Key
+</Step>
+
+<Step title="Update your services">
+  Both old and new keys will work for 24 hours during the transition period.
+  
+  Update all services to use the new key:
+  
+```bash
+# Update environment variable
+ONESUB_API_KEY=sk-tool-NEW_KEY_HERE
+```
+</Step>
+
+<Step title="Old key expires">
+  After 24 hours, the old key will stop working.
+</Step>
+</Steps>
+
+<Warning>
+Plan your key rotation during low-traffic periods to minimize disruption.
+</Warning>
+
+### Multiple Environments
+
+Use separate API keys for different environments:
+
+```bash
+# .env.development
+ONESUB_API_KEY=sk-tool-dev-abc123...
+
+# .env.staging
+ONESUB_API_KEY=sk-tool-staging-def456...
+
+# .env.production
+ONESUB_API_KEY=sk-tool-prod-ghi789...
+```
+
+<Tip>
+Request separate API keys for each environment from 1Sub support if needed.
+</Tip>
+
+## Testing Authentication
+
+Verify your authentication setup works:
+
+```bash
+# Test authentication
+curl -X POST 'https://1sub.io/api/v1/tools/subscriptions/verify' \
+  -H 'Authorization: Bearer YOUR_API_KEY' \
+  -H 'Content-Type: application/json' \
+  -d '{"oneSubUserId": "test-user-id"}'
+
+# Expected response (404 is OK - just testing auth):
+# {"error": "Not found", "message": "No subscription found"}
+
+# If auth fails, you'll get:
+# {"error": "Unauthorized", "message": "Invalid API key"}
+```
+
+
+
+
+
+
+

@@ -1,0 +1,441 @@
+---
+title: "Node.js Example"
+description: "Complete Node.js / Express integration example"
+---
+
+# Node.js / Express Example
+
+Complete working example of a 1Sub integration using Node.js and Express.
+
+## Installation
+
+```bash
+npm install express jose axios crypto
+```
+
+## Environment Variables
+
+```bash
+# .env
+ONESUB_API_KEY=sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx
+ONESUB_WEBHOOK_SECRET=whsec-xxxxxxxxxxxxxxxxxxxxxxxx
+TOOL_ID=your-tool-uuid
+PORT=3000
+```
+
+## Complete Implementation
+
+```typescript
+import express from 'express';
+import axios from 'axios';
+import { jwtVerify, createRemoteJWKSet } from 'jose';
+import crypto from 'crypto';
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Configuration
+const ONESUB_API_KEY = process.env.ONESUB_API_KEY;
+const ONESUB_WEBHOOK_SECRET = process.env.ONESUB_WEBHOOK_SECRET;
+const TOOL_ID = process.env.TOOL_ID;
+
+// JWKS for JWT verification
+const JWKS = createRemoteJWKSet(
+  new URL('https://1sub.io/.well-known/1sub-jwks.json')
+);
+
+// Subscription cache
+const subscriptionCache = new Map();
+
+// Processed webhook events (for deduplication)
+const processedEvents = new Set();
+
+// Middleware
+app.use(express.json());
+
+// ============================================================================
+// 1. User Authentication (JWT Redirect)
+// ============================================================================
+
+app.get('/auth/1sub/callback', async (req, res) => {
+  const { token } = req.query;
+  
+  if (!token) {
+    return res.status(400).send('Missing token');
+  }
+  
+  try {
+    // Verify JWT
+    const { payload } = await jwtVerify(token as string, JWKS, {
+      issuer: '1sub',
+      audience: TOOL_ID,
+      maxTokenAge: '10m',
+    });
+    
+    const oneSubUserId = payload.sub as string;
+    const email = payload.email as string;
+    
+    // Store user link in your database
+    await storeUserLink(req.user.id, oneSubUserId);
+    
+    // Create session
+    req.session.userId = req.user.id;
+    
+    res.redirect('/dashboard');
+  } catch (error) {
+    console.error('JWT verification failed:', error);
+    res.status(401).send('Authentication failed');
+  }
+});
+
+// Alternative: Using API verification endpoint
+app.get('/auth/1sub/callback-api', async (req, res) => {
+  const { token } = req.query;
+  
+  if (!token) {
+    return res.status(400).send('Missing token');
+  }
+  
+  try {
+    // Verify using 1Sub API
+    const response = await axios.post(
+      'https://1sub.io/api/v1/verify-user',
+      { token },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+    
+    const { user_id, tool_id, checkout_id, expires_at } = response.data;
+    
+    // Store user link in your database
+    await storeUserLink(req.user.id, user_id);
+    
+    // Create session
+    req.session.userId = req.user.id;
+    req.session.oneSubUserId = user_id;
+    
+    res.redirect('/dashboard');
+  } catch (error) {
+    console.error('Token verification failed:', error);
+    res.status(401).send('Authentication failed');
+  }
+});
+
+// ============================================================================
+// 2. Token Refresh (for long-lived sessions)
+// ============================================================================
+
+// Middleware to refresh expired tokens
+async function refreshTokenMiddleware(req, res, next) {
+  const accessToken = req.session.accessToken;
+  const refreshToken = req.session.refreshToken;
+  const expiresAt = req.session.tokenExpiresAt;
+  
+  // Check if access token will expire soon (within 5 minutes)
+  if (expiresAt && Date.now() > expiresAt - 5 * 60 * 1000) {
+    try {
+      const response = await axios.post(
+        'https://1sub.io/api/v1/refresh-token',
+        { refresh_token: refreshToken },
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+      
+      // Update session with new tokens
+      req.session.accessToken = response.data.access_token;
+      req.session.tokenExpiresAt = new Date(response.data.expires_at).getTime();
+      
+      console.log('Access token refreshed successfully');
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      // Redirect to re-authenticate
+      return res.redirect('/auth/1sub/login');
+    }
+  }
+  
+  next();
+}
+
+// ============================================================================
+// 3. Subscription Verification
+// ============================================================================
+
+async function verifySubscription(oneSubUserId: string) {
+  // Check cache first
+  if (subscriptionCache.has(oneSubUserId)) {
+    const cached = subscriptionCache.get(oneSubUserId);
+    if (Date.now() - cached.timestamp < 60000) { // 1 minute TTL
+      return cached.data;
+    }
+  }
+  
+  try {
+    const response = await axios.post(
+      'https://1sub.io/api/v1/tools/subscriptions/verify',
+      { oneSubUserId },
+      {
+        headers: {
+          'Authorization': `Bearer ${ONESUB_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+    
+    // Cache the result
+    subscriptionCache.set(oneSubUserId, {
+      data: response.data,
+      timestamp: Date.now(),
+    });
+    
+    return response.data;
+  } catch (error) {
+    if (error.response?.status === 404) {
+      return { active: false, status: 'not_found' };
+    }
+    throw error;
+  }
+}
+
+// Protected endpoint example
+app.post('/api/premium-feature', async (req, res) => {
+  const userId = req.session.userId;
+  
+  if (!userId) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  // Get 1Sub user ID
+  const oneSubUserId = await getOneSubUserId(userId);
+  
+  if (!oneSubUserId) {
+    return res.status(403).json({ error: 'Not linked to 1Sub account' });
+  }
+  
+  try {
+    // Verify subscription
+    const subscription = await verifySubscription(oneSubUserId);
+    
+    if (!subscription.active) {
+      return res.status(403).json({
+        error: 'Subscription required',
+        status: subscription.status,
+      });
+    }
+    
+    // Perform premium feature
+    const result = await yourPremiumFeature();
+    
+    res.json({
+      success: true,
+      result,
+      subscription: {
+        planId: subscription.planId,
+        expiresAt: subscription.currentPeriodEnd,
+      },
+    });
+  } catch (error) {
+    console.error('Subscription verification failed:', error);
+    res.status(500).json({ error: 'Verification failed' });
+  }
+});
+
+// ============================================================================
+// 3. Webhook Handler
+// ============================================================================
+
+function verifyWebhookSignature(
+  payload: string,
+  signature: string,
+  secret: string
+): boolean {
+  const parts = signature.split(',');
+  const timestamp = parts.find(p => p.startsWith('t='))?.split('=')[1];
+  const sig = parts.find(p => p.startsWith('v1='))?.split('=')[1];
+  
+  if (!timestamp || !sig) return false;
+  
+  // Check timestamp (within 5 minutes)
+  const now = Math.floor(Date.now() / 1000);
+  if (Math.abs(now - parseInt(timestamp)) > 300) return false;
+  
+  // Compute signature
+  const signedPayload = `${timestamp}.${payload}`;
+  const expected = crypto
+    .createHmac('sha256', secret)
+    .update(signedPayload)
+    .digest('hex');
+  
+  // Timing-safe comparison
+  return crypto.timingSafeEqual(
+    Buffer.from(expected),
+    Buffer.from(sig)
+  );
+}
+
+app.post(
+  '/webhooks/1sub',
+  express.raw({ type: 'application/json' }), // MUST use raw body
+  (req, res) => {
+    const signature = req.headers['1sub-signature'] as string;
+    const payload = req.body.toString();
+    
+    // Verify signature
+    if (!verifyWebhookSignature(payload, signature, ONESUB_WEBHOOK_SECRET)) {
+      console.error('Invalid webhook signature');
+      return res.status(401).send('Invalid signature');
+    }
+    
+    // Parse event
+    const event = JSON.parse(payload);
+    
+    // Deduplicate
+    if (processedEvents.has(event.id)) {
+      console.log(`Event ${event.id} already processed`);
+      return res.json({ received: true });
+    }
+    processedEvents.add(event.id);
+    
+    // Acknowledge receipt immediately
+    res.json({ received: true });
+    
+    // Process asynchronously
+    processWebhookAsync(event).catch(console.error);
+  }
+);
+
+async function processWebhookAsync(event: any) {
+  const { oneSubUserId } = event.data;
+  
+  switch (event.type) {
+    case 'subscription.activated':
+      console.log('Subscription activated:', oneSubUserId);
+      // Invalidate cache
+      subscriptionCache.delete(oneSubUserId);
+      // Grant access and send welcome email
+      await sendWelcomeEmail(oneSubUserId);
+      break;
+      
+    case 'subscription.canceled':
+      console.log('Subscription canceled:', oneSubUserId);
+      // Invalidate cache
+      subscriptionCache.delete(oneSubUserId);
+      // Revoke access and send cancellation email
+      await revokeAccess(oneSubUserId);
+      await sendCancellationEmail(oneSubUserId);
+      break;
+      
+    case 'subscription.updated':
+      console.log('Subscription updated:', oneSubUserId);
+      // Invalidate cache
+      subscriptionCache.delete(oneSubUserId);
+      // Update plan if changed
+      if (event.data.previousPlanId !== event.data.planId) {
+        await updateUserPlan(oneSubUserId, event.data.planId);
+      }
+      break;
+      
+    case 'purchase.completed':
+      console.log('Purchase completed:', oneSubUserId);
+      const { checkoutId, amount, purchaseType } = event.data;
+      // Log purchase and grant access if one-time purchase
+      await logPurchase(oneSubUserId, checkoutId, amount);
+      if (purchaseType === 'tool_access') {
+        await grantToolAccess(oneSubUserId);
+      }
+      break;
+      
+    case 'user.credit_low':
+      console.log('User credits low:', oneSubUserId);
+      const { creditBalance, threshold } = event.data;
+      // Send low credit warning
+      await sendLowCreditWarning(oneSubUserId, creditBalance);
+      break;
+      
+    case 'user.credit_depleted':
+      console.log('User credits depleted:', oneSubUserId);
+      // Suspend credit features and send urgent notification
+      await suspendCreditFeatures(oneSubUserId);
+      await sendCreditDepletedEmail(oneSubUserId);
+      break;
+      
+    case 'user.session_expired':
+      console.log('User session expired:', oneSubUserId);
+      // Optional: clean up session data
+      await cleanupUserSession(oneSubUserId);
+      break;
+      
+    case 'tool.status_changed':
+      console.log('Tool status changed');
+      const { toolId, toolStatus } = event.data;
+      if (!toolStatus) {
+        // Tool suspended - enter maintenance mode
+        await enableMaintenanceMode();
+        await notifyAllUsers('Service temporarily unavailable');
+      } else {
+        // Tool reactivated
+        await disableMaintenanceMode();
+      }
+      break;
+      
+    default:
+      console.log('Unknown event type:', event.type);
+  }
+}
+
+// ============================================================================
+// Helper Functions (implement these based on your database)
+// ============================================================================
+
+async function storeUserLink(localUserId: string, oneSubUserId: string) {
+  // Store in your database
+  // Example: await db.userLinks.upsert({ localUserId, oneSubUserId });
+}
+
+async function getOneSubUserId(localUserId: string): Promise<string | null> {
+  // Retrieve from your database
+  // Example: const link = await db.userLinks.findOne({ localUserId });
+  // return link?.oneSubUserId || null;
+  return null; // Placeholder
+}
+
+async function yourPremiumFeature() {
+  // Your tool's premium feature logic
+  return { data: 'premium content' };
+}
+
+async function sendWelcomeEmail(oneSubUserId: string) {
+  // Send welcome email
+}
+
+async function revokeAccess(oneSubUserId: string) {
+  // Revoke user's access to premium features
+}
+
+async function sendCancellationEmail(oneSubUserId: string) {
+  // Send cancellation email
+}
+
+async function updateUserPlan(oneSubUserId: string, planId: string) {
+  // Update user's plan in your database
+}
+
+// ============================================================================
+// Start Server
+// ============================================================================
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+```
+
+## Key Points
+
+1. **JWT Verification** - Always verify JWT signatures using JWKS
+2. **Caching** - Cache subscription status to reduce API calls
+3. **Webhooks** - Process asynchronously, acknowledge quickly
+4. **Security** - Verify signatures, use timing-safe comparison
+5. **Error Handling** - Handle all error cases gracefully
+
+See also:
+- [Python Example](/examples/python)
+- [cURL Examples](/examples/curl)
+- [API Reference](/api/reference)
+

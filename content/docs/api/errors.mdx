@@ -1,0 +1,547 @@
+---
+title: "Error Handling"
+description: "Understanding and handling errors in the 1Sub API"
+---
+
+# Error Handling
+
+Learn how to handle errors gracefully and build resilient integrations with the 1Sub API.
+
+## Error Response Format
+
+All API errors return a JSON response with the following structure:
+
+```json
+{
+  "error": "Error type",
+  "message": "Human-readable error message",
+  "details": {}
+}
+```
+
+<ResponseField name="error" type="string" required>
+Machine-readable error type for programmatic handling
+</ResponseField>
+
+<ResponseField name="message" type="string" required>
+Human-readable error description suitable for logging
+</ResponseField>
+
+<ResponseField name="details" type="object">
+Additional context about the error (optional, varies by error type)
+</ResponseField>
+
+## HTTP Status Codes
+
+<AccordionGroup>
+<Accordion title="400 Bad Request">
+The request was malformed or contains invalid parameters.
+
+**Common causes:**
+- Missing required fields
+- Invalid field format (e.g., non-UUID where UUID expected)
+- Insufficient credits for credit consumption
+- Invalid amount (negative or too large)
+
+**Example:**
+```json
+{
+  "error": "Insufficient credits",
+  "message": "User does not have sufficient credits",
+  "details": {
+    "current_balance": 5,
+    "required": 10,
+    "shortfall": 5
+  }
+}
+```
+
+**How to handle:**
+```typescript
+if (error.response?.status === 400) {
+  if (error.response.data.error === 'Insufficient credits') {
+    // Show user they need to buy more credits
+    showCreditPurchasePrompt(error.response.data.details);
+  } else {
+    // Fix request parameters
+    console.error('Invalid request:', error.response.data.message);
+  }
+}
+```
+</Accordion>
+
+<Accordion title="401 Unauthorized">
+Authentication failed or API key is invalid/missing.
+
+**Common causes:**
+- Missing `Authorization` header
+- Invalid API key format
+- Expired or revoked API key
+- API key doesn't match the tool
+
+**Example:**
+```json
+{
+  "error": "Unauthorized",
+  "message": "Invalid API key"
+}
+```
+
+**How to handle:**
+```typescript
+if (error.response?.status === 401) {
+  // Check API key is correctly configured
+  console.error('Authentication failed - verify API key');
+  // May need to regenerate API key from dashboard
+}
+```
+</Accordion>
+
+<Accordion title="403 Forbidden">
+Authentication succeeded but you don't have permission to perform this action.
+
+**Common causes:**
+- Tool is inactive or suspended
+- API key doesn't have required permissions
+- Trying to access another tool's resources
+
+**Example:**
+```json
+{
+  "error": "Forbidden",
+  "message": "Tool is inactive"
+}
+```
+
+**How to handle:**
+```typescript
+if (error.response?.status === 403) {
+  console.error('Permission denied:', error.response.data.message);
+  // Contact support if tool should be active
+}
+```
+</Accordion>
+
+<Accordion title="404 Not Found">
+The requested resource doesn't exist.
+
+**Common causes:**
+- User has no subscription to this tool
+- Invalid user ID
+- Resource was deleted
+
+**Example:**
+```json
+{
+  "error": "Not found",
+  "message": "No subscription found for this tool"
+}
+```
+
+**How to handle:**
+```typescript
+if (error.response?.status === 404) {
+  // User needs to subscribe
+  redirectToSubscriptionPage();
+}
+```
+</Accordion>
+
+<Accordion title="409 Conflict">
+The request conflicts with the current state of the resource.
+
+**Common causes:**
+- Duplicate link (user already linked to different account)
+- Idempotency key reused with different parameters
+- Concurrent modification
+
+**Example:**
+```json
+{
+  "error": "Conflict",
+  "message": "Tool user already linked to different 1sub user"
+}
+```
+
+**How to handle:**
+```typescript
+if (error.response?.status === 409) {
+  if (error.response.data.error === 'Conflict') {
+    // Handle link conflict
+    showLinkConflictError();
+  }
+}
+```
+</Accordion>
+
+<Accordion title="422 Unprocessable Entity">
+Request format is valid but validation failed.
+
+**Common causes:**
+- Missing required parameters
+- Parameter validation failed
+- Business logic constraints not met
+
+**Example:**
+```json
+{
+  "error": "Invalid request",
+  "message": "Either oneSubUserId or emailSha256 is required"
+}
+```
+
+**How to handle:**
+```typescript
+if (error.response?.status === 422) {
+  // Fix validation errors
+  console.error('Validation failed:', error.response.data.message);
+}
+```
+</Accordion>
+
+<Accordion title="429 Too Many Requests">
+Rate limit exceeded for this endpoint.
+
+**Common causes:**
+- Making too many requests in a short time
+- Not implementing proper caching
+- Retry loops without backoff
+
+**Example:**
+```json
+{
+  "error": "Rate limit exceeded",
+  "message": "Too many requests. Please try again later.",
+  "details": {
+    "retryAfter": 60
+  }
+}
+```
+
+**Headers:**
+```http
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 2025-12-01T12:35:00Z
+Retry-After: 60
+```
+
+**How to handle:**
+```typescript
+if (error.response?.status === 429) {
+  const retryAfter = error.response.headers['retry-after'] || 60;
+  console.log(`Rate limited. Retrying after ${retryAfter}s`);
+  await sleep(retryAfter * 1000);
+  return retryRequest();
+}
+```
+</Accordion>
+
+<Accordion title="500 Internal Server Error">
+An unexpected error occurred on the server (rare).
+
+**Common causes:**
+- Temporary server issue
+- Database outage
+- Unexpected bug
+
+**Example:**
+```json
+{
+  "error": "Internal server error",
+  "message": "An unexpected error occurred. Please try again."
+}
+```
+
+**How to handle:**
+```typescript
+if (error.response?.status === 500) {
+  // Retry with exponential backoff
+  console.error('Server error, retrying...');
+  return retryWithBackoff();
+}
+```
+</Accordion>
+</AccordionGroup>
+
+## Error Handling Patterns
+
+### Basic Error Handler
+
+```typescript
+async function callAPI(endpoint: string, options: RequestOptions) {
+  try {
+    const response = await fetch(endpoint, options);
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new APIError(error, response.status);
+    }
+    
+    return response.json();
+  } catch (error) {
+    handleAPIError(error);
+    throw error;
+  }
+}
+
+function handleAPIError(error: any) {
+  const status = error.response?.status;
+  const data = error.response?.data;
+  
+  switch (status) {
+    case 400:
+      console.error('Bad request:', data.message);
+      break;
+    case 401:
+      console.error('Authentication failed');
+      break;
+    case 404:
+      console.error('Resource not found');
+      break;
+    case 429:
+      console.warn('Rate limited');
+      break;
+    case 500:
+      console.error('Server error');
+      break;
+    default:
+      console.error('Unexpected error:', error);
+  }
+}
+```
+
+### Retry with Exponential Backoff
+
+```typescript
+async function callAPIWithRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries = 3
+): Promise<T> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      const status = error.response?.status;
+      
+      // Don't retry client errors (except 429)
+      if (status >= 400 && status < 500 && status !== 429) {
+        throw error;
+      }
+      
+      // Last attempt
+      if (attempt === maxRetries - 1) {
+        throw error;
+      }
+      
+      // Calculate backoff
+      const baseDelay = 1000; // 1 second
+      const delay = baseDelay * Math.pow(2, attempt);
+      const jitter = Math.random() * 1000;
+      
+      console.log(`Retry ${attempt + 1}/${maxRetries} after ${delay}ms`);
+      await sleep(delay + jitter);
+    }
+  }
+  
+  throw new Error('Max retries exceeded');
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Usage
+const result = await callAPIWithRetry(() =>
+  fetch('/api/v1/tools/subscriptions/verify', options)
+);
+```
+
+### User-Friendly Error Messages
+
+Map API errors to user-friendly messages:
+
+```typescript
+const ERROR_MESSAGES = {
+  'Insufficient credits': 'You don\'t have enough credits. Purchase more to continue.',
+  'Not found': 'Please subscribe to this tool on 1Sub first.',
+  'Invalid API key': 'Configuration error. Please contact support.',
+  'Rate limit exceeded': 'Too many requests. Please wait a moment and try again.',
+  'Tool user already linked': 'This account is already linked to a different user.',
+  'Invalid or expired code': 'This link code has expired. Please generate a new one.',
+};
+
+function getUserMessage(error: any): string {
+  const apiError = error.response?.data?.error;
+  return ERROR_MESSAGES[apiError] || 'Something went wrong. Please try again.';
+}
+
+// Usage
+try {
+  await consumeCredits({ ... });
+} catch (error) {
+  showErrorToUser(getUserMessage(error));
+}
+```
+
+### Credit Consumption Error Handling
+
+```typescript
+async function safeConsumeCredits(params: ConsumeCreditsParams) {
+  try {
+    const result = await consumeCredits(params);
+    return {
+      success: true,
+      newBalance: result.new_balance,
+    };
+  } catch (error) {
+    if (error.response?.status === 400) {
+      const data = error.response.data;
+      
+      if (data.error === 'Insufficient credits') {
+        return {
+          success: false,
+          error: 'insufficient_credits',
+          currentBalance: data.details.current_balance,
+          required: data.details.required,
+          shortfall: data.details.shortfall,
+          message: `You need ${data.details.shortfall} more credits.`,
+          purchaseUrl: 'https://1sub.io/buy-credits',
+        };
+      }
+    }
+    
+    // Other errors
+    return {
+      success: false,
+      error: 'unknown',
+      message: 'Failed to consume credits. Please try again.',
+    };
+  }
+}
+```
+
+## Logging Best Practices
+
+<AccordionGroup>
+<Accordion title="Log all errors with context">
+```typescript
+console.error('API Error', {
+  endpoint: '/api/v1/credits/consume',
+  status: error.response?.status,
+  error: error.response?.data?.error,
+  message: error.response?.data?.message,
+  userId: oneSubUserId,
+  timestamp: new Date().toISOString(),
+});
+```
+</Accordion>
+
+<Accordion title="Don't log sensitive data">
+```typescript
+// Good
+console.log('Credit consumption successful', {
+  userId: 'user-123',
+  amount: 10,
+});
+
+// Bad - exposes API key
+console.log('Request headers:', {
+  Authorization: `Bearer ${apiKey}`, // Never log this!
+});
+```
+</Accordion>
+
+<Accordion title="Use structured logging">
+```typescript
+const logger = {
+  error: (message: string, context: object) => {
+    console.error(JSON.stringify({
+      level: 'error',
+      message,
+      ...context,
+      timestamp: new Date().toISOString(),
+    }));
+  },
+};
+
+// Usage
+logger.error('Subscription verification failed', {
+  userId: oneSubUserId,
+  statusCode: error.response?.status,
+  errorType: error.response?.data?.error,
+});
+```
+</Accordion>
+</AccordionGroup>
+
+## Monitoring and Alerts
+
+Set up alerts for critical errors:
+
+```typescript
+const errorRates = new Map();
+
+function trackError(errorType: string) {
+  const count = errorRates.get(errorType) || 0;
+  errorRates.set(errorType, count + 1);
+  
+  // Alert if error rate is high
+  if (count > 10) {
+    alertOps(`High error rate for ${errorType}`);
+  }
+}
+
+// Track specific errors
+try {
+  await verifySubscription(userId);
+} catch (error) {
+  trackError(error.response?.data?.error);
+  throw error;
+}
+```
+
+## Testing Error Scenarios
+
+Test your error handling:
+
+```typescript
+describe('API Error Handling', () => {
+  it('handles insufficient credits', async () => {
+    // Mock API response
+    mockAPI.post('/api/v1/credits/consume').reply(400, {
+      error: 'Insufficient credits',
+      message: 'User does not have sufficient credits',
+      details: { current_balance: 5, required: 10, shortfall: 5 }
+    });
+    
+    const result = await safeConsumeCredits({ ... });
+    
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('insufficient_credits');
+    expect(result.shortfall).toBe(5);
+  });
+  
+  it('retries on 500 errors', async () => {
+    mockAPI
+      .post('/api/v1/credits/consume')
+      .replyOnce(500)
+      .replyOnce(200, { success: true });
+    
+    const result = await callAPIWithRetry(() => consumeCredits({ ... }));
+    
+    expect(result.success).toBe(true);
+  });
+});
+```
+
+<Check>
+Robust error handling makes your integration resilient and provides a better user experience.
+</Check>
+
+
+
+
+
+
+

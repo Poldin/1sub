@@ -1,0 +1,359 @@
+---
+title: "Quickstart Guide"
+description: "Get your tool integrated with 1Sub in under 15 minutes"
+---
+
+# Quickstart Guide
+
+This guide will walk you through integrating your tool with 1Sub in three simple steps. By the end, you'll have user authentication, subscription verification, and webhooks fully configured.
+
+<Note>
+**Prerequisites**: Make sure you have your API key and webhook secret from the 1Sub vendor dashboard. If you haven't received these yet, publish your tool first.
+</Note>
+
+## Installation
+
+First, install the required packages for JWT verification:
+
+<CodeGroup>
+```bash npm
+npm install jose
+```
+
+```bash yarn
+yarn add jose
+```
+
+```bash pnpm
+pnpm add jose
+```
+</CodeGroup>
+
+<Tip>
+The `jose` library provides industry-standard JWT verification with JWKS support. It's lightweight and well-maintained.
+</Tip>
+
+## Step 1: Handle User Redirects
+
+When users subscribe to your tool on 1Sub, they're redirected to your configured callback URL with a JWT token.
+
+<Steps>
+<Step title="Set up your callback endpoint">
+  Create an endpoint to receive redirects from 1Sub:
+
+```typescript
+import { jwtVerify, createRemoteJWKSet } from 'jose';
+
+const JWKS = createRemoteJWKSet(
+  new URL('https://1sub.io/.well-known/1sub-jwks.json')
+);
+
+app.get('/auth/1sub/callback', async (req, res) => {
+  const { token } = req.query;
+  
+  if (!token) {
+    return res.status(400).send('Missing token');
+  }
+  
+  // Continue to next step...
+});
+```
+</Step>
+
+<Step title="Verify the JWT token">
+  Verify the token signature and extract user information:
+
+```typescript
+try {
+  const { payload } = await jwtVerify(token as string, JWKS, {
+    issuer: '1sub',
+    audience: process.env.TOOL_ID, // Your tool ID
+    maxTokenAge: '10m',
+  });
+  
+  const oneSubUserId = payload.sub as string;
+  const email = payload.email as string;
+  
+  // Continue to next step...
+} catch (error) {
+  console.error('JWT verification failed:', error);
+  return res.status(401).send('Invalid token');
+}
+```
+
+<Check>
+The token is now verified and you have the user's 1Sub ID and email.
+</Check>
+</Step>
+
+<Step title="Create or link your user">
+  Map the 1Sub user ID to your internal user system:
+
+```typescript
+// Find or create user in your system
+const user = await findOrCreateUser(email);
+
+// Store the link between your user ID and 1Sub user ID
+await storeUserLink(user.id, oneSubUserId);
+
+// Create session and redirect
+req.session.userId = user.id;
+res.redirect('/dashboard');
+```
+
+<Tip>
+Store the `oneSubUserId` → your `userId` mapping in your database. You'll need this for subscription verification.
+</Tip>
+</Step>
+</Steps>
+
+<Note>
+**Alternative: API Verification**
+
+If you prefer not to use JWT libraries, you can verify tokens using our API endpoint:
+
+```typescript
+const response = await fetch('https://1sub.io/api/v1/verify-user', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ token })
+});
+
+const { user_id, tool_id, checkout_id } = await response.json();
+```
+
+This is simpler but adds network latency. See [Authentication Methods](/concepts/authentication#token-verification-methods) for a detailed comparison.
+</Note>
+
+## Step 2: Verify Subscriptions
+
+Before granting access to premium features, verify that the user has an active subscription.
+
+<Steps>
+<Step title="Create a verification function">
+  Set up a reusable function to check subscription status:
+
+```typescript
+import axios from 'axios';
+
+async function verifySubscription(oneSubUserId: string) {
+  const response = await axios.post(
+    'https://1sub.io/api/v1/tools/subscriptions/verify',
+    { oneSubUserId },
+    {
+      headers: {
+        'Authorization': `Bearer ${process.env.ONESUB_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+    }
+  );
+  
+  return response.data;
+}
+```
+</Step>
+
+<Step title="Protect your premium endpoints">
+  Add verification to your protected routes:
+
+```typescript
+app.post('/api/premium-feature', async (req, res) => {
+  const userId = req.session.userId;
+  
+  if (!userId) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  // Get 1Sub user ID from your database
+  const oneSubUserId = await getOneSubUserId(userId);
+  
+  try {
+    const subscription = await verifySubscription(oneSubUserId);
+    
+    if (!subscription.active) {
+      return res.status(403).json({
+        error: 'Subscription required',
+        status: subscription.status,
+      });
+    }
+    
+    // Grant access to feature
+    const result = await yourPremiumFeature();
+    res.json({ result });
+    
+  } catch (error) {
+    if (error.response?.status === 404) {
+      return res.status(403).json({ error: 'No subscription found' });
+    }
+    console.error('Verification failed:', error);
+    res.status(500).json({ error: 'Verification failed' });
+  }
+});
+```
+
+<Check>
+Your premium features are now protected by subscription verification.
+</Check>
+</Step>
+
+<Step title="Cache subscription status (optional but recommended)">
+  Reduce API calls by caching verification results:
+
+```typescript
+const cache = new Map();
+
+async function getCachedSubscription(oneSubUserId: string) {
+  if (cache.has(oneSubUserId)) {
+    const cached = cache.get(oneSubUserId);
+    if (Date.now() - cached.timestamp < 60000) { // 1 minute
+      return cached.data;
+    }
+  }
+  
+  const data = await verifySubscription(oneSubUserId);
+  cache.set(oneSubUserId, { data, timestamp: Date.now() });
+  return data;
+}
+```
+
+<Tip>
+Update the cache when you receive webhook notifications to keep it fresh.
+</Tip>
+</Step>
+</Steps>
+
+## Step 3: Configure Webhooks
+
+Receive real-time notifications when subscriptions change.
+
+<Steps>
+<Step title="Create webhook endpoint">
+  Set up an endpoint to receive webhook events:
+
+```typescript
+import crypto from 'crypto';
+import express from 'express';
+
+app.post(
+  '/webhooks/1sub',
+  express.raw({ type: 'application/json' }),
+  (req, res) => {
+    const signature = req.headers['1sub-signature'] as string;
+    const payload = req.body.toString();
+    
+    // Continue to next step...
+  }
+);
+```
+
+<Warning>
+Use `express.raw()` middleware for webhook endpoints. You need the raw body to verify signatures.
+</Warning>
+</Step>
+
+<Step title="Verify webhook signature">
+  Validate that the webhook came from 1Sub:
+
+```typescript
+function verifyWebhookSignature(
+  payload: string,
+  signature: string,
+  secret: string
+): boolean {
+  const parts = signature.split(',');
+  const timestamp = parts.find(p => p.startsWith('t='))?.split('=')[1];
+  const sig = parts.find(p => p.startsWith('v1='))?.split('=')[1];
+  
+  if (!timestamp || !sig) return false;
+  
+  // Reject old timestamps (replay attack protection)
+  const now = Math.floor(Date.now() / 1000);
+  if (Math.abs(now - parseInt(timestamp)) > 300) return false;
+  
+  // Compute expected signature
+  const signedPayload = `${timestamp}.${payload}`;
+  const expected = crypto
+    .createHmac('sha256', secret)
+    .update(signedPayload)
+    .digest('hex');
+  
+  // Timing-safe comparison
+  return crypto.timingSafeEqual(
+    Buffer.from(expected),
+    Buffer.from(sig)
+  );
+}
+
+// In your webhook handler:
+if (!verifyWebhookSignature(payload, signature, process.env.ONESUB_WEBHOOK_SECRET)) {
+  return res.status(401).send('Invalid signature');
+}
+```
+
+<Check>
+Webhooks are now authenticated and protected from replay attacks.
+</Check>
+</Step>
+
+<Step title="Handle webhook events">
+  Process different event types:
+
+```typescript
+const event = JSON.parse(payload);
+
+switch (event.type) {
+  case 'subscription.activated':
+    console.log('Subscription activated:', event.data.oneSubUserId);
+    // Clear cache, send welcome email, etc.
+    cache.delete(event.data.oneSubUserId);
+    break;
+    
+  case 'subscription.canceled':
+    console.log('Subscription canceled:', event.data.oneSubUserId);
+    // Revoke access, send cancellation email, etc.
+    cache.delete(event.data.oneSubUserId);
+    break;
+    
+  case 'subscription.updated':
+    console.log('Subscription updated:', event.data.oneSubUserId);
+    // Update cached status
+    cache.delete(event.data.oneSubUserId);
+    break;
+}
+
+res.json({ received: true });
+```
+</Step>
+
+<Step title="Configure webhook URL in dashboard">
+  Set your webhook URL in the 1Sub vendor dashboard:
+
+```
+https://yourtool.com/webhooks/1sub
+```
+
+<Tip>
+Make sure your webhook endpoint is publicly accessible via HTTPS. Use ngrok for local testing.
+</Tip>
+</Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+<Card title="Understand Core Concepts" icon="book" href="/concepts/authentication">
+  Deep dive into authentication, user linking, and credits
+</Card>
+
+<Card title="Explore API Reference" icon="code" href="/api/reference">
+  Complete documentation of all API endpoints
+</Card>
+
+<Card title="Configure Webhooks" icon="webhook" href="/webhooks/overview">
+  Learn about webhook events and best practices
+</Card>
+
+<Card title="View More Examples" icon="file-code" href="/examples/node">
+  Browse complete examples in multiple languages
+</Card>
+</CardGroup>

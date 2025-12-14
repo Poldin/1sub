@@ -1,0 +1,358 @@
+---
+title: "Integration Checklist"
+description: "Pre-launch checklist to ensure your integration is production-ready"
+---
+
+# Integration Checklist
+
+Use this checklist before going live to ensure your 1Sub integration is secure, reliable, and production-ready.
+
+## Pre-Integration Setup
+
+<AccordionGroup>
+<Accordion title="✅ Tool Configuration">
+- [ ] Tool is published in 1Sub vendor dashboard
+- [ ] Redirect URL is configured correctly
+- [ ] Webhook URL is configured (if using webhooks)
+- [ ] API key is saved securely
+- [ ] Webhook secret is saved securely
+- [ ] Tool ID is documented
+</Accordion>
+
+<Accordion title="✅ Environment Setup">
+- [ ] Environment variables are configured
+- [ ] `.env` file is in `.gitignore`
+- [ ] Production secrets are separate from development
+- [ ] API keys are not hardcoded anywhere
+- [ ] HTTPS is enabled for all endpoints
+</Accordion>
+</AccordionGroup>
+
+## Authentication & Security
+
+<AccordionGroup>
+<Accordion title="✅ JWT Verification">
+- [ ] JWKS endpoint is fetched and cached
+- [ ] JWT signature is verified using JWKS
+- [ ] `iss` claim is checked (`"1sub"`)
+- [ ] `aud` claim is checked (your tool ID)
+- [ ] `exp` claim is checked (not expired)
+- [ ] `jti` is used for replay protection
+- [ ] Expired tokens are rejected with clear error
+- [ ] Invalid tokens are rejected with clear error
+</Accordion>
+
+<Accordion title="✅ API Authentication">
+- [ ] API key is stored in environment variables
+- [ ] API key is included in `Authorization` header
+- [ ] `Bearer` prefix is used correctly
+- [ ] API key is never exposed to client-side code
+- [ ] API key is never logged
+- [ ] Invalid API key responses are handled (401)
+</Accordion>
+
+<Accordion title="✅ Webhook Security">
+- [ ] Webhook signatures are verified before processing
+- [ ] Raw request body is used for signature verification
+- [ ] Timing-safe comparison is used
+- [ ] Timestamp freshness is checked (≤5 minutes)
+- [ ] Invalid signatures return 401
+- [ ] Webhook secret is stored securely
+- [ ] Webhook endpoint uses HTTPS
+</Accordion>
+</AccordionGroup>
+
+## User Flow
+
+<AccordionGroup>
+<Accordion title="✅ User Redirect & Linking">
+- [ ] Redirect callback endpoint is implemented
+- [ ] JWT token is extracted from URL query parameter
+- [ ] Token is verified before creating link
+- [ ] User link is stored in database
+- [ ] Link conflicts are handled (already linked users)
+- [ ] User session is created after successful link
+- [ ] User is redirected to appropriate page after linking
+- [ ] Error states are handled gracefully
+</Accordion>
+
+<Accordion title="✅ Subscription Verification">
+- [ ] Subscription is verified before granting access
+- [ ] User link is retrieved from database
+- [ ] API request includes correct `oneSubUserId`
+- [ ] 404 responses handled (no subscription)
+- [ ] Subscription status is checked (`active` field)
+- [ ] Subscription cache is implemented
+- [ ] Cache invalidation on webhooks works
+- [ ] Fallback to API if cache miss
+</Accordion>
+
+<Accordion title="✅ Access Control">
+- [ ] Premium features check subscription status
+- [ ] Access is granted for `active` subscriptions
+- [ ] Access is granted for `trialing` subscriptions
+- [ ] Access is denied for `canceled` subscriptions
+- [ ] Users are redirected to subscribe if no subscription
+- [ ] Clear error messages for access denied
+- [ ] Grace period handling for `past_due` (if applicable)
+</Accordion>
+</AccordionGroup>
+
+## Webhooks
+
+<AccordionGroup>
+<Accordion title="✅ Webhook Handling">
+- [ ] Webhook endpoint is publicly accessible
+- [ ] Webhook endpoint uses HTTPS
+- [ ] Signatures are verified first
+- [ ] Response is returned within 30 seconds
+- [ ] 200 status is returned for valid webhooks
+- [ ] 401 status is returned for invalid signatures
+- [ ] Events are processed asynchronously if needed
+- [ ] Events are deduplicated by `id`
+</Accordion>
+
+<Accordion title="✅ Event Processing">
+- [ ] `subscription.activated` grants access
+- [ ] `subscription.canceled` revokes access
+- [ ] `subscription.updated` updates user plan
+- [ ] Subscription cache is invalidated on events
+- [ ] Appropriate emails are sent
+- [ ] Database is updated correctly
+- [ ] Out-of-order events are handled
+- [ ] Webhook events are logged for audit
+</Accordion>
+</AccordionGroup>
+
+## Credit System (if using credits)
+
+<AccordionGroup>
+<Accordion title="✅ Credit Consumption">
+- [ ] Credits are consumed before performing operations
+- [ ] Correct `amount` is specified
+- [ ] Descriptive `reason` is provided
+- [ ] Unique `idempotency_key` is generated
+- [ ] Insufficient credits error is handled gracefully
+- [ ] User is shown purchase prompt on insufficient credits
+- [ ] Transaction ID is stored for audit
+- [ ] New balance is displayed to user
+</Accordion>
+
+<Accordion title="✅ Idempotency">
+- [ ] Idempotency keys are truly unique
+- [ ] Keys include operation type + user + operation ID
+- [ ] Retry logic reuses same idempotency key
+- [ ] 409 conflict responses are handled
+- [ ] Keys are not reused across different operations
+</Accordion>
+</AccordionGroup>
+
+## Error Handling
+
+<AccordionGroup>
+<Accordion title="✅ Error Handling">
+- [ ] All API errors are caught and handled
+- [ ] 400 errors show user-friendly messages
+- [ ] 401 errors trigger re-authentication
+- [ ] 404 errors redirect to subscription page
+- [ ] 429 errors respect `Retry-After` header
+- [ ] 500 errors retry with exponential backoff
+- [ ] Network errors are handled gracefully
+- [ ] Timeouts are handled appropriately
+</Accordion>
+
+<Accordion title="✅ User Experience">
+- [ ] Error messages are user-friendly
+- [ ] Technical errors are logged, not shown to users
+- [ ] Loading states are shown during API calls
+- [ ] Success feedback is provided
+- [ ] Clear calls-to-action for errors (e.g. "Buy Credits")
+- [ ] Users can recover from errors
+</Accordion>
+</AccordionGroup>
+
+## Performance & Reliability
+
+<AccordionGroup>
+<Accordion title="✅ Caching">
+- [ ] Subscription status is cached locally
+- [ ] Cache has reasonable TTL (e.g. 1-5 minutes)
+- [ ] Cache is invalidated on webhooks
+- [ ] JWKS is cached (up to 1 hour)
+- [ ] Cache implementation is production-ready
+</Accordion>
+
+<Accordion title="✅ Rate Limiting">
+- [ ] API calls are not made on every request
+- [ ] Subscription cache reduces API calls
+- [ ] Rate limit headers are monitored
+- [ ] 429 responses are handled with backoff
+- [ ] Exponential backoff is implemented
+</Accordion>
+
+<Accordion title="✅ Reliability">
+- [ ] Database connections are pooled
+- [ ] Transactions are atomic where needed
+- [ ] Retry logic for transient failures
+- [ ] Circuit breaker for external services (optional)
+- [ ] Graceful degradation on API unavailability
+</Accordion>
+</AccordionGroup>
+
+## Logging & Monitoring
+
+<AccordionGroup>
+<Accordion title="✅ Logging">
+- [ ] API requests/responses are logged
+- [ ] Webhook events are logged
+- [ ] Credit consumption is logged
+- [ ] Errors are logged with context
+- [ ] Logs don't contain API keys or secrets
+- [ ] Logs don't contain user passwords
+- [ ] Structured logging is used
+</Accordion>
+
+<Accordion title="✅ Monitoring">
+- [ ] API error rates are monitored
+- [ ] Webhook delivery success is tracked
+- [ ] Subscription verification failures are alerted
+- [ ] Credit consumption patterns are tracked
+- [ ] Performance metrics are collected
+- [ ] Uptime monitoring is configured
+</Accordion>
+</AccordionGroup>
+
+## Testing
+
+<AccordionGroup>
+<Accordion title="✅ Unit Tests">
+- [ ] JWT verification is tested
+- [ ] Webhook signature verification is tested
+- [ ] API error handling is tested
+- [ ] Subscription caching is tested
+- [ ] Idempotency logic is tested
+- [ ] User linking logic is tested
+</Accordion>
+
+<Accordion title="✅ Integration Tests">
+- [ ] Full subscription flow is tested
+- [ ] Webhook delivery and processing is tested
+- [ ] Credit consumption flow is tested
+- [ ] Error scenarios are tested
+- [ ] Edge cases are covered
+</Accordion>
+
+<Accordion title="✅ Manual Testing">
+- [ ] Test subscription activation
+- [ ] Test subscription cancellation
+- [ ] Test plan upgrades/downgrades
+- [ ] Test with insufficient credits
+- [ ] Test JWT expiration handling
+- [ ] Test rate limiting
+- [ ] Test webhook replay protection
+- [ ] Test concurrent requests
+</Accordion>
+</AccordionGroup>
+
+## Documentation
+
+<AccordionGroup>
+<Accordion title="✅ Internal Documentation">
+- [ ] Integration architecture is documented
+- [ ] Environment setup is documented
+- [ ] Deployment process is documented
+- [ ] Troubleshooting guide exists
+- [ ] API key rotation process is documented
+- [ ] Runbooks for common issues
+</Accordion>
+
+<Accordion title="✅ Code Documentation">
+- [ ] Complex logic is commented
+- [ ] Environment variables are documented
+- [ ] API endpoints are documented
+- [ ] Database schema is documented
+- [ ] Webhook handlers are documented
+</Accordion>
+</AccordionGroup>
+
+## Production Readiness
+
+<AccordionGroup>
+<Accordion title="✅ Security Review">
+- [ ] Code has been reviewed for security issues
+- [ ] Dependencies are up to date
+- [ ] No known vulnerabilities
+- [ ] Rate limiting is configured
+- [ ] Input validation is in place
+- [ ] SQL injection protection
+- [ ] XSS protection
+</Accordion>
+
+<Accordion title="✅ Performance Review">
+- [ ] No N+1 query problems
+- [ ] Database indexes are optimized
+- [ ] Caching is effective
+- [ ] API calls are minimized
+- [ ] Load testing completed
+</Accordion>
+
+<Accordion title="✅ Operational Readiness">
+- [ ] Monitoring dashboards are set up
+- [ ] Alerts are configured
+- [ ] On-call process is defined
+- [ ] Incident response plan exists
+- [ ] Backup and recovery tested
+- [ ] Rollback procedure documented
+</Accordion>
+</AccordionGroup>
+
+## Launch
+
+<AccordionGroup>
+<Accordion title="✅ Pre-Launch">
+- [ ] All checklist items completed
+- [ ] Final security review done
+- [ ] Load testing completed
+- [ ] Monitoring is active
+- [ ] Support team is briefed
+- [ ] Rollback plan is ready
+</Accordion>
+
+<Accordion title="✅ Post-Launch">
+- [ ] Monitor error rates closely
+- [ ] Check webhook delivery success
+- [ ] Verify no authentication issues
+- [ ] Watch for rate limiting
+- [ ] Collect user feedback
+- [ ] Address issues quickly
+</Accordion>
+</AccordionGroup>
+
+## Ongoing Maintenance
+
+<AccordionGroup>
+<Accordion title="✅ Regular Tasks">
+- [ ] Review logs weekly
+- [ ] Monitor API usage trends
+- [ ] Check for failed webhooks
+- [ ] Update dependencies monthly
+- [ ] Review security advisories
+- [ ] Test key rotation procedure quarterly
+- [ ] Review and update documentation
+</Accordion>
+</AccordionGroup>
+
+<Check>
+Completing this checklist ensures your integration is secure, reliable, and ready for production traffic.
+</Check>
+
+<Tip>
+Print this checklist and check off items as you complete them. Don't skip any items — each one is critical for a production-ready integration.
+</Tip>
+
+
+
+
+
+
+
