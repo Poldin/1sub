@@ -9,6 +9,8 @@ Quick reference for testing 1Sub API endpoints with cURL.
 
 ## Subscription Verification
 
+### Using oneSubUserId (Recommended - Fastest)
+
 ```bash
 curl -X POST 'https://1sub.io/api/v1/tools/subscriptions/verify' \
   -H 'Authorization: Bearer sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx' \
@@ -16,6 +18,22 @@ curl -X POST 'https://1sub.io/api/v1/tools/subscriptions/verify' \
   -d '{
     "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000"
   }'
+```
+
+### Using Email SHA256 Hash (First-Time Linking)
+
+```bash
+# First, hash the user's email (lowercase, trimmed)
+EMAIL="user@example.com"
+EMAIL_HASH=$(echo -n "${EMAIL,,}" | openssl dgst -sha256 -hex | cut -d' ' -f2)
+
+# Then verify subscription
+curl -X POST 'https://1sub.io/api/v1/tools/subscriptions/verify' \
+  -H 'Authorization: Bearer sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx' \
+  -H 'Content-Type: application/json' \
+  -d "{
+    \"emailSha256\": \"$EMAIL_HASH\"
+  }"
 ```
 
 ## Credit Consumption
@@ -42,12 +60,6 @@ curl -X POST 'https://1sub.io/api/v1/tools/link/exchange-code' \
     "code": "AB12CD",
     "toolUserId": "user_12345"
   }'
-```
-
-## Fetch JWKS
-
-```bash
-curl 'https://1sub.io/.well-known/1sub-jwks.json'
 ```
 
 ## Testing Webhooks
@@ -91,6 +103,11 @@ curl -X POST 'https://1sub.io/api/v1/tools/subscriptions/verify' \
 ```
 
 See the [API Reference](/api/reference) for complete endpoint documentation.
+
+
+
+
+
 
 
 

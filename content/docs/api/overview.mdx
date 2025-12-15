@@ -96,9 +96,8 @@ API endpoints have the following rate limits:
 
 | Endpoint | Limit | Window |
 |----------|-------|--------|
-| `/verify-user` | 60 requests | 1 minute |
-| `/refresh-token` | 30 requests | 1 minute |
 | `/tools/subscriptions/verify` | 100 requests | 1 minute |
+| `/tools/subscriptions/verify` (email) | 30 requests | 1 minute |
 | `/tools/link/exchange-code` | 30 requests | 1 minute |
 | `/credits/consume` | 100 requests | 1 minute |
 
@@ -238,10 +237,6 @@ Sandbox environment is coming soon. For now, use small credit amounts for testin
 <Card title="Link Code Exchange" icon="link" href="/api/reference#exchange-link-code">
   Exchange a link code for a user mapping
 </Card>
-
-<Card title="JWKS Endpoint" icon="key" href="/api/reference#jwks">
-  Fetch public keys for JWT verification
-</Card>
 </CardGroup>
 
 ## SDKs and Libraries
@@ -249,31 +244,32 @@ Sandbox environment is coming soon. For now, use small credit amounts for testin
 <Tabs>
 <Tab title="JavaScript / TypeScript">
 **Recommended libraries:**
-- `jose` - JWT verification with JWKS support
 - `axios` or `fetch` - HTTP requests
+- `crypto` (built-in) - Email hashing and webhook verification
 
 ```bash
-npm install jose axios
+npm install axios
 ```
 </Tab>
 
 <Tab title="Python">
 **Recommended libraries:**
-- `python-jose` - JWT verification
 - `requests` - HTTP client
+- `hashlib` (built-in) - Email hashing and webhook verification
 
 ```bash
-pip install python-jose requests
+pip install requests
 ```
 </Tab>
 
 <Tab title="Go">
 **Recommended libraries:**
-- `golang-jwt/jwt` - JWT verification
 - `net/http` - Standard library HTTP client
+- `crypto/sha256` (built-in) - Email hashing
+- `crypto/hmac` (built-in) - Webhook verification
 
 ```bash
-go get github.com/golang-jwt/jwt/v5
+# No external dependencies needed - use standard library
 ```
 </Tab>
 </Tabs>
@@ -288,7 +284,8 @@ Official SDKs are coming soon. For now, use standard HTTP libraries as shown in 
 
 Before going live, test:
 
-- ✅ JWT verification with real tokens
+- ✅ Email hashing (SHA256, lowercase, trimmed)
+- ✅ Link code exchange (valid, expired, invalid)
 - ✅ Subscription verification (active, canceled, not found)
 - ✅ Credit consumption (success, insufficient credits)
 - ✅ Idempotency (retry with same key)

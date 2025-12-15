@@ -694,83 +694,6 @@ case 'user.credit_depleted':
 
 ---
 
-## user.session_expired
-
-Sent when a user's session with your tool expires.
-
-### When Sent
-
-- User's JWT token expires (typically after 1 hour of inactivity)
-- Session timeout threshold is reached
-- User explicitly logs out
-
-<Note>
-This event is informational and helps you track session lifecycle. Most tools don't need to act on it.
-</Note>
-
-### Payload
-
-<ResponseField name="id" type="string" required>
-Unique event ID
-</ResponseField>
-
-<ResponseField name="type" type="string" required>
-Always `"user.session_expired"`
-</ResponseField>
-
-<ResponseField name="created" type="number" required>
-Unix timestamp
-</ResponseField>
-
-<ResponseField name="data" type="object" required>
-Event data
-
-<Expandable title="Data Fields">
-  <ResponseField name="oneSubUserId" type="string (UUID)" required>
-  The 1Sub user ID
-  </ResponseField>
-  
-  <ResponseField name="sessionExpiredAt" type="string (ISO 8601)" required>
-  When the session expired
-  </ResponseField>
-</Expandable>
-</ResponseField>
-
-### Example Payload
-
-```json
-{
-  "id": "evt_session_expired_001",
-  "type": "user.session_expired",
-  "created": 1700000000,
-  "data": {
-    "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000",
-    "sessionExpiredAt": "2025-11-16T14:30:00Z"
-  }
-}
-```
-
-### How to Handle
-
-```typescript
-case 'user.session_expired':
-  const { oneSubUserId, sessionExpiredAt } = event.data;
-  
-  // Optional: Clean up session data
-  await cleanupUserSession(oneSubUserId);
-  
-  // Optional: Log for analytics
-  await trackEvent('session_expired', {
-    userId: oneSubUserId,
-    expiredAt: sessionExpiredAt,
-  });
-  
-  // Most tools can safely ignore this event
-  break;
-```
-
----
-
 ## tool.status_changed
 
 Sent when your tool's status changes on the 1Sub platform (activated, suspended, etc.).
@@ -894,9 +817,6 @@ function handleWebhook(event: WebhookEvent) {
       // ...
       break;
     case 'user.credit_depleted':
-      // ...
-      break;
-    case 'user.session_expired':
       // ...
       break;
     case 'tool.status_changed':

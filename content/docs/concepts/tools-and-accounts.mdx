@@ -96,50 +96,51 @@ To enable access control, you need to link **your tool's user IDs** with **1Sub 
 Your User ID ←→ 1Sub User ID (oneSubUserId)
 ```
 
-### Primary Linking Flow: JWT Redirect
+### Primary Linking Flow: Email-Based (SaaS Tools)
 
-The recommended way to link users:
+For web applications where users have verified emails:
 
 <Steps>
 <Step title="User subscribes on 1Sub">
-  User completes subscription on the 1Sub platform.
+  User completes subscription on the 1Sub platform with their email.
 </Step>
 
-<Step title="Redirect with JWT">
-  1Sub redirects to your `redirect_uri` with a JWT token:
-  
-```
-https://yourtool.com/auth/1sub/callback?token=eyJhbGc...
-```
+<Step title="User logs into your tool">
+  User logs into your tool with the same email they used on 1Sub.
 </Step>
 
-<Step title="Extract user information">
-  Verify the JWT and extract:
-  - `sub`: 1Sub user ID
-  - `email`: User's email address
-  
+<Step title="Hash email and verify subscription">
+  Your tool hashes the user's email and calls the verify endpoint:
+
 ```typescript
-const { payload } = await jwtVerify(token, JWKS, {
-  issuer: '1sub',
-  audience: toolId,
-});
+import crypto from 'crypto';
 
-const oneSubUserId = payload.sub;
-const email = payload.email;
+// Hash the email (SHA256)
+const normalizedEmail = userEmail.toLowerCase().trim();
+const emailHash = crypto
+  .createHash('sha256')
+  .update(normalizedEmail)
+  .digest('hex');
+
+// Verify subscription
+const subscription = await verifySubscription({ emailSha256: emailHash });
 ```
 </Step>
 
-<Step title="Find or create local user">
-  Match by email or create a new user in your system:
-  
+<Step title="Extract and cache oneSubUserId">
+  Extract the `oneSubUserId` from the response and cache it:
+
 ```typescript
-const user = await findOrCreateUser(email);
+const oneSubUserId = subscription.oneSubUserId;
+
+// Store for future lookups (10-20x faster)
+await db.users.update(localUserId, { oneSubUserId });
 ```
 </Step>
 
 <Step title="Store the link">
   Save the mapping in your database:
-  
+
 ```sql
 CREATE TABLE onesub_user_links (
   id UUID PRIMARY KEY,
@@ -149,14 +150,18 @@ CREATE TABLE onesub_user_links (
 );
 
 INSERT INTO onesub_user_links (tool_user_id, onesub_user_id)
-VALUES ('user_123', 'uuid-from-jwt')
+VALUES ('user_123', 'uuid-from-verify')
 ON CONFLICT (tool_user_id) DO UPDATE
 SET onesub_user_id = EXCLUDED.onesub_user_id;
 ```
 </Step>
 </Steps>
 
-### Fallback Linking Flow: Link Codes
+<Tip>
+After the first email lookup, always use the cached `oneSubUserId` for subsequent verifications - it's 10-20x faster than email lookups.
+</Tip>
+
+### Alternative Linking Flow: Link Codes
 
 For tools without web interfaces (CLI tools, desktop apps, etc.), users can link via short codes:
 
@@ -201,7 +206,7 @@ curl -X POST 'https://1sub.io/api/v1/tools/link/exchange-code' \
 </Step>
 
 <Step title="Store the link">
-  Save the mapping in your database (same as JWT flow).
+  Save the mapping in your database (same as email-based flow).
 </Step>
 </Steps>
 
@@ -379,6 +384,11 @@ CREATE TABLE subscription_cache (
   cached_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 ```
+
+
+
+
+
 
 
 
