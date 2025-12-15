@@ -29,7 +29,7 @@ Integrate your tool with 1Sub to monetize through our credit system and subscrip
 
 <CardGroup cols={3}>
 <Card title="Quick Setup" icon="zap">
-  Simple REST API with JWT authentication. Get integrated in minutes, not days.
+  Simple REST API with email-based or link code authentication. Get integrated in minutes, not days.
 </Card>
 
 <Card title="Secure & Reliable" icon="shield-check">
@@ -59,7 +59,7 @@ The integration process follows these simple steps:
 </Step>
 
 <Step title="Implement authentication">
-  Handle user redirects from 1Sub and verify JWT tokens using our JWKS endpoint.
+  Link user accounts via email-based verification (for SaaS) or link codes (for CLI/desktop apps).
 </Step>
 
 <Step title="Verify subscriptions">
@@ -120,8 +120,8 @@ Choose the integration pattern that best fits your tool:
 
 <Accordion title="Technical Knowledge">
   - REST API integration
-  - JWT token verification
-  - HMAC signature validation
+  - Email hashing (SHA256) or link code exchange
+  - HMAC signature validation for webhooks
   - Basic error handling
 </Accordion>
 </AccordionGroup>
