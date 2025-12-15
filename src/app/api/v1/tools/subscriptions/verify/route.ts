@@ -203,7 +203,7 @@ export async function POST(request: NextRequest) {
         .rpc('lookup_user_by_email_sha256', {
           p_email_sha256: emailSha256.toLowerCase()
         })
-        .maybeSingle();
+        .maybeSingle<{ user_id: string }>();
 
       if (lookupError) {
         console.error('[Verify Subscription] Error looking up user by email:', lookupError);

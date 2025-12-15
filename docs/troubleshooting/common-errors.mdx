@@ -53,62 +53,47 @@ Quick solutions to common issues when integrating with 1Sub.
 </Accordion>
 </AccordionGroup>
 
-## JWT Verification Errors
+## Link Code Errors
 
 <AccordionGroup>
-<Accordion title="JWT verification failed">
-**Error in logs:**
-```
-JWT verification failed: JWTExpired: token expired
+<Accordion title="Invalid or expired code (404)">
+**Error:**
+```json
+{
+  "error": "Invalid code",
+  "message": "Invalid or expired code"
+}
 ```
 
 **Causes:**
-- Token older than 10 minutes
-- User took too long to complete redirect
-- Clock skew between servers
+- Code older than 10 minutes
+- Code already used
+- Typo in code entry
 
 **Solution:**
-- Redirect users faster (tokens expire in 10 minutes)
-- Check server clock is synchronized
-- Prompt user to try subscribing again
+- Link codes expire after 10 minutes - generate a new one
+- Each code can only be used once
+- Verify code format (6-10 alphanumeric characters, case-insensitive)
+- Prompt user to generate new code from their 1Sub account
 </Accordion>
 
-<Accordion title="Invalid audience">
+<Accordion title="Link code already used">
 **Error:**
-```
-JWT verification failed: Invalid audience
+```json
+{
+  "error": "Conflict",
+  "message": "Tool user already linked to different 1Sub user"
+}
 ```
 
 **Causes:**
-- Wrong tool ID in JWT verification
-- Tool ID mismatch
+- User already linked their account
+- Attempting to link multiple 1Sub accounts
 
 **Solution:**
-```typescript
-// Make sure audience matches your tool ID
-await jwtVerify(token, JWKS, {
-  issuer: '1sub',
-  audience: process.env.TOOL_ID, // Must match your actual tool ID
-});
-```
-</Accordion>
-
-<Accordion title="JWKS fetch failed">
-**Error:**
-```
-Unable to fetch JWKS from https://1sub.io/.well-known/1sub-jwks.json
-```
-
-**Causes:**
-- Network connectivity issues
-- Firewall blocking HTTPS requests
-- DNS resolution failure
-
-**Solution:**
-- Check network connectivity
-- Verify firewall allows HTTPS to 1sub.io
-- Try manually fetching: `curl https://1sub.io/.well-known/1sub-jwks.json`
-- Implement retry logic with backoff
+- Check if user is already linked before requesting code
+- Allow users to unlink/relink if needed
+- Show clear error message explaining they're already linked
 </Accordion>
 </AccordionGroup>
 
@@ -372,13 +357,15 @@ if (error.response?.status === 429) {
 Can't find `oneSubUserId` for your local user.
 
 **Causes:**
-- User never completed redirect flow
+- User never linked their account
 - Link not stored in database
 - User record deleted
 
 **Solution:**
 1. Check user_links table for mapping
-2. Prompt user to re-link: generate new JWT redirect
+2. Prompt user to link their account:
+   - **For SaaS tools**: Use email-based linking
+   - **For CLI/desktop apps**: Generate a link code
 3. Add error handling:
 ```typescript
 const oneSubUserId = await getOneSubUserId(localUserId);
@@ -448,6 +435,11 @@ When contacting support, include:
 - Steps to reproduce
 - Your tool ID
 </Tip>
+
+
+
+
+
 
 
 

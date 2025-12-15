@@ -34,9 +34,9 @@ const ENV_CONFIG: EnvConfig[] = [
   },
   {
     name: 'JWT_SECRET',
-    required: true,
+    required: false,
     minLength: 32,
-    description: 'JWT secret for token generation (minimum 32 characters)',
+    description: '[DEPRECATED] JWT secret for legacy endpoints only (minimum 32 characters)',
   },
   {
     name: 'STRIPE_SECRET_KEY',
@@ -168,7 +168,6 @@ export function getEnvInfo(): Record<string, string> {
   const info: Record<string, string> = {
     NODE_ENV: process.env.NODE_ENV || 'unknown',
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL ? '✓ Set' : '✗ Missing',
-    JWT_SECRET: process.env.JWT_SECRET ? '✓ Set' : '✗ Missing',
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY ? '✓ Set' : '✗ Missing',
     STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET ? '✓ Set' : '✗ Missing',
   };

@@ -10,7 +10,7 @@ Complete working example of a 1Sub integration using Node.js and Express.
 ## Installation
 
 ```bash
-npm install express jose axios crypto
+npm install express axios dotenv
 ```
 
 ## Environment Variables
@@ -28,8 +28,10 @@ PORT=3000
 ```typescript
 import express from 'express';
 import axios from 'axios';
-import { jwtVerify, createRemoteJWKSet } from 'jose';
 import crypto from 'crypto';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -38,202 +40,265 @@ const PORT = process.env.PORT || 3000;
 const ONESUB_API_KEY = process.env.ONESUB_API_KEY;
 const ONESUB_WEBHOOK_SECRET = process.env.ONESUB_WEBHOOK_SECRET;
 const TOOL_ID = process.env.TOOL_ID;
+const BASE_URL = 'https://1sub.io/api/v1';
 
-// JWKS for JWT verification
-const JWKS = createRemoteJWKSet(
-  new URL('https://1sub.io/.well-known/1sub-jwks.json')
-);
-
-// Subscription cache
+// In-memory cache (use Redis in production)
 const subscriptionCache = new Map();
-
-// Processed webhook events (for deduplication)
 const processedEvents = new Set();
 
 // Middleware
 app.use(express.json());
 
 // ============================================================================
-// 1. User Authentication (JWT Redirect)
+// 1. Account Linking
 // ============================================================================
 
-app.get('/auth/1sub/callback', async (req, res) => {
-  const { token } = req.query;
-  
-  if (!token) {
-    return res.status(400).send('Missing token');
-  }
-  
-  try {
-    // Verify JWT
-    const { payload } = await jwtVerify(token as string, JWKS, {
-      issuer: '1sub',
-      audience: TOOL_ID,
-      maxTokenAge: '10m',
-    });
-    
-    const oneSubUserId = payload.sub as string;
-    const email = payload.email as string;
-    
-    // Store user link in your database
-    await storeUserLink(req.user.id, oneSubUserId);
-    
-    // Create session
-    req.session.userId = req.user.id;
-    
-    res.redirect('/dashboard');
-  } catch (error) {
-    console.error('JWT verification failed:', error);
-    res.status(401).send('Authentication failed');
-  }
-});
-
-// Alternative: Using API verification endpoint
-app.get('/auth/1sub/callback-api', async (req, res) => {
-  const { token } = req.query;
-  
-  if (!token) {
-    return res.status(400).send('Missing token');
-  }
-  
-  try {
-    // Verify using 1Sub API
-    const response = await axios.post(
-      'https://1sub.io/api/v1/verify-user',
-      { token },
-      { headers: { 'Content-Type': 'application/json' } }
-    );
-    
-    const { user_id, tool_id, checkout_id, expires_at } = response.data;
-    
-    // Store user link in your database
-    await storeUserLink(req.user.id, user_id);
-    
-    // Create session
-    req.session.userId = req.user.id;
-    req.session.oneSubUserId = user_id;
-    
-    res.redirect('/dashboard');
-  } catch (error) {
-    console.error('Token verification failed:', error);
-    res.status(401).send('Authentication failed');
-  }
-});
-
-// ============================================================================
-// 2. Token Refresh (for long-lived sessions)
-// ============================================================================
-
-// Middleware to refresh expired tokens
-async function refreshTokenMiddleware(req, res, next) {
-  const accessToken = req.session.accessToken;
-  const refreshToken = req.session.refreshToken;
-  const expiresAt = req.session.tokenExpiresAt;
-  
-  // Check if access token will expire soon (within 5 minutes)
-  if (expiresAt && Date.now() > expiresAt - 5 * 60 * 1000) {
-    try {
-      const response = await axios.post(
-        'https://1sub.io/api/v1/refresh-token',
-        { refresh_token: refreshToken },
-        { headers: { 'Content-Type': 'application/json' } }
-      );
-      
-      // Update session with new tokens
-      req.session.accessToken = response.data.access_token;
-      req.session.tokenExpiresAt = new Date(response.data.expires_at).getTime();
-      
-      console.log('Access token refreshed successfully');
-    } catch (error) {
-      console.error('Token refresh failed:', error);
-      // Redirect to re-authenticate
-      return res.redirect('/auth/1sub/login');
-    }
-  }
-  
-  next();
+/**
+ * Hash email for 1Sub verification
+ */
+function hashEmail(email: string): string {
+  const normalized = email.toLowerCase().trim();
+  return crypto.createHash('sha256').update(normalized).digest('hex');
 }
 
-// ============================================================================
-// 3. Subscription Verification
-// ============================================================================
+/**
+ * Verify subscription by oneSubUserId or email
+ */
+async function verifySubscription(
+  oneSubUserId?: string,
+  email?: string
+): Promise<any> {
+  const url = `${BASE_URL}/tools/subscriptions/verify`;
+  const headers = {
+    'Authorization': `Bearer ${ONESUB_API_KEY}`,
+    'Content-Type': 'application/json',
+  };
 
-async function verifySubscription(oneSubUserId: string) {
-  // Check cache first
-  if (subscriptionCache.has(oneSubUserId)) {
-    const cached = subscriptionCache.get(oneSubUserId);
-    if (Date.now() - cached.timestamp < 60000) { // 1 minute TTL
-      return cached.data;
-    }
-  }
-  
+  // Prefer oneSubUserId for speed (10-20x faster)
+  const body = oneSubUserId
+    ? { oneSubUserId }
+    : { emailSha256: hashEmail(email!) };
+
   try {
-    const response = await axios.post(
-      'https://1sub.io/api/v1/tools/subscriptions/verify',
-      { oneSubUserId },
-      {
-        headers: {
-          'Authorization': `Bearer ${ONESUB_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-    
-    // Cache the result
-    subscriptionCache.set(oneSubUserId, {
-      data: response.data,
-      timestamp: Date.now(),
-    });
-    
+    const response = await axios.post(url, body, { headers });
+
+    // Cache oneSubUserId for future lookups
+    if (response.data.oneSubUserId) {
+      subscriptionCache.set(response.data.oneSubUserId, {
+        active: response.data.active,
+        cachedAt: Date.now()
+      });
+    }
+
     return response.data;
-  } catch (error) {
+  } catch (error: any) {
     if (error.response?.status === 404) {
-      return { active: false, status: 'not_found' };
+      return null;
     }
     throw error;
   }
 }
 
-// Protected endpoint example
-app.post('/api/premium-feature', async (req, res) => {
-  const userId = req.session.userId;
-  
-  if (!userId) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  // Get 1Sub user ID
-  const oneSubUserId = await getOneSubUserId(userId);
-  
-  if (!oneSubUserId) {
-    return res.status(403).json({ error: 'Not linked to 1Sub account' });
-  }
-  
+/**
+ * Exchange link code for oneSubUserId
+ */
+async function exchangeLinkCode(code: string, toolUserId: string): Promise<any> {
+  const url = `${BASE_URL}/tools/link/exchange-code`;
+  const headers = {
+    'Authorization': `Bearer ${ONESUB_API_KEY}`,
+    'Content-Type': 'application/json',
+  };
+  const body = {
+    code: code.toUpperCase(),
+    toolUserId
+  };
+
   try {
-    // Verify subscription
-    const subscription = await verifySubscription(oneSubUserId);
-    
-    if (!subscription.active) {
-      return res.status(403).json({
-        error: 'Subscription required',
-        status: subscription.status,
+    const response = await axios.post(url, body, { headers });
+    return response.data;
+  } catch (error: any) {
+    if (error.response?.status === 404) {
+      throw new Error('Invalid or expired link code');
+    }
+    throw error;
+  }
+}
+
+/**
+ * Consume credits from user balance
+ */
+async function consumeCredits(
+  oneSubUserId: string,
+  amount: number,
+  reason: string,
+  idempotencyKey: string
+): Promise<any> {
+  const url = `${BASE_URL}/credits/consume`;
+  const headers = {
+    'Authorization': `Bearer ${ONESUB_API_KEY}`,
+    'Content-Type': 'application/json',
+  };
+  const body = {
+    user_id: oneSubUserId,
+    amount,
+    reason,
+    idempotency_key: idempotencyKey
+  };
+
+  const response = await axios.post(url, body, { headers });
+  return response.data;
+}
+
+// ============================================================================
+// 2. API Endpoints
+// ============================================================================
+
+/**
+ * Link user account via email or link code
+ */
+app.post('/api/link', async (req, res) => {
+  const { email, code, toolUserId } = req.body;
+
+  try {
+    // Option 1: Email-based linking (for SaaS tools)
+    if (email) {
+      const subscription = await verifySubscription(undefined, email);
+
+      if (!subscription) {
+        return res.status(404).json({ error: 'No subscription found for this email' });
+      }
+
+      // Store oneSubUserId in your database
+      // await db.users.update(userId, { oneSubUserId: subscription.oneSubUserId });
+
+      return res.json({
+        linked: true,
+        oneSubUserId: subscription.oneSubUserId,
+        active: subscription.active
       });
     }
-    
+
+    // Option 2: Link code (for CLI/desktop apps)
+    if (code && toolUserId) {
+      const link = await exchangeLinkCode(code, toolUserId);
+
+      // Store oneSubUserId in your database
+      // await db.users.update(toolUserId, { oneSubUserId: link.oneSubUserId });
+
+      return res.json(link);
+    }
+
+    return res.status(400).json({ error: 'email or (code + toolUserId) required' });
+  } catch (error: any) {
+    console.error('Link account error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Check if user has active subscription
+ */
+app.post('/api/check-access', async (req, res) => {
+  const { oneSubUserId } = req.body;
+
+  if (!oneSubUserId) {
+    return res.status(400).json({ error: 'oneSubUserId required' });
+  }
+
+  try {
+    // Check cache first (optional)
+    const cached = subscriptionCache.get(oneSubUserId);
+    if (cached && Date.now() - cached.cachedAt < 300000) { // 5 min cache
+      return res.json({ active: cached.active });
+    }
+
+    // Verify with 1Sub
+    const subscription = await verifySubscription(oneSubUserId);
+
+    if (!subscription) {
+      return res.status(404).json({ error: 'Subscription not found' });
+    }
+
+    return res.json({
+      active: subscription.active,
+      status: subscription.status
+    });
+  } catch (error: any) {
+    console.error('Check access error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Protected endpoint - requires active subscription
+ */
+app.post('/api/premium-feature', async (req, res) => {
+  const { oneSubUserId } = req.body;
+
+  if (!oneSubUserId) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  try {
+    const subscription = await verifySubscription(oneSubUserId);
+
+    if (!subscription || !subscription.active) {
+      return res.status(403).json({
+        error: 'Active subscription required',
+        status: subscription?.status || 'not_found'
+      });
+    }
+
     // Perform premium feature
-    const result = await yourPremiumFeature();
-    
-    res.json({
+    const result = { data: 'Premium content' };
+
+    return res.json({
       success: true,
       result,
       subscription: {
         planId: subscription.planId,
-        expiresAt: subscription.currentPeriodEnd,
-      },
+        expiresAt: subscription.currentPeriodEnd
+      }
     });
-  } catch (error) {
-    console.error('Subscription verification failed:', error);
-    res.status(500).json({ error: 'Verification failed' });
+  } catch (error: any) {
+    console.error('Premium feature error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Credit-based feature - consumes credits
+ */
+app.post('/api/use-feature', async (req, res) => {
+  const { oneSubUserId } = req.body;
+
+  if (!oneSubUserId) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  try {
+    // Consume credits
+    const result = await consumeCredits(
+      oneSubUserId,
+      10,
+      'Generated AI image',
+      `img-${oneSubUserId}-${Date.now()}`
+    );
+
+    return res.json({
+      success: true,
+      credits_remaining: result.new_balance
+    });
+  } catch (error: any) {
+    if (error.response?.status === 400) {
+      const errorData = error.response.data;
+      return res.status(400).json({
+        error: 'Insufficient credits',
+        shortfall: errorData.shortfall
+      });
+    }
+    console.error('Use feature error:', error);
+    return res.status(500).json({ error: error.message });
   }
 });
 
@@ -241,6 +306,9 @@ app.post('/api/premium-feature', async (req, res) => {
 // 3. Webhook Handler
 // ============================================================================
 
+/**
+ * Verify webhook signature
+ */
 function verifyWebhookSignature(
   payload: string,
   signature: string,
@@ -249,20 +317,20 @@ function verifyWebhookSignature(
   const parts = signature.split(',');
   const timestamp = parts.find(p => p.startsWith('t='))?.split('=')[1];
   const sig = parts.find(p => p.startsWith('v1='))?.split('=')[1];
-  
+
   if (!timestamp || !sig) return false;
-  
+
   // Check timestamp (within 5 minutes)
   const now = Math.floor(Date.now() / 1000);
   if (Math.abs(now - parseInt(timestamp)) > 300) return false;
-  
+
   // Compute signature
   const signedPayload = `${timestamp}.${payload}`;
   const expected = crypto
     .createHmac('sha256', secret)
     .update(signedPayload)
     .digest('hex');
-  
+
   // Timing-safe comparison
   return crypto.timingSafeEqual(
     Buffer.from(expected),
@@ -270,151 +338,94 @@ function verifyWebhookSignature(
   );
 }
 
+/**
+ * Webhook endpoint
+ */
 app.post(
   '/webhooks/1sub',
   express.raw({ type: 'application/json' }), // MUST use raw body
   (req, res) => {
     const signature = req.headers['1sub-signature'] as string;
     const payload = req.body.toString();
-    
+
     // Verify signature
-    if (!verifyWebhookSignature(payload, signature, ONESUB_WEBHOOK_SECRET)) {
+    if (!verifyWebhookSignature(payload, signature, ONESUB_WEBHOOK_SECRET!)) {
       console.error('Invalid webhook signature');
       return res.status(401).send('Invalid signature');
     }
-    
+
     // Parse event
     const event = JSON.parse(payload);
-    
+
     // Deduplicate
     if (processedEvents.has(event.id)) {
       console.log(`Event ${event.id} already processed`);
       return res.json({ received: true });
     }
     processedEvents.add(event.id);
-    
+
     // Acknowledge receipt immediately
     res.json({ received: true });
-    
+
     // Process asynchronously
     processWebhookAsync(event).catch(console.error);
   }
 );
 
+/**
+ * Process webhook events asynchronously
+ */
 async function processWebhookAsync(event: any) {
   const { oneSubUserId } = event.data;
-  
+
   switch (event.type) {
     case 'subscription.activated':
       console.log('Subscription activated:', oneSubUserId);
       // Invalidate cache
       subscriptionCache.delete(oneSubUserId);
       // Grant access and send welcome email
-      await sendWelcomeEmail(oneSubUserId);
       break;
-      
+
     case 'subscription.canceled':
       console.log('Subscription canceled:', oneSubUserId);
       // Invalidate cache
       subscriptionCache.delete(oneSubUserId);
-      // Revoke access and send cancellation email
-      await revokeAccess(oneSubUserId);
-      await sendCancellationEmail(oneSubUserId);
+      // Revoke access
       break;
-      
+
     case 'subscription.updated':
       console.log('Subscription updated:', oneSubUserId);
       // Invalidate cache
       subscriptionCache.delete(oneSubUserId);
       // Update plan if changed
       if (event.data.previousPlanId !== event.data.planId) {
-        await updateUserPlan(oneSubUserId, event.data.planId);
+        // await updateUserPlan(oneSubUserId, event.data.planId);
       }
       break;
-      
+
     case 'purchase.completed':
       console.log('Purchase completed:', oneSubUserId);
-      const { checkoutId, amount, purchaseType } = event.data;
-      // Log purchase and grant access if one-time purchase
-      await logPurchase(oneSubUserId, checkoutId, amount);
-      if (purchaseType === 'tool_access') {
-        await grantToolAccess(oneSubUserId);
-      }
+      // Log purchase
       break;
-      
+
     case 'user.credit_low':
       console.log('User credits low:', oneSubUserId);
-      const { creditBalance, threshold } = event.data;
       // Send low credit warning
-      await sendLowCreditWarning(oneSubUserId, creditBalance);
       break;
-      
+
     case 'user.credit_depleted':
       console.log('User credits depleted:', oneSubUserId);
-      // Suspend credit features and send urgent notification
-      await suspendCreditFeatures(oneSubUserId);
-      await sendCreditDepletedEmail(oneSubUserId);
+      // Suspend credit features
       break;
-      
-    case 'user.session_expired':
-      console.log('User session expired:', oneSubUserId);
-      // Optional: clean up session data
-      await cleanupUserSession(oneSubUserId);
-      break;
-      
+
     case 'tool.status_changed':
       console.log('Tool status changed');
-      const { toolId, toolStatus } = event.data;
-      if (!toolStatus) {
-        // Tool suspended - enter maintenance mode
-        await enableMaintenanceMode();
-        await notifyAllUsers('Service temporarily unavailable');
-      } else {
-        // Tool reactivated
-        await disableMaintenanceMode();
-      }
+      // Handle tool suspension/reactivation
       break;
-      
+
     default:
       console.log('Unknown event type:', event.type);
   }
-}
-
-// ============================================================================
-// Helper Functions (implement these based on your database)
-// ============================================================================
-
-async function storeUserLink(localUserId: string, oneSubUserId: string) {
-  // Store in your database
-  // Example: await db.userLinks.upsert({ localUserId, oneSubUserId });
-}
-
-async function getOneSubUserId(localUserId: string): Promise<string | null> {
-  // Retrieve from your database
-  // Example: const link = await db.userLinks.findOne({ localUserId });
-  // return link?.oneSubUserId || null;
-  return null; // Placeholder
-}
-
-async function yourPremiumFeature() {
-  // Your tool's premium feature logic
-  return { data: 'premium content' };
-}
-
-async function sendWelcomeEmail(oneSubUserId: string) {
-  // Send welcome email
-}
-
-async function revokeAccess(oneSubUserId: string) {
-  // Revoke user's access to premium features
-}
-
-async function sendCancellationEmail(oneSubUserId: string) {
-  // Send cancellation email
-}
-
-async function updateUserPlan(oneSubUserId: string, planId: string) {
-  // Update user's plan in your database
 }
 
 // ============================================================================
@@ -423,19 +434,118 @@ async function updateUserPlan(oneSubUserId: string, planId: string) {
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(`Webhook endpoint: http://localhost:${PORT}/webhooks/1sub`);
 });
 ```
 
-## Key Points
+## Key Concepts
 
-1. **JWT Verification** - Always verify JWT signatures using JWKS
-2. **Caching** - Cache subscription status to reduce API calls
-3. **Webhooks** - Process asynchronously, acknowledge quickly
-4. **Security** - Verify signatures, use timing-safe comparison
-5. **Error Handling** - Handle all error cases gracefully
+### 1. Email-Based Linking (SaaS Tools)
 
-See also:
-- [Python Example](/examples/python)
-- [cURL Examples](/examples/curl)
-- [API Reference](/api/reference)
+For web applications where users have verified emails:
 
+```typescript
+// User logs in with email they used on 1Sub
+const userEmail = "user@example.com";
+const subscription = await verifySubscription(undefined, userEmail);
+
+if (subscription) {
+  // Cache oneSubUserId for future lookups (10-20x faster)
+  await db.users.update(userId, {
+    oneSubUserId: subscription.oneSubUserId
+  });
+}
+```
+
+### 2. Link Code (CLI/Desktop Apps)
+
+For applications where email linking isn't suitable:
+
+```typescript
+// User enters 6-character code from 1Sub
+const linkCode = "AB12CD";
+const toolUserId = "internal-user-123";
+
+const link = await exchangeLinkCode(linkCode, toolUserId);
+
+// Store oneSubUserId
+await db.users.update(toolUserId, {
+  oneSubUserId: link.oneSubUserId
+});
+```
+
+### 3. Caching for Performance
+
+Always cache subscription status to reduce API calls:
+
+```typescript
+const cached = subscriptionCache.get(oneSubUserId);
+if (cached && Date.now() - cached.cachedAt < 300000) { // 5 min
+  return cached.active;
+}
+
+// Otherwise, verify with 1Sub API
+const subscription = await verifySubscription(oneSubUserId);
+```
+
+### 4. Webhook Security
+
+Always verify webhook signatures to prevent spoofing:
+
+```typescript
+// MUST use raw body for signature verification
+app.post(
+  '/webhooks/1sub',
+  express.raw({ type: 'application/json' }),
+  (req, res) => {
+    const signature = req.headers['1sub-signature'];
+    const payload = req.body.toString();
+
+    if (!verifyWebhookSignature(payload, signature, WEBHOOK_SECRET)) {
+      return res.status(401).send('Invalid signature');
+    }
+
+    // Process event...
+  }
+);
+```
+
+## Production Checklist
+
+- ✅ Use Redis for subscription caching instead of in-memory Map
+- ✅ Implement proper error handling and logging
+- ✅ Set up async webhook processing (Bull, BullMQ, etc.)
+- ✅ Add retry logic for API calls with exponential backoff
+- ✅ Monitor rate limits (100 req/min for verify, 30 req/min for email lookups)
+- ✅ Store oneSubUserId in your database after first lookup
+- ✅ Use environment variables for all secrets
+- ✅ Enable HTTPS for webhook endpoints
+- ✅ Implement webhook event deduplication (use Redis Set)
+- ✅ Set up monitoring and alerts for failed webhooks
+
+## Testing
+
+```bash
+# Test email-based linking
+curl -X POST http://localhost:3000/api/link \
+  -H 'Content-Type: application/json' \
+  -d '{"email": "user@example.com"}'
+
+# Test link code
+curl -X POST http://localhost:3000/api/link \
+  -H 'Content-Type: application/json' \
+  -d '{"code": "AB12CD", "toolUserId": "user123"}'
+
+# Test subscription check
+curl -X POST http://localhost:3000/api/check-access \
+  -H 'Content-Type: application/json' \
+  -d '{"oneSubUserId": "550e8400-e29b-41d4-a716-446655440000"}'
+```
+
+## Additional Resources
+
+- [Python Example](/examples/python) - Python/Flask implementation
+- [cURL Examples](/examples/curl) - Quick API examples
+- [API Reference](/api/reference) - Full endpoint documentation
+- [Webhook Events](/webhooks/events) - All event types
+- [Authentication Guide](/concepts/authentication) - Email vs link code flows

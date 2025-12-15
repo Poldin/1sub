@@ -255,33 +255,9 @@ Sent when a user's credit balance reaches zero.
 </Accordion>
 </AccordionGroup>
 
-### Session & System Events
+### System Events
 
 <AccordionGroup>
-<Accordion title="user.session_expired">
-Sent when a user's session expires (informational).
-
-**When it's sent:**
-- JWT token expires (after ~1 hour)
-- Session timeout reached
-- User logs out
-
-**Use cases:**
-- Clean up session data (optional)
-- Log analytics (optional)
-- Most tools can ignore this event
-
-```json
-{
-  "type": "user.session_expired",
-  "data": {
-    "oneSubUserId": "uuid-abc-123",
-    "sessionExpiredAt": "2025-11-16T14:30:00Z"
-  }
-}
-```
-</Accordion>
-
 <Accordion title="tool.status_changed">
 Sent when your tool's status changes (system event).
 

@@ -5,125 +5,240 @@ description: "Get your tool integrated with 1Sub in under 15 minutes"
 
 # Quickstart Guide
 
-This guide will walk you through integrating your tool with 1Sub in three simple steps. By the end, you'll have user authentication, subscription verification, and webhooks fully configured.
+This guide will walk you through integrating your tool with 1Sub in three simple steps. By the end, you'll have user account linking, subscription verification, and webhooks fully configured.
 
 <Note>
 **Prerequisites**: Make sure you have your API key and webhook secret from the 1Sub vendor dashboard. If you haven't received these yet, publish your tool first.
 </Note>
 
+## Choose Your Integration Method
+
+1Sub supports two authentication methods. Choose based on your tool type:
+
+<CardGroup cols={2}>
+<Card title="Email-Based Verification" icon="envelope">
+  **Best for:** Web apps, SaaS tools with email authentication
+
+  Users link accounts using their verified email address. Seamless UX, no codes needed.
+</Card>
+
+<Card title="Link Codes" icon="key">
+  **Best for:** CLI tools, desktop apps, mobile apps
+
+  Users receive a 6-character code to enter in your tool. Works everywhere.
+</Card>
+</CardGroup>
+
 ## Installation
 
-First, install the required packages for JWT verification:
+No special libraries required! Just your favorite HTTP client:
 
 <CodeGroup>
 ```bash npm
-npm install jose
+npm install axios  # or any HTTP client
 ```
 
 ```bash yarn
-yarn add jose
+yarn add axios
 ```
 
 ```bash pnpm
-pnpm add jose
+pnpm add axios
 ```
 </CodeGroup>
 
-<Tip>
-The `jose` library provides industry-standard JWT verification with JWKS support. It's lightweight and well-maintained.
-</Tip>
+## Step 1: Link User Accounts
 
-## Step 1: Handle User Redirects
+Choose the method that works best for your tool:
 
-When users subscribe to your tool on 1Sub, they're redirected to your configured callback URL with a JWT token.
+<Tabs>
+<Tab title="Email-Based (SaaS)">
+### Email-Based Account Linking
+
+When your tool already has authenticated users with verified emails, you can seamlessly link their 1Sub accounts.
 
 <Steps>
-<Step title="Set up your callback endpoint">
-  Create an endpoint to receive redirects from 1Sub:
+<Step title="Hash the user's email">
+  After user logs into your tool, hash their email with SHA256:
 
 ```typescript
-import { jwtVerify, createRemoteJWKSet } from 'jose';
+import crypto from 'crypto';
 
-const JWKS = createRemoteJWKSet(
-  new URL('https://1sub.io/.well-known/1sub-jwks.json')
-);
+function hashEmail(email: string): string {
+  const normalized = email.toLowerCase().trim();
+  return crypto.createHash('sha256').update(normalized).digest('hex');
+}
 
-app.get('/auth/1sub/callback', async (req, res) => {
-  const { token } = req.query;
-  
-  if (!token) {
-    return res.status(400).send('Missing token');
-  }
-  
-  // Continue to next step...
-});
+// Example
+const email = user.email; // From your auth system
+const emailHash = hashEmail(email);
 ```
 </Step>
 
-<Step title="Verify the JWT token">
-  Verify the token signature and extract user information:
+<Step title="Verify subscription and get oneSubUserId">
+  Call the verify endpoint with the email hash:
 
 ```typescript
-try {
-  const { payload } = await jwtVerify(token as string, JWKS, {
-    issuer: '1sub',
-    audience: process.env.TOOL_ID, // Your tool ID
-    maxTokenAge: '10m',
+async function linkUserAccount(email: string) {
+  const emailHash = hashEmail(email);
+
+  const response = await fetch('https://1sub.io/api/v1/tools/subscriptions/verify', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.ONESUB_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ emailSha256: emailHash })
   });
-  
-  const oneSubUserId = payload.sub as string;
-  const email = payload.email as string;
-  
-  // Continue to next step...
-} catch (error) {
-  console.error('JWT verification failed:', error);
-  return res.status(401).send('Invalid token');
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error('No subscription found for this email');
+    }
+    throw new Error('Verification failed');
+  }
+
+  const data = await response.json();
+
+  // Cache the oneSubUserId for future verifications
+  await db.users.update(user.id, {
+    oneSubUserId: data.oneSubUserId,
+    subscriptionStatus: data.status,
+    creditsRemaining: data.creditsRemaining
+  });
+
+  return data;
 }
 ```
 
 <Check>
-The token is now verified and you have the user's 1Sub ID and email.
+The user is now linked! Store the `oneSubUserId` for future subscription checks.
 </Check>
 </Step>
 
-<Step title="Create or link your user">
-  Map the 1Sub user ID to your internal user system:
+<Step title="Use oneSubUserId for future verifications">
+  For subsequent calls, use the cached `oneSubUserId` (10-20x faster):
 
 ```typescript
-// Find or create user in your system
-const user = await findOrCreateUser(email);
+async function checkSubscription(oneSubUserId: string) {
+  const response = await fetch('https://1sub.io/api/v1/tools/subscriptions/verify', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.ONESUB_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ oneSubUserId })
+  });
 
-// Store the link between your user ID and 1Sub user ID
-await storeUserLink(user.id, oneSubUserId);
-
-// Create session and redirect
-req.session.userId = user.id;
-res.redirect('/dashboard');
+  return await response.json();
+}
 ```
 
 <Tip>
-Store the `oneSubUserId` → your `userId` mapping in your database. You'll need this for subscription verification.
+Always cache `oneSubUserId` after the first email lookup. Email lookups are rate-limited to 30/min, while userId lookups allow 100/min.
 </Tip>
 </Step>
 </Steps>
 
-<Note>
-**Alternative: API Verification**
+<Warning>
+**Important:** Only use email-based verification if you've verified the user's email through your own authentication system (e.g., email confirmation during signup). Never accept unverified email addresses.
+</Warning>
+</Tab>
 
-If you prefer not to use JWT libraries, you can verify tokens using our API endpoint:
+<Tab title="Link Codes (CLI/Desktop)">
+### Link Code Account Linking
+
+Users receive a 6-character code after subscribing that they enter in your tool.
+
+<Steps>
+<Step title="Display link code UI">
+  After subscription, users receive a link code from 1Sub. Create a UI for them to enter it:
 
 ```typescript
-const response = await fetch('https://1sub.io/api/v1/verify-user', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ token })
-});
+app.post('/link-account', async (req, res) => {
+  const { code, userId } = req.body;
 
-const { user_id, tool_id, checkout_id } = await response.json();
+  // Validate format (6-10 uppercase alphanumeric)
+  const CODE_REGEX = /^[A-Z0-9]{6,10}$/;
+  if (!CODE_REGEX.test(code)) {
+    return res.status(400).json({ error: 'Invalid code format' });
+  }
+
+  // Continue to next step...
+});
+```
+</Step>
+
+<Step title="Exchange code for oneSubUserId">
+  Call the exchange endpoint to link the accounts:
+
+```typescript
+async function exchangeLinkCode(code: string, toolUserId: string) {
+  const response = await fetch('https://1sub.io/api/v1/tools/link/exchange-code', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.ONESUB_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      code: code.toUpperCase(),
+      toolUserId: toolUserId
+    })
+  });
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error('Invalid or expired code');
+    }
+    throw new Error('Failed to exchange code');
+  }
+
+  const data = await response.json();
+
+  // Store oneSubUserId for future verification
+  await db.users.update(toolUserId, {
+    oneSubUserId: data.oneSubUserId,
+    linkedAt: data.linkedAt
+  });
+
+  return data; // { linked: true, oneSubUserId, toolUserId, linkedAt }
+}
 ```
 
-This is simpler but adds network latency. See [Authentication Methods](/concepts/authentication#token-verification-methods) for a detailed comparison.
+<Check>
+The user account is now linked! Store the `oneSubUserId` for subscription verification.
+</Check>
+</Step>
+
+<Step title="Handle expired codes gracefully">
+  Link codes expire after 10 minutes. Provide clear error messages:
+
+```typescript
+try {
+  const result = await exchangeLinkCode(code, userId);
+  res.json({ success: true, message: 'Account linked successfully!' });
+} catch (error) {
+  if (error.message.includes('expired')) {
+    res.status(400).json({
+      error: 'Code expired',
+      message: 'This code has expired. Please generate a new one from your 1Sub account settings.'
+    });
+  } else {
+    res.status(400).json({
+      error: 'Invalid code',
+      message: 'The code you entered is invalid. Please check and try again.'
+    });
+  }
+}
+```
+</Step>
+</Steps>
+
+<Note>
+Link codes are **single-use** and expire after **10 minutes**. The exchange endpoint is idempotent - calling it multiple times with the same `toolUserId` returns the existing link.
 </Note>
+</Tab>
+</Tabs>
 
 ## Step 2: Verify Subscriptions
 
@@ -147,7 +262,7 @@ async function verifySubscription(oneSubUserId: string) {
       },
     }
   );
-  
+
   return response.data;
 }
 ```
@@ -159,28 +274,32 @@ async function verifySubscription(oneSubUserId: string) {
 ```typescript
 app.post('/api/premium-feature', async (req, res) => {
   const userId = req.session.userId;
-  
+
   if (!userId) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
-  
+
   // Get 1Sub user ID from your database
   const oneSubUserId = await getOneSubUserId(userId);
-  
+
+  if (!oneSubUserId) {
+    return res.status(403).json({ error: 'Account not linked to 1Sub' });
+  }
+
   try {
     const subscription = await verifySubscription(oneSubUserId);
-    
+
     if (!subscription.active) {
       return res.status(403).json({
         error: 'Subscription required',
         status: subscription.status,
       });
     }
-    
+
     // Grant access to feature
     const result = await yourPremiumFeature();
     res.json({ result });
-    
+
   } catch (error) {
     if (error.response?.status === 404) {
       return res.status(403).json({ error: 'No subscription found' });
@@ -209,7 +328,7 @@ async function getCachedSubscription(oneSubUserId: string) {
       return cached.data;
     }
   }
-  
+
   const data = await verifySubscription(oneSubUserId);
   cache.set(oneSubUserId, { data, timestamp: Date.now() });
   return data;
@@ -240,7 +359,7 @@ app.post(
   (req, res) => {
     const signature = req.headers['1sub-signature'] as string;
     const payload = req.body.toString();
-    
+
     // Continue to next step...
   }
 );
@@ -263,20 +382,20 @@ function verifyWebhookSignature(
   const parts = signature.split(',');
   const timestamp = parts.find(p => p.startsWith('t='))?.split('=')[1];
   const sig = parts.find(p => p.startsWith('v1='))?.split('=')[1];
-  
+
   if (!timestamp || !sig) return false;
-  
+
   // Reject old timestamps (replay attack protection)
   const now = Math.floor(Date.now() / 1000);
   if (Math.abs(now - parseInt(timestamp)) > 300) return false;
-  
+
   // Compute expected signature
   const signedPayload = `${timestamp}.${payload}`;
   const expected = crypto
     .createHmac('sha256', secret)
     .update(signedPayload)
     .digest('hex');
-  
+
   // Timing-safe comparison
   return crypto.timingSafeEqual(
     Buffer.from(expected),
@@ -307,13 +426,13 @@ switch (event.type) {
     // Clear cache, send welcome email, etc.
     cache.delete(event.data.oneSubUserId);
     break;
-    
+
   case 'subscription.canceled':
     console.log('Subscription canceled:', event.data.oneSubUserId);
     // Revoke access, send cancellation email, etc.
     cache.delete(event.data.oneSubUserId);
     break;
-    
+
   case 'subscription.updated':
     console.log('Subscription updated:', event.data.oneSubUserId);
     // Update cached status
@@ -341,11 +460,17 @@ Make sure your webhook endpoint is publicly accessible via HTTPS. Use ngrok for 
 ## Test Your Integration
 
 <AccordionGroup>
-<Accordion title="Test User Authentication">
+<Accordion title="Test Account Linking">
+  **Email-Based:**
+  1. Log into your tool with a verified email
+  2. Verify the email hash lookup returns the correct subscription
+  3. Check that oneSubUserId is cached in your database
+
+  **Link Codes:**
   1. Subscribe to your tool on 1Sub (use test mode)
-  2. Verify you're redirected to your callback URL with a token
-  3. Check that the JWT is verified correctly
-  4. Confirm user link is created in your database
+  2. Note the link code provided
+  3. Enter code in your tool
+  4. Verify the link is created in your database
 </Accordion>
 
 <Accordion title="Test Subscription Verification">
@@ -372,61 +497,35 @@ Here's a complete working example combining all three steps:
 ```typescript Express + TypeScript
 import express from 'express';
 import axios from 'axios';
-import { jwtVerify, createRemoteJWKSet } from 'jose';
 import crypto from 'crypto';
 
 const app = express();
+app.use(express.json());
+
 const ONESUB_API_KEY = process.env.ONESUB_API_KEY;
 const ONESUB_WEBHOOK_SECRET = process.env.ONESUB_WEBHOOK_SECRET;
-const TOOL_ID = process.env.TOOL_ID;
 
-const JWKS = createRemoteJWKSet(
-  new URL('https://1sub.io/.well-known/1sub-jwks.json')
-);
+// Helper: Hash email
+function hashEmail(email: string): string {
+  const normalized = email.toLowerCase().trim();
+  return crypto.createHash('sha256').update(normalized).digest('hex');
+}
 
-// Step 1: User Authentication
-app.get('/auth/1sub/callback', async (req, res) => {
-  const { token } = req.query;
-  
-  if (!token) {
-    return res.status(400).send('Missing token');
-  }
-  
-  try {
-    const { payload } = await jwtVerify(token as string, JWKS, {
-      issuer: '1sub',
-      audience: TOOL_ID,
-      maxTokenAge: '10m',
-    });
-    
-    const oneSubUserId = payload.sub as string;
-    const email = payload.email as string;
-    
-    const user = await findOrCreateUser(email);
-    await storeUserLink(user.id, oneSubUserId);
-    
-    req.session.userId = user.id;
-    res.redirect('/dashboard');
-  } catch (error) {
-    console.error('JWT verification failed:', error);
-    res.status(401).send('Authentication failed');
-  }
-});
+// Step 1: Email-Based Account Linking
+app.post('/link-account/email', async (req, res) => {
+  const { userId } = req.session;
 
-// Step 2: Subscription Verification
-app.post('/api/premium-feature', async (req, res) => {
-  const userId = req.session.userId;
-  
   if (!userId) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
-  
-  const oneSubUserId = await getOneSubUserId(userId);
-  
+
   try {
+    const user = await db.users.findById(userId);
+    const emailHash = hashEmail(user.email);
+
     const response = await axios.post(
       'https://1sub.io/api/v1/tools/subscriptions/verify',
-      { oneSubUserId },
+      { emailSha256: emailHash },
       {
         headers: {
           'Authorization': `Bearer ${ONESUB_API_KEY}`,
@@ -434,14 +533,92 @@ app.post('/api/premium-feature', async (req, res) => {
         },
       }
     );
-    
+
+    // Cache oneSubUserId
+    await db.users.update(userId, {
+      oneSubUserId: response.data.oneSubUserId,
+      subscriptionStatus: response.data.status
+    });
+
+    res.json({ success: true, subscription: response.data });
+  } catch (error) {
+    if (error.response?.status === 404) {
+      return res.status(404).json({ error: 'No subscription found for this email' });
+    }
+    console.error('Link failed:', error);
+    res.status(500).json({ error: 'Failed to link account' });
+  }
+});
+
+// Step 1: Link Code Account Linking (Alternative)
+app.post('/link-account/code', async (req, res) => {
+  const { code, userId } = req.body;
+
+  const CODE_REGEX = /^[A-Z0-9]{6,10}$/;
+  if (!CODE_REGEX.test(code)) {
+    return res.status(400).json({ error: 'Invalid code format' });
+  }
+
+  try {
+    const response = await axios.post(
+      'https://1sub.io/api/v1/tools/link/exchange-code',
+      { code: code.toUpperCase(), toolUserId: userId },
+      {
+        headers: {
+          'Authorization': `Bearer ${ONESUB_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    await db.users.update(userId, {
+      oneSubUserId: response.data.oneSubUserId,
+      linkedAt: response.data.linkedAt
+    });
+
+    res.json({ success: true, linked: true });
+  } catch (error) {
+    if (error.response?.status === 404) {
+      return res.status(400).json({ error: 'Invalid or expired code' });
+    }
+    console.error('Exchange failed:', error);
+    res.status(500).json({ error: 'Failed to exchange code' });
+  }
+});
+
+// Step 2: Subscription Verification
+app.post('/api/premium-feature', async (req, res) => {
+  const { userId } = req.session;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const user = await db.users.findById(userId);
+
+  if (!user.oneSubUserId) {
+    return res.status(403).json({ error: 'Account not linked' });
+  }
+
+  try {
+    const response = await axios.post(
+      'https://1sub.io/api/v1/tools/subscriptions/verify',
+      { oneSubUserId: user.oneSubUserId },
+      {
+        headers: {
+          'Authorization': `Bearer ${ONESUB_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
     if (!response.data.active) {
       return res.status(403).json({
         error: 'Subscription required',
         status: response.data.status,
       });
     }
-    
+
     const result = await yourPremiumFeature();
     res.json({ result });
   } catch (error) {
@@ -460,13 +637,13 @@ app.post(
   (req, res) => {
     const signature = req.headers['1sub-signature'] as string;
     const payload = req.body.toString();
-    
+
     if (!verifyWebhookSignature(payload, signature, ONESUB_WEBHOOK_SECRET)) {
       return res.status(401).send('Invalid signature');
     }
-    
+
     const event = JSON.parse(payload);
-    
+
     switch (event.type) {
       case 'subscription.activated':
         console.log('Subscription activated:', event.data.oneSubUserId);
@@ -478,7 +655,7 @@ app.post(
         console.log('Subscription updated:', event.data.oneSubUserId);
         break;
     }
-    
+
     res.json({ received: true });
   }
 );
@@ -491,18 +668,18 @@ function verifyWebhookSignature(
   const parts = signature.split(',');
   const timestamp = parts.find(p => p.startsWith('t='))?.split('=')[1];
   const sig = parts.find(p => p.startsWith('v1='))?.split('=')[1];
-  
+
   if (!timestamp || !sig) return false;
-  
+
   const now = Math.floor(Date.now() / 1000);
   if (Math.abs(now - parseInt(timestamp)) > 300) return false;
-  
+
   const signedPayload = `${timestamp}.${payload}`;
   const expected = crypto
     .createHmac('sha256', secret)
     .update(signedPayload)
     .digest('hex');
-  
+
   return crypto.timingSafeEqual(
     Buffer.from(expected),
     Buffer.from(sig)
@@ -518,85 +695,129 @@ import hmac
 import hashlib
 import time
 import requests
-from flask import Flask, request, session, redirect, jsonify
-from jose import jwt, jwk
-from jose.utils import base64url_decode
+from flask import Flask, request, session, jsonify
 
 app = Flask(__name__)
 app.secret_key = os.environ['SECRET_KEY']
 
 ONESUB_API_KEY = os.environ['ONESUB_API_KEY']
 ONESUB_WEBHOOK_SECRET = os.environ['ONESUB_WEBHOOK_SECRET']
-TOOL_ID = os.environ['TOOL_ID']
 
-# Fetch JWKS
-jwks_response = requests.get('https://1sub.io/.well-known/1sub-jwks.json')
-JWKS = jwks_response.json()
+# Helper: Hash email
+def hash_email(email: str) -> str:
+    normalized = email.lower().strip()
+    return hashlib.sha256(normalized.encode()).hexdigest()
 
-# Step 1: User Authentication
-@app.route('/auth/1sub/callback')
-def auth_callback():
-    token = request.args.get('token')
-    
-    if not token:
-        return 'Missing token', 400
-    
-    try:
-        # Verify JWT
-        claims = jwt.decode(
-            token,
-            JWKS,
-            algorithms=['RS256'],
-            audience=TOOL_ID,
-            issuer='1sub'
-        )
-        
-        onesub_user_id = claims['sub']
-        email = claims['email']
-        
-        # Create or link user
-        user = find_or_create_user(email)
-        store_user_link(user['id'], onesub_user_id)
-        
-        session['user_id'] = user['id']
-        return redirect('/dashboard')
-        
-    except Exception as e:
-        print(f'JWT verification failed: {e}')
-        return 'Authentication failed', 401
-
-# Step 2: Subscription Verification
-@app.route('/api/premium-feature', methods=['POST'])
-def premium_feature():
+# Step 1: Email-Based Account Linking
+@app.route('/link-account/email', methods=['POST'])
+def link_account_email():
     user_id = session.get('user_id')
-    
+
     if not user_id:
         return jsonify({'error': 'Not authenticated'}), 401
-    
-    onesub_user_id = get_onesub_user_id(user_id)
-    
+
     try:
+        user = db.users.find_by_id(user_id)
+        email_hash = hash_email(user['email'])
+
         response = requests.post(
             'https://1sub.io/api/v1/tools/subscriptions/verify',
-            json={'oneSubUserId': onesub_user_id},
+            json={'emailSha256': email_hash},
             headers={
                 'Authorization': f'Bearer {ONESUB_API_KEY}',
                 'Content-Type': 'application/json'
             }
         )
         response.raise_for_status()
-        
+
+        data = response.json()
+
+        # Cache oneSubUserId
+        db.users.update(user_id, {
+            'onesub_user_id': data['oneSubUserId'],
+            'subscription_status': data['status']
+        })
+
+        return jsonify({'success': True, 'subscription': data})
+
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 404:
+            return jsonify({'error': 'No subscription found'}), 404
+        print(f'Link failed: {e}')
+        return jsonify({'error': 'Failed to link account'}), 500
+
+# Step 1: Link Code Account Linking (Alternative)
+@app.route('/link-account/code', methods=['POST'])
+def link_account_code():
+    data = request.get_json()
+    code = data.get('code')
+    user_id = data.get('userId')
+
+    import re
+    if not re.match(r'^[A-Z0-9]{6,10}$', code):
+        return jsonify({'error': 'Invalid code format'}), 400
+
+    try:
+        response = requests.post(
+            'https://1sub.io/api/v1/tools/link/exchange-code',
+            json={'code': code.upper(), 'toolUserId': user_id},
+            headers={
+                'Authorization': f'Bearer {ONESUB_API_KEY}',
+                'Content-Type': 'application/json'
+            }
+        )
+        response.raise_for_status()
+
+        result = response.json()
+
+        db.users.update(user_id, {
+            'onesub_user_id': result['oneSubUserId'],
+            'linked_at': result['linkedAt']
+        })
+
+        return jsonify({'success': True, 'linked': True})
+
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 404:
+            return jsonify({'error': 'Invalid or expired code'}), 400
+        print(f'Exchange failed: {e}')
+        return jsonify({'error': 'Failed to exchange code'}), 500
+
+# Step 2: Subscription Verification
+@app.route('/api/premium-feature', methods=['POST'])
+def premium_feature():
+    user_id = session.get('user_id')
+
+    if not user_id:
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    user = db.users.find_by_id(user_id)
+
+    if not user.get('onesub_user_id'):
+        return jsonify({'error': 'Account not linked'}), 403
+
+    try:
+        response = requests.post(
+            'https://1sub.io/api/v1/tools/subscriptions/verify',
+            json={'oneSubUserId': user['onesub_user_id']},
+            headers={
+                'Authorization': f'Bearer {ONESUB_API_KEY}',
+                'Content-Type': 'application/json'
+            }
+        )
+        response.raise_for_status()
+
         subscription = response.json()
-        
+
         if not subscription['active']:
             return jsonify({
                 'error': 'Subscription required',
                 'status': subscription['status']
             }), 403
-        
+
         result = your_premium_feature()
         return jsonify({'result': result})
-        
+
     except requests.exceptions.HTTPError as e:
         if e.response.status_code == 404:
             return jsonify({'error': 'No subscription found'}), 403
@@ -608,34 +829,34 @@ def premium_feature():
 def webhook_handler():
     signature = request.headers.get('1sub-signature')
     payload = request.get_data(as_text=True)
-    
+
     if not verify_webhook_signature(payload, signature, ONESUB_WEBHOOK_SECRET):
         return 'Invalid signature', 401
-    
+
     event = request.get_json()
-    
+
     if event['type'] == 'subscription.activated':
         print(f"Subscription activated: {event['data']['oneSubUserId']}")
     elif event['type'] == 'subscription.canceled':
         print(f"Subscription canceled: {event['data']['oneSubUserId']}")
     elif event['type'] == 'subscription.updated':
         print(f"Subscription updated: {event['data']['oneSubUserId']}")
-    
+
     return jsonify({'received': True})
 
 def verify_webhook_signature(payload, signature, secret):
     parts = dict(part.split('=') for part in signature.split(','))
     timestamp = parts.get('t')
     sig = parts.get('v1')
-    
+
     if not timestamp or not sig:
         return False
-    
+
     # Check timestamp
     now = int(time.time())
     if abs(now - int(timestamp)) > 300:
         return False
-    
+
     # Compute expected signature
     signed_payload = f"{timestamp}.{payload}"
     expected = hmac.new(
@@ -643,7 +864,7 @@ def verify_webhook_signature(payload, signature, secret):
         signed_payload.encode(),
         hashlib.sha256
     ).hexdigest()
-    
+
     # Timing-safe comparison
     return hmac.compare_digest(expected, sig)
 
@@ -675,22 +896,31 @@ if __name__ == '__main__':
 ## Troubleshooting
 
 <AccordionGroup>
-<Accordion title="JWT Verification Fails">
+<Accordion title="Email Lookup Returns 404">
   **Possible causes:**
-  - Token has expired (10 minute lifetime)
-  - `audience` doesn't match your tool ID
-  - JWKS endpoint is unreachable
-  
-  **Solution:** Verify your tool ID is correct and the JWKS URL is accessible.
+  - User hasn't subscribed to your tool on 1Sub yet
+  - Email addresses don't match (check capitalization/whitespace)
+  - User subscribed with different email address
+
+  **Solution:** Ensure the email is normalized (lowercase, trimmed) and matches the 1Sub subscription email. Consider using link codes as fallback.
+</Accordion>
+
+<Accordion title="Link Code Invalid or Expired">
+  **Possible causes:**
+  - Code has expired (10 minute lifetime)
+  - Code was already used
+  - Code was entered incorrectly
+
+  **Solution:** Prompt user to generate a new code from their 1Sub account settings. Validate code format before calling API.
 </Accordion>
 
 <Accordion title="Subscription Not Found (404)">
   **Possible causes:**
   - User hasn't subscribed yet
-  - Wrong `oneSubUserId` 
-  - Tool ID mismatch
-  
-  **Solution:** Check the user link mapping in your database.
+  - Wrong `oneSubUserId`
+  - Account not properly linked
+
+  **Solution:** Check the user link mapping in your database. Ask user to re-link their account.
 </Accordion>
 
 <Accordion title="Webhook Signature Invalid">
@@ -698,12 +928,19 @@ if __name__ == '__main__':
   - Using parsed body instead of raw body
   - Wrong webhook secret
   - Timestamp too old (>5 minutes)
-  
-  **Solution:** Use `express.raw()` middleware and verify your webhook secret.
+
+  **Solution:** Use `express.raw()` middleware and verify your webhook secret is correct in environment variables.
+</Accordion>
+
+<Accordion title="Rate Limit Exceeded for Email Lookups">
+  **Possible causes:**
+  - Making too many email hash lookups (30/min limit)
+  - Not caching oneSubUserId after first lookup
+
+  **Solution:** Always cache `oneSubUserId` after the first email lookup. Use the cached value for subsequent verifications (100/min limit).
 </Accordion>
 </AccordionGroup>
 
 <Warning>
 Always store your API key and webhook secret securely in environment variables. Never commit them to version control.
 </Warning>
-

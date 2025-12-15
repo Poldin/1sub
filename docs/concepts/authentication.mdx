@@ -5,231 +5,293 @@ description: "Understanding authentication methods and security in 1Sub integrat
 
 # Authentication
 
-1Sub uses two primary authentication methods: JWT tokens for user authentication and API keys for server-to-server requests.
+1Sub uses two primary authentication methods for tool integrations:
 
-## JWT Tokens (User Authentication)
+1. **Email-Based Verification** - For SaaS tools with their own authentication
+2. **Link Codes** - For CLI tools, desktop apps, or any tool where email-based verification isn't suitable
 
-When users subscribe to your tool on 1Sub, they're redirected to your application with a short-lived JWT (JSON Web Token).
+Both methods use your API key for server-to-server authentication.
 
-### Token Format
+## Email-Based Verification (Recommended for SaaS)
 
-```
-https://yourtool.com/callback?token=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImtleS0yMDI1LTAxIn0...
-```
+**Best for:** Web applications, SaaS tools, platforms with their own user authentication
 
-### Token Claims
+When your tool already has authenticated users with verified emails, you can seamlessly link their 1Sub accounts using email-based verification.
 
-The JWT contains the following claims:
+### How It Works
 
-<ResponseField name="iss" type="string" required>
-Issuer, always `"1sub"`
-</ResponseField>
+<Steps>
+<Step title="User subscribes on 1Sub">
+User purchases a subscription to your tool through 1Sub and provides their email address.
+</Step>
 
-<ResponseField name="aud" type="string" required>
-Audience, your tool ID (UUID format)
-</ResponseField>
+<Step title="User logs into your tool">
+User logs into your tool with the same email address they used on 1Sub.
+</Step>
 
-<ResponseField name="sub" type="string" required>
-Subject, the 1Sub user ID (UUID format)
-</ResponseField>
+<Step title="Your tool verifies subscription">
+Hash the user's email and call the verify endpoint to get their `oneSubUserId` and subscription status.
+</Step>
 
-<ResponseField name="email" type="string" required>
-User's email address
-</ResponseField>
+<Step title="Cache the oneSubUserId">
+Store the `oneSubUserId` for future verification calls (much faster than email lookups).
+</Step>
+</Steps>
 
-<ResponseField name="jti" type="string" required>
-JWT ID for replay protection (unique per token)
-</ResponseField>
-
-<ResponseField name="iat" type="number" required>
-Issued at timestamp (Unix time)
-</ResponseField>
-
-<ResponseField name="exp" type="number" required>
-Expiration timestamp (Unix time, 10 minutes from issue)
-</ResponseField>
-
-## Token Verification Methods
-
-1Sub offers two methods to verify JWT tokens. Choose based on your needs:
-
-### Method 1: JWKS Verification (Recommended)
-
-**Best for:** Most integrations, especially high-volume APIs
-
-**Advantages:**
-- ✅ Faster (no network call required)
-- ✅ Better security (client-side verification)
-- ✅ Works offline once JWKS is cached
-- ✅ Reduces load on 1Sub servers
-
-Verify JWT signatures using the public keys from our JWKS endpoint:
-
-```
-https://1sub.io/.well-known/1sub-jwks.json
-```
-
-<Tip>
-Cache the JWKS response for up to 1 hour to reduce latency and API calls.
-</Tip>
-
-**Example verification:**
-
-<CodeGroup>
-```typescript Node.js (jose)
-import { jwtVerify, createRemoteJWKSet } from 'jose';
-
-const JWKS = createRemoteJWKSet(
-  new URL('https://1sub.io/.well-known/1sub-jwks.json')
-);
-
-async function verifyToken(token: string, toolId: string) {
-  try {
-    const { payload } = await jwtVerify(token, JWKS, {
-      issuer: '1sub',
-      audience: toolId,
-      maxTokenAge: '10m',
-    });
-    
-    return {
-      oneSubUserId: payload.sub as string,
-      email: payload.email as string,
-      jti: payload.jti as string,
-    };
-  } catch (error) {
-    console.error('JWT verification failed:', error);
-    return null;
-  }
-}
-```
-
-```python Python (jose)
-from jose import jwt, jwk
-import requests
-
-# Fetch JWKS (cache this!)
-jwks_response = requests.get('https://1sub.io/.well-known/1sub-jwks.json')
-JWKS = jwks_response.json()
-
-def verify_token(token, tool_id):
-    try:
-        claims = jwt.decode(
-            token,
-            JWKS,
-            algorithms=['RS256'],
-            audience=tool_id,
-            issuer='1sub'
-        )
-        
-        return {
-            'onesub_user_id': claims['sub'],
-            'email': claims['email'],
-            'jti': claims['jti']
-        }
-    except Exception as e:
-        print(f'JWT verification failed: {e}')
-        return None
-```
-</CodeGroup>
-
-### Method 2: API Verification (Alternative)
-
-**Best for:** Simpler integrations, legacy systems, or when JWKS libraries are unavailable
-
-**Advantages:**
-- ✅ Simple implementation (just an API call)
-- ✅ No JWT libraries required
-- ✅ Server-side validation handles all complexity
-
-**Disadvantages:**
-- ⚠️ Requires network call (adds latency)
-- ⚠️ Rate limited (60 requests/minute per IP)
-- ⚠️ Dependent on 1Sub availability
-
-Use the `/api/v1/verify-user` endpoint to verify tokens:
+### Implementation Example
 
 <CodeGroup>
 ```typescript Node.js
-async function verifyTokenViaAPI(token: string) {
-  const response = await fetch('https://1sub.io/api/v1/verify-user', {
+import crypto from 'crypto';
+
+async function linkUserAccount(userEmail: string, apiKey: string) {
+  // 1. Hash the email (SHA256)
+  const normalizedEmail = userEmail.toLowerCase().trim();
+  const emailHash = crypto
+    .createHash('sha256')
+    .update(normalizedEmail)
+    .digest('hex');
+
+  // 2. Verify subscription and get oneSubUserId
+  const response = await fetch('https://1sub.io/api/v1/tools/subscriptions/verify', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token })
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ emailSha256: emailHash })
   });
-  
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error('No active subscription found for this email');
+    }
+    throw new Error('Failed to verify subscription');
+  }
+
+  const data = await response.json();
+
+  // 3. Cache oneSubUserId for future verifications
+  await db.users.update(userEmail, {
+    oneSubUserId: data.oneSubUserId,
+    subscriptionStatus: data.status,
+    creditsRemaining: data.creditsRemaining
+  });
+
+  return data;
+}
+
+// For future verifications, use the cached oneSubUserId (10x faster)
+async function checkSubscription(oneSubUserId: string, apiKey: string) {
+  const response = await fetch('https://1sub.io/api/v1/tools/subscriptions/verify', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ oneSubUserId })
+  });
+
+  return await response.json();
+}
+```
+
+```python Python
+import hashlib
+import requests
+
+def link_user_account(user_email: str, api_key: str):
+    # 1. Hash the email (SHA256)
+    normalized_email = user_email.lower().strip()
+    email_hash = hashlib.sha256(normalized_email.encode()).hexdigest()
+
+    # 2. Verify subscription and get oneSubUserId
+    response = requests.post(
+        'https://1sub.io/api/v1/tools/subscriptions/verify',
+        headers={
+            'Authorization': f'Bearer {api_key}',
+            'Content-Type': 'application/json'
+        },
+        json={'emailSha256': email_hash}
+    )
+
+    if response.status_code == 404:
+        raise Exception('No active subscription found for this email')
+
+    response.raise_for_status()
+    data = response.json()
+
+    # 3. Cache oneSubUserId for future verifications
+    db.users.update(user_email, {
+        'onesub_user_id': data['oneSubUserId'],
+        'subscription_status': data['status'],
+        'credits_remaining': data['creditsRemaining']
+    })
+
+    return data
+
+# For future verifications, use the cached oneSubUserId (10x faster)
+def check_subscription(onesub_user_id: str, api_key: str):
+    response = requests.post(
+        'https://1sub.io/api/v1/tools/subscriptions/verify',
+        headers={
+            'Authorization': f'Bearer {api_key}',
+            'Content-Type': 'application/json'
+        },
+        json={'oneSubUserId': onesub_user_id}
+    )
+
+    return response.json()
+```
+</CodeGroup>
+
+<Tip>
+**Performance Optimization:** The first email lookup creates an automatic link. Subsequent verifications should use the cached `oneSubUserId` for 10-20x faster response times.
+</Tip>
+
+### Security Considerations
+
+<AccordionGroup>
+<Accordion title="Email verification is critical">
+Only use this method if you've verified the user's email address through your own authentication system (e.g., email confirmation during signup). Never accept email addresses from unverified sources.
+</Accordion>
+
+<Accordion title="Rate limiting">
+Email-based lookups are rate limited to 30 requests/minute per tool. Use the cached `oneSubUserId` for subsequent calls to avoid hitting rate limits.
+</Accordion>
+
+<Accordion title="Timing protection">
+The API implements timing protection to prevent email enumeration attacks. All email lookups take a minimum of 100ms regardless of whether the email exists.
+</Accordion>
+
+<Accordion title="Email changes">
+If a user changes their email on 1Sub, the link remains valid. The system maintains the connection via the `oneSubUserId`, not the email.
+</Accordion>
+</AccordionGroup>
+
+## Link Codes (Alternative Method)
+
+**Best for:** CLI tools, desktop applications, mobile apps, or when email-based verification isn't suitable
+
+Link codes provide a simple 6-character code that users can enter to connect their accounts.
+
+### How It Works
+
+<Steps>
+<Step title="User subscribes on 1Sub">
+After subscribing, the user receives a 6-character link code (e.g., `A3K9Z7`) valid for 10 minutes.
+</Step>
+
+<Step title="User enters code in your tool">
+User opens your tool and navigates to the account linking section to enter the code.
+</Step>
+
+<Step title="Your tool exchanges the code">
+Call the exchange endpoint with the code and your internal user ID to create the link.
+</Step>
+
+<Step title="Link established">
+The API returns the `oneSubUserId` which you can use for future subscription verifications.
+</Step>
+</Steps>
+
+### Implementation Example
+
+<CodeGroup>
+```typescript Node.js
+async function exchangeLinkCode(code: string, toolUserId: string, apiKey: string) {
+  const response = await fetch('https://1sub.io/api/v1/tools/link/exchange-code', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      code: code.toUpperCase(), // Codes are case-insensitive
+      toolUserId: toolUserId
+    })
+  });
+
   if (!response.ok) {
     const error = await response.json();
+    if (response.status === 404) {
+      throw new Error('Invalid or expired code');
+    }
     throw new Error(error.message);
   }
-  
-  return await response.json(); // { valid, user_id, tool_id, checkout_id, expires_at }
+
+  const data = await response.json();
+
+  // Store oneSubUserId for future verification
+  await db.users.update(toolUserId, {
+    oneSubUserId: data.oneSubUserId,
+    linkedAt: data.linkedAt
+  });
+
+  return data; // { linked: true, oneSubUserId, toolUserId, linkedAt }
 }
 ```
 
 ```python Python
 import requests
 
-def verify_token_via_api(token):
+def exchange_link_code(code: str, tool_user_id: str, api_key: str):
     response = requests.post(
-        'https://1sub.io/api/v1/verify-user',
-        json={'token': token}
+        'https://1sub.io/api/v1/tools/link/exchange-code',
+        headers={
+            'Authorization': f'Bearer {api_key}',
+            'Content-Type': 'application/json'
+        },
+        json={
+            'code': code.upper(),  # Codes are case-insensitive
+            'toolUserId': tool_user_id
+        }
     )
-    
-    if not response.ok:
-        raise Exception(response.json().get('message', 'Verification failed'))
-    
-    return response.json()  # { valid, user_id, tool_id, checkout_id, expires_at }
+
+    if response.status_code == 404:
+        raise Exception('Invalid or expired code')
+
+    response.raise_for_status()
+    data = response.json()
+
+    # Store oneSubUserId for future verification
+    db.users.update(tool_user_id, {
+        'onesub_user_id': data['oneSubUserId'],
+        'linked_at': data['linkedAt']
+    })
+
+    return data  # { linked: true, oneSubUserId, toolUserId, linkedAt }
 ```
 </CodeGroup>
 
 <Note>
-For complete API documentation, see [Verify User Token](/api/reference#verify-user-token).
+Link codes are **single-use** and expire after **10 minutes**. Users can generate new codes from their 1Sub account if needed.
 </Note>
 
-### Which Method Should You Use?
-
-<CardGroup cols={2}>
-<Card title="Use JWKS if..." icon="check">
-- You have high request volume
-- Performance is critical
-- You can use JWT libraries (jose, PyJWT, etc.)
-- You want offline verification capability
-</Card>
-
-<Card title="Use API verification if..." icon="bolt">
-- You're building a quick prototype
-- JWT libraries aren't available
-- Request volume is low (&lt;60/min)
-- You prefer simplicity over performance
-</Card>
-</CardGroup>
-
-### Token Security Best Practices
+### Link Code Best Practices
 
 <AccordionGroup>
-<Accordion title="Always verify signatures">
-Never trust JWT tokens without verifying the signature using JWKS. This prevents token tampering.
-</Accordion>
-
-<Accordion title="Check expiration">
-Reject expired tokens immediately. Our tokens expire after 10 minutes.
-</Accordion>
-
-<Accordion title="Validate claims">
-Always check `iss`, `aud`, and `exp` claims. Mismatch indicates an invalid or misrouted token.
-</Accordion>
-
-<Accordion title="Implement replay protection">
-Store the `jti` (JWT ID) for processed tokens to prevent replay attacks. Tokens should only be processed once.
+<Accordion title="Validate format">
+Link codes are 6-10 uppercase alphanumeric characters. Validate the format before calling the API to provide immediate feedback to users.
 
 ```typescript
-const processedTokens = new Set();
-
-if (processedTokens.has(payload.jti)) {
-  throw new Error('Token already processed');
+const CODE_REGEX = /^[A-Z0-9]{6,10}$/;
+if (!CODE_REGEX.test(code)) {
+  throw new Error('Invalid code format');
 }
-processedTokens.add(payload.jti);
 ```
+</Accordion>
+
+<Accordion title="Handle expiration gracefully">
+If a code has expired (404 response), prompt the user to generate a new code from their 1Sub account settings.
+</Accordion>
+
+<Accordion title="Idempotent exchange">
+The code exchange endpoint is idempotent. If the same `toolUserId` attempts to exchange a code multiple times, it will return the existing link without error.
+</Accordion>
+
+<Accordion title="Store oneSubUserId">
+After successful exchange, always store the `oneSubUserId` for future subscription verification calls. Don't rely on repeatedly exchanging codes.
 </Accordion>
 </AccordionGroup>
 
@@ -480,9 +542,10 @@ def webhook_handler():
 
 Before going to production, ensure you:
 
-- ✅ Verify all JWT signatures using JWKS
-- ✅ Check JWT expiration and claims (`iss`, `aud`, `exp`)
-- ✅ Implement JWT replay protection using `jti`
+- ✅ Only use email-based verification with verified email addresses
+- ✅ Cache `oneSubUserId` after first lookup for better performance
+- ✅ Validate link code format before API calls
+- ✅ Handle expired link codes gracefully
 - ✅ Store API keys securely in environment variables
 - ✅ Use HTTPS for all API requests
 - ✅ Verify all webhook signatures

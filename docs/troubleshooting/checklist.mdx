@@ -31,15 +31,15 @@ Use this checklist before going live to ensure your 1Sub integration is secure, 
 ## Authentication & Security
 
 <AccordionGroup>
-<Accordion title="✅ JWT Verification">
-- [ ] JWKS endpoint is fetched and cached
-- [ ] JWT signature is verified using JWKS
-- [ ] `iss` claim is checked (`"1sub"`)
-- [ ] `aud` claim is checked (your tool ID)
-- [ ] `exp` claim is checked (not expired)
-- [ ] `jti` is used for replay protection
-- [ ] Expired tokens are rejected with clear error
-- [ ] Invalid tokens are rejected with clear error
+<Accordion title="✅ Account Linking">
+- [ ] Email hashing implemented correctly (SHA256 of lowercase, trimmed email)
+- [ ] Link code exchange endpoint is implemented
+- [ ] Link code validation (6-10 alphanumeric characters)
+- [ ] Expired link codes (>10 min) are rejected with clear error
+- [ ] Invalid link codes return helpful error messages
+- [ ] `oneSubUserId` is cached after first lookup for performance
+- [ ] User cannot link multiple 1Sub accounts to same tool account
+- [ ] Link conflicts are handled gracefully
 </Accordion>
 
 <Accordion title="✅ API Authentication">
@@ -65,15 +65,16 @@ Use this checklist before going live to ensure your 1Sub integration is secure, 
 ## User Flow
 
 <AccordionGroup>
-<Accordion title="✅ User Redirect & Linking">
-- [ ] Redirect callback endpoint is implemented
-- [ ] JWT token is extracted from URL query parameter
-- [ ] Token is verified before creating link
+<Accordion title="✅ User Account Linking">
+- [ ] Email-based linking is implemented (for SaaS tools) OR
+- [ ] Link code exchange is implemented (for CLI/desktop apps)
+- [ ] `oneSubUserId` is extracted from verify response
 - [ ] User link is stored in database
 - [ ] Link conflicts are handled (already linked users)
 - [ ] User session is created after successful link
 - [ ] User is redirected to appropriate page after linking
 - [ ] Error states are handled gracefully
+- [ ] First-time linking uses emailSha256, subsequent uses oneSubUserId
 </Accordion>
 
 <Accordion title="✅ Subscription Verification">
@@ -178,8 +179,8 @@ Use this checklist before going live to ensure your 1Sub integration is secure, 
 - [ ] Subscription status is cached locally
 - [ ] Cache has reasonable TTL (e.g. 1-5 minutes)
 - [ ] Cache is invalidated on webhooks
-- [ ] JWKS is cached (up to 1 hour)
-- [ ] Cache implementation is production-ready
+- [ ] `oneSubUserId` lookups are preferred over email lookups (10-20x faster)
+- [ ] Cache implementation is production-ready (Redis recommended)
 </Accordion>
 
 <Accordion title="✅ Rate Limiting">
@@ -226,12 +227,13 @@ Use this checklist before going live to ensure your 1Sub integration is secure, 
 
 <AccordionGroup>
 <Accordion title="✅ Unit Tests">
-- [ ] JWT verification is tested
+- [ ] Email hashing is tested (SHA256 of lowercase, trimmed)
+- [ ] Link code validation is tested
 - [ ] Webhook signature verification is tested
 - [ ] API error handling is tested
 - [ ] Subscription caching is tested
 - [ ] Idempotency logic is tested
-- [ ] User linking logic is tested
+- [ ] User linking logic is tested (both email and link code)
 </Accordion>
 
 <Accordion title="✅ Integration Tests">
@@ -247,7 +249,8 @@ Use this checklist before going live to ensure your 1Sub integration is secure, 
 - [ ] Test subscription cancellation
 - [ ] Test plan upgrades/downgrades
 - [ ] Test with insufficient credits
-- [ ] Test JWT expiration handling
+- [ ] Test link code expiration (>10 minutes)
+- [ ] Test email-based linking with matching/non-matching emails
 - [ ] Test rate limiting
 - [ ] Test webhook replay protection
 - [ ] Test concurrent requests
@@ -349,6 +352,11 @@ Completing this checklist ensures your integration is secure, reliable, and read
 <Tip>
 Print this checklist and check off items as you complete them. Don't skip any items — each one is critical for a production-ready integration.
 </Tip>
+
+
+
+
+
 
 
 

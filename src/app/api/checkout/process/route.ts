@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { transferCredits, createDebitTransaction, getCurrentBalance } from '@/lib/actions/credit-transactions';
-import { generateToolAccessToken } from '@/lib/jwt';
 import { notifySubscriptionActivated, notifyPurchaseCompleted } from '@/lib/tool-webhooks';
 
 export async function POST(request: NextRequest) {
