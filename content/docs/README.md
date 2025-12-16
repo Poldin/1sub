@@ -9,9 +9,11 @@ Complete technical documentation for integrating your tool with 1Sub.
 - **[Quickstart](quickstart.mdx)** - Get integrated in 15 minutes
 
 ### Core Concepts
-- **[Authentication](concepts/authentication.mdx)** - JWT tokens, API keys, and verification methods
+- **[Monetization Models](concepts/monetization-models.mdx)** - Choose between subscriptions, credits, and one-time purchases
 - **[Tools and Accounts](concepts/tools-and-accounts.mdx)** - User linking and management
-- **[Credits and Subscriptions](concepts/credits-and-subscriptions.mdx)** - Credit system and subscription models
+- **[Credits and Subscriptions](concepts/credits-and-subscriptions.mdx)** - Credit system, subscription models, and one-time purchases
+- **[Vendor Payouts](concepts/vendor-payouts.mdx)** - How to get paid, payout schedules, and Stripe Connect setup
+- **[Authentication](concepts/authentication.mdx)** - JWT tokens, API keys, and verification methods
 
 ### API Reference
 - **[API Overview](api/overview.mdx)** - Base URLs, rate limits, and general info
@@ -29,6 +31,9 @@ Complete technical documentation for integrating your tool with 1Sub.
 - **[Node.js Example](examples/node.mdx)** - Complete Express implementation
 - **[Python Example](examples/python.mdx)** - Complete Flask implementation
 - **[cURL Examples](examples/curl.mdx)** - Raw API requests
+
+### Testing & Guides
+- **[Testing Sandbox](guides/testing-sandbox.mdx)** - Local testing strategies
 
 ### Troubleshooting
 - **[Common Errors](troubleshooting/common-errors.mdx)** - Solutions to frequent issues
@@ -85,6 +90,8 @@ All API endpoints use: `https://1sub.io`
 ### Complete Coverage
 - ✅ All 5 vendor-facing REST API endpoints
 - ✅ All 8 webhook event types with payloads
+- ✅ All monetization models (subscriptions, credits, one-time purchases)
+- ✅ Vendor payout and revenue documentation
 - ✅ Both JWT verification methods (JWKS + API)
 - ✅ Token refresh flow for long-lived sessions
 - ✅ Complete request/response examples
@@ -95,15 +102,15 @@ All API endpoints use: `https://1sub.io`
 - ✅ Integration testing guide
 - ✅ Troubleshooting and common issues
 
-### Recent Updates (2025-12-07)
-- ✅ Added `/api/v1/verify-user` endpoint documentation
-- ✅ Added `/api/v1/refresh-token` endpoint documentation
-- ✅ Documented both JWKS and API verification approaches
-- ✅ Fixed rate limit discrepancy (credits/consume: 100/min not 300/min)
-- ✅ Corrected response fields for credit consumption endpoint
-- ✅ Added alternative verification methods to quickstart
-- ✅ Enhanced Node.js examples with token refresh patterns
-- ✅ Verified all field names match implementation (snake_case)
+### Recent Updates (2025-12-16)
+- ✅ Added comprehensive vendor payout documentation
+- ✅ Added monetization models comparison guide
+- ✅ Documented one-time purchase model
+- ✅ Added `hasLifetimeAccess`, `purchaseDate`, and `purchaseAmount` fields to API reference
+- ✅ Restructured navigation to prioritize business/revenue topics
+- ✅ Removed redundant full-integration-walkthrough (redirected to quickstart)
+- ✅ Moved internal docs (security audit, password protection) out of vendor docs
+- ✅ Simplified navigation structure
 
 ## 🔍 Verification Status
 

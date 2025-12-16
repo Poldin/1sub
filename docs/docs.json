@@ -31,9 +31,11 @@
           {
             "group": "Core Concepts",
             "pages": [
-              "concepts/authentication",
+              "concepts/monetization-models",
               "concepts/tools-and-accounts",
-              "concepts/credits-and-subscriptions"
+              "concepts/credits-and-subscriptions",
+              "concepts/vendor-payouts",
+              "concepts/authentication"
             ]
           },
           {
@@ -55,13 +57,17 @@
             ]
           },
           {
-            "group": "Guides & Examples",
+            "group": "Code Examples",
             "pages": [
-              "guides/full-integration-walkthrough",
-              "guides/testing-sandbox",
               "examples/node",
               "examples/python",
               "examples/curl"
+            ]
+          },
+          {
+            "group": "Testing & Guides",
+            "pages": [
+              "guides/testing-sandbox"
             ]
           },
           {
@@ -168,6 +174,7 @@
     }
   }
 }
+
 
 
 
