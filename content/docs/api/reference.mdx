@@ -328,6 +328,9 @@ print(f"New balance: {result['new_balance']}")
   "message": "This request has already been processed"
 }
 ```
+
+```json 200 OK - Idempotent Request
+{
   "success": true,
   "message": "Idempotent request already processed",
   "transaction_id": "txn-abc123def456",
