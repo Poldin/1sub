@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback, lazy, Suspense, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import ToolCard from './components/ToolCard';
@@ -14,8 +14,9 @@ import { Tool } from '@/lib/tool-types';
 // Lazy-load del ToolDialog per ridurre il bundle iniziale
 const ToolDialog = lazy(() => import('./components/ToolDialog'));
 
-export default function Home() {
+function HomeContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedToolId, setSelectedToolId] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -40,6 +41,20 @@ export default function Home() {
       setLoadingTimeout(false);
     }
   }, [loading, tools.length]);
+
+  // Handle shared tool link - open tool dialog if tid parameter is present
+  useEffect(() => {
+    const tid = searchParams.get('tid');
+    if (tid && tools.length > 0 && !loading) {
+      const sharedTool = tools.find(tool => tool.id === tid);
+      if (sharedTool) {
+        setSelectedToolId(tid);
+        setIsDialogOpen(true);
+        // Clean up URL without reloading the page
+        window.history.replaceState({}, '', '/');
+      }
+    }
+  }, [searchParams, tools, loading]);
 
   // Trova il tool selezionato dal ID per evitare riferimenti instabili
   // Questo evita re-render quando SWR ricarica i dati ma il tool è lo stesso
@@ -207,8 +222,8 @@ export default function Home() {
       </section>
 
       {/* Tools Showcase - Extra padding on mobile for sticky CTA */}
-      <section className="section-padding bg-[#0a0a0a] pb-28 sm:pb-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="py-0 md:py-10 lg:py-16 bg-[#0a0a0a] pb-28 sm:pb-16">
+        <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8">
           
           {/* Search Bar */}
           <div className="mb-8 max-w-3xl mx-auto" suppressHydrationWarning>
@@ -244,30 +259,25 @@ export default function Home() {
             </div>
             
             {/* Category Pills */}
-            <div className="flex flex-wrap justify-center gap-2" suppressHydrationWarning>
+            <div className="flex overflow-x-auto gap-2 scrollbar-hide pb-2" suppressHydrationWarning>
               {['AI', 'Design', 'Analytics', 'Video', 'Marketing', 'Code'].map((category) => (
                 <button
                   key={category}
                   onClick={() => setSearchTerm(category)}
-                  className={`group/cat px-4 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${
+                  className={`group/cat flex-shrink-0 px-4 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${
                     searchTerm === category
-                      ? 'bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] text-white shadow-lg shadow-[#3ecf8e]/30 scale-105'
-                      : 'bg-[#1f2937] border border-[#374151] text-[#d1d5db] hover:bg-[#374151] hover:border-[#3ecf8e] hover:text-[#3ecf8e] hover:scale-105'
+                      ? 'bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] text-white shadow-lg shadow-[#3ecf8e]/30'
+                      : 'bg-[#1f2937] border border-[#374151] text-[#d1d5db] hover:bg-[#374151] hover:border-[#3ecf8e] hover:text-[#3ecf8e]'
                   }`}
                   suppressHydrationWarning
                 >
                   {category}
-                  <span className={`ml-1 transition-opacity duration-300 ${
-                    searchTerm === category ? 'opacity-100' : 'opacity-0 group-hover/cat:opacity-100'
-                  }`}>
-                    ✓
-                  </span>
                 </button>
               ))}
               {searchTerm && (
                 <button
                   onClick={() => setSearchTerm('')}
-                  className="px-4 py-2 rounded-full text-sm font-semibold bg-[#374151] text-[#d1d5db] hover:bg-[#3ecf8e] hover:text-white transition-all duration-300 hover:scale-105"
+                  className="flex-shrink-0 px-4 py-2 rounded-full text-sm font-semibold bg-[#374151] text-[#d1d5db] hover:bg-[#3ecf8e] hover:text-white transition-all duration-300"
                 >
                   Clear
                 </button>
@@ -279,7 +289,7 @@ export default function Home() {
           {/* Only show skeletons if we're loading AND don't have any tools yet AND haven't timed out */}
           {loading && tools.length === 0 && !loadingTimeout && !error && (
             <div className="mb-8 mt-8">
-              <div className="flex flex-wrap gap-4 sm:gap-6 justify-center px-4 sm:px-0">
+              <div className="flex flex-wrap gap-4 sm:gap-6 justify-center px-0 sm:px-0">
                 {[1, 2, 3, 4, 5, 6].map((i) => (
                   <div key={`skeleton-${i}`} className="w-full sm:w-[22rem]">
                     <ToolCardSkeleton />
@@ -336,7 +346,7 @@ export default function Home() {
           {/* This takes precedence over loading/error states to show cached data immediately */}
           {!loadingTimeout && !error && filteredTools.length > 0 && (
             <div className="mb-8 mt-8">
-              <div className="flex flex-wrap gap-4 sm:gap-6 justify-center px-4 sm:px-0">
+              <div className="flex flex-wrap gap-4 sm:gap-6 justify-center px-0 sm:px-0">
                 {filteredTools.map((tool) => {
                   // Usa callback stabili dal Map per evitare re-render non necessari
                   const handleClick = toolClickCallbacks.get(tool.id) || (() => handleToolClick(tool));
@@ -387,8 +397,8 @@ export default function Home() {
       <section className="section-padding bg-gradient-to-b from-[#111111] to-[#0a0a0a] px-4 sm:px-6">
         <div className="max-w-6xl mx-auto">
           {/* Community - Simple Text + CTA */}
-          <div className="text-center mb-12">
-            <p className="text-lg text-[#d1d5db] mb-4">
+          <div className="text-center mb-8 sm:mb-12">
+            <p className="text-base sm:text-lg text-[#d1d5db] mb-4">
               Connect with users, share tips, and discover new tools together.
             </p>
             <a
@@ -405,52 +415,52 @@ export default function Home() {
           </div>
 
           {/* Vendor Box - Full Width */}
-          <div className="bg-[#1f2937] border-2 border-[#374151] rounded-3xl p-8 md:p-12 hover:border-[#3ecf8e] transition-all">
+          <div className="md:bg-[#1f2937] md:border-2 md:border-[#374151] md:rounded-3xl md:p-12 md:hover:border-[#3ecf8e] transition-all">
             {/* Header */}
-            <div className="mb-8 flex items-start justify-between flex-wrap gap-4">
+            <div className="mb-6 md:mb-8 flex items-start justify-between flex-wrap gap-3">
               <div>
-                <h2 className="text-3xl md:text-4xl font-bold mb-4">
+                <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 md:mb-4">
                   want to publish your tool in 1sub?
                 </h2>
-                <p className="text-xl text-[#d1d5db]">
+                <p className="text-base sm:text-lg md:text-xl text-[#d1d5db]">
                   Get discovered by a community of adopters.
                 </p>
               </div>
-              <span className="bg-[#3ecf8e]/20 text-[#3ecf8e] px-4 py-2 rounded-lg text-sm font-bold border border-[#3ecf8e]/30 whitespace-nowrap">
+              <span className="bg-[#3ecf8e]/20 text-[#3ecf8e] px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-bold border border-[#3ecf8e]/30 whitespace-nowrap">
                 1st month is free
               </span>
             </div>
 
             {/* Platform Fee + Business Rules Section */}
-            <div className="bg-[#1a1a1a] rounded-2xl p-8 mb-8">
-              <div className="grid md:grid-cols-[auto_1fr] gap-8 items-center">
+            <div className="bg-[#1a1a1a] rounded-2xl p-4 sm:p-6 md:p-8 mb-6 md:mb-8">
+              <div className="grid md:grid-cols-[auto_1fr] gap-6 md:gap-8 items-center">
                 {/* 15% Badge - Left */}
                 <div className="flex justify-center md:justify-start">
                   <div className="text-center">
-                    <div className="text-6xl font-bold text-[#3ecf8e] mb-2">15%</div>
-                    <div className="text-lg text-[#9ca3af]">Platform fee</div>
+                    <div className="text-5xl md:text-6xl font-bold text-[#3ecf8e] mb-1 md:mb-2">15%</div>
+                    <div className="text-base md:text-lg text-[#9ca3af]">Platform fee</div>
                   </div>
                 </div>
 
                 {/* Business Rules - Right */}
                 <div>
-                  <h3 className="text-2xl font-bold mb-4">Your business, your rules</h3>
-                  <p className="text-[#d1d5db] mb-6 leading-relaxed">
+                  <h3 className="text-xl md:text-2xl font-bold mb-3 md:mb-4">Your business, your rules</h3>
+                  <p className="text-sm sm:text-base text-[#d1d5db] mb-4 md:mb-6 leading-relaxed">
                     We don't limit your creativity. We just aim to be the main channel for users to discover and use your tool. Choose any business model that suits you.
                   </p>
                   
                   {/* Pricing Models */}
-                  <div className="flex flex-wrap gap-3">
-                    <button className="px-6 py-3 bg-[#1f2937] border border-[#374151] text-[#d1d5db] rounded-full font-semibold hover:border-[#3ecf8e] hover:text-[#3ecf8e] transition-all">
+                  <div className="flex flex-wrap gap-2 md:gap-3">
+                    <button className="px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base bg-[#1f2937] border border-[#374151] text-[#d1d5db] rounded-full font-semibold hover:border-[#3ecf8e] hover:text-[#3ecf8e] transition-all">
                       one time (OT)
                     </button>
-                    <button className="px-6 py-3 bg-[#1f2937] border border-[#374151] text-[#d1d5db] rounded-full font-semibold hover:border-[#3ecf8e] hover:text-[#3ecf8e] transition-all">
+                    <button className="px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base bg-[#1f2937] border border-[#374151] text-[#d1d5db] rounded-full font-semibold hover:border-[#3ecf8e] hover:text-[#3ecf8e] transition-all">
                       subscription (S)
                     </button>
-                    <button className="px-6 py-3 bg-[#1f2937] border border-[#374151] text-[#d1d5db] rounded-full font-semibold hover:border-[#3ecf8e] hover:text-[#3ecf8e] transition-all">
+                    <button className="px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base bg-[#1f2937] border border-[#374151] text-[#d1d5db] rounded-full font-semibold hover:border-[#3ecf8e] hover:text-[#3ecf8e] transition-all">
                       consumption based (CB)
                     </button>
-                    <button className="px-6 py-3 bg-[#1f2937] border border-[#374151] text-[#d1d5db] rounded-full font-semibold hover:border-[#3ecf8e] hover:text-[#3ecf8e] transition-all">
+                    <button className="px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base bg-[#1f2937] border border-[#374151] text-[#d1d5db] rounded-full font-semibold hover:border-[#3ecf8e] hover:text-[#3ecf8e] transition-all">
                       hybrid model
                     </button>
                   </div>
@@ -459,10 +469,10 @@ export default function Home() {
             </div>
 
             {/* CTA Links */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-end">
+            <div className="flex flex-col gap-1 sm:gap-3 items-end">
               <a
                 href="/register"
-                className="group/btn text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] hover:opacity-80 transition-opacity"
+                className="group/btn pb-0 text-base sm:text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] hover:opacity-80 transition-opacity"
               >
                 submit your tool
               </a>
@@ -470,10 +480,10 @@ export default function Home() {
                 href="/vendors"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 text-base text-[#d1d5db] hover:text-[#3ecf8e] transition-colors"
+                className="flex items-center gap-2 pt-0 sm:pt-1 text-sm sm:text-base text-[#d1d5db] hover:text-[#3ecf8e] transition-colors"
               >
                 learn more to become a vendor
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                 </svg>
               </a>
@@ -499,5 +509,20 @@ export default function Home() {
         </Suspense>
       )}
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-[#3ecf8e] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-[#9ca3af]">Loading...</p>
+        </div>
+      </div>
+    }>
+      <HomeContent />
+    </Suspense>
   );
 }

@@ -292,7 +292,7 @@ function ToolCardComponent(props: ToolCardProps) {
     borderClasses += ' ' + phaseClasses.border + ' ' + phaseClasses.hover;
   }
 
-  const cardClassName = `group bg-[#1a1a1a] ${borderClasses} rounded-lg p-4 flex flex-col h-full transition-all duration-300 relative cursor-pointer`;
+  const cardClassName = `group bg-[#1a1a1a] ${borderClasses} rounded-lg px-0 py-4 md:p-4 flex flex-col h-full transition-all duration-300 relative cursor-pointer`;
 
   const handleCardClick = () => {
     if (onViewClick) {
@@ -302,7 +302,7 @@ function ToolCardComponent(props: ToolCardProps) {
 
   return (
     <div className={cardClassName} onClick={handleCardClick}>
-      <div className="flex items-start gap-3 mb-3">
+      <div className="flex items-start gap-3 mb-3 px-4 md:px-0">
         <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-[#2a2a2a] flex items-center justify-center overflow-hidden relative">
           {canShowLogoImage ? (
             <Image
@@ -344,13 +344,13 @@ function ToolCardComponent(props: ToolCardProps) {
         </div>
       </div>
 
-      <div className="h-10 mb-3">
+      <div className="h-10 mb-3 px-4 md:px-0">
         <p className="text-[#9ca3af] text-sm line-clamp-2 leading-relaxed">
           {tool.description}
         </p>
       </div>
 
-      <div className="mb-3 rounded-md overflow-hidden bg-[#111111] -mx-4 w-[calc(100%+2rem)] relative aspect-video">
+      <div className="mb-3 rounded-md overflow-hidden bg-[#111111] md:-mx-4 w-full md:w-[calc(100%+2rem)] relative aspect-video">
         <div className="relative overflow-hidden w-full h-full">
           {canShowHeroImage ? (
             <Image
@@ -379,7 +379,7 @@ function ToolCardComponent(props: ToolCardProps) {
         )}
       </div>
 
-      <div className="min-h-[1.75rem] mb-3">
+      <div className="min-h-[1.75rem] mb-3 px-4 md:px-0">
         {uiMeta.tags && uiMeta.tags.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {uiMeta.tags.slice(0, 3).map((tag, index) => (
@@ -397,65 +397,50 @@ function ToolCardComponent(props: ToolCardProps) {
         )}
       </div>
 
-      <PricingSection
-        pricingOptions={effectivePricingOptions}
-        isFromProducts={lowestProductPrice !== null && !pricingOptions}
-      />
+      <div className="px-4 md:px-0">
+        <PricingSection
+          pricingOptions={effectivePricingOptions}
+          isFromProducts={lowestProductPrice !== null && !pricingOptions}
+        />
+      </div>
 
-      {hasProducts(tool) && tool.products && tool.products.length > 1 && (
-        <div className="mb-3 text-xs text-[#9ca3af] italic">
-          {tool.products.length} plans available
+      {onLaunchClick && (
+        <div className="mt-auto px-4 md:px-0">
+          {/* Stats and Badge - on same line */}
+          <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1">
+                <Star className="w-4 h-4 text-[#3ecf8e] fill-[#3ecf8e]" />
+                <span className="text-[#ededed] font-bold text-sm">{engagement.rating?.toFixed(1) ?? '4.5'}</span>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <Users className="w-4 h-4 text-[#9ca3af]" />
+                <span className="text-[#9ca3af] font-medium text-sm">
+                  {formatAdoptions(engagement.adoption_count ?? 0)}
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <span className={`px-2 py-0.5 rounded-full text-xs font-bold uppercase shadow-lg ${phaseClasses.badge}`}>
+                {phaseLabel}
+              </span>
+            </div>
+          </div>
+
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onLaunchClick();
+            }}
+            className="w-full bg-[#3ecf8e] text-black px-3 py-2 rounded-md text-sm font-bold hover:bg-[#2dd4bf] transition-all flex items-center justify-center gap-2 group-hover:gap-3"
+          >
+            {mode === 'dashboard' ? 'launch' : 'start'}
+            <ExternalLink className="w-4 h-4" />
+          </button>
         </div>
       )}
-
-      <div className="flex items-center justify-between mt-auto">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1">
-            <Star className="w-4 h-4 text-[#3ecf8e] fill-[#3ecf8e]" />
-            <span className="text-[#ededed] font-bold text-sm">{engagement.rating?.toFixed(1) ?? '4.5'}</span>
-          </div>
-
-          <div className="flex items-center gap-1">
-            <Users className="w-4 h-4 text-[#9ca3af]" />
-            <span className="text-[#9ca3af] font-medium text-sm">
-              {formatAdoptions(engagement.adoption_count ?? 0)}
-            </span>
-          </div>
-
-          {tool.url && !isLikelyImageUrl(tool.url) && (
-            <a
-              href={tool.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="flex items-center gap-1 text-[#9ca3af] hover:text-[#3ecf8e] transition-colors"
-              title="Visit website"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-            </a>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Phase Badge - Always shown */}
-          <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase shadow-lg ${phaseClasses.badge}`}>
-            {phaseLabel}
-          </span>
-
-          {onLaunchClick && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onLaunchClick();
-              }}
-              className="bg-[#3ecf8e] text-black px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#2dd4bf] transition-all flex items-center gap-1 group-hover:gap-2"
-            >
-              {mode === 'dashboard' ? 'launch' : 'start'}
-              <ExternalLink className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-      </div>
     </div>
   );
 }

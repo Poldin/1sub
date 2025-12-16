@@ -1,7 +1,7 @@
 'use client';
 
 import { memo, useMemo, useState } from 'react';
-import { X, Star, Users, ExternalLink, Check, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, Star, Users, ExternalLink, Check, ChevronDown, ChevronUp, Share2 } from 'lucide-react';
 import Image from 'next/image';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -203,6 +203,8 @@ function ToolDialogComponent(props: ToolDialogProps) {
 
   // State for description expansion
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+  // State for share button feedback
+  const [isShareCopied, setIsShareCopied] = useState(false);
 
   // Determine which image to show - MEMOIZED
   const imageUrl = useMemo(() => uiMeta.hero_image_url || tool.url, [uiMeta.hero_image_url, tool.url]);
@@ -221,17 +223,17 @@ function ToolDialogComponent(props: ToolDialogProps) {
     <>
       <style>{scrollbarStyles}</style>
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+        className="fixed inset-0 z-50 flex md:items-center md:justify-center bg-black/80 backdrop-blur-sm p-0 md:p-4"
         onClick={props.onClose}
       >
         <div
-          className="relative w-full max-w-5xl h-[95vh] bg-[#1f2937] rounded-lg shadow-2xl border border-[#374151] flex flex-col overflow-hidden"
+          className="relative w-full max-w-full md:max-w-5xl h-screen md:h-[95vh] bg-[#1f2937] rounded-none md:rounded-lg shadow-2xl border-0 md:border border-[#374151] flex flex-col overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Close Button */}
           <button
             onClick={props.onClose}
-            className="absolute top-4 right-4 z-10 p-2 bg-[#374151] hover:bg-[#4b5563] rounded-lg transition-colors"
+            className="absolute top-2 right-2 md:top-4 md:right-4 z-10 p-2 bg-[#374151] hover:bg-[#4b5563] rounded-lg transition-colors flex items-center justify-center"
             aria-label="Close dialog"
           >
             <X className="w-6 h-6 text-[#ededed]" />
@@ -245,8 +247,8 @@ function ToolDialogComponent(props: ToolDialogProps) {
               scrollbarColor: '#3ecf8e transparent'
             }}
           >
-            {/* Tool Header Info */}
-            <div className="p-6 sm:p-8 pb-4">
+            {/* Tool Header - Logo and Title */}
+            <div className="p-2 sm:p-6 md:p-8 pb-4">
               <div className="flex items-start gap-4 mb-4">
                 {/* Logo */}
                 <div className={`flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center overflow-hidden shadow-lg relative`}>
@@ -265,9 +267,9 @@ function ToolDialogComponent(props: ToolDialogProps) {
                   )}
                 </div>
 
-                {/* Name and Meta */}
+                {/* Name */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-start gap-2 mb-2">
+                  <div className="flex items-start gap-2">
                     <h2 className="text-2xl sm:text-3xl font-bold text-[#ededed]">
                       {tool.name}
                     </h2>
@@ -279,63 +281,107 @@ function ToolDialogComponent(props: ToolDialogProps) {
                       </div>
                     )}
                   </div>
+                </div>
+              </div>
 
-                  {/* Stats */}
-                  <div className="flex items-center gap-4 mb-3">
-                    <div className="flex items-center gap-1.5">
-                      <Star className="w-5 h-5 text-[#3ecf8e] fill-[#3ecf8e]" />
-                      <span className="text-[#ededed] font-bold text-lg">{engagement.rating?.toFixed(1) ?? '4.5'}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Users className="w-5 h-5 text-[#9ca3af]" />
-                      <span className="text-[#9ca3af] font-medium text-lg">
-                        {formatAdoptions(engagement.adoption_count ?? 0)} users
-                      </span>
-                    </div>
-                    {/* Website Link */}
-                    {tool.url && !isLikelyImageUrl(tool.url) && (
-                      <a
-                        href={tool.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 text-[#9ca3af] hover:text-[#3ecf8e] transition-colors px-2 py-1 rounded hover:bg-[#374151]"
-                        title="Visit website"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                        <span className="text-sm font-medium">Website</span>
-                      </a>
-                    )}
-                    {/* Dynamic Phase Badge */}
-                    <span className={`px-3 py-1 rounded-lg text-xs font-bold uppercase shadow-lg ${phaseClasses.badge}`}>
-                      {phaseLabel}
-                    </span>
-                    {/* Discount Badge */}
-                    {(uiMeta.discount_percentage ?? 0) > 0 && (
-                      <span className="bg-red-500 text-white px-3 py-1 rounded-lg text-xs font-bold">
-                        -{uiMeta.discount_percentage}%
-                      </span>
-                    )}
+              {/* Stats and Meta */}
+              <div className="mt-4">
+                {/* Stats */}
+                <div className="flex flex-wrap items-center gap-4 mb-3">
+                  <div className="flex items-center gap-1.5">
+                    <Star className="w-5 h-5 text-[#3ecf8e] fill-[#3ecf8e]" />
+                    <span className="text-[#ededed] font-bold text-lg">{engagement.rating?.toFixed(1) ?? '4.5'}</span>
                   </div>
+                  <div className="flex items-center gap-1.5">
+                    <Users className="w-5 h-5 text-[#9ca3af]" />
+                    <span className="text-[#9ca3af] font-medium text-lg">
+                      {formatAdoptions(engagement.adoption_count ?? 0)}
+                    </span>
+                  </div>
+                  {/* Share Button */}
+                  <button
+                    onClick={async () => {
+                      const shareUrl = `${window.location.origin}/?tid=${tool.id}`;
+                      const shareData = {
+                        title: tool.name,
+                        text: tool.description || undefined,
+                        url: shareUrl,
+                      };
 
-                  {/* Tags */}
-                  {uiMeta.tags && uiMeta.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {uiMeta.tags.map((tag, index) => (
-                        <span
-                          key={index}
-                          className="bg-[#374151] text-[#d1d5db] px-3 py-1 rounded-md text-sm font-medium"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
+                      try {
+                        // Check if Web Share API is supported
+                        if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+                          await navigator.share(shareData);
+                          setIsShareCopied(true);
+                          setTimeout(() => {
+                            setIsShareCopied(false);
+                          }, 2000);
+                        } else {
+                          // Fallback to clipboard for desktop browsers
+                          await navigator.clipboard.writeText(shareUrl);
+                          setIsShareCopied(true);
+                          setTimeout(() => {
+                            setIsShareCopied(false);
+                          }, 2000);
+                        }
+                      } catch (err: any) {
+                        // User cancelled share or error occurred
+                        if (err.name !== 'AbortError') {
+                          console.error('Error sharing:', err);
+                          // Try clipboard as last resort
+                          try {
+                            await navigator.clipboard.writeText(shareUrl);
+                            setIsShareCopied(true);
+                            setTimeout(() => {
+                              setIsShareCopied(false);
+                            }, 2000);
+                          } catch (clipboardErr) {
+                            console.error('Failed to copy to clipboard:', clipboardErr);
+                          }
+                        }
+                      }
+                    }}
+                    className={`flex items-center gap-1.5 transition-colors p-1 rounded hover:bg-[#374151] ${
+                      isShareCopied ? 'text-[#3ecf8e]' : 'text-[#9ca3af] hover:text-[#3ecf8e]'
+                    }`}
+                    title={isShareCopied ? 'Shared!' : 'Share tool'}
+                  >
+                    {isShareCopied ? (
+                      <Check className="w-5 h-5 animate-in fade-in duration-200" />
+                    ) : (
+                      <Share2 className="w-5 h-5" />
+                    )}
+                  </button>
+                  {/* Dynamic Phase Badge */}
+                  <span className={`px-3 py-1 rounded-lg text-xs font-bold uppercase shadow-lg ${phaseClasses.badge}`}>
+                    {phaseLabel}
+                  </span>
+                  {/* Discount Badge */}
+                  {(uiMeta.discount_percentage ?? 0) > 0 && (
+                    <span className="bg-red-500 text-white px-3 py-1 rounded-lg text-xs font-bold">
+                      -{uiMeta.discount_percentage}%
+                    </span>
                   )}
                 </div>
+
+                {/* Tags */}
+                {uiMeta.tags && uiMeta.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {uiMeta.tags.map((tag, index) => (
+                      <span
+                        key={index}
+                        className="bg-[#374151] text-[#d1d5db] px-3 py-1 rounded-md text-sm font-medium"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Hero Image */}
-            <div className="px-6 sm:px-8 mb-6">
+            <div className="px-2 sm:px-6 md:px-8 mb-6">
               <div className="w-full h-64 sm:h-80 overflow-hidden bg-[#111111] relative rounded-lg">
                 {imageUrl && imageUrl !== '/favicon.ico' ? (
                   <Image
@@ -356,7 +402,7 @@ function ToolDialogComponent(props: ToolDialogProps) {
             </div>
 
             {/* Description - Markdown support */}
-            <div className="px-6 sm:px-8 pb-6">
+            <div className="px-2 sm:px-0 md:px-8 pb-6">
               <div className="markdown-content max-w-4xl">
                 <div className="relative">
                   <div 
@@ -449,7 +495,7 @@ function ToolDialogComponent(props: ToolDialogProps) {
 
             {/* Products Section */}
             {hasProducts(tool) && tool.products.length > 0 && (
-              <div className="px-6 sm:px-8 pb-8">
+              <div className="px-2 sm:px-6 md:px-8 pb-8">
                 <h3 className="text-xl sm:text-2xl font-bold text-[#ededed] mb-4">
                   {tool.products.length > 1 ? 'Available Plans' : 'Pricing'}
                 </h3>
@@ -482,7 +528,7 @@ function ToolDialogComponent(props: ToolDialogProps) {
 
             {/* Legacy Pricing Options Section - Show when tool has pricing_options but no products */}
             {!hasProducts(tool) && tool.metadata?.pricing_options && (
-              <div className="px-6 sm:px-8 pb-8">
+              <div className="px-2 sm:px-6 md:px-8 pb-8">
                 <h3 className="text-xl sm:text-2xl font-bold text-[#ededed] mb-4">
                   Pricing
                 </h3>
