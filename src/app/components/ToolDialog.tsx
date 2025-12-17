@@ -270,9 +270,16 @@ function ToolDialogComponent(props: ToolDialogProps) {
                 {/* Name */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start gap-2">
-                    <h2 className="text-2xl sm:text-3xl font-bold text-[#ededed]">
-                      {tool.name}
-                    </h2>
+                    <div className="flex-1 min-w-0">
+                      <h2 className="text-2xl sm:text-3xl font-bold text-[#ededed]">
+                        {tool.name}
+                      </h2>
+                      {tool.vendor && (
+                        <p className="text-xs text-[#9ca3af] mt-0.5">
+                          by {tool.vendor.full_name}
+                        </p>
+                      )}
+                    </div>
                     {uiMeta.verified && (
                       <div className="flex-shrink-0 bg-blue-500/20 text-blue-400 p-1.5 rounded">
                         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">

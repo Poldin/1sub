@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Menu, CreditCard, Calendar, DollarSign, AlertCircle, Check, Loader2, ExternalLink, Shield, RefreshCw, TrendingUp, TrendingDown } from 'lucide-react';
+import { Menu, CreditCard, Calendar, DollarSign, AlertCircle, Check, Loader2, ExternalLink, Shield, RefreshCw, TrendingUp, TrendingDown, Edit2, X, Save } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { getPlanById } from '@/lib/subscription-plans';
 import { getCurrentBalanceClient } from '@/lib/credits';
 import Sidebar from '@/app/backoffice/components/Sidebar';
+import TopUpCredits from '@/app/components/TopUpCredits';
 
 interface PlatformSubscription {
   id: string;
@@ -83,6 +84,11 @@ export default function ProfilePage() {
   const [userRole, setUserRole] = useState<string>('user');
   const [hasTools, setHasTools] = useState(false);
   const [isVendor, setIsVendor] = useState(false);
+
+  // Edit name states
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState('');
+  const [savingName, setSavingName] = useState(false);
 
   // Initialize sidebar state based on screen size
   useEffect(() => {
@@ -576,6 +582,51 @@ export default function ProfilePage() {
     }
   };
 
+  const handleEditName = () => {
+    setEditedName(user?.fullName || '');
+    setIsEditingName(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingName(false);
+    setEditedName('');
+  };
+
+  const handleSaveName = async () => {
+    if (!editedName.trim()) {
+      setError('Name cannot be empty');
+      return;
+    }
+
+    setSavingName(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/user/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fullName: editedName.trim() }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to update name');
+      }
+
+      const data = await response.json();
+      
+      // Update local state
+      setUser(prev => prev ? { ...prev, fullName: data.fullName } : null);
+      setIsEditingName(false);
+      setEditedName('');
+    } catch (err) {
+      console.error('Error updating name:', err);
+      setError(err instanceof Error ? err.message : 'Failed to update name');
+    } finally {
+      setSavingName(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex items-center justify-center">
@@ -639,33 +690,71 @@ export default function ProfilePage() {
           <div className="relative bg-[#1f2937]/50 backdrop-blur-sm border border-[#374151]/50 rounded-2xl p-8">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
               <div className="flex-1">
-                <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-[#ededed] to-[#9ca3af] bg-clip-text text-transparent">
-                  {user?.fullName || 'Welcome'}
-                </h1>
-                <p className="text-[#9ca3af] mb-4">{user?.email}</p>
-                <div className="inline-flex items-center gap-2 bg-[#3ecf8e]/10 border border-[#3ecf8e]/20 rounded-full px-4 py-2">
-                  <CreditCard className="w-4 h-4 text-[#3ecf8e]" />
-                  <span className="text-[#3ecf8e] font-semibold">{credits.toFixed(2)} credits</span>
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={handleRefresh}
-                  className="px-4 py-3 bg-[#374151] text-[#ededed] rounded-lg font-semibold hover:bg-[#4b5563] transition-colors flex items-center gap-2"
-                  title="Refresh data"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                  <span className="hidden sm:inline">Refresh</span>
-                </button>
-                <button
-                  onClick={() => router.push('/buy-credits')}
-                  className="px-6 py-3 bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] text-black rounded-lg font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-[#3ecf8e]/20"
-                >
-                  Top Up Credits
-                </button>
+                {/* Editable Name Section */}
+                {isEditingName ? (
+                  <div className="mb-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <input
+                        type="text"
+                        value={editedName}
+                        onChange={(e) => setEditedName(e.target.value)}
+                        className="text-3xl font-bold bg-[#0a0a0a]/50 border border-[#374151] rounded-lg px-4 py-2 text-[#ededed] focus:outline-none focus:border-[#3ecf8e] transition-colors"
+                        placeholder="Enter your name"
+                        disabled={savingName}
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleSaveName}
+                        disabled={savingName}
+                        className="px-4 py-2 bg-[#3ecf8e] text-black rounded-lg font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {savingName ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Save className="w-4 h-4" />
+                            Save
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={handleCancelEdit}
+                        disabled={savingName}
+                        className="px-4 py-2 bg-[#374151] text-[#ededed] rounded-lg font-semibold hover:bg-[#4b5563] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        <X className="w-4 h-4" />
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3 mb-2">
+                    <h1 className="text-3xl font-bold bg-gradient-to-r from-[#ededed] to-[#9ca3af] bg-clip-text text-transparent">
+                      {user?.fullName || 'Welcome'}
+                    </h1>
+                    <button
+                      onClick={handleEditName}
+                      className="p-2 bg-[#374151] hover:bg-[#4b5563] rounded-lg transition-colors group"
+                      title="Edit name"
+                    >
+                      <Edit2 className="w-4 h-4 text-[#9ca3af] group-hover:text-[#3ecf8e]" />
+                    </button>
+                  </div>
+                )}
+                <p className="text-[#9ca3af]">{user?.email}</p>
+                <p className="text-xl font-bold text-[#3ecf8e] mt-2">{credits} CR</p>
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Top Up Credits Component */}
+        <div className="mb-8">
+          <TopUpCredits />
         </div>
 
         {/* Subscriptions & Purchases Grid */}
@@ -816,9 +905,6 @@ export default function ProfilePage() {
                   <ExternalLink className="w-4 h-4" />
                   View Plans & Pricing
                 </button>
-                <p className="text-xs text-[#9ca3af] mt-3">
-                  Or <button onClick={() => router.push('/buy-credits')} className="text-[#3ecf8e] hover:underline">top up credits</button> for occasional use
-                </p>
               </div>
             )}
           </div>

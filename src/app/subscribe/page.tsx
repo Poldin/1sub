@@ -20,7 +20,7 @@ function SubscribePageContent() {
     billing_period: BillingPeriod;
   } | null>(null);
 
-  // Get recommended plan from URL params (e.g., from buy-credits page)
+  // Get recommended plan from URL params
   const recommendedPlan = searchParams.get('plan');
 
   useEffect(() => {
@@ -414,21 +414,6 @@ function SubscribePageContent() {
           </div>
         </div>
 
-        {/* Alternative - One-time Purchase */}
-        <div className="mt-12 text-center">
-          <div className="max-w-2xl mx-auto bg-[#1f2937]/50 border border-[#374151] rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-[#ededed] mb-2">Need a One-Time Top-Up?</h3>
-            <p className="text-[#9ca3af] mb-4">
-              Already have a subscription or just need extra credits occasionally? You can top up your balance anytime.
-            </p>
-            <button
-              onClick={() => router.push('/buy-credits')}
-              className="inline-flex items-center gap-2 bg-[#374151] text-[#ededed] px-6 py-3 rounded-lg font-semibold hover:bg-[#4b5563] transition-colors"
-            >
-              Top Up Credits →
-            </button>
-          </div>
-        </div>
       </main>
     </div>
   );

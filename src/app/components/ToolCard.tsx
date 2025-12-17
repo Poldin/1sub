@@ -325,9 +325,16 @@ function ToolCardComponent(props: ToolCardProps) {
 
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
-            <h3 className="font-bold text-base text-[#ededed] group-hover:text-[#3ecf8e] transition-colors line-clamp-1">
-              {tool.name}
-            </h3>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-bold text-base text-[#ededed] group-hover:text-[#3ecf8e] transition-colors line-clamp-1">
+                {tool.name}
+              </h3>
+              {tool.vendor && (
+                <p className="text-xs text-[#9ca3af] mt-0.5">
+                  by {tool.vendor.full_name}
+                </p>
+              )}
+            </div>
 
             {uiMeta.verified && (
               <div className="flex-shrink-0 bg-blue-500/20 text-blue-400 p-1 rounded">

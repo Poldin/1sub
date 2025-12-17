@@ -173,6 +173,10 @@ export interface Tool {
 
   // Related data (when joined)
   products?: ToolProduct[];
+  vendor?: {
+    id: string;
+    full_name: string;
+  };
 }
 
 // ============================================================================

@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentBalance } from '@/lib/credits-service';
 
 export async function GET() {
@@ -105,6 +105,88 @@ export async function GET() {
     }
     
     console.error('Get user profile error:', errorInfo);
+    return NextResponse.json(
+      { 
+        error: 'Internal server error',
+        details: error instanceof Error ? error.message : 'Unknown error occurred'
+      },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    const supabase = await createClient();
+
+    // Get authenticated user
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !authUser) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Parse request body
+    const body = await request.json();
+    const { fullName } = body;
+
+    // Validate input
+    if (!fullName || typeof fullName !== 'string') {
+      return NextResponse.json(
+        { error: 'Full name is required and must be a string' },
+        { status: 400 }
+      );
+    }
+
+    // Trim and validate length
+    const trimmedName = fullName.trim();
+    if (trimmedName.length === 0) {
+      return NextResponse.json(
+        { error: 'Full name cannot be empty' },
+        { status: 400 }
+      );
+    }
+
+    if (trimmedName.length > 100) {
+      return NextResponse.json(
+        { error: 'Full name is too long (maximum 100 characters)' },
+        { status: 400 }
+      );
+    }
+
+    // Update user profile
+    const { error: updateError } = await supabase
+      .from('user_profiles')
+      .update({ full_name: trimmedName })
+      .eq('id', authUser.id);
+
+    if (updateError) {
+      console.error('Error updating user profile:', updateError);
+      return NextResponse.json(
+        { error: 'Failed to update profile', details: updateError.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Profile updated successfully',
+      fullName: trimmedName,
+    });
+  } catch (error) {
+    const errorInfo: Record<string, unknown> = {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      type: error instanceof Error ? error.constructor.name : typeof error,
+    };
+    
+    if (error instanceof Error) {
+      errorInfo.stack = error.stack;
+    }
+    
+    console.error('Update user profile error:', errorInfo);
     return NextResponse.json(
       { 
         error: 'Internal server error',

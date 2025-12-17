@@ -367,7 +367,7 @@ function BackofficeContent() {
 
         // Check if user has enough credits for cheapest option
         if (cheapestPrice > 0 && credits < cheapestPrice) {
-          router.push(`/buy-credits?needed=${cheapestPrice}&tool_id=${tool.id}&tool_name=${encodeURIComponent(tool.name)}`);
+          router.push('/subscribe');
           return;
         }
 
@@ -418,7 +418,7 @@ function BackofficeContent() {
 
         // Check if user has enough credits for cheapest option
         if (credits < cheapestPrice) {
-          router.push(`/buy-credits?needed=${cheapestPrice}&tool_id=${tool.id}&tool_name=${encodeURIComponent(tool.name)}`);
+          router.push('/subscribe');
           return;
         }
 
@@ -548,7 +548,7 @@ function BackofficeContent() {
 
               {/* Category Filter Tags */}
               <div className="my-0 px-3 sm:px-4 lg:px-8">
-                <div className="flex overflow-x-auto gap-2 scrollbar-hide pb-2">
+                <div className="flex justify-center overflow-x-auto gap-2 scrollbar-hide pb-2">
                   {['AI', 'Design', 'Analytics', 'Video', 'Marketing', 'Code'].map((category) => (
                     <button
                       key={category}

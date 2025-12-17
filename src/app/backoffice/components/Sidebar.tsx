@@ -282,7 +282,7 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
             </div>
             <div className="flex-1 flex justify-end">
               <button
-                onClick={() => handleNavigation('/buy-credits')}
+                onClick={() => handleNavigation('/subscribe')}
                 className="flex items-center justify-center p-1.5 bg-[#1f2937] hover:bg-[#374151] rounded-lg transition-colors"
                 title="Top up credits"
               >

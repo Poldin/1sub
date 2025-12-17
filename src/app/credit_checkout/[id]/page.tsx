@@ -226,14 +226,12 @@ export default function CreditCheckoutPage() {
               const balanceData = await balanceResponse.json();
               setUser(balanceData.user);
 
-              // Calculate shortfall and redirect to buy-credits with context
+              // Calculate shortfall and redirect to subscribe page
               const shortfall = data.shortfall || (data.required - data.current_balance);
               const toolName = checkout?.metadata.tool_name || 'this tool';
               
-              // Redirect to buy-credits page with full context
-              router.push(
-                `/buy-credits?needed=${data.required}&tool_name=${encodeURIComponent(toolName)}&tool_id=${checkout?.metadata.tool_id}&from_checkout=${checkoutId}`
-              );
+              // Redirect to subscribe page
+              router.push('/subscribe');
               return;
             } else {
               setError(data.error || 'Purchase failed due to insufficient credits');
@@ -932,10 +930,7 @@ export default function CreditCheckoutPage() {
                         <div className="flex flex-col gap-2">
                           <button
                             onClick={() => {
-                              const toolName = checkout?.metadata.tool_name || 'this tool';
-                              router.push(
-                                `/buy-credits?needed=${selectedPrice}&tool_name=${encodeURIComponent(toolName)}&tool_id=${checkout?.metadata.tool_id}&from_checkout=${checkoutId}`
-                              );
+                              router.push('/subscribe');
                             }}
                             className="bg-[#3ecf8e] text-black px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[#2dd4bf] transition-colors w-full"
                           >
