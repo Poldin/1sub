@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { Check, Loader2, CheckCircle, XCircle, Settings } from 'lucide-react';
+import { Check, Loader2, CheckCircle, XCircle, Settings, ExternalLink } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import Header from '../components/Header';
 import PricingFAQ from '../components/PricingFAQ';
@@ -63,6 +63,7 @@ function PricingContent() {
   const [loadingPortal, setLoadingPortal] = useState(false);
   const [currentSubscription, setCurrentSubscription] = useState<UserSubscription | null>(null);
   const [loadingSubscription, setLoadingSubscription] = useState(true);
+  const [showPortalDialog, setShowPortalDialog] = useState(false);
   
   // Get auth state and user info from context
   const { isLoggedIn, userInfo, creditsLoading } = useAuth();
@@ -224,7 +225,12 @@ function PricingContent() {
     }
   };
 
-  const handleManageSubscription = async () => {
+  const handleManageSubscription = () => {
+    setShowPortalDialog(true);
+  };
+
+  const handleConfirmPortalOpen = async () => {
+    setShowPortalDialog(false);
     setLoadingPortal(true);
 
     try {
@@ -238,9 +244,9 @@ function PricingContent() {
         throw new Error(data.error || 'Failed to open billing portal');
       }
 
-      // Redirect to Stripe Billing Portal
+      // Open Stripe Billing Portal in new tab
       if (data.url) {
-        window.location.href = data.url;
+        window.open(data.url, '_blank');
       }
     } catch (error) {
       console.error('Error opening billing portal:', error);
@@ -304,30 +310,33 @@ function PricingContent() {
                     <span className="text-sm text-[#9ca3af]">Loading subscription...</span>
                   </div>
                 ) : currentSubscription ? (
-                  <div className="mb-3">
-                    <div className="inline-flex items-center gap-2 bg-[#3ecf8e]/10 border border-[#3ecf8e]/30 rounded-full px-4 py-2">
-                      <Check className="w-4 h-4 text-[#3ecf8e]" />
-                      <span className="text-sm font-semibold text-[#3ecf8e]">
-                        Active {currentSubscription.plan_id} Plan ({currentSubscription.billing_period})
+                  <div className="mb-4">
+                    <p className="text-xs text-[#9ca3af] uppercase tracking-wide mb-1">Your Plan</p>
+                    <div className="flex items-center justify-center gap-2 flex-wrap">
+                      <p className="text-xl font-bold text-[#ededed] capitalize">
+                        {currentSubscription.plan_id}
+                      </p>
+                      <span className="text-xs bg-[#3ecf8e]/20 text-[#3ecf8e] px-2 py-1 rounded font-medium uppercase">
+                        {currentSubscription.billing_period === 'yearly' ? 'Annual' : 'Monthly'}
                       </span>
+                      <button
+                        onClick={handleManageSubscription}
+                        disabled={loadingPortal}
+                        className="inline-flex items-center gap-1.5 text-xs text-[#9ca3af] hover:text-[#3ecf8e] transition-colors"
+                      >
+                        {loadingPortal ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            Opening portal...
+                          </>
+                        ) : (
+                          <>
+                            <ExternalLink className="w-3.5 h-3.5" />
+                            Manage Plan
+                          </>
+                        )}
+                      </button>
                     </div>
-                    <button
-                      onClick={handleManageSubscription}
-                      disabled={loadingPortal}
-                      className="mt-2 inline-flex items-center gap-2 text-sm text-[#9ca3af] hover:text-[#3ecf8e] transition-colors"
-                    >
-                      {loadingPortal ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Opening portal...
-                        </>
-                      ) : (
-                        <>
-                          <Settings className="w-4 h-4" />
-                          Manage Subscription
-                        </>
-                      )}
-                    </button>
                   </div>
                 ) : null}
                 
@@ -344,7 +353,10 @@ function PricingContent() {
               </div>
               
               {/* Top Up Credits Component */}
-              <TopUpCredits className="max-w-2xl mx-auto" />
+              <TopUpCredits 
+                className="max-w-2xl mx-auto" 
+                hasSubscription={!!currentSubscription}
+              />
             </div>
           )}
           
@@ -454,49 +466,28 @@ function PricingContent() {
                     >
                       {plan.cta}
                     </a>
+                  ) : isLoggedIn && currentSubscription ? (
+                    // User has an active subscription - hide CTA button
+                    null
                   ) : isLoggedIn ? (
-                    currentSubscription?.plan_id === plan.id ? (
-                      <button
-                        onClick={handleManageSubscription}
-                        disabled={loadingPortal}
-                        className="block w-full py-3 rounded-xl font-bold text-center transition-all bg-[#374151] text-[#ededed] hover:bg-[#4B5563] disabled:opacity-50"
-                      >
-                        {loadingPortal ? (
-                          <span className="flex items-center justify-center gap-2">
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Loading...
-                          </span>
-                        ) : (
-                          'Manage Subscription'
-                        )}
-                      </button>
-                    ) : currentSubscription ? (
-                      <button
-                        disabled
-                        className="block w-full py-3 rounded-xl font-bold text-center transition-all bg-[#374151]/50 text-[#9ca3af] cursor-not-allowed"
-                      >
-                        Already Subscribed
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleCreateSubscription(plan.id, plan)}
-                        disabled={creatingSubscription}
-                        className={`block w-full py-3 rounded-xl font-bold text-center transition-all disabled:opacity-50 ${
-                          plan.popular
-                            ? 'bg-[#3ecf8e] text-black hover:bg-[#2dd4bf] shadow-lg shadow-[#3ecf8e]/30'
-                            : 'bg-[#374151] text-[#ededed] hover:bg-[#4B5563]'
-                        }`}
-                      >
-                        {creatingSubscription ? (
-                          <span className="flex items-center justify-center gap-2">
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Processing...
-                          </span>
-                        ) : (
-                          plan.cta
-                        )}
-                      </button>
-                    )
+                    <button
+                      onClick={() => handleCreateSubscription(plan.id, plan)}
+                      disabled={creatingSubscription}
+                      className={`block w-full py-3 rounded-xl font-bold text-center transition-all disabled:opacity-50 ${
+                        plan.popular
+                          ? 'bg-[#3ecf8e] text-black hover:bg-[#2dd4bf] shadow-lg shadow-[#3ecf8e]/30'
+                          : 'bg-[#374151] text-[#ededed] hover:bg-[#4B5563]'
+                      }`}
+                    >
+                      {creatingSubscription ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Processing...
+                        </span>
+                      ) : (
+                        plan.cta
+                      )}
+                    </button>
                   ) : (
                     <a
                       href="/login"
@@ -555,6 +546,42 @@ function PricingContent() {
       )}
 
       <Footer />
+
+      {/* Portal Warning Dialog */}
+      {showPortalDialog && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1f2937] border border-[#374151] rounded-2xl max-w-md w-full p-6 shadow-2xl">
+            <div className="flex items-start gap-4 mb-4">
+              <div className="flex-shrink-0 w-12 h-12 rounded-full bg-[#3ecf8e]/20 flex items-center justify-center">
+                <ExternalLink className="w-6 h-6 text-[#3ecf8e]" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-[#ededed] mb-2">
+                  Opening Developer Portal
+                </h3>
+                <p className="text-sm text-[#9ca3af] leading-relaxed">
+                  You're about to be redirected to the Stripe Customer Portal in a new tab where you can manage your subscription, update payment methods, and view billing history.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowPortalDialog(false)}
+                className="flex-1 px-4 py-3 rounded-lg font-semibold bg-[#374151] text-[#ededed] hover:bg-[#4b5563] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmPortalOpen}
+                className="flex-1 px-4 py-3 rounded-lg font-semibold bg-[#3ecf8e] text-black hover:bg-[#2dd4bf] transition-colors flex items-center justify-center gap-2"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

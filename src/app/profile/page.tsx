@@ -754,7 +754,7 @@ export default function ProfilePage() {
 
         {/* Top Up Credits Component */}
         <div className="mb-8">
-          <TopUpCredits />
+          <TopUpCredits hasSubscription={!!platformSub} />
         </div>
 
         {/* Subscriptions & Purchases Grid */}

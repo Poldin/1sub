@@ -1,14 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { CreditCard, Loader2 } from 'lucide-react';
+import { CreditCard, Loader2, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface TopUpCreditsProps {
   className?: string;
+  hasSubscription?: boolean;
 }
 
-export default function TopUpCredits({ className = '' }: TopUpCreditsProps) {
+export default function TopUpCredits({ className = '', hasSubscription = true }: TopUpCreditsProps) {
   const router = useRouter();
   const [amount, setAmount] = useState<string>('10');
   const [isLoading, setIsLoading] = useState(false);
@@ -62,11 +63,29 @@ export default function TopUpCredits({ className = '' }: TopUpCreditsProps) {
   };
 
   return (
-    <div className={`bg-[#1f2937]/50 backdrop-blur-sm border border-[#374151]/50 rounded-xl p-4 ${className}`}>
+    <div className={`bg-[#1f2937]/50 backdrop-blur-sm border border-[#374151]/50 rounded-xl p-4 ${className} ${!hasSubscription ? 'opacity-60' : ''}`}>
       {/* Compact Title */}
       <h3 className="text-sm font-semibold text-[#ededed] mb-3">
         Need more credit? One time top up here.
       </h3>
+
+      {/* Alert when no subscription */}
+      {!hasSubscription && (
+        <div className="mb-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
+          <div className="flex items-start gap-2 mb-2">
+            <AlertCircle className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-yellow-500 leading-relaxed">
+              To access one-time top-up, you need to activate a subscription plan first.
+            </p>
+          </div>
+          <button
+            onClick={() => window.location.href = '/pricing'}
+            className="w-full bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-500 px-3 py-2 rounded-lg text-xs font-semibold transition-colors border border-yellow-500/30"
+          >
+            View Subscription Plans
+          </button>
+        </div>
+      )}
 
       {/* Compact Form - Responsive with flex-wrap */}
       <div className="flex flex-wrap gap-2 w-full">
@@ -74,7 +93,7 @@ export default function TopUpCredits({ className = '' }: TopUpCreditsProps) {
         <select
           value={amount}
           onChange={handleSelectChange}
-          disabled={isLoading}
+          disabled={isLoading || !hasSubscription}
           className="flex-1 min-w-[140px] max-w-[180px] bg-[#0a0a0a] border border-[#374151] rounded-lg px-3 py-2.5 text-[#ededed] text-sm focus:outline-none focus:border-[#3ecf8e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:border-[#3ecf8e]/50"
           style={{
             colorScheme: 'dark'
@@ -102,14 +121,14 @@ export default function TopUpCredits({ className = '' }: TopUpCreditsProps) {
             onKeyPress={handleKeyPress}
             placeholder="10"
             className="w-full bg-[#0a0a0a]/50 border border-[#374151] rounded-lg pl-10 pr-3 py-2.5 text-[#ededed] text-sm font-medium focus:outline-none focus:border-[#3ecf8e] transition-colors placeholder:text-[#6b7280] disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={isLoading}
+            disabled={isLoading || !hasSubscription}
           />
         </div>
 
         {/* CTA Button */}
         <button
           onClick={handleTopUp}
-          disabled={isLoading || !amount || parseFloat(amount) <= 0}
+          disabled={isLoading || !amount || parseFloat(amount) <= 0 || !hasSubscription}
           className="flex-1 min-w-[80px] max-w-[100px] px-4 py-2.5 bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] text-black rounded-lg font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#3ecf8e]/20 flex items-center justify-center gap-2 whitespace-nowrap"
         >
           {isLoading ? (

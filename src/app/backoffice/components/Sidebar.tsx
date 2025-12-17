@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { getCurrentBalanceClient } from '@/lib/credits';
 import TopUpCredits from '@/app/components/TopUpCredits';
+import { createClient } from '@/lib/supabase/client';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -39,6 +40,7 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
   const [isVendorMenuOpen, setIsVendorMenuOpen] = useState(false);
   const [credits, setCredits] = useState<number>(0);
   const [showTopUpCredits, setShowTopUpCredits] = useState(false);
+  const [hasSubscription, setHasSubscription] = useState(false);
 
   // Load vendor menu state from localStorage on mount
   useEffect(() => {
@@ -101,6 +103,34 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
     const interval = setInterval(fetchCredits, 30000);
 
     return () => clearInterval(interval);
+  }, [userId]);
+
+  // Check if user has an active subscription
+  useEffect(() => {
+    const checkSubscription = async () => {
+      if (!userId) return;
+
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from('platform_subscriptions')
+          .select('id')
+          .eq('user_id', userId)
+          .in('status', ['active', 'trialing', 'past_due', 'paused'])
+          .maybeSingle();
+
+        if (!error && data) {
+          setHasSubscription(true);
+        } else {
+          setHasSubscription(false);
+        }
+      } catch (error) {
+        console.error('Error checking subscription:', error);
+        setHasSubscription(false);
+      }
+    };
+
+    checkSubscription();
   }, [userId]);
 
   // Save vendor menu state to localStorage whenever it changes
@@ -304,7 +334,7 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
           {/* TopUpCredits Component - Show when active */}
           {showTopUpCredits && (
             <div className="mb-3">
-              <TopUpCredits />
+              <TopUpCredits hasSubscription={hasSubscription} />
             </div>
           )}
 

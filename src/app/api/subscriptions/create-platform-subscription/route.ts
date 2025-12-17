@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createClient } from '@/lib/supabase/server';
-import { getPlanById, getPlanPrice } from '@/lib/subscription-plans';
+import { getPlanById, getPlanPrice, getStripePriceId } from '@/lib/subscription-plans';
 
 // Initialize Stripe with latest API version
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -95,29 +95,32 @@ export async function POST(request: NextRequest) {
       .eq('id', authUser.id)
       .single();
 
-    // Create Stripe Price on the fly (or use existing price IDs if configured)
-    // For production, you should create these prices in Stripe dashboard
-    // and store the IDs in the plan configuration
-    const stripePriceData: Stripe.Checkout.SessionCreateParams.LineItem['price_data'] = {
-      currency: 'eur',
-      product_data: {
-        name: `1sub ${plan.name} Plan`,
-        description: `${plan.creditsPerMonth} credits per ${billingPeriod === 'monthly' ? 'month' : 'year'}`,
-        images: ['https://yourdomain.com/logo.png'], // Update with your logo URL
-      },
-      unit_amount: Math.round(price * 100), // Convert to cents
-      recurring: {
-        interval: billingPeriod === 'monthly' ? 'month' : 'year',
-        interval_count: 1,
-      },
-    };
+    // Get Stripe Price ID from environment variables
+    const stripePriceId = getStripePriceId(planId, billingPeriod);
+    
+    if (!stripePriceId) {
+      console.error('[Platform Subscription] Missing Stripe Price ID:', {
+        planId,
+        billingPeriod,
+        envVarNeeded: billingPeriod === 'monthly' 
+          ? `NEXT_PUBLIC_STRIPE_${planId.toUpperCase()}_MONTHLY_PRICE_ID`
+          : `NEXT_PUBLIC_STRIPE_${planId.toUpperCase()}_YEARLY_PRICE_ID`
+      });
+      return NextResponse.json(
+        { 
+          error: 'Stripe configuration error. Please contact support.',
+          details: 'Missing Stripe Price ID configuration'
+        },
+        { status: 500 }
+      );
+    }
 
-    // Create Stripe Checkout Session for subscription
+    // Create Stripe Checkout Session for subscription using pre-configured Price ID
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [
         {
-          price_data: stripePriceData,
+          price: stripePriceId,
           quantity: 1,
         },
       ],

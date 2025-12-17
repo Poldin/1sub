@@ -27,6 +27,8 @@ export const PLATFORM_PLANS: PlatformSubscriptionPlan[] = [
     creditsPerMonth: 8,
     price: 9,
     yearlyPrice: 99,
+    stripePriceIdMonthly: process.env.NEXT_PUBLIC_STRIPE_STARTER_MONTHLY_PRICE_ID,
+    stripePriceIdYearly: process.env.NEXT_PUBLIC_STRIPE_STARTER_YEARLY_PRICE_ID,
     features: [
       'Access to all tools',
       '8 credits/month (monthly)',
@@ -44,6 +46,8 @@ export const PLATFORM_PLANS: PlatformSubscriptionPlan[] = [
     creditsPerMonth: 29,
     price: 29,
     yearlyPrice: 299,
+    stripePriceIdMonthly: process.env.NEXT_PUBLIC_STRIPE_PRO_MONTHLY_PRICE_ID,
+    stripePriceIdYearly: process.env.NEXT_PUBLIC_STRIPE_PRO_YEARLY_PRICE_ID,
     popular: true,
     features: [
       'Everything in Starter',
@@ -74,6 +78,16 @@ export function getMonthlyEquivalent(planId: string, billingPeriod: 'monthly' | 
   if (!plan) return undefined;
   
   return billingPeriod === 'monthly' ? plan.price : plan.yearlyPrice / 12;
+}
+
+/**
+ * Get the Stripe Price ID for a specific plan and billing period
+ */
+export function getStripePriceId(planId: string, billingPeriod: 'monthly' | 'yearly'): string | undefined {
+  const plan = getPlanById(planId);
+  if (!plan) return undefined;
+  
+  return billingPeriod === 'monthly' ? plan.stripePriceIdMonthly : plan.stripePriceIdYearly;
 }
 
 

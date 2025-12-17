@@ -9,7 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createClient } from '@/lib/supabase/server';
-import { getPlanById, PLATFORM_PLANS } from '@/lib/subscription-plans';
+import { getPlanById, PLATFORM_PLANS, getStripePriceId } from '@/lib/subscription-plans';
 
 // Initialize Stripe
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -150,29 +150,33 @@ export async function POST(request: NextRequest) {
       // UPGRADE or INTERVAL CHANGE: Apply immediately in Stripe and DB
       // Update Stripe subscription with new price (no proration)
       
-      // Create new price data for the subscription
-      const stripePriceData: Stripe.PriceCreateParams = {
-        currency: 'eur',
-        product_data: {
-          name: `1sub ${targetPlan.name} Plan`,
-        },
-        unit_amount: Math.round(newPrice * 100), // Convert to cents
-        recurring: {
-          interval: billingPeriod === 'monthly' ? 'month' : 'year',
-          interval_count: 1,
-        },
-      };
+      // Get Stripe Price ID for the target plan
+      const targetStripePriceId = getStripePriceId(targetPlanId, billingPeriod);
+      
+      if (!targetStripePriceId) {
+        console.error('[Change Plan] Missing Stripe Price ID:', {
+          targetPlanId,
+          billingPeriod,
+          envVarNeeded: billingPeriod === 'monthly' 
+            ? `NEXT_PUBLIC_STRIPE_${targetPlanId.toUpperCase()}_MONTHLY_PRICE_ID`
+            : `NEXT_PUBLIC_STRIPE_${targetPlanId.toUpperCase()}_YEARLY_PRICE_ID`
+        });
+        return NextResponse.json(
+          { 
+            error: 'Stripe configuration error. Please contact support.',
+            details: 'Missing Stripe Price ID configuration for target plan'
+          },
+          { status: 500 }
+        );
+      }
 
-      // Create the new price
-      const newStripePrice = await stripe.prices.create(stripePriceData);
-
-      // Update subscription to use new price
+      // Update subscription to use the pre-configured price
       // Set proration_behavior to 'none' so billing amount changes at next renewal
       await stripe.subscriptions.update(stripeSubscriptionId, {
         items: [
           {
             id: stripeSubscription.items.data[0].id,
-            price: newStripePrice.id,
+            price: targetStripePriceId,
           },
         ],
         proration_behavior: 'none', // No proration - price changes at next renewal
