@@ -10,7 +10,7 @@ import { Resend } from 'resend';
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Email configuration
-const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@1sub.io';
+const FROM_EMAIL = process.env.FROM_EMAIL || 'security@1sub.io';
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://1sub.io';
 
 /**

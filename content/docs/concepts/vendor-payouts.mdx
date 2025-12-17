@@ -49,15 +49,15 @@ You earn from all revenue types:
 ### Fee Breakdown
 
 ```
-User Payment:           $100.00
-Stripe Processing Fee:  - $3.20  (2.9% + $0.30)
-1Sub Platform Fee:      - $X.XX  ([XX%] of net)
+User Payment:           €100.00
+Stripe Processing Fee:  - €3.20  (2.9% + $0.30)
+1Sub Platform Fee:      - €15.00  ([15%] of net)
 ────────────────────────────────
-Your Net Revenue:       $XX.XX
+Your Net Revenue:       €81.80
 ```
 
 <Warning>
-Stripe processing fees (2.9% + $0.30 per transaction) are deducted before calculating vendor revenue share.
+Stripe processing fees (2.9% + €0.30 per transaction) are deducted before calculating vendor revenue share.
 </Warning>
 
 ## Setting Up Payouts
@@ -110,7 +110,7 @@ Payouts are processed every **Monday** for the previous week's revenue (Monday-S
 After payout is initiated, funds typically arrive in your bank account within 2-5 business days.
 </ResponseField>
 
-<ResponseField name="Minimum Threshold" type="$25 USD">
+<ResponseField name="Minimum Threshold" type="€25 EUR">
 Payouts only process if your balance is at least $25. Smaller amounts roll over to the next payout cycle.
 </ResponseField>
 
@@ -151,16 +151,16 @@ Monthly subscriptions are recognized when the user is charged:
 
 ```typescript
 User subscribes to $10/month plan on Dec 1
-→ You earn $X.XX on Dec 1 (after fees)
-→ You earn $X.XX on Jan 1 (renewal)
-→ You earn $X.XX on Feb 1 (renewal)
+→ You earn €8.5 on Dec 1 (after fees)
+→ You earn €8.5 on Jan 1 (renewal)
+→ You earn €8.5 on Feb 1 (renewal)
 ```
 
 Annual subscriptions are paid upfront:
 
 ```typescript
-User subscribes to $100/year plan on Dec 1
-→ You earn $XX.XX immediately (full year, after fees)
+User subscribes to €100/year plan on Dec 1
+→ You earn €81.80 immediately (full year, after fees)
 ```
 
 #### Credit Revenue
@@ -168,8 +168,8 @@ User subscribes to $100/year plan on Dec 1
 Credits are recognized when purchased, not when consumed:
 
 ```typescript
-User buys 1,000 credits for $50 on Dec 1
-→ You earn $XX.XX on Dec 1 (even if credits not used yet)
+User buys 1,000 credits for €50 on Dec 1
+→ You earn €850 on Dec 1 (even if credits not used yet)
 
 User consumes 100 credits on Dec 15
 → No additional revenue (already recognized at purchase)
@@ -180,8 +180,8 @@ User consumes 100 credits on Dec 15
 Lifetime access is recognized immediately:
 
 ```typescript
-User pays $99 for lifetime access on Dec 1
-→ You earn $XX.XX on Dec 1 (one-time, full amount after fees)
+User pays €99 for lifetime access on Dec 1
+→ You earn €80 on Dec 1 (one-time, full amount after fees)
 ```
 
 ### Downloadable Reports

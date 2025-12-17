@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 
-const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@1sub.io';
+const FROM_EMAIL = process.env.FROM_EMAIL || 'security@1sub.io';
 
 /**
  * Error codes for structured error responses
@@ -151,6 +151,46 @@ function categorizeResendError(error: any): {
   };
 }
 
+// Rate limiting configuration
+const OTP_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+const OTP_MAX_REQUESTS_PER_WINDOW = 3;
+const OTP_EXPIRATION_MS = 10 * 60 * 1000; // 10 minutes
+
+/**
+ * Check rate limiting for OTP requests
+ */
+function checkRateLimit(metadata: Record<string, unknown>): {
+  allowed: boolean;
+  remainingRequests: number;
+  retryAfterSeconds?: number;
+} {
+  const now = Date.now();
+  const otpRequests = (metadata?.otp_requests as number[]) || [];
+
+  // Filter requests within the rate limit window
+  const recentRequests = otpRequests.filter(
+    (timestamp) => now - timestamp < OTP_RATE_LIMIT_WINDOW_MS
+  );
+
+  if (recentRequests.length >= OTP_MAX_REQUESTS_PER_WINDOW) {
+    // Calculate when the oldest request will expire
+    const oldestRequest = Math.min(...recentRequests);
+    const retryAfterMs = OTP_RATE_LIMIT_WINDOW_MS - (now - oldestRequest);
+    const retryAfterSeconds = Math.ceil(retryAfterMs / 1000);
+
+    return {
+      allowed: false,
+      remainingRequests: 0,
+      retryAfterSeconds,
+    };
+  }
+
+  return {
+    allowed: true,
+    remainingRequests: OTP_MAX_REQUESTS_PER_WINDOW - recentRequests.length - 1,
+  };
+}
+
 /**
  * Generate a 6-digit OTP and send it via email
  */
@@ -201,11 +241,29 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if checkout is already completed
-    const metadata = checkout.metadata as Record<string, unknown>;
+    const metadata = (checkout.metadata as Record<string, unknown>) || {};
     if (metadata?.status === 'completed') {
       return NextResponse.json(
         { error: 'Checkout already completed', code: 'CHECKOUT_COMPLETED' },
         { status: 400 }
+      );
+    }
+
+    // Check rate limiting
+    const rateLimitCheck = checkRateLimit(metadata);
+    if (!rateLimitCheck.allowed) {
+      console.warn('OTP rate limit exceeded:', {
+        checkoutId: checkout_id,
+        userId: authUser.id,
+        retryAfterSeconds: rateLimitCheck.retryAfterSeconds,
+      });
+      return NextResponse.json(
+        {
+          error: `Too many OTP requests. Please try again in ${rateLimitCheck.retryAfterSeconds} seconds.`,
+          code: 'OTP_RATE_LIMIT_EXCEEDED',
+          retryAfterSeconds: rateLimitCheck.retryAfterSeconds,
+        },
+        { status: 429 }
       );
     }
 
@@ -231,11 +289,25 @@ export async function POST(request: NextRequest) {
       // In development, allow bypassing email send for testing
       if (process.env.NODE_ENV === 'development') {
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        
-        // Save OTP to checkout record
+        const now = Date.now();
+
+        // Update OTP requests for rate limiting and store otp_created_at
+        const existingRequests = (metadata?.otp_requests as number[]) || [];
+        const recentRequests = existingRequests.filter(
+          (timestamp) => now - timestamp < OTP_RATE_LIMIT_WINDOW_MS
+        );
+
+        // Save OTP to checkout record with timestamp and rate limit tracking
         const { error: updateError } = await supabase
           .from('checkouts')
-          .update({ otp })
+          .update({
+            otp,
+            metadata: {
+              ...metadata,
+              otp_created_at: now,
+              otp_requests: [...recentRequests, now],
+            },
+          })
           .eq('id', checkout_id);
 
         if (updateError) {
@@ -255,7 +327,7 @@ export async function POST(request: NextRequest) {
       }
 
       return NextResponse.json(
-        { 
+        {
           error: configValidation.error,
           code: configValidation.code,
         },
@@ -265,11 +337,25 @@ export async function POST(request: NextRequest) {
 
     // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const now = Date.now();
 
-    // Save OTP to checkout record
+    // Update OTP requests for rate limiting
+    const existingRequests = (metadata?.otp_requests as number[]) || [];
+    const recentRequests = existingRequests.filter(
+      (timestamp) => now - timestamp < OTP_RATE_LIMIT_WINDOW_MS
+    );
+
+    // Save OTP to checkout record with timestamp and rate limit tracking
     const { error: updateError } = await supabase
       .from('checkouts')
-      .update({ otp })
+      .update({
+        otp,
+        metadata: {
+          ...metadata,
+          otp_created_at: now,
+          otp_requests: [...recentRequests, now],
+        },
+      })
       .eq('id', checkout_id);
 
     if (updateError) {
@@ -288,7 +374,48 @@ export async function POST(request: NextRequest) {
     const resend = new Resend(process.env.RESEND_API_KEY);
 
     const toolName = (metadata.tool_name as string) || 'tool';
-    const creditAmount = checkout.credit_amount || 0;
+
+    // Calculate credit amount from metadata (same logic as frontend)
+    const getCreditAmount = (): number => {
+      const selectedPricing = metadata.selected_pricing as string | undefined;
+
+      // Check products array (new structure)
+      const products = metadata.products as Array<{
+        id: string;
+        pricing_model: {
+          one_time?: { enabled: boolean; price?: number; min_price?: number };
+          subscription?: { enabled: boolean; price?: number };
+          usage_based?: { enabled: boolean; price_per_unit?: number };
+        };
+      }> | undefined;
+
+      if (products && products.length > 0 && selectedPricing) {
+        const product = products.find(p => p.id === selectedPricing);
+        if (product) {
+          const pm = product.pricing_model;
+          if (pm.one_time?.enabled) {
+            if (pm.one_time.price) return pm.one_time.price;
+            if (pm.one_time.min_price) return pm.one_time.min_price;
+          }
+          if (pm.subscription?.enabled && pm.subscription.price) return pm.subscription.price;
+          if (pm.usage_based?.enabled && pm.usage_based.price_per_unit) return pm.usage_based.price_per_unit;
+        }
+      }
+
+      // Check pricing_options (old structure)
+      const pricingOptions = metadata.pricing_options as Record<string, { enabled: boolean; price: number }> | undefined;
+      if (pricingOptions && selectedPricing) {
+        const option = pricingOptions[selectedPricing];
+        if (option?.enabled && option.price) {
+          return option.price;
+        }
+      }
+
+      // Fallback to checkout.credit_amount
+      return checkout.credit_amount || 0;
+    };
+
+    const creditAmount = getCreditAmount();
 
     console.log('Attempting to send OTP email via Resend:', {
       to: user.email,
