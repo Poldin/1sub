@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
-import { Menu, User, LogOut, ExternalLink, Briefcase, Check } from 'lucide-react';
+import { Menu, User, LogOut, Check } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import Sidebar from './components/Sidebar';
@@ -23,6 +23,7 @@ function BackofficeContent() {
   const [hasTools, setHasTools] = useState(false);
   const [isVendor, setIsVendor] = useState(false);
   const [highlightedToolId, setHighlightedToolId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Initialize sidebar state based on screen size
   useEffect(() => {
@@ -522,8 +523,8 @@ function BackofficeContent() {
               {/* Search Bar Component */}
               <SearchBar />
 
-              {/* Profile Button with Logout */}
-              <div className="flex items-center gap-2">
+              {/* Profile Button with Logout - Hidden on mobile */}
+              <div className="hidden lg:flex items-center gap-2">
                 <div className="flex items-center gap-2 p-2 bg-[#1f2937] hover:bg-[#374151] rounded-lg transition-colors flex-shrink-0" data-testid="user-menu">
                   <User className="w-4 h-4 text-[#3ecf8e]" />
                   <span className="hidden lg:block text-sm font-medium text-[#ededed]">
@@ -545,76 +546,39 @@ function BackofficeContent() {
           <div className="overflow-x-hidden" data-testid="dashboard-content">
             <div>
 
-              {/* Categories */}
-              {/* <div className="mb-8">
-              <h2 className="text-2xl font-bold mb-4">Categories</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                <div className="bg-[#1f2937] hover:bg-[#374151] rounded-lg p-4 cursor-pointer transition-colors group">
-                  <div className="text-3xl mb-2">🤖</div>
-                  <h3 className="font-semibold text-sm">AI Tools</h3>
-                  <p className="text-xs text-[#9ca3af]">24 tools</p>
-                </div>
-                <div className="bg-[#1f2937] hover:bg-[#374151] rounded-lg p-4 cursor-pointer transition-colors group">
-                  <div className="text-3xl mb-2">📊</div>
-                  <h3 className="font-semibold text-sm">Analytics</h3>
-                  <p className="text-xs text-[#9ca3af]">18 tools</p>
-                </div>
-                <div className="bg-[#1f2937] hover:bg-[#374151] rounded-lg p-4 cursor-pointer transition-colors group">
-                  <div className="text-3xl mb-2">🎨</div>
-                  <h3 className="font-semibold text-sm">Design</h3>
-                  <p className="text-xs text-[#9ca3af]">32 tools</p>
-                </div>
-                <div className="bg-[#1f2937] hover:bg-[#374151] rounded-lg p-4 cursor-pointer transition-colors group">
-                  <div className="text-3xl mb-2">💼</div>
-                  <h3 className="font-semibold text-sm">Business</h3>
-                  <p className="text-xs text-[#9ca3af]">15 tools</p>
-                </div>
-                <div className="bg-[#1f2937] hover:bg-[#374151] rounded-lg p-4 cursor-pointer transition-colors group">
-                  <div className="text-3xl mb-2">🔧</div>
-                  <h3 className="font-semibold text-sm">Developer</h3>
-                  <p className="text-xs text-[#9ca3af]">28 tools</p>
-                </div>
-                <div className="bg-[#1f2937] hover:bg-[#374151] rounded-lg p-4 cursor-pointer transition-colors group">
-                  <div className="text-3xl mb-2">📱</div>
-                  <h3 className="font-semibold text-sm">Mobile</h3>
-                  <p className="text-xs text-[#9ca3af]">12 tools</p>
+              {/* Category Filter Tags */}
+              <div className="my-0 px-3 sm:px-4 lg:px-8">
+                <div className="flex overflow-x-auto gap-2 scrollbar-hide pb-2">
+                  {['AI', 'Design', 'Analytics', 'Video', 'Marketing', 'Code'].map((category) => (
+                    <button
+                      key={category}
+                      onClick={() => setSearchTerm(searchTerm === category ? '' : category)}
+                      className={`group/cat flex-shrink-0 px-4 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${
+                        searchTerm === category
+                          ? 'bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] text-white shadow-lg shadow-[#3ecf8e]/30'
+                          : 'bg-[#1f2937] border border-[#374151] text-[#d1d5db] hover:bg-[#374151] hover:border-[#3ecf8e] hover:text-[#3ecf8e]'
+                      }`}
+                    >
+                      {category}
+                    </button>
+                  ))}
+                  {searchTerm && (
+                    <button
+                      onClick={() => setSearchTerm('')}
+                      className="flex-shrink-0 px-4 py-2 rounded-full text-sm font-semibold bg-[#374151] text-[#d1d5db] hover:bg-[#3ecf8e] hover:text-white transition-all duration-300"
+                    >
+                      Clear
+                    </button>
+                  )}
                 </div>
               </div>
-            </div> */}
-
-              {/* Vendor Dashboard Access - Only for approved vendors */}
-              {isVendor && (
-                <div className="my-8 px-3 sm:px-4 lg:px-8">
-                  <div className="bg-gradient-to-r from-[#3ecf8e]/20 to-[#2dd4bf]/20 border border-[#3ecf8e]/30 rounded-xl p-6">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                      <div className="flex items-center gap-4">
-                        <div className="bg-[#3ecf8e] p-3 rounded-lg">
-                          <Briefcase className="w-6 h-6 text-white" />
-                        </div>
-                        <div>
-                          <h3 className="text-xl font-bold text-[#ededed]">Vendor Dashboard</h3>
-                          <p className="text-[#9ca3af]">Manage your tools, view analytics, and track earnings</p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => router.push('/vendor-dashboard')}
-                        className="bg-[#3ecf8e] hover:bg-[#2dd4bf] text-white px-6 py-3 rounded-lg font-semibold transition-colors flex items-center gap-2 whitespace-nowrap"
-                      >
-                        Go to Dashboard
-                        <ExternalLink className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-
 
               {/* All Tools Section */}
               <div className="my-8 px-2 sm:px-3">
                 <ToolsGrid
                   onToolLaunch={handleLaunchTool}
                   highlightedToolId={highlightedToolId}
+                  searchTerm={searchTerm}
                 />
               </div>
 

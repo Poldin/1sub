@@ -2,12 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Menu, CreditCard, Calendar, DollarSign, AlertCircle, Check, Loader2, ExternalLink, Shield, User, LogOut, RefreshCw, TrendingUp, TrendingDown } from 'lucide-react';
+import { Menu, CreditCard, Calendar, DollarSign, AlertCircle, Check, Loader2, ExternalLink, Shield, RefreshCw, TrendingUp, TrendingDown } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { getPlanById } from '@/lib/subscription-plans';
 import { getCurrentBalanceClient } from '@/lib/credits';
 import Sidebar from '@/app/backoffice/components/Sidebar';
-import SearchBar from '@/app/backoffice/components/SearchBar';
 
 interface PlatformSubscription {
   id: string;
@@ -607,38 +606,16 @@ export default function ProfilePage() {
         flex-1 min-w-0 transition-all duration-300 ease-in-out overflow-x-hidden
         ${isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'}
       `}>
-        {/* Top Bar con Hamburger */}
-        <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-50">
-          <div className="flex items-center justify-center gap-2 p-2 sm:p-3 min-w-0 lg:justify-between">
-            {/* Hamburger Button */}
-            <button
-              onClick={toggleMenu}
-              className="p-2 rounded-lg hover:bg-[#374151] transition-colors flex-shrink-0"
-            >
-              <Menu className="w-6 h-6 sm:w-6 sm:h-6" />
-            </button>
-
-            {/* Search Bar Component */}
-            <SearchBar />
-
-            {/* Profile Button with Logout */}
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-2 p-2 bg-[#1f2937] hover:bg-[#374151] rounded-lg transition-colors flex-shrink-0" data-testid="user-menu">
-                <User className="w-4 h-4 text-[#3ecf8e]" />
-                <span className="hidden lg:block text-sm font-medium text-[#ededed]">
-                  {user?.fullName || user?.email || 'profile'}
-                </span>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="flex items-center justify-center p-2 bg-red-600/20 hover:bg-red-600/30 rounded-lg transition-colors flex-shrink-0"
-                title="Logout"
-              >
-                <LogOut className="w-4 h-4 text-red-400" />
-              </button>
-            </div>
-          </div>
-        </header>
+        {/* Hamburger Menu Button */}
+        <div className="p-4">
+          <button
+            onClick={toggleMenu}
+            className="p-2 rounded-lg hover:bg-[#374151] transition-colors"
+            aria-label="Toggle navigation menu"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+        </div>
 
         {/* Content */}
         <div className="overflow-x-hidden">

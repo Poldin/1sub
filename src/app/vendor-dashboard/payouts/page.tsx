@@ -319,11 +319,10 @@ function VendorPayoutsPageContent() {
         userRole={userRole}
         hasTools={hasTools}
         isVendor={isVendor}
-        forceDesktopOpen={true}
       />
 
       {/* Main Content */}
-      <main className={`flex-1 min-w-0 transition-all duration-300 ease-in-out overflow-x-hidden lg:ml-80`}>
+      <main className={`flex-1 min-w-0 transition-all duration-300 ease-in-out overflow-x-hidden ${isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'}`}>
         {/* Header */}
         <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-30 border-b border-[#374151]">
           <div className="flex items-center justify-between p-2 sm:p-3">

@@ -1,13 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { Menu, Plus, Package, Edit, Trash2, DollarSign } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import Sidebar from '../../backoffice/components/Sidebar';
 import Footer from '../../components/Footer';
 import ToolSelector from '../components/ToolSelector';
-import { shouldForceDesktopOpen } from '@/lib/layoutConfig';
 
 interface PricingModel {
   one_time?: {
@@ -40,9 +39,7 @@ interface Product {
 
 export default function ProductsPage() {
   const router = useRouter();
-  const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const forceDesktopOpen = shouldForceDesktopOpen(pathname);
   
   // User data states
   const [user, setUser] = useState<{ id: string; fullName: string | null; email: string } | null>(null);
@@ -234,13 +231,12 @@ export default function ProductsPage() {
         userRole={userRole}
         hasTools={hasTools}
         isVendor={isVendor}
-        forceDesktopOpen={forceDesktopOpen}
       />
 
       {/* Main Content Area */}
       <main className={`
         flex-1 min-w-0 transition-all duration-300 ease-in-out overflow-x-hidden
-        ${forceDesktopOpen ? 'lg:ml-80' : isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'}
+        ${isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'}
       `}>
         {/* Top Bar with Hamburger */}
         <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-30 overflow-x-hidden border-b border-[#374151]">

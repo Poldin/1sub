@@ -15,11 +15,11 @@ export default function PricingPage() {
       description: 'Perfect for trying out our platform',
       monthlyPrice: 9,
       yearlyPrice: 99,
-      credits: billingPeriod === 'monthly' ? 10 : 120,
+      credits: billingPeriod === 'monthly' ? 8 : 96,
       features: [
         'Access to all tools',
-        '10 credits/month (monthly)',
-        '120 credits/year (yearly)',
+        '8 credits/month (monthly)',
+        '96 credits/year (yearly)',
         'Credits never expire',
         'Cancel anytime',
         'Email support'

@@ -46,6 +46,36 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
     }
   }, []);
 
+  // Prevent body scroll when sidebar is open on mobile
+  useEffect(() => {
+    if (isOpen && typeof window !== 'undefined') {
+      // Check if we're on mobile
+      const isMobile = window.innerWidth < 1024;
+      if (isMobile) {
+        document.body.style.overflow = 'hidden';
+      }
+    } else {
+      document.body.style.overflow = '';
+    }
+
+    // Cleanup on unmount
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
+
+  // Close sidebar on ESC key press
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isOpen, onClose]);
+
   // Fetch credits independently using unified balance method
   // Uses user_balances table for fast and reliable balance lookups
   useEffect(() => {
@@ -78,21 +108,31 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
     localStorage.setItem('vendorMenuOpen', String(newState));
   };
 
+  // Helper function to handle navigation and sidebar close with delay
+  const handleNavigation = (path: string) => {
+    router.push(path);
+    // Delay closing sidebar slightly to ensure navigation starts
+    setTimeout(() => {
+      onClose();
+    }, 100);
+  };
+
   return (
     <>
       {/* Overlay for mobile when menu is open */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          className="fixed inset-0 bg-black/50 z-[60] lg:hidden"
           onClick={onClose}
         />
       )}
 
       {/* Sidebar Menu */}
       <aside className={`
-        fixed top-0 left-0 h-full w-full lg:w-80 bg-[#111111] border-r border-[#374151] z-50 
+        fixed top-0 left-0 h-full w-80 sm:w-80 bg-[#111111] border-r border-[#374151] z-[70] 
         transform transition-transform duration-300 ease-in-out flex flex-col
-        ${forceDesktopOpen ? 'lg:translate-x-0' : isOpen ? 'translate-x-0' : '-translate-x-full'}
+        ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+        ${forceDesktopOpen ? 'lg:translate-x-0' : ''}
       `}>
         {/* Header with close button - always visible */}
         <div className="flex items-center justify-between p-4 border-b border-[#374151]">
@@ -109,18 +149,18 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
         </div>
 
         {/* Menu Items - Top Section */}
-        <nav className="flex-1 p-4">
+        <nav className="flex-1 p-4 overflow-y-auto">
           <div className="space-y-2">
-            <a
-              href="/backoffice"
-              className="flex items-center gap-3 px-3 py-1.5 rounded hover:bg-[#374151] transition-colors text-[#ededed] group text-sm"
+            <button
+              onClick={() => handleNavigation('/backoffice')}
+              className="w-full flex items-center gap-3 px-3 py-1.5 rounded hover:bg-[#374151] transition-colors text-[#ededed] group text-sm"
             >
               <Search className="w-5 h-5 text-[#3ecf8e] group-hover:text-[#2dd4bf]" />
               <span className="font-medium">Tools</span>
-            </a>
+            </button>
 
             <button
-              onClick={() => router.push('/profile')}
+              onClick={() => handleNavigation('/profile')}
               className="w-full flex items-center gap-3 px-3 py-1.5 rounded hover:bg-[#374151] transition-colors text-[#ededed] group text-sm"
             >
               <User className="w-5 h-5 text-[#3ecf8e] group-hover:text-[#2dd4bf]" />
@@ -128,7 +168,7 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
             </button>
 
             <button
-              onClick={() => router.push('/support')}
+              onClick={() => handleNavigation('/support')}
               className="w-full flex items-center gap-3 px-3 py-1.5 rounded hover:bg-[#374151] transition-colors text-[#ededed] group text-sm"
             >
               <HelpCircle className="w-5 h-5 text-[#3ecf8e] group-hover:text-[#2dd4bf]" />
@@ -159,70 +199,49 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
                   {isVendorMenuOpen && (
                     <div className="ml-4 mt-1 space-y-1">
                       <button
-                        onClick={() => {
-                          router.push('/vendor-dashboard');
-                          onClose();
-                        }}
+                        onClick={() => handleNavigation('/vendor-dashboard')}
                         className="w-full flex items-center gap-3 p-2 rounded hover:bg-[#374151] transition-colors text-[#d1d5db] text-sm"
                       >
                         <LayoutDashboard className="w-4 h-4 text-[#3ecf8e]" />
                         <span>Overview</span>
                       </button>
                       <button
-                        onClick={() => {
-                          router.push('/vendor-dashboard/users');
-                          onClose();
-                        }}
+                        onClick={() => handleNavigation('/vendor-dashboard/users')}
                         className="w-full flex items-center gap-3 p-2 rounded hover:bg-[#374151] transition-colors text-[#d1d5db] text-sm"
                       >
                         <Users className="w-4 h-4 text-[#3ecf8e]" />
                         <span>Users</span>
                       </button>
                       <button
-                        onClick={() => {
-                          router.push('/vendor-dashboard/products');
-                          onClose();
-                        }}
+                        onClick={() => handleNavigation('/vendor-dashboard/products')}
                         className="w-full flex items-center gap-3 p-2 rounded hover:bg-[#374151] transition-colors text-[#d1d5db] text-sm"
                       >
                         <Package className="w-4 h-4 text-[#3ecf8e]" />
                         <span>Products</span>
                       </button>
                       <button
-                        onClick={() => {
-                          router.push('/vendor-dashboard/transactions');
-                          onClose();
-                        }}
+                        onClick={() => handleNavigation('/vendor-dashboard/transactions')}
                         className="w-full flex items-center gap-3 p-2 rounded hover:bg-[#374151] transition-colors text-[#d1d5db] text-sm"
                       >
                         <DollarSign className="w-4 h-4 text-[#3ecf8e]" />
                         <span>Transactions</span>
                       </button>
                       <button
-                        onClick={() => {
-                          router.push('/vendor-dashboard/payouts');
-                          onClose();
-                        }}
+                        onClick={() => handleNavigation('/vendor-dashboard/payouts')}
                         className="w-full flex items-center gap-3 p-2 rounded hover:bg-[#374151] transition-colors text-[#d1d5db] text-sm"
                       >
                         <CreditCard className="w-4 h-4 text-[#3ecf8e]" />
                         <span>Payouts</span>
                       </button>
                       <button
-                        onClick={() => {
-                          router.push('/vendor-dashboard/api');
-                          onClose();
-                        }}
+                        onClick={() => handleNavigation('/vendor-dashboard/api')}
                         className="w-full flex items-center gap-3 p-2 rounded hover:bg-[#374151] transition-colors text-[#d1d5db] text-sm"
                       >
                         <Key className="w-4 h-4 text-[#3ecf8e]" />
                         <span>API</span>
                       </button>
                       <button
-                        onClick={() => {
-                          router.push('/vendor-dashboard/integration');
-                          onClose();
-                        }}
+                        onClick={() => handleNavigation('/vendor-dashboard/integration')}
                         className="w-full flex items-center gap-3 p-2 rounded hover:bg-[#374151] transition-colors text-[#d1d5db] text-sm"
                       >
                         <BookOpen className="w-4 h-4 text-[#3ecf8e]" />
@@ -245,10 +264,7 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
               </div>
               <p className="text-xs text-[#9ca3af] mb-3">Publish your tool and engage with users!</p>
               <button
-                onClick={() => {
-                  router.push('/vendors');
-                  onClose();
-                }}
+                onClick={() => handleNavigation('/vendors')}
                 className="w-full bg-[#374151] hover:bg-[#4b5563] text-[#ededed] px-4 py-2 rounded-lg font-semibold transition-colors text-sm"
               >
                 Become a Vendor
@@ -266,10 +282,7 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
             </div>
             <div className="flex-1 flex justify-end">
               <button
-                onClick={() => {
-                  router.push('/buy-credits');
-                  onClose();
-                }}
+                onClick={() => handleNavigation('/buy-credits')}
                 className="flex items-center justify-center p-1.5 bg-[#1f2937] hover:bg-[#374151] rounded-lg transition-colors"
                 title="Top up credits"
               >
@@ -279,10 +292,7 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
           </div>
           {/* Plans & Credits Button */}
           <button
-            onClick={() => {
-              router.push('/subscribe');
-              onClose();
-            }}
+            onClick={() => handleNavigation('/subscribe')}
             className="w-full bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] text-black px-4 py-2.5 rounded-lg font-semibold hover:opacity-90 transition-opacity text-sm"
           >
             Plans & Credits

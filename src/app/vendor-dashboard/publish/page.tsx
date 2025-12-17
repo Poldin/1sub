@@ -430,13 +430,12 @@ export default function PublishToolPage() {
         userRole={userRole}
         hasTools={hasTools}
         isVendor={isVendor}
-        forceDesktopOpen={true}
       />
 
       {/* Main Content Area */}
       <main className={`
         flex-1 min-w-0 transition-all duration-300 ease-in-out overflow-x-hidden
-        lg:ml-80
+        ${isMenuOpen ? 'lg:ml-80' : 'lg:ml-0'}
       `}>
         {/* Top Bar with Hamburger */}
         <header className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-30 overflow-x-hidden border-b border-[#374151]">

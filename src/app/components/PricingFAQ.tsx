@@ -40,10 +40,6 @@ export default function PricingFAQ() {
       answer: 'Yes! While subscriptions offer the best value, you can also purchase one-time credit packages if you prefer. One-time credits are available starting from €9.99 for 10 credits.'
     },
     {
-      question: 'Is there a free trial?',
-      answer: 'We offer 3 free credits when you sign up so you can test out the platform. This allows you to try several tools before committing to a paid plan.'
-    },
-    {
       question: 'Do you offer discounts for students or non-profits?',
       answer: 'Yes! We offer 50% off for verified students and 30% off for registered non-profit organizations. Contact our support team with your verification documents to claim your discount.'
     }
