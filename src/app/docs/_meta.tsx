@@ -7,3 +7,4 @@ export default {
   examples: 'Examples',
   troubleshooting: 'Troubleshooting'
 }
+

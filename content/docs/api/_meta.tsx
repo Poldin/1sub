@@ -4,3 +4,4 @@ export default {
   reference: 'API Reference',
   errors: 'Error Handling'
 }
+
