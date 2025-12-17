@@ -22,9 +22,15 @@ import Stripe from 'stripe';
 import { addCredits } from '@/lib/credits-service';
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize Stripe
+// Extended Invoice type to include expandable properties
+interface InvoiceWithSubscription extends Stripe.Invoice {
+  subscription?: string | Stripe.Subscription | null;
+  payment_intent?: string | Stripe.PaymentIntent | null;
+}
+
+// Initialize Stripe with latest API version
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-06-20',
+  apiVersion: '2025-09-30.clover' as any,
 });
 
 // Initialize Supabase (service role for webhook)
@@ -82,7 +88,7 @@ export async function POST(request: NextRequest) {
       }
 
       case 'invoice.paid': {
-        const invoice = event.data.object as Stripe.Invoice;
+        const invoice = event.data.object as InvoiceWithSubscription;
         await handleInvoicePaid(invoice);
         break;
       }
@@ -101,12 +107,73 @@ export async function POST(request: NextRequest) {
 
       case 'payment_intent.succeeded': {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
-        console.log('[Stripe Webhook] Payment intent succeeded:', {
-          id: paymentIntent.id,
-          amount: paymentIntent.amount / 100,
-          currency: paymentIntent.currency,
-        });
-        // Additional logging or processing can be added here
+        await handlePaymentIntentSucceeded(paymentIntent);
+        break;
+      }
+
+      case 'payment_intent.payment_failed': {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        await handlePaymentIntentFailed(paymentIntent);
+        break;
+      }
+
+      case 'checkout.session.expired': {
+        const session = event.data.object as Stripe.Checkout.Session;
+        await handleCheckoutSessionExpired(session);
+        break;
+      }
+
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object as InvoiceWithSubscription;
+        await handleInvoicePaymentFailed(invoice);
+        break;
+      }
+
+      case 'invoice.payment_action_required': {
+        const invoice = event.data.object as InvoiceWithSubscription;
+        await handleInvoicePaymentActionRequired(invoice);
+        break;
+      }
+
+      case 'customer.subscription.paused': {
+        const subscription = event.data.object as Stripe.Subscription;
+        await handleSubscriptionPaused(subscription);
+        break;
+      }
+
+      case 'customer.subscription.resumed': {
+        const subscription = event.data.object as Stripe.Subscription;
+        await handleSubscriptionResumed(subscription);
+        break;
+      }
+
+      case 'customer.subscription.pending_update_applied': {
+        const subscription = event.data.object as Stripe.Subscription;
+        await handleSubscriptionPendingUpdateApplied(subscription);
+        break;
+      }
+
+      case 'customer.subscription.pending_update_expired': {
+        const subscription = event.data.object as Stripe.Subscription;
+        await handleSubscriptionPendingUpdateExpired(subscription);
+        break;
+      }
+
+      case 'charge.refunded': {
+        const charge = event.data.object as Stripe.Charge;
+        await handleChargeRefunded(charge);
+        break;
+      }
+
+      case 'customer.updated': {
+        const customer = event.data.object as Stripe.Customer;
+        await handleCustomerUpdated(customer);
+        break;
+      }
+
+      case 'customer.deleted': {
+        const customer = event.data.object as Stripe.Customer;
+        await handleCustomerDeleted(customer);
         break;
       }
 
@@ -168,15 +235,15 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
 
     const supabase = getSupabaseClient();
 
-    // Verify user exists
+    // Verify user profile exists (email is NOT a field in user_profiles, it's only in auth.users)
     const { data: user, error: userError } = await supabase
       .from('user_profiles')
-      .select('id, email, full_name')
+      .select('id, full_name')
       .eq('id', userId)
       .single();
 
     if (userError || !user) {
-      console.error('[Stripe Webhook] User not found:', userId);
+      console.error('[Stripe Webhook] User profile not found:', userId, userError);
       return;
     }
 
@@ -242,7 +309,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     console.log('[Stripe Webhook] Credits added successfully:', {
       transactionId: transaction.id,
       userId,
-      userEmail: user.email,
+      userEmail: session.customer_email,
       credits,
       balanceBefore: currentBalance,
       balanceAfter: newBalance,
@@ -274,6 +341,13 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
 
 async function handleSubscriptionCheckout(session: Stripe.Checkout.Session) {
   try {
+    console.log('[Stripe Webhook] Processing subscription checkout:', {
+      sessionId: session.id,
+      customerId: session.customer,
+      subscriptionId: session.subscription,
+      metadata: session.metadata,
+    });
+
     const metadata = session.metadata;
     if (!metadata) {
       console.error('[Stripe Webhook] No metadata in subscription session');
@@ -283,21 +357,28 @@ async function handleSubscriptionCheckout(session: Stripe.Checkout.Session) {
     const { userId, planId, billingPeriod, creditsPerMonth, maxOverdraft } = metadata;
 
     if (!userId || !planId || !billingPeriod || !creditsPerMonth) {
-      console.error('[Stripe Webhook] Missing required subscription metadata:', metadata);
+      console.error('[Stripe Webhook] Missing required subscription metadata:', {
+        userId,
+        planId,
+        billingPeriod,
+        creditsPerMonth,
+        maxOverdraft,
+        fullMetadata: metadata,
+      });
       return;
     }
 
     const supabase = getSupabaseClient();
 
-    // Verify user exists
-    const { data: user, error: userError } = await supabase
+    // Verify user profile exists (email is NOT a field in user_profiles, it's only in auth.users)
+    const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
-      .select('id, email')
+      .select('id, full_name')
       .eq('id', userId)
       .single();
 
-    if (userError || !user) {
-      console.error('[Stripe Webhook] User not found:', userId);
+    if (profileError || !profile) {
+      console.error('[Stripe Webhook] User profile not found:', userId, profileError);
       return;
     }
 
@@ -366,6 +447,34 @@ async function handleSubscriptionCheckout(session: Stripe.Checkout.Session) {
       stripeSubscriptionId,
     });
 
+    // Log platform transaction
+    const transactionId = await logPlatformTransaction({
+      stripeId: session.id,
+      stripeCustomerId: session.customer as string,
+      userId,
+      amount: session.amount_total || 0,
+      currency: session.currency || 'eur',
+      type: 'subscription',
+      status: 'succeeded',
+      creditsAmount: parseInt(creditsPerMonth, 10),
+      subscriptionId: subscription.id,
+      description: `Platform subscription: ${planId} (${billingPeriod})`,
+      metadata: {
+        stripe_session_id: session.id,
+        stripe_subscription_id: stripeSubscriptionId,
+        plan_id: planId,
+        billing_period: billingPeriod,
+        initial_purchase: true,
+      },
+    });
+
+    console.log('[Stripe Webhook] Platform transaction created:', {
+      transactionId,
+      subscriptionId: subscription.id,
+      amount: session.amount_total,
+      currency: session.currency,
+    });
+
     // Add initial credits to user account
     const credits = parseInt(creditsPerMonth, 10);
     const idempotencyKey = `platform-sub-initial-${stripeSubscriptionId}`;
@@ -399,7 +508,7 @@ async function handleSubscriptionCheckout(session: Stripe.Checkout.Session) {
   }
 }
 
-async function handleInvoicePaid(invoice: Stripe.Invoice) {
+async function handleInvoicePaid(invoice: InvoiceWithSubscription) {
   try {
     // Only process recurring invoices (not the first one, which is handled by checkout.session.completed)
     if (!invoice.subscription || invoice.billing_reason === 'subscription_create') {
@@ -407,7 +516,10 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
       return;
     }
 
-    const stripeSubscriptionId = invoice.subscription as string;
+    // subscription can be string (ID) or Subscription object
+    const stripeSubscriptionId = typeof invoice.subscription === 'string' 
+      ? invoice.subscription 
+      : invoice.subscription.id;
     const supabase = getSupabaseClient();
 
     // Get platform subscription
@@ -458,7 +570,7 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
 
       if (targetPlanPrice) {
         try {
-          const stripeSubscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
+          const stripeSubscription = await stripe.subscriptions.retrieve(stripeSubscriptionId) as Stripe.Subscription;
           
           const stripePriceData: Stripe.PriceCreateParams = {
             currency: 'eur',
@@ -736,5 +848,613 @@ async function addCreditsToUser(
     balanceBefore: currentBalance,
     balanceAfter: newBalance,
   });
+}
+
+// Helper function to log platform transaction
+async function logPlatformTransaction(params: {
+  stripeId: string;
+  stripeCustomerId?: string | null;
+  userId: string;
+  amount: number;
+  currency: string;
+  type: 'subscription' | 'one_time' | 'refund';
+  status: 'pending' | 'succeeded' | 'failed' | 'refunded' | 'cancelled';
+  creditsAmount?: number;
+  subscriptionId?: string;
+  description?: string;
+  metadata?: Record<string, unknown>;
+}) {
+  const supabase = getSupabaseClient();
+
+  try {
+    const { data, error } = await supabase
+      .from('platform_transactions')
+      .insert({
+        stripe_id: params.stripeId,
+        stripe_customer_id: params.stripeCustomerId,
+        user_id: params.userId,
+        amount: params.amount,
+        currency: params.currency,
+        type: params.type,
+        status: params.status,
+        credits_amount: params.creditsAmount,
+        subscription_id: params.subscriptionId,
+        description: params.description,
+        metadata: params.metadata || {},
+      })
+      .select('id')
+      .single();
+
+    if (error) {
+      console.error('[Stripe Webhook] Failed to log platform transaction:', error);
+      return null;
+    }
+
+    console.log('[Stripe Webhook] Platform transaction logged:', {
+      transactionId: data.id,
+      stripeId: params.stripeId,
+      type: params.type,
+      status: params.status,
+    });
+
+    return data.id;
+  } catch (error) {
+    console.error('[Stripe Webhook] Error logging platform transaction:', error);
+    return null;
+  }
+}
+
+async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent) {
+  try {
+    console.log('[Stripe Webhook] Payment intent succeeded:', {
+      id: paymentIntent.id,
+      amount: paymentIntent.amount / 100,
+      currency: paymentIntent.currency,
+      metadata: paymentIntent.metadata,
+    });
+
+    const userId = paymentIntent.metadata?.userId;
+    if (!userId) {
+      console.log('[Stripe Webhook] No userId in payment intent metadata');
+      return;
+    }
+
+    // Log transaction
+    await logPlatformTransaction({
+      stripeId: paymentIntent.id,
+      stripeCustomerId: typeof paymentIntent.customer === 'string' ? paymentIntent.customer : null,
+      userId,
+      amount: paymentIntent.amount,
+      currency: paymentIntent.currency,
+      type: 'one_time',
+      status: 'succeeded',
+      description: `Payment intent succeeded: ${paymentIntent.id}`,
+      metadata: {
+        payment_intent_id: paymentIntent.id,
+        payment_method: paymentIntent.payment_method,
+      },
+    });
+  } catch (error) {
+    console.error('[Stripe Webhook] Error handling payment intent succeeded:', error);
+  }
+}
+
+async function handlePaymentIntentFailed(paymentIntent: Stripe.PaymentIntent) {
+  try {
+    console.log('[Stripe Webhook] Payment intent failed:', {
+      id: paymentIntent.id,
+      amount: paymentIntent.amount / 100,
+      currency: paymentIntent.currency,
+      lastPaymentError: paymentIntent.last_payment_error,
+    });
+
+    const userId = paymentIntent.metadata?.userId;
+    if (!userId) {
+      console.log('[Stripe Webhook] No userId in payment intent metadata');
+      return;
+    }
+
+    // Log failed transaction
+    await logPlatformTransaction({
+      stripeId: paymentIntent.id,
+      stripeCustomerId: typeof paymentIntent.customer === 'string' ? paymentIntent.customer : null,
+      userId,
+      amount: paymentIntent.amount,
+      currency: paymentIntent.currency,
+      type: 'one_time',
+      status: 'failed',
+      description: `Payment failed: ${paymentIntent.last_payment_error?.message || 'Unknown error'}`,
+      metadata: {
+        payment_intent_id: paymentIntent.id,
+        error: paymentIntent.last_payment_error,
+      },
+    });
+  } catch (error) {
+    console.error('[Stripe Webhook] Error handling payment intent failed:', error);
+  }
+}
+
+async function handleCheckoutSessionExpired(session: Stripe.Checkout.Session) {
+  try {
+    console.log('[Stripe Webhook] Checkout session expired:', {
+      sessionId: session.id,
+      metadata: session.metadata,
+    });
+
+    const userId = session.metadata?.userId;
+    if (!userId) {
+      console.log('[Stripe Webhook] No userId in session metadata');
+      return;
+    }
+
+    // Log cancelled transaction
+    await logPlatformTransaction({
+      stripeId: session.id,
+      stripeCustomerId: typeof session.customer === 'string' ? session.customer : null,
+      userId,
+      amount: session.amount_total || 0,
+      currency: session.currency || 'eur',
+      type: session.mode === 'subscription' ? 'subscription' : 'one_time',
+      status: 'cancelled',
+      description: 'Checkout session expired',
+      metadata: {
+        session_id: session.id,
+        mode: session.mode,
+      },
+    });
+  } catch (error) {
+    console.error('[Stripe Webhook] Error handling checkout session expired:', error);
+  }
+}
+
+async function handleInvoicePaymentFailed(invoice: InvoiceWithSubscription) {
+  try {
+    const subscriptionId = invoice.subscription 
+      ? (typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription.id)
+      : null;
+
+    console.log('[Stripe Webhook] Invoice payment failed:', {
+      invoiceId: invoice.id,
+      subscriptionId,
+      amountDue: invoice.amount_due / 100,
+      attemptCount: invoice.attempt_count,
+    });
+
+    const stripeSubscriptionId = subscriptionId;
+    if (!stripeSubscriptionId) {
+      console.log('[Stripe Webhook] No subscription in invoice');
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+
+    // Get platform subscription
+    const { data: subscription } = await supabase
+      .from('platform_subscriptions')
+      .select('id, user_id, plan_id')
+      .eq('stripe_subscription_id', stripeSubscriptionId)
+      .single();
+
+    if (!subscription) {
+      console.error('[Stripe Webhook] Subscription not found for invoice');
+      return;
+    }
+
+    // Update subscription status to past_due
+    await supabase
+      .from('platform_subscriptions')
+      .update({ 
+        status: 'past_due',
+        metadata: {
+          last_payment_failure: new Date().toISOString(),
+          invoice_id: invoice.id,
+          attempt_count: invoice.attempt_count,
+        },
+      })
+      .eq('id', subscription.id);
+
+    // Log failed payment transaction
+    await logPlatformTransaction({
+      stripeId: invoice.id,
+      stripeCustomerId: typeof invoice.customer === 'string' ? invoice.customer : null,
+      userId: subscription.user_id,
+      amount: invoice.amount_due,
+      currency: invoice.currency,
+      type: 'subscription',
+      status: 'failed',
+      subscriptionId: subscription.id,
+      description: `Subscription payment failed: ${subscription.plan_id}`,
+      metadata: {
+        invoice_id: invoice.id,
+        stripe_subscription_id: stripeSubscriptionId,
+        attempt_count: invoice.attempt_count,
+      },
+    });
+
+    // Log to audit
+    await supabase
+      .from('audit_logs')
+      .insert({
+        user_id: subscription.user_id,
+        action: 'subscription_payment_failed',
+        resource_type: 'platform_subscriptions',
+        resource_id: subscription.id,
+        metadata: {
+          invoice_id: invoice.id,
+          amount_due: invoice.amount_due / 100,
+          attempt_count: invoice.attempt_count,
+        },
+      });
+
+  } catch (error) {
+    console.error('[Stripe Webhook] Error handling invoice payment failed:', error);
+  }
+}
+
+async function handleInvoicePaymentActionRequired(invoice: InvoiceWithSubscription) {
+  try {
+    const subscriptionId = invoice.subscription 
+      ? (typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription.id)
+      : null;
+
+    const paymentIntentId = invoice.payment_intent
+      ? (typeof invoice.payment_intent === 'string' ? invoice.payment_intent : invoice.payment_intent.id)
+      : null;
+
+    console.log('[Stripe Webhook] Invoice payment action required:', {
+      invoiceId: invoice.id,
+      subscriptionId,
+      amountDue: invoice.amount_due / 100,
+    });
+
+    const stripeSubscriptionId = subscriptionId;
+    if (!stripeSubscriptionId) {
+      console.log('[Stripe Webhook] No subscription in invoice');
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+
+    // Get platform subscription
+    const { data: subscription } = await supabase
+      .from('platform_subscriptions')
+      .select('id, user_id')
+      .eq('stripe_subscription_id', stripeSubscriptionId)
+      .single();
+
+    if (!subscription) {
+      console.error('[Stripe Webhook] Subscription not found for invoice');
+      return;
+    }
+
+    // Log to audit - user needs to take action
+    await supabase
+      .from('audit_logs')
+      .insert({
+        user_id: subscription.user_id,
+        action: 'subscription_payment_action_required',
+        resource_type: 'platform_subscriptions',
+        resource_id: subscription.id,
+        metadata: {
+          invoice_id: invoice.id,
+          amount_due: invoice.amount_due / 100,
+          payment_intent: paymentIntentId,
+        },
+      });
+
+  } catch (error) {
+    console.error('[Stripe Webhook] Error handling invoice payment action required:', error);
+  }
+}
+
+async function handleSubscriptionPaused(subscription: Stripe.Subscription) {
+  try {
+    console.log('[Stripe Webhook] Subscription paused:', {
+      subscriptionId: subscription.id,
+      pauseCollection: subscription.pause_collection,
+    });
+
+    const supabase = getSupabaseClient();
+
+    await supabase
+      .from('platform_subscriptions')
+      .update({ 
+        status: 'paused',
+        metadata: {
+          paused_at: new Date().toISOString(),
+          pause_collection: subscription.pause_collection,
+        },
+      })
+      .eq('stripe_subscription_id', subscription.id);
+
+    // Get subscription for logging
+    const { data: platformSub } = await supabase
+      .from('platform_subscriptions')
+      .select('id, user_id')
+      .eq('stripe_subscription_id', subscription.id)
+      .single();
+
+    if (platformSub) {
+      await supabase
+        .from('audit_logs')
+        .insert({
+          user_id: platformSub.user_id,
+          action: 'subscription_paused',
+          resource_type: 'platform_subscriptions',
+          resource_id: platformSub.id,
+          metadata: {
+            stripe_subscription_id: subscription.id,
+          },
+        });
+    }
+
+  } catch (error) {
+    console.error('[Stripe Webhook] Error handling subscription paused:', error);
+  }
+}
+
+async function handleSubscriptionResumed(subscription: Stripe.Subscription) {
+  try {
+    console.log('[Stripe Webhook] Subscription resumed:', {
+      subscriptionId: subscription.id,
+    });
+
+    const supabase = getSupabaseClient();
+
+    await supabase
+      .from('platform_subscriptions')
+      .update({ 
+        status: 'active',
+        metadata: {
+          resumed_at: new Date().toISOString(),
+        },
+      })
+      .eq('stripe_subscription_id', subscription.id);
+
+    // Get subscription for logging
+    const { data: platformSub } = await supabase
+      .from('platform_subscriptions')
+      .select('id, user_id')
+      .eq('stripe_subscription_id', subscription.id)
+      .single();
+
+    if (platformSub) {
+      await supabase
+        .from('audit_logs')
+        .insert({
+          user_id: platformSub.user_id,
+          action: 'subscription_resumed',
+          resource_type: 'platform_subscriptions',
+          resource_id: platformSub.id,
+          metadata: {
+            stripe_subscription_id: subscription.id,
+          },
+        });
+    }
+
+  } catch (error) {
+    console.error('[Stripe Webhook] Error handling subscription resumed:', error);
+  }
+}
+
+async function handleSubscriptionPendingUpdateApplied(subscription: Stripe.Subscription) {
+  try {
+    console.log('[Stripe Webhook] Subscription pending update applied:', {
+      subscriptionId: subscription.id,
+      items: subscription.items.data,
+    });
+
+    const supabase = getSupabaseClient();
+
+    // Get subscription
+    const { data: platformSub } = await supabase
+      .from('platform_subscriptions')
+      .select('id, user_id')
+      .eq('stripe_subscription_id', subscription.id)
+      .single();
+
+    if (platformSub) {
+      await supabase
+        .from('audit_logs')
+        .insert({
+          user_id: platformSub.user_id,
+          action: 'subscription_pending_update_applied',
+          resource_type: 'platform_subscriptions',
+          resource_id: platformSub.id,
+          metadata: {
+            stripe_subscription_id: subscription.id,
+            items: subscription.items.data,
+          },
+        });
+    }
+
+  } catch (error) {
+    console.error('[Stripe Webhook] Error handling subscription pending update applied:', error);
+  }
+}
+
+async function handleSubscriptionPendingUpdateExpired(subscription: Stripe.Subscription) {
+  try {
+    console.log('[Stripe Webhook] Subscription pending update expired:', {
+      subscriptionId: subscription.id,
+    });
+
+    const supabase = getSupabaseClient();
+
+    // Get subscription
+    const { data: platformSub } = await supabase
+      .from('platform_subscriptions')
+      .select('id, user_id')
+      .eq('stripe_subscription_id', subscription.id)
+      .single();
+
+    if (platformSub) {
+      // Clear pending plan change if exists
+      await supabase
+        .from('platform_subscriptions')
+        .update({ 
+          pending_plan_change: null,
+          metadata: {
+            pending_update_expired_at: new Date().toISOString(),
+          },
+        })
+        .eq('id', platformSub.id);
+
+      await supabase
+        .from('audit_logs')
+        .insert({
+          user_id: platformSub.user_id,
+          action: 'subscription_pending_update_expired',
+          resource_type: 'platform_subscriptions',
+          resource_id: platformSub.id,
+          metadata: {
+            stripe_subscription_id: subscription.id,
+          },
+        });
+    }
+
+  } catch (error) {
+    console.error('[Stripe Webhook] Error handling subscription pending update expired:', error);
+  }
+}
+
+async function handleChargeRefunded(charge: Stripe.Charge) {
+  try {
+    console.log('[Stripe Webhook] Charge refunded:', {
+      chargeId: charge.id,
+      amount: charge.amount / 100,
+      amountRefunded: charge.amount_refunded / 100,
+      refunds: charge.refunds,
+    });
+
+    const userId = charge.metadata?.userId;
+    if (!userId) {
+      console.log('[Stripe Webhook] No userId in charge metadata');
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+
+    // Log refund transaction
+    await logPlatformTransaction({
+      stripeId: charge.id,
+      stripeCustomerId: typeof charge.customer === 'string' ? charge.customer : null,
+      userId,
+      amount: charge.amount_refunded,
+      currency: charge.currency,
+      type: 'refund',
+      status: 'refunded',
+      description: `Refund for charge ${charge.id}`,
+      metadata: {
+        charge_id: charge.id,
+        original_amount: charge.amount,
+        refunded_amount: charge.amount_refunded,
+        refunds: charge.refunds?.data,
+      },
+    });
+
+    // Log to audit
+    await supabase
+      .from('audit_logs')
+      .insert({
+        user_id: userId,
+        action: 'payment_refunded',
+        resource_type: 'platform_transactions',
+        resource_id: charge.id,
+        metadata: {
+          charge_id: charge.id,
+          amount_refunded: charge.amount_refunded / 100,
+          currency: charge.currency,
+        },
+      });
+
+  } catch (error) {
+    console.error('[Stripe Webhook] Error handling charge refunded:', error);
+  }
+}
+
+async function handleCustomerUpdated(customer: Stripe.Customer) {
+  try {
+    console.log('[Stripe Webhook] Customer updated:', {
+      customerId: customer.id,
+      email: customer.email,
+    });
+
+    const supabase = getSupabaseClient();
+
+    // Update stripe_customer_id in user_profiles if email matches
+    if (customer.email) {
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('email', customer.email)
+        .single();
+
+      if (profile) {
+        // You can update user profile with customer info if needed
+        await supabase
+          .from('audit_logs')
+          .insert({
+            user_id: profile.id,
+            action: 'stripe_customer_updated',
+            resource_type: 'user_profiles',
+            resource_id: profile.id,
+            metadata: {
+              stripe_customer_id: customer.id,
+              email: customer.email,
+            },
+          });
+      }
+    }
+
+  } catch (error) {
+    console.error('[Stripe Webhook] Error handling customer updated:', error);
+  }
+}
+
+async function handleCustomerDeleted(customer: Stripe.Customer) {
+  try {
+    console.log('[Stripe Webhook] Customer deleted:', {
+      customerId: customer.id,
+      email: customer.email,
+    });
+
+    const supabase = getSupabaseClient();
+
+    // Cancel any active subscriptions for this customer
+    const { data: subscriptions } = await supabase
+      .from('platform_subscriptions')
+      .select('id, user_id')
+      .eq('stripe_customer_id', customer.id)
+      .in('status', ['active', 'trialing']);
+
+    if (subscriptions && subscriptions.length > 0) {
+      for (const sub of subscriptions) {
+        await supabase
+          .from('platform_subscriptions')
+          .update({
+            status: 'cancelled',
+            cancelled_at: new Date().toISOString(),
+          })
+          .eq('id', sub.id);
+
+        await supabase
+          .from('audit_logs')
+          .insert({
+            user_id: sub.user_id,
+            action: 'subscription_cancelled_customer_deleted',
+            resource_type: 'platform_subscriptions',
+            resource_id: sub.id,
+            metadata: {
+              stripe_customer_id: customer.id,
+              reason: 'customer_deleted',
+            },
+          });
+      }
+    }
+
+  } catch (error) {
+    console.error('[Stripe Webhook] Error handling customer deleted:', error);
+  }
 }
 

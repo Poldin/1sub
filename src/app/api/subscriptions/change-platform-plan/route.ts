@@ -13,7 +13,7 @@ import { getPlanById, PLATFORM_PLANS } from '@/lib/subscription-plans';
 
 // Initialize Stripe
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-06-20',
+  apiVersion: '2025-09-30.clover' as any,
 });
 
 export async function POST(request: NextRequest) {
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get Stripe subscription to access price IDs and billing details
-    const stripeSubscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
+    const stripeSubscription = await stripe.subscriptions.retrieve(stripeSubscriptionId) as any;
     const currentPeriodEnd = new Date(stripeSubscription.current_period_end * 1000);
 
     // Calculate new price based on billing period

@@ -310,10 +310,10 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
 
           {/* Plans & Credits Button */}
           <button
-            onClick={() => handleNavigation('/pricing')}
+            onClick={() => window.open('/pricing', '_blank')}
             className="w-full bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] text-black px-4 py-2.5 rounded-lg font-semibold hover:opacity-90 transition-opacity text-sm"
           >
-            Plans & Credits
+            plans and credits
           </button>
         </div>
       </aside>

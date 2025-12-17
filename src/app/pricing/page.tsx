@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { Check, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { Check, Loader2, CheckCircle, XCircle, Settings } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import Header from '../components/Header';
 import PricingFAQ from '../components/PricingFAQ';
 import Footer from '../components/Footer';
 import TopUpCredits from '../components/TopUpCredits';
 import { useAuth } from '@/contexts/AuthContext';
+import { createClient } from '@/lib/supabase/client';
 
 // Component that uses searchParams - must be wrapped in Suspense
 function SearchParamsHandler({ 
@@ -44,21 +45,66 @@ function SearchParamsHandler({
   return null;
 }
 
+interface UserSubscription {
+  id: string;
+  plan_id: string;
+  status: string;
+  billing_period: 'monthly' | 'yearly';
+  credits_per_period: number;
+  stripe_subscription_id: string;
+  current_period_end: string;
+}
+
 function PricingContent() {
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly');
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [showCanceledMessage, setShowCanceledMessage] = useState(false);
+  const [creatingSubscription, setCreatingSubscription] = useState(false);
+  const [loadingPortal, setLoadingPortal] = useState(false);
+  const [currentSubscription, setCurrentSubscription] = useState<UserSubscription | null>(null);
+  const [loadingSubscription, setLoadingSubscription] = useState(true);
   
   // Get auth state and user info from context
   const { isLoggedIn, userInfo, creditsLoading } = useAuth();
 
+  // Fetch user's current subscription
+  useEffect(() => {
+    async function fetchSubscription() {
+      if (!isLoggedIn) {
+        setLoadingSubscription(false);
+        return;
+      }
+
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from('platform_subscriptions')
+          .select('*')
+          .in('status', ['active', 'trialing', 'past_due', 'paused'])
+          .single();
+
+        if (!error && data) {
+          setCurrentSubscription(data as UserSubscription);
+        }
+      } catch (error) {
+        console.error('Error fetching subscription:', error);
+      } finally {
+        setLoadingSubscription(false);
+      }
+    }
+
+    fetchSubscription();
+  }, [isLoggedIn]);
+
   const plans = [
     {
+      id: 'starter',
       name: 'Starter',
       description: 'Perfect for trying out our platform',
       monthlyPrice: 9,
       yearlyPrice: 99,
-      credits: billingPeriod === 'monthly' ? 8 : 96,
+      creditsPerMonth: 8,
+      yearlyCredits: 96,
       features: [
         'Access to all tools',
         '8 credits/month (monthly)',
@@ -67,15 +113,17 @@ function PricingContent() {
         'Cancel anytime',
         'Email support'
       ],
-      highlight: false,
+      popular: false,
       cta: 'Get Started'
     },
     {
+      id: 'pro',
       name: 'Pro',
       description: 'Most popular for professionals',
       monthlyPrice: 29,
       yearlyPrice: 299,
-      credits: billingPeriod === 'monthly' ? 29 : 348,
+      creditsPerMonth: 29,
+      yearlyCredits: 348,
       features: [
         'Everything in Starter',
         '29 credits/month (monthly)',
@@ -85,15 +133,17 @@ function PricingContent() {
         'Custom integrations',
         'Advanced analytics'
       ],
-      highlight: true,
+      popular: true,
       cta: 'Start Pro'
     },
     {
+      id: 'enterprise',
       name: 'Enterprise',
       description: 'For teams and heavy users',
       monthlyPrice: null,
       yearlyPrice: null,
-      credits: null,
+      creditsPerMonth: null,
+      yearlyCredits: null,
       features: [
         'Everything in Pro',
         'Custom credit allocation',
@@ -105,7 +155,7 @@ function PricingContent() {
         '24/7 phone support',
         'SLA guarantee'
       ],
-      highlight: false,
+      popular: false,
       cta: 'Contact Sales',
       isEnterprise: true
     }
@@ -123,6 +173,81 @@ function PricingContent() {
     const savings = yearlyMonthly - plan.yearlyPrice;
     const percentage = Math.round((savings / yearlyMonthly) * 100);
     return { amount: savings, percentage };
+  };
+
+  const handleCreateSubscription = async (planId: string, plan: typeof plans[0]) => {
+    if (!isLoggedIn) {
+      window.location.href = '/login';
+      return;
+    }
+
+    // Enterprise plan: redirect to contact
+    if (plan.isEnterprise) {
+      window.location.href = 'mailto:sales@1sub.io';
+      return;
+    }
+
+    if (currentSubscription) {
+      alert('You already have an active subscription. Please manage it using the Billing Portal.');
+      return;
+    }
+
+    setCreatingSubscription(true);
+
+    try {
+      const response = await fetch('/api/subscriptions/create-platform-subscription', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          planId,
+          billingPeriod,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create checkout session');
+      }
+
+      // Redirect to Stripe Checkout
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+      }
+    } catch (error) {
+      console.error('Error creating subscription:', error);
+      alert(error instanceof Error ? error.message : 'Failed to create subscription');
+    } finally {
+      setCreatingSubscription(false);
+    }
+  };
+
+  const handleManageSubscription = async () => {
+    setLoadingPortal(true);
+
+    try {
+      const response = await fetch('/api/stripe/create-portal-session', {
+        method: 'POST',
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to open billing portal');
+      }
+
+      // Redirect to Stripe Billing Portal
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (error) {
+      console.error('Error opening billing portal:', error);
+      alert(error instanceof Error ? error.message : 'Failed to open billing portal');
+    } finally {
+      setLoadingPortal(false);
+    }
   };
 
   return (
@@ -171,12 +296,48 @@ function PricingContent() {
               <div className="text-center mb-6">
                 <h2 className="text-2xl font-bold text-[#ededed] mb-1">{userInfo.fullName}</h2>
                 <p className="text-[#9ca3af] mb-2">{userInfo.email}</p>
+                
+                {/* Current Subscription Status */}
+                {loadingSubscription ? (
+                  <div className="flex items-center justify-center gap-2 mb-3">
+                    <Loader2 className="w-4 h-4 text-[#3ecf8e] animate-spin" />
+                    <span className="text-sm text-[#9ca3af]">Loading subscription...</span>
+                  </div>
+                ) : currentSubscription ? (
+                  <div className="mb-3">
+                    <div className="inline-flex items-center gap-2 bg-[#3ecf8e]/10 border border-[#3ecf8e]/30 rounded-full px-4 py-2">
+                      <Check className="w-4 h-4 text-[#3ecf8e]" />
+                      <span className="text-sm font-semibold text-[#3ecf8e]">
+                        Active {currentSubscription.plan_id} Plan ({currentSubscription.billing_period})
+                      </span>
+                    </div>
+                    <button
+                      onClick={handleManageSubscription}
+                      disabled={loadingPortal}
+                      className="mt-2 inline-flex items-center gap-2 text-sm text-[#9ca3af] hover:text-[#3ecf8e] transition-colors"
+                    >
+                      {loadingPortal ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Opening portal...
+                        </>
+                      ) : (
+                        <>
+                          <Settings className="w-4 h-4" />
+                          Manage Subscription
+                        </>
+                      )}
+                    </button>
+                  </div>
+                ) : null}
+                
+                <p className="text-xs text-[#9ca3af] uppercase tracking-wide mb-1">Your Credits</p>
                 <div className="flex items-center justify-center gap-2">
                   {creditsLoading ? (
                     <Loader2 className="w-5 h-5 text-[#3ecf8e] animate-spin" />
                   ) : (
                     <p className="text-xl font-bold text-[#3ecf8e]">
-                      {userInfo.credits !== null ? `${userInfo.credits} CR` : 'N/A'}
+                      {userInfo.credits !== null ? `${userInfo.credits.toFixed(2)} CR` : 'N/A'}
                     </p>
                   )}
                 </div>
@@ -188,7 +349,7 @@ function PricingContent() {
           )}
           
           <h1 className="text-4xl sm:text-5xl font-bold mb-4">
-            Simple, Transparent <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf]">Pricing</span>
+            simple, transparent <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf]">pricing</span>
           </h1>
           <p className="text-xl text-[#d1d5db] mb-8">
             One subscription. Countless tools. Cancel anytime.
@@ -235,7 +396,7 @@ function PricingContent() {
                 <div
                   key={index}
                   className={`relative rounded-2xl p-8 transition-all duration-300 flex flex-col ${
-                    plan.highlight
+                    plan.popular
                       ? 'bg-gradient-to-br from-[#3ecf8e]/20 to-[#2dd4bf]/10 border-2 border-[#3ecf8e] scale-105 shadow-2xl shadow-[#3ecf8e]/20'
                       : 'bg-[#1f2937] border-2 border-[#374151] hover:border-[#3ecf8e]/50'
                   }`}
@@ -244,6 +405,11 @@ function PricingContent() {
                   <div className="text-center mb-6">
                     <h3 className="text-2xl font-bold mb-2">{plan.name}</h3>
                     <p className="text-sm text-[#9ca3af]">{plan.description}</p>
+                    {currentSubscription?.plan_id === plan.id && (
+                      <span className="inline-block mt-2 bg-[#3ecf8e]/20 text-[#3ecf8e] text-xs font-semibold px-3 py-1 rounded-full">
+                        Current Plan
+                      </span>
+                    )}
                   </div>
 
                   <div className="text-center mb-6">
@@ -266,7 +432,7 @@ function PricingContent() {
                           </p>
                         )}
                         <p className="text-sm text-[#d1d5db] mt-2 font-semibold">
-                          {plan.credits} credits
+                          {billingPeriod === 'monthly' ? plan.creditsPerMonth : plan.yearlyCredits} credits
                         </p>
                       </>
                     )}
@@ -281,16 +447,68 @@ function PricingContent() {
                     ))}
                   </ul>
 
-                  <a
-                    href={plan.isEnterprise ? 'mailto:sales@1sub.io' : (isLoggedIn ? '/backoffice' : '/login')}
-                    className={`block w-full py-3 rounded-xl font-bold text-center transition-all ${
-                      plan.highlight
-                        ? 'bg-[#3ecf8e] text-black hover:bg-[#2dd4bf] shadow-lg shadow-[#3ecf8e]/30'
-                        : 'bg-[#374151] text-[#ededed] hover:bg-[#4B5563]'
-                    }`}
-                  >
-                    {plan.isEnterprise ? plan.cta : (isLoggedIn ? 'Enter!' : plan.cta)}
-                  </a>
+                  {plan.isEnterprise ? (
+                    <a
+                      href="mailto:sales@1sub.io"
+                      className="block w-full py-3 rounded-xl font-bold text-center transition-all bg-[#374151] text-[#ededed] hover:bg-[#4B5563]"
+                    >
+                      {plan.cta}
+                    </a>
+                  ) : isLoggedIn ? (
+                    currentSubscription?.plan_id === plan.id ? (
+                      <button
+                        onClick={handleManageSubscription}
+                        disabled={loadingPortal}
+                        className="block w-full py-3 rounded-xl font-bold text-center transition-all bg-[#374151] text-[#ededed] hover:bg-[#4B5563] disabled:opacity-50"
+                      >
+                        {loadingPortal ? (
+                          <span className="flex items-center justify-center gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Loading...
+                          </span>
+                        ) : (
+                          'Manage Subscription'
+                        )}
+                      </button>
+                    ) : currentSubscription ? (
+                      <button
+                        disabled
+                        className="block w-full py-3 rounded-xl font-bold text-center transition-all bg-[#374151]/50 text-[#9ca3af] cursor-not-allowed"
+                      >
+                        Already Subscribed
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleCreateSubscription(plan.id, plan)}
+                        disabled={creatingSubscription}
+                        className={`block w-full py-3 rounded-xl font-bold text-center transition-all disabled:opacity-50 ${
+                          plan.popular
+                            ? 'bg-[#3ecf8e] text-black hover:bg-[#2dd4bf] shadow-lg shadow-[#3ecf8e]/30'
+                            : 'bg-[#374151] text-[#ededed] hover:bg-[#4B5563]'
+                        }`}
+                      >
+                        {creatingSubscription ? (
+                          <span className="flex items-center justify-center gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Processing...
+                          </span>
+                        ) : (
+                          plan.cta
+                        )}
+                      </button>
+                    )
+                  ) : (
+                    <a
+                      href="/login"
+                      className={`block w-full py-3 rounded-xl font-bold text-center transition-all ${
+                        plan.popular
+                          ? 'bg-[#3ecf8e] text-black hover:bg-[#2dd4bf] shadow-lg shadow-[#3ecf8e]/30'
+                          : 'bg-[#374151] text-[#ededed] hover:bg-[#4B5563]'
+                      }`}
+                    >
+                      {plan.cta}
+                    </a>
+                  )}
                 </div>
               );
             })}
@@ -313,26 +531,28 @@ function PricingContent() {
       {/* FAQ Section */}
       <PricingFAQ />
 
-      {/* CTA Section */}
-      <section className="py-20 px-4 bg-gradient-to-b from-[#111111] to-[#0a0a0a]">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-            Ready to get started?
-          </h2>
-          <p className="text-xl text-[#d1d5db] mb-8">
-            Join thousands of users already using 1sub
-          </p>
-          <a
-            href={isLoggedIn ? "/backoffice" : "/login"}
-            className="inline-flex items-center justify-center px-10 py-4 text-lg font-bold bg-[#3ecf8e] text-black rounded-full hover:bg-[#2dd4bf] transition-all hover:scale-105 shadow-lg shadow-[#3ecf8e]/30"
-          >
-            {isLoggedIn ? "Enter!" : "Get Started Now"}
-            <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-            </svg>
-          </a>
-        </div>
-      </section>
+      {/* CTA Section - Only show when not logged in */}
+      {!isLoggedIn && (
+        <section className="py-20 px-4 bg-gradient-to-b from-[#111111] to-[#0a0a0a]">
+          <div className="max-w-4xl mx-auto text-center">
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+              Ready to get started?
+            </h2>
+            <p className="text-xl text-[#d1d5db] mb-8">
+              Join thousands of users already using 1sub
+            </p>
+            <a
+              href="/login"
+              className="inline-flex items-center justify-center px-10 py-4 text-lg font-bold bg-[#3ecf8e] text-black rounded-full hover:bg-[#2dd4bf] transition-all hover:scale-105 shadow-lg shadow-[#3ecf8e]/30"
+            >
+              Get Started Now
+              <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+            </a>
+          </div>
+        </section>
+      )}
 
       <Footer />
     </div>
