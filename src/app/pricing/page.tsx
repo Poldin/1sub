@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { Check, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import Header from '../components/Header';
@@ -9,14 +9,15 @@ import Footer from '../components/Footer';
 import TopUpCredits from '../components/TopUpCredits';
 import { useAuth } from '@/contexts/AuthContext';
 
-export default function PricingPage() {
-  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly');
-  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
-  const [showCanceledMessage, setShowCanceledMessage] = useState(false);
+// Component that uses searchParams - must be wrapped in Suspense
+function SearchParamsHandler({ 
+  setShowSuccessMessage, 
+  setShowCanceledMessage 
+}: { 
+  setShowSuccessMessage: (show: boolean) => void;
+  setShowCanceledMessage: (show: boolean) => void;
+}) {
   const searchParams = useSearchParams();
-  
-  // Get auth state and user info from context
-  const { isLoggedIn, userInfo, creditsLoading } = useAuth();
 
   // Handle success/canceled messages from URL params
   useEffect(() => {
@@ -38,7 +39,18 @@ export default function PricingPage() {
       // Clean up URL
       window.history.replaceState({}, '', '/pricing');
     }
-  }, [searchParams]);
+  }, [searchParams, setShowSuccessMessage, setShowCanceledMessage]);
+
+  return null;
+}
+
+function PricingContent() {
+  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly');
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [showCanceledMessage, setShowCanceledMessage] = useState(false);
+  
+  // Get auth state and user info from context
+  const { isLoggedIn, userInfo, creditsLoading } = useAuth();
 
   const plans = [
     {
@@ -115,6 +127,13 @@ export default function PricingPage() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed]">
+      <Suspense fallback={null}>
+        <SearchParamsHandler 
+          setShowSuccessMessage={setShowSuccessMessage}
+          setShowCanceledMessage={setShowCanceledMessage}
+        />
+      </Suspense>
+
       <Header />
 
       {/* Success Message */}
@@ -320,3 +339,6 @@ export default function PricingPage() {
   );
 }
 
+export default function PricingPage() {
+  return <PricingContent />;
+}
