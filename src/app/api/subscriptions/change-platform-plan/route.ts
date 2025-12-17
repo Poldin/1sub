@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
     if (subError || !currentSubscription) {
       return NextResponse.json(
         { 
-          error: 'No active subscription found. Please subscribe first via /subscribe.',
+          error: 'No active subscription found. Please subscribe first via /pricing.',
           code: 'NO_ACTIVE_SUBSCRIPTION'
         },
         { status: 400 }

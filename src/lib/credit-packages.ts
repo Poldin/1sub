@@ -2,7 +2,7 @@
  * Shared Credit Package Definitions
  * 
  * Defines one-time credit purchase packages used across:
- * - /buy-credits page
+ * - Subscription page
  * - In-checkout dialogs
  * - Any other credit top-up UI
  * 
