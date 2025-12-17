@@ -341,6 +341,13 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
 
 async function handleSubscriptionCheckout(session: Stripe.Checkout.Session) {
   try {
+    console.log('[Stripe Webhook] Processing subscription checkout:', {
+      sessionId: session.id,
+      customerId: session.customer,
+      subscriptionId: session.subscription,
+      metadata: session.metadata,
+    });
+
     const metadata = session.metadata;
     if (!metadata) {
       console.error('[Stripe Webhook] No metadata in subscription session');
@@ -350,7 +357,14 @@ async function handleSubscriptionCheckout(session: Stripe.Checkout.Session) {
     const { userId, planId, billingPeriod, creditsPerMonth, maxOverdraft } = metadata;
 
     if (!userId || !planId || !billingPeriod || !creditsPerMonth) {
-      console.error('[Stripe Webhook] Missing required subscription metadata:', metadata);
+      console.error('[Stripe Webhook] Missing required subscription metadata:', {
+        userId,
+        planId,
+        billingPeriod,
+        creditsPerMonth,
+        maxOverdraft,
+        fullMetadata: metadata,
+      });
       return;
     }
 
@@ -431,6 +445,34 @@ async function handleSubscriptionCheckout(session: Stripe.Checkout.Session) {
       userId,
       planId,
       stripeSubscriptionId,
+    });
+
+    // Log platform transaction
+    const transactionId = await logPlatformTransaction({
+      stripeId: session.id,
+      stripeCustomerId: session.customer as string,
+      userId,
+      amount: session.amount_total || 0,
+      currency: session.currency || 'eur',
+      type: 'subscription',
+      status: 'succeeded',
+      creditsAmount: parseInt(creditsPerMonth, 10),
+      subscriptionId: subscription.id,
+      description: `Platform subscription: ${planId} (${billingPeriod})`,
+      metadata: {
+        stripe_session_id: session.id,
+        stripe_subscription_id: stripeSubscriptionId,
+        plan_id: planId,
+        billing_period: billingPeriod,
+        initial_purchase: true,
+      },
+    });
+
+    console.log('[Stripe Webhook] Platform transaction created:', {
+      transactionId,
+      subscriptionId: subscription.id,
+      amount: session.amount_total,
+      currency: session.currency,
     });
 
     // Add initial credits to user account
