@@ -54,52 +54,120 @@ function ResetPasswordContent() {
           }
         }
 
-        // Fallback: Check for code in query parameters
+        // Check for code or token in query parameters
         const code = searchParams.get('code');
         const token = searchParams.get('token');
+        const token_hash = searchParams.get('token_hash');
         const type = searchParams.get('type');
 
-        if (code && type === 'recovery') {
-          // Exchange code for session
+        // Debug: Log all URL parameters
+        console.log('Reset password URL debug:', {
+          fullUrl: typeof window !== 'undefined' ? window.location.href : 'N/A',
+          code,
+          token,
+          token_hash,
+          type,
+          allParams: Object.fromEntries(searchParams.entries()),
+        });
+
+        // Try token_hash first (most reliable, no PKCE required)
+        if (token_hash) {
+          console.log('Attempting verifyOtp with token_hash:', token_hash.substring(0, 20) + '...');
+
+          const { data, error: verifyError } = await supabase.auth.verifyOtp({
+            type: 'recovery',
+            token_hash: token_hash,
+          });
+
+          console.log('verifyOtp result:', {
+            hasSession: !!data?.session,
+            error: verifyError?.message,
+            errorCode: verifyError?.code,
+          });
+
+          if (!verifyError && data.session) {
+            console.log('Token verified successfully, setting session...');
+            await supabase.auth.setSession(data.session);
+            setStatus('ready');
+            // Clean URL
+            window.history.replaceState(null, '', window.location.pathname);
+            return;
+          }
+          console.error('Failed to verify token_hash:', verifyError);
+
+          // Show specific error for token_hash failure
+          if (verifyError) {
+            setError(verifyError.message || 'Reset link is invalid or has expired. Please request a new one.');
+            setStatus('error');
+            return;
+          }
+        }
+
+        // Try code exchange (requires PKCE - same browser only)
+        if (code) {
           const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
 
-          if (exchangeError || !data.session) {
-            console.error('Failed to exchange code for session:', exchangeError);
+          if (!exchangeError && data.session) {
+            setStatus('ready');
+            // Clean URL
+            window.history.replaceState(null, '', window.location.pathname);
+            return;
+          }
+
+          console.error('Failed to exchange code for session:', exchangeError);
+
+          // PKCE error - user opened link in different browser
+          if (exchangeError?.message?.includes('code verifier') || exchangeError?.message?.includes('both auth code')) {
             setError(
-              exchangeError?.message || 'Reset link is invalid or has expired. Please request a new one.'
+              'This reset link must be opened in the same browser where you requested it. ' +
+              'Please go back to the forgot password page and enter the 6-digit code from your email instead.'
             );
             setStatus('error');
             return;
           }
 
-          setStatus('ready');
+          // Try verifyOtp as fallback with the code
+          const { data: otpData, error: otpError } = await supabase.auth.verifyOtp({
+            type: 'recovery',
+            token_hash: code,
+          });
+
+          if (!otpError && otpData.session) {
+            await supabase.auth.setSession(otpData.session);
+            setStatus('ready');
+            window.history.replaceState(null, '', window.location.pathname);
+            return;
+          }
+
+          setError('Reset link is invalid or has expired. Please request a new one.');
+          setStatus('error');
           return;
         }
 
         // Fallback: Check for token parameter
-        if (token && type === 'recovery') {
-          // Try to verify OTP with token
+        if (token) {
           const { data, error: verifyError } = await supabase.auth.verifyOtp({
             type: 'recovery',
             token_hash: token,
           });
 
-          if (verifyError || !data.session) {
-            console.error('Failed to verify recovery token:', verifyError);
-            setError(
-              verifyError?.message || 'Reset link is invalid or has expired. Please request a new one.'
-            );
-            setStatus('error');
+          if (!verifyError && data.session) {
+            await supabase.auth.setSession(data.session);
+            setStatus('ready');
+            window.history.replaceState(null, '', window.location.pathname);
             return;
           }
 
-          await supabase.auth.setSession(data.session);
-          setStatus('ready');
+          console.error('Failed to verify recovery token:', verifyError);
+          setError(
+            verifyError?.message || 'Reset link is invalid or has expired. Please request a new one.'
+          );
+          setStatus('error');
           return;
         }
 
         // If no valid token found
-        setError('Reset link is invalid or missing. Please request a new one.');
+        setError('Reset link is invalid or missing. Please request a new one from the forgot password page.');
         setStatus('error');
       } catch (err) {
         console.error('Unexpected error verifying recovery token:', err);
