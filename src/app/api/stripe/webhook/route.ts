@@ -235,15 +235,15 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
 
     const supabase = getSupabaseClient();
 
-    // Verify user exists
+    // Verify user profile exists (email is NOT a field in user_profiles, it's only in auth.users)
     const { data: user, error: userError } = await supabase
       .from('user_profiles')
-      .select('id, email, full_name')
+      .select('id, full_name')
       .eq('id', userId)
       .single();
 
     if (userError || !user) {
-      console.error('[Stripe Webhook] User not found:', userId);
+      console.error('[Stripe Webhook] User profile not found:', userId, userError);
       return;
     }
 
@@ -309,7 +309,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     console.log('[Stripe Webhook] Credits added successfully:', {
       transactionId: transaction.id,
       userId,
-      userEmail: user.email,
+      userEmail: session.customer_email,
       credits,
       balanceBefore: currentBalance,
       balanceAfter: newBalance,
@@ -370,15 +370,15 @@ async function handleSubscriptionCheckout(session: Stripe.Checkout.Session) {
 
     const supabase = getSupabaseClient();
 
-    // Verify user exists
-    const { data: user, error: userError } = await supabase
+    // Verify user profile exists (email is NOT a field in user_profiles, it's only in auth.users)
+    const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
-      .select('id, email')
+      .select('id, full_name')
       .eq('id', userId)
       .single();
 
-    if (userError || !user) {
-      console.error('[Stripe Webhook] User not found:', userId);
+    if (profileError || !profile) {
+      console.error('[Stripe Webhook] User profile not found:', userId, profileError);
       return;
     }
 
