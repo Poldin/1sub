@@ -468,6 +468,148 @@ webhookHandler.on('subscription.canceled', (event) => {
 Proper monitoring helps you optimize pricing and understand user behavior.
 </Check>
 
+## One-Time Purchase Model
+
+One-time purchases allow users to buy lifetime access to your tool for a single payment, without recurring charges.
+
+### How One-Time Purchases Work
+
+<Steps>
+<Step title="User purchases tool">
+  User pays once for lifetime access on 1Sub.
+</Step>
+
+<Step title="Purchase webhook sent">
+  You receive `purchase.completed` webhook event.
+</Step>
+
+<Step title="You verify ownership">
+  Verify the user owns your tool before granting access:
+
+```typescript
+const subscription = await verifySubscription(oneSubUserId);
+
+if (subscription.hasLifetimeAccess) {
+  // Grant permanent access to all features
+}
+```
+</Step>
+
+<Step title="User has lifetime access">
+  User can use your tool forever without recurring payments.
+</Step>
+</Steps>
+
+### One-Time Purchase Properties
+
+When you verify a subscription, you'll receive these fields for one-time purchases:
+
+<ResponseField name="hasLifetimeAccess" type="boolean" required>
+Whether user has lifetime access via one-time purchase
+</ResponseField>
+
+<ResponseField name="purchaseDate" type="string (ISO 8601)">
+When the one-time purchase was completed
+</ResponseField>
+
+<ResponseField name="purchaseAmount" type="number">
+Amount paid for lifetime access (in cents)
+</ResponseField>
+
+**Example response:**
+
+```json
+{
+  "active": false,
+  "status": "none",
+  "hasLifetimeAccess": true,
+  "purchaseDate": "2025-11-16T12:34:56Z",
+  "purchaseAmount": 9900,
+  "oneSubUserId": "uuid-abc-123"
+}
+```
+
+### When to Use One-Time Purchases
+
+<CardGroup cols={2}>
+<Card title="Best For" icon="check">
+  - Desktop applications
+  - CLI tools and utilities
+  - Mobile apps
+  - Templates and themes
+  - Educational content
+  - Tools with minimal ongoing costs
+</Card>
+
+<Card title="Not Recommended For" icon="x">
+  - SaaS with high server costs
+  - Tools requiring continuous updates
+  - API services with per-use costs
+  - Team collaboration platforms
+</Card>
+</CardGroup>
+
+### Pricing Strategies
+
+Recommended pricing for one-time purchases:
+
+<Tip>
+Price your lifetime access at 12-24 months of subscription value. Example: If your monthly plan is $10, price lifetime at $120-240.
+</Tip>
+
+### Webhooks for One-Time Purchases
+
+Listen for `purchase.completed` event to grant lifetime access:
+
+```typescript
+webhookHandler.on('purchase.completed', (event) => {
+  console.log('New purchase:', event.data);
+
+  // {
+  //   oneSubUserId: "uuid-abc-123",
+  //   toolId: "uuid-tool-456",
+  //   amount: 9900, // $99.00 in cents
+  //   purchaseDate: "2025-11-16T12:34:56Z"
+  // }
+
+  // Grant lifetime access
+  await db.users.update(event.data.oneSubUserId, {
+    hasLifetimeAccess: true,
+    purchaseDate: event.data.purchaseDate
+  });
+
+  // Send welcome email
+  await sendWelcomeEmail(event.data.oneSubUserId);
+});
+```
+
+### Hybrid: One-Time + Credits
+
+You can combine one-time purchases with credits for flexible pricing:
+
+```typescript
+async function handleRequest(userId: string) {
+  const sub = await verifySubscription(oneSubUserId);
+
+  // Check for lifetime access OR active subscription
+  if (!sub.hasLifetimeAccess && !sub.active) {
+    throw new Error('Purchase or subscription required');
+  }
+
+  // User has access, now consume credits for usage
+  await consumeCredits({
+    user_id: oneSubUserId,
+    amount: 10,
+    reason: 'Used premium feature',
+    idempotency_key: `${userId}-${requestId}`,
+  });
+}
+```
+
+<Note>
+See [Monetization Models](/concepts/monetization-models) for a complete comparison of subscriptions, credits, and one-time purchases.
+</Note>
+
 ## Credit Notifications via Webhooks
 
 1Sub automatically sends webhook notifications when users' credit balances change:

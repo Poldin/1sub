@@ -116,16 +116,25 @@ const CardGroup = ({ children, cols = 2 }: { children: React.ReactNode; cols?: n
 )
 
 const Card = ({ title, icon, href, children }: { title: string; icon?: string; href?: string; children?: React.ReactNode }) => {
-  const content = (
+  const titleContent = (
+    <div className="flex items-center gap-2 font-semibold mb-2">
+      {icon && <span className="text-lg">📄</span>}
+      <span>{title}</span>
+    </div>
+  )
+  
+  return (
     <div className="rounded-lg border border-gray-200 p-4 hover:border-gray-300 hover:shadow-sm transition dark:border-gray-700 dark:hover:border-gray-600">
-      <div className="flex items-center gap-2 font-semibold mb-2">
-        {icon && <span className="text-lg">📄</span>}
-        <span>{title}</span>
-      </div>
+      {href ? (
+        <a href={href} className="no-underline text-inherit hover:text-inherit">
+          {titleContent}
+        </a>
+      ) : (
+        titleContent
+      )}
       {children && <div className="text-sm text-gray-600 dark:text-gray-400">{children}</div>}
     </div>
   )
-  return href ? <a href={href} className="no-underline">{content}</a> : content
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

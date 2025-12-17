@@ -101,7 +101,19 @@ subscription = response.json()
   "currentPeriodStart": "2025-11-15T00:00:00Z",
   "currentPeriodEnd": "2025-12-15T00:00:00Z",
   "cancelAtPeriodEnd": false,
-  "trialEndsAt": "2025-11-22T00:00:00Z"
+  "trialEndsAt": "2025-11-22T00:00:00Z",
+  "hasLifetimeAccess": false
+}
+```
+
+```json 200 OK - Lifetime Access (One-Time Purchase)
+{
+  "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000",
+  "active": false,
+  "status": "none",
+  "hasLifetimeAccess": true,
+  "purchaseDate": "2025-11-16T12:34:56Z",
+  "purchaseAmount": 9900
 }
 ```
 
@@ -180,6 +192,22 @@ When trial ends, if applicable
 <ResponseField name="lastPaymentStatus" type="string">
 Status of most recent payment: `paid`, `failed`, `pending`
 </ResponseField>
+
+<ResponseField name="hasLifetimeAccess" type="boolean">
+Whether user has lifetime access via one-time purchase. If `true`, user should have permanent access regardless of subscription status.
+</ResponseField>
+
+<ResponseField name="purchaseDate" type="string (ISO 8601)">
+Date when one-time purchase was completed (only present if `hasLifetimeAccess` is `true`)
+</ResponseField>
+
+<ResponseField name="purchaseAmount" type="number">
+Amount paid for lifetime access in cents (only present if `hasLifetimeAccess` is `true`)
+</ResponseField>
+
+<Note>
+When checking access, verify EITHER `active === true` OR `hasLifetimeAccess === true`. Users with lifetime access don't need an active subscription.
+</Note>
 
 ---
 
@@ -298,6 +326,15 @@ print(f"New balance: {result['new_balance']}")
   "transaction_id": "txn-abc123def456",
   "is_duplicate": true,
   "message": "This request has already been processed"
+}
+```
+
+```json 200 OK - Idempotent Request
+{
+  "success": true,
+  "message": "Idempotent request already processed",
+  "transaction_id": "txn-abc123def456",
+  "new_balance": 90
 }
 ```
 </ResponseExample>
