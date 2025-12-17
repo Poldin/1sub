@@ -51,8 +51,8 @@ export default function TopUpCredits({ className = '' }: TopUpCreditsProps) {
 
     setIsLoading(true);
     
-    // Navigate to subscribe page for credit purchases
-    router.push('/subscribe');
+    // Navigate to pricing page for credit purchases
+    router.push('/pricing');
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -68,14 +68,14 @@ export default function TopUpCredits({ className = '' }: TopUpCreditsProps) {
         Need more credit? One time top up here.
       </h3>
 
-      {/* Compact Form - All in one line on desktop, stacked on mobile */}
-      <div className="flex flex-col sm:flex-row gap-2 items-start">
+      {/* Compact Form - Responsive with flex-wrap */}
+      <div className="flex flex-wrap gap-2 w-full">
         {/* Select for preset amounts */}
         <select
           value={amount}
           onChange={handleSelectChange}
           disabled={isLoading}
-          className="bg-[#0a0a0a] border border-[#374151] rounded-lg px-3 py-2.5 text-[#ededed] text-sm focus:outline-none focus:border-[#3ecf8e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed w-auto cursor-pointer hover:border-[#3ecf8e]/50"
+          className="flex-1 min-w-[140px] max-w-[180px] bg-[#0a0a0a] border border-[#374151] rounded-lg px-3 py-2.5 text-[#ededed] text-sm focus:outline-none focus:border-[#3ecf8e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:border-[#3ecf8e]/50"
           style={{
             colorScheme: 'dark'
           }}
@@ -89,7 +89,7 @@ export default function TopUpCredits({ className = '' }: TopUpCreditsProps) {
         </select>
 
         {/* Input Field */}
-        <div className="relative w-auto sm:w-32">
+        <div className="relative flex-1 min-w-[100px] max-w-[120px]">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#3ecf8e] text-sm font-semibold">
             CR
           </span>
@@ -110,17 +110,17 @@ export default function TopUpCredits({ className = '' }: TopUpCreditsProps) {
         <button
           onClick={handleTopUp}
           disabled={isLoading || !amount || parseFloat(amount) <= 0}
-          className="px-6 py-2.5 bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] text-black rounded-lg font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#3ecf8e]/20 flex items-center justify-center gap-2 whitespace-nowrap"
+          className="flex-1 min-w-[80px] max-w-[100px] px-4 py-2.5 bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] text-black rounded-lg font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#3ecf8e]/20 flex items-center justify-center gap-2 whitespace-nowrap"
         >
           {isLoading ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="hidden sm:inline">Processing...</span>
+              <span className="hidden sm:inline">Loading...</span>
             </>
           ) : (
             <>
               <CreditCard className="w-4 h-4" />
-              <span>Buy Credits</span>
+              <span>Buy</span>
             </>
           )}
         </button>

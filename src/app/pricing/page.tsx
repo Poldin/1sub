@@ -1,13 +1,44 @@
 'use client';
 
-import { useState } from 'react';
-import { Check } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Check, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 import Header from '../components/Header';
 import PricingFAQ from '../components/PricingFAQ';
 import Footer from '../components/Footer';
+import TopUpCredits from '../components/TopUpCredits';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function PricingPage() {
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly');
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [showCanceledMessage, setShowCanceledMessage] = useState(false);
+  const searchParams = useSearchParams();
+  
+  // Get auth state and user info from context
+  const { isLoggedIn, userInfo, creditsLoading } = useAuth();
+
+  // Handle success/canceled messages from URL params
+  useEffect(() => {
+    const success = searchParams.get('success');
+    const canceled = searchParams.get('canceled');
+
+    if (success === 'true') {
+      setShowSuccessMessage(true);
+      // Hide message after 5 seconds
+      setTimeout(() => setShowSuccessMessage(false), 5000);
+      // Clean up URL
+      window.history.replaceState({}, '', '/pricing');
+    }
+
+    if (canceled === 'true') {
+      setShowCanceledMessage(true);
+      // Hide message after 5 seconds
+      setTimeout(() => setShowCanceledMessage(false), 5000);
+      // Clean up URL
+      window.history.replaceState({}, '', '/pricing');
+    }
+  }, [searchParams]);
 
   const plans = [
     {
@@ -86,9 +117,57 @@ export default function PricingPage() {
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed]">
       <Header />
 
+      {/* Success Message */}
+      {showSuccessMessage && (
+        <div className="fixed top-4 right-4 z-50 bg-green-500/90 backdrop-blur text-white px-6 py-4 rounded-lg shadow-lg animate-slide-in">
+          <div className="flex items-center gap-3">
+            <CheckCircle className="w-5 h-5" />
+            <div>
+              <p className="font-semibold">Payment Successful!</p>
+              <p className="text-sm opacity-90">Your credits have been added to your account</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Canceled Message */}
+      {showCanceledMessage && (
+        <div className="fixed top-4 right-4 z-50 bg-yellow-500/90 backdrop-blur text-white px-6 py-4 rounded-lg shadow-lg animate-slide-in">
+          <div className="flex items-center gap-3">
+            <XCircle className="w-5 h-5" />
+            <div>
+              <p className="font-semibold">Payment Canceled</p>
+              <p className="text-sm opacity-90">No charges were made to your account</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Hero Section */}
       <section className="pt-20 pb-12 px-4">
         <div className="max-w-4xl mx-auto text-center">
+          {/* User Info Section - Only show if logged in */}
+          {isLoggedIn && userInfo && (
+            <div className="mb-8">
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold text-[#ededed] mb-1">{userInfo.fullName}</h2>
+                <p className="text-[#9ca3af] mb-2">{userInfo.email}</p>
+                <div className="flex items-center justify-center gap-2">
+                  {creditsLoading ? (
+                    <Loader2 className="w-5 h-5 text-[#3ecf8e] animate-spin" />
+                  ) : (
+                    <p className="text-xl font-bold text-[#3ecf8e]">
+                      {userInfo.credits !== null ? `${userInfo.credits} CR` : 'N/A'}
+                    </p>
+                  )}
+                </div>
+              </div>
+              
+              {/* Top Up Credits Component */}
+              <TopUpCredits className="max-w-2xl mx-auto" />
+            </div>
+          )}
+          
           <h1 className="text-4xl sm:text-5xl font-bold mb-4">
             Simple, Transparent <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf]">Pricing</span>
           </h1>
@@ -184,14 +263,14 @@ export default function PricingPage() {
                   </ul>
 
                   <a
-                    href={plan.isEnterprise ? 'mailto:sales@1sub.io' : '/login'}
+                    href={plan.isEnterprise ? 'mailto:sales@1sub.io' : (isLoggedIn ? '/backoffice' : '/login')}
                     className={`block w-full py-3 rounded-xl font-bold text-center transition-all ${
                       plan.highlight
                         ? 'bg-[#3ecf8e] text-black hover:bg-[#2dd4bf] shadow-lg shadow-[#3ecf8e]/30'
                         : 'bg-[#374151] text-[#ededed] hover:bg-[#4B5563]'
                     }`}
                   >
-                    {plan.cta}
+                    {plan.isEnterprise ? plan.cta : (isLoggedIn ? 'Enter!' : plan.cta)}
                   </a>
                 </div>
               );
@@ -225,10 +304,10 @@ export default function PricingPage() {
             Join thousands of users already using 1sub
           </p>
           <a
-            href="/login"
+            href={isLoggedIn ? "/backoffice" : "/login"}
             className="inline-flex items-center justify-center px-10 py-4 text-lg font-bold bg-[#3ecf8e] text-black rounded-full hover:bg-[#2dd4bf] transition-all hover:scale-105 shadow-lg shadow-[#3ecf8e]/30"
           >
-            Get Started Now
+            {isLoggedIn ? "Enter!" : "Get Started Now"}
             <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
             </svg>

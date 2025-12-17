@@ -21,6 +21,7 @@ import {
   CreditCard
 } from 'lucide-react';
 import { getCurrentBalanceClient } from '@/lib/credits';
+import TopUpCredits from '@/app/components/TopUpCredits';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -37,6 +38,7 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
   const router = useRouter();
   const [isVendorMenuOpen, setIsVendorMenuOpen] = useState(false);
   const [credits, setCredits] = useState<number>(0);
+  const [showTopUpCredits, setShowTopUpCredits] = useState(false);
 
   // Load vendor menu state from localStorage on mount
   useEffect(() => {
@@ -282,17 +284,33 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
             </div>
             <div className="flex-1 flex justify-end">
               <button
-                onClick={() => handleNavigation('/subscribe')}
-                className="flex items-center justify-center p-1.5 bg-[#1f2937] hover:bg-[#374151] rounded-lg transition-colors"
-                title="Top up credits"
+                onClick={() => setShowTopUpCredits(!showTopUpCredits)}
+                className={`flex items-center justify-center p-1.5 rounded-lg transition-all ${
+                  showTopUpCredits 
+                    ? 'bg-red-500/20 hover:bg-red-500/30' 
+                    : 'bg-[#1f2937] hover:bg-[#374151]'
+                }`}
+                title={showTopUpCredits ? "Chiudi top up" : "Top up credits"}
               >
-                <Plus className="w-4 h-4 text-[#3ecf8e]" />
+                {showTopUpCredits ? (
+                  <X className="w-4 h-4 text-red-500" />
+                ) : (
+                  <Plus className="w-4 h-4 text-[#3ecf8e]" />
+                )}
               </button>
             </div>
           </div>
+
+          {/* TopUpCredits Component - Show when active */}
+          {showTopUpCredits && (
+            <div className="mb-3">
+              <TopUpCredits />
+            </div>
+          )}
+
           {/* Plans & Credits Button */}
           <button
-            onClick={() => handleNavigation('/subscribe')}
+            onClick={() => handleNavigation('/pricing')}
             className="w-full bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] text-black px-4 py-2.5 rounded-lg font-semibold hover:opacity-90 transition-opacity text-sm"
           >
             Plans & Credits

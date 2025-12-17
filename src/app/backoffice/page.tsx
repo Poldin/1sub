@@ -367,7 +367,7 @@ function BackofficeContent() {
 
         // Check if user has enough credits for cheapest option
         if (cheapestPrice > 0 && credits < cheapestPrice) {
-          router.push('/subscribe');
+          router.push('/pricing');
           return;
         }
 
@@ -418,7 +418,7 @@ function BackofficeContent() {
 
         // Check if user has enough credits for cheapest option
         if (credits < cheapestPrice) {
-          router.push('/subscribe');
+          router.push('/pricing');
           return;
         }
 

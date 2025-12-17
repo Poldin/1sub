@@ -230,8 +230,8 @@ export default function CreditCheckoutPage() {
               const shortfall = data.shortfall || (data.required - data.current_balance);
               const toolName = checkout?.metadata.tool_name || 'this tool';
               
-              // Redirect to subscribe page
-              router.push('/subscribe');
+              // Redirect to pricing page
+              router.push('/pricing');
               return;
             } else {
               setError(data.error || 'Purchase failed due to insufficient credits');
@@ -930,14 +930,14 @@ export default function CreditCheckoutPage() {
                         <div className="flex flex-col gap-2">
                           <button
                             onClick={() => {
-                              router.push('/subscribe');
+                              router.push('/pricing');
                             }}
                             className="bg-[#3ecf8e] text-black px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[#2dd4bf] transition-colors w-full"
                           >
                             Top Up Credits
                           </button>
                           <button
-                            onClick={() => router.push('/subscribe')}
+                            onClick={() => router.push('/pricing')}
                             className="bg-[#374151] text-[#ededed] px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[#4b5563] transition-colors w-full"
                           >
                             View Subscription Plans

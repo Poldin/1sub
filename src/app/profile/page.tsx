@@ -884,7 +884,7 @@ export default function ProfilePage() {
                   )}
                 </button>
                 <button
-                  onClick={() => router.push('/subscribe')}
+                  onClick={() => router.push('/pricing')}
                   className="px-4 py-2 bg-[#374151] text-[#ededed] rounded-lg font-semibold hover:bg-[#4b5563] transition-colors"
                 >
                   Change Plan
@@ -899,7 +899,7 @@ export default function ProfilePage() {
                 <h3 className="text-lg font-semibold text-[#ededed] mb-2">No Active Subscription</h3>
                 <p className="text-[#9ca3af] mb-4">Subscribe to get recurring credits every month at better rates</p>
                 <button
-                  onClick={() => router.push('/subscribe')}
+                  onClick={() => router.push('/pricing')}
                   className="bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] text-black px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity inline-flex items-center gap-2"
                 >
                   <ExternalLink className="w-4 h-4" />

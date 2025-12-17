@@ -10,6 +10,7 @@ import PricingExplainer from './components/PricingExplainer';
 import TrustIndicators from './components/TrustIndicators';
 import { useTools } from '@/hooks/useTools';
 import { Tool } from '@/lib/tool-types';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Lazy-load del ToolDialog per ridurre il bundle iniziale
 const ToolDialog = lazy(() => import('./components/ToolDialog'));
@@ -21,6 +22,9 @@ function HomeContent() {
   const [selectedToolId, setSelectedToolId] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [loadingTimeout, setLoadingTimeout] = useState(false);
+  
+  // Get auth state from context
+  const { isLoggedIn } = useAuth();
   
   // Fetch tools from database
   const { tools, loading, error, refetch } = useTools();
@@ -150,11 +154,11 @@ function HomeContent() {
       {/* Mobile Sticky CTA - Bottom - z-index set to not interfere with cards */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a] to-transparent z-30 sm:hidden pointer-events-none">
         <a
-          href="/login"
+          href={isLoggedIn ? "/backoffice" : "/login"}
           className="flex items-center justify-center w-full px-6 py-4 text-lg font-bold text-white bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] rounded-full shadow-lg shadow-[#3ecf8e]/30 active:scale-95 transition-transform pointer-events-auto"
         >
           <span className="flex items-center gap-2">
-            get started now
+            {isLoggedIn ? "Enter!" : "get started now"}
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
             </svg>
@@ -191,12 +195,12 @@ function HomeContent() {
           
           <div className="animate-fade-in-up delay-400 opacity-0">
             <a
-              href="/login"
+              href={isLoggedIn ? "/backoffice" : "/login"}
               id="join"
               className="group relative inline-flex items-center justify-center px-10 py-5 text-lg sm:text-xl font-bold bg-transparent border-2 border-[#3ecf8e] rounded-full transition-all duration-300 hover:scale-105 animate-pulse-glow active:scale-95"
             >
               <span className="relative z-10 flex items-center gap-3 text-[#3ecf8e]">
-                join us today!
+                {isLoggedIn ? "Enter!" : "join us today!"}
                 <svg className="w-6 h-6 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                 </svg>
