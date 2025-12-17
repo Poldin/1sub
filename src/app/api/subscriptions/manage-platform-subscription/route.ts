@@ -23,7 +23,7 @@ interface PlatformSubscription {
 
 // Initialize Stripe
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-06-20',
+  apiVersion: '2025-09-30.clover' as any,
 });
 
 export async function POST(request: NextRequest) {
@@ -128,7 +128,7 @@ async function handleCancelSubscription(subscription: PlatformSubscription, supa
       {
         cancel_at_period_end: true,
       }
-    );
+    ) as Stripe.Subscription;
 
     console.log('[Platform Subscription] Subscription cancelled in Stripe:', {
       subscriptionId: subscription.id,

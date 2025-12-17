@@ -10,9 +10,9 @@ import Stripe from 'stripe';
 import { createClient } from '@/lib/supabase/server';
 import { getPlanById, getPlanPrice } from '@/lib/subscription-plans';
 
-// Initialize Stripe
+// Initialize Stripe with latest API version
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-06-20',
+  apiVersion: '2025-09-30.clover' as any,
 });
 
 export async function POST(request: NextRequest) {
