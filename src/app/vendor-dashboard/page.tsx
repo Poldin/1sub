@@ -141,14 +141,87 @@ export default function VendorDashboard() {
       const toolId = toolPendingDeletion.id;
 
       // Delete related data first to avoid foreign key issues
-      await supabase.from('tool_products').delete().eq('tool_id', toolId);
-      await supabase.from('tool_subscriptions').delete().eq('tool_id', toolId);
-      await supabase.from('credit_transactions').delete().eq('tool_id', toolId);
+      // Order matters: delete from dependent tables before parent tables
+      
+      // Delete API keys
+      const { error: apiKeysError } = await supabase
+        .from('api_keys')
+        .delete()
+        .eq('tool_id', toolId);
+      if (apiKeysError) {
+        console.error('Error deleting api_keys:', apiKeysError);
+        throw new Error(`Failed to delete API keys: ${apiKeysError.message}`);
+      }
 
-      const { error: toolDeleteError } = await supabase.from('tools').delete().eq('id', toolId);
+      // Delete tool user links
+      const { error: toolUserLinksError } = await supabase
+        .from('tool_user_links')
+        .delete()
+        .eq('tool_id', toolId);
+      if (toolUserLinksError) {
+        console.error('Error deleting tool_user_links:', toolUserLinksError);
+        throw new Error(`Failed to delete tool user links: ${toolUserLinksError.message}`);
+      }
+
+      // Delete tool link codes
+      const { error: toolLinkCodesError } = await supabase
+        .from('tool_link_codes')
+        .delete()
+        .eq('tool_id', toolId);
+      if (toolLinkCodesError) {
+        console.error('Error deleting tool_link_codes:', toolLinkCodesError);
+        throw new Error(`Failed to delete tool link codes: ${toolLinkCodesError.message}`);
+      }
+
+      // Delete usage logs
+      const { error: usageLogsError } = await supabase
+        .from('usage_logs')
+        .delete()
+        .eq('tool_id', toolId);
+      if (usageLogsError) {
+        console.error('Error deleting usage_logs:', usageLogsError);
+        throw new Error(`Failed to delete usage logs: ${usageLogsError.message}`);
+      }
+
+      // Delete tool products
+      const { error: toolProductsError } = await supabase
+        .from('tool_products')
+        .delete()
+        .eq('tool_id', toolId);
+      if (toolProductsError) {
+        console.error('Error deleting tool_products:', toolProductsError);
+        throw new Error(`Failed to delete tool products: ${toolProductsError.message}`);
+      }
+
+      // Delete tool subscriptions
+      const { error: toolSubscriptionsError } = await supabase
+        .from('tool_subscriptions')
+        .delete()
+        .eq('tool_id', toolId);
+      if (toolSubscriptionsError) {
+        console.error('Error deleting tool_subscriptions:', toolSubscriptionsError);
+        throw new Error(`Failed to delete tool subscriptions: ${toolSubscriptionsError.message}`);
+      }
+
+      // Delete credit transactions
+      const { error: creditTransactionsError } = await supabase
+        .from('credit_transactions')
+        .delete()
+        .eq('tool_id', toolId);
+      if (creditTransactionsError) {
+        console.error('Error deleting credit_transactions:', creditTransactionsError);
+        throw new Error(`Failed to delete credit transactions: ${creditTransactionsError.message}`);
+      }
+
+      // Finally delete the tool itself
+      const { error: toolDeleteError } = await supabase
+        .from('tools')
+        .delete()
+        .eq('id', toolId);
 
       if (toolDeleteError) {
-        throw toolDeleteError;
+        console.error('Error deleting tool:', toolDeleteError);
+        throw new Error(`Failed to delete tool: ${toolDeleteError.message}. This may be due to remaining foreign key constraints.`);
       }
 
       const updatedTools = tools.filter((tool) => tool.id !== toolId);
@@ -163,7 +236,10 @@ export default function VendorDashboard() {
       setToolRefreshToken((prev) => prev + 1);
     } catch (error) {
       console.error('Error deleting tool:', error);
-      setDeleteError('Failed to delete tool. Please try again.');
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : 'Failed to delete tool. Please try again.';
+      setDeleteError(errorMessage);
     } finally {
       setIsDeletingTool(false);
     }
