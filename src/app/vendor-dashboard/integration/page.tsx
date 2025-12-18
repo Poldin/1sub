@@ -78,8 +78,8 @@ export default function IntegrationGuidePage() {
           <h2 className="text-xl font-bold mb-3">How 1SUB Integration Works</h2>
           <p className="text-[#d1d5db] mb-4">
             Integrating with 1SUB allows you to monetize your tool through our credit system.
-            Users purchase credits on our platform, get redirected to your tool with a secure token,
-            and you consume credits via our API as they use your features.
+            Users subscribe or purchase credits on our platform, link their account to your tool,
+            and you verify subscriptions and consume credits via our API.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="flex items-start gap-3">
@@ -93,7 +93,7 @@ export default function IntegrationGuidePage() {
               <Shield className="w-5 h-5 text-[#3ecf8e] mt-0.5 flex-shrink-0" />
               <div>
                 <h3 className="font-semibold text-[#ededed]">Secure</h3>
-                <p className="text-sm text-[#9ca3af]">JWT-based auth</p>
+                <p className="text-sm text-[#9ca3af]">API key authentication</p>
               </div>
             </div>
             <div className="flex items-start gap-3">
@@ -239,7 +239,7 @@ export default function IntegrationGuidePage() {
                 <h3 className="font-semibold">Authentication</h3>
                 <ExternalLink className="w-4 h-4 text-[#9ca3af] ml-auto group-hover:text-[#3ecf8e]" />
               </div>
-              <p className="text-sm text-[#9ca3af]">API keys and JWT token verification</p>
+              <p className="text-sm text-[#9ca3af]">API keys and user verification</p>
             </a>
 
             <a
@@ -281,6 +281,137 @@ export default function IntegrationGuidePage() {
               <p className="text-sm text-[#9ca3af]">Common errors and solutions</p>
             </a>
 
+          </div>
+        </div>
+
+        {/* Test Your Integration */}
+        <div className="mb-8">
+          <h2 className="text-xl font-bold mb-4">Test Your Integration</h2>
+
+          {/* Test Account Linking */}
+          <div className="bg-[#1f2937] border border-[#374151] rounded-lg p-5 mb-4">
+            <h3 className="font-semibold text-[#ededed] mb-4">Test Account Linking</h3>
+
+            {/* Email-Based */}
+            <div className="mb-4">
+              <h4 className="text-sm font-medium text-[#3ecf8e] mb-2">Email-Based:</h4>
+              <ol className="text-sm text-[#d1d5db] space-y-2 list-decimal list-inside ml-2">
+                <li>Log into your tool with a verified email</li>
+                <li>Verify the email hash lookup returns the correct subscription</li>
+                <li>Check that oneSubUserId is cached in your database</li>
+              </ol>
+              <div className="mt-3 p-3 bg-[#0a0a0a] rounded border border-[#374151]">
+                <p className="text-xs text-[#9ca3af] mb-2">Test with curl:</p>
+                <code className="text-xs text-[#3ecf8e] font-mono block overflow-x-auto">
+                  curl -X POST &apos;https://1sub.io/api/v1/tools/subscriptions/verify&apos; \<br/>
+                  &nbsp;&nbsp;-H &apos;Authorization: Bearer YOUR_API_KEY&apos; \<br/>
+                  &nbsp;&nbsp;-H &apos;Content-Type: application/json&apos; \<br/>
+                  &nbsp;&nbsp;-d &apos;{`{"emailSha256": "SHA256_HASH_OF_EMAIL"}`}&apos;
+                </code>
+              </div>
+            </div>
+
+            {/* Link Codes */}
+            <div>
+              <h4 className="text-sm font-medium text-[#3ecf8e] mb-2">Link Codes:</h4>
+              <ol className="text-sm text-[#d1d5db] space-y-2 list-decimal list-inside ml-2">
+                <li>Subscribe to your tool on 1Sub (use test mode)</li>
+                <li>Note the link code provided</li>
+                <li>Enter code in your tool</li>
+                <li>Verify the link is created in your database</li>
+              </ol>
+              <div className="mt-3 p-3 bg-[#0a0a0a] rounded border border-[#374151]">
+                <p className="text-xs text-[#9ca3af] mb-2">Exchange code with curl:</p>
+                <code className="text-xs text-[#3ecf8e] font-mono block overflow-x-auto">
+                  curl -X POST &apos;https://1sub.io/api/v1/tools/link/exchange-code&apos; \<br/>
+                  &nbsp;&nbsp;-H &apos;Authorization: Bearer YOUR_API_KEY&apos; \<br/>
+                  &nbsp;&nbsp;-H &apos;Content-Type: application/json&apos; \<br/>
+                  &nbsp;&nbsp;-d &apos;{`{"code": "ABC123", "toolUserId": "your-user-id"}`}&apos;
+                </code>
+              </div>
+            </div>
+          </div>
+
+          {/* Test Subscription Verification */}
+          <div className="bg-[#1f2937] border border-[#374151] rounded-lg p-5 mb-4">
+            <h3 className="font-semibold text-[#ededed] mb-4">Test Subscription Verification</h3>
+            <ol className="text-sm text-[#d1d5db] space-y-2 list-decimal list-inside ml-2">
+              <li>Call your protected endpoint</li>
+              <li>Verify it returns 403 for users without subscriptions</li>
+              <li>Subscribe and verify it grants access</li>
+              <li>Cancel subscription and verify access is revoked</li>
+            </ol>
+            <div className="mt-3 p-3 bg-[#0a0a0a] rounded border border-[#374151]">
+              <p className="text-xs text-[#9ca3af] mb-2">Verify subscription with curl:</p>
+              <code className="text-xs text-[#3ecf8e] font-mono block overflow-x-auto">
+                curl -X POST &apos;https://1sub.io/api/v1/tools/subscriptions/verify&apos; \<br/>
+                &nbsp;&nbsp;-H &apos;Authorization: Bearer YOUR_API_KEY&apos; \<br/>
+                &nbsp;&nbsp;-H &apos;Content-Type: application/json&apos; \<br/>
+                &nbsp;&nbsp;-d &apos;{`{"oneSubUserId": "USER_UUID"}`}&apos;
+              </code>
+            </div>
+            <div className="mt-3 p-3 bg-[#111111] rounded border border-[#374151]">
+              <p className="text-xs text-[#9ca3af]">
+                <strong className="text-[#ededed]">Expected response (active):</strong>
+              </p>
+              <code className="text-xs text-[#d1d5db] font-mono block mt-1">
+                {`{"active": true, "status": "active", "creditsRemaining": 100}`}
+              </code>
+              <p className="text-xs text-[#9ca3af] mt-2">
+                <strong className="text-[#ededed]">Expected response (no subscription):</strong>
+              </p>
+              <code className="text-xs text-[#d1d5db] font-mono block mt-1">
+                {`{"active": false, "status": null}`}
+              </code>
+            </div>
+          </div>
+
+          {/* Test Webhooks */}
+          <div className="bg-[#1f2937] border border-[#374151] rounded-lg p-5">
+            <h3 className="font-semibold text-[#ededed] mb-4">Test Webhooks</h3>
+            <ol className="text-sm text-[#d1d5db] space-y-2 list-decimal list-inside ml-2">
+              <li>Use a tool like RequestBin or ngrok for local testing</li>
+              <li>Trigger events by creating/canceling subscriptions</li>
+              <li>Verify signature validation works</li>
+              <li>Check that events are processed correctly</li>
+              <li>Test with invalid signatures (should return 401)</li>
+            </ol>
+            <div className="mt-4 p-3 bg-gradient-to-r from-[#3ecf8e]/10 to-[#2dd4bf]/10 border border-[#3ecf8e]/30 rounded">
+              <p className="text-xs text-[#ededed] mb-2 font-medium">
+                Quick Test: Use the &quot;Send Test Webhook&quot; button in your{' '}
+                <a href="/vendor-dashboard/api" className="text-[#3ecf8e] hover:underline">API Settings</a>
+              </p>
+              <p className="text-xs text-[#9ca3af]">
+                Configure your webhook URL and secret, then send test events directly from the dashboard.
+              </p>
+            </div>
+            <div className="mt-3 p-3 bg-[#0a0a0a] rounded border border-[#374151]">
+              <p className="text-xs text-[#9ca3af] mb-2">Webhook payload example:</p>
+              <pre className="text-xs text-[#3ecf8e] font-mono overflow-x-auto">
+{`{
+  "id": "evt_abc123",
+  "type": "subscription.activated",
+  "created": 1702900000,
+  "data": {
+    "oneSubUserId": "uuid",
+    "planId": "pro",
+    "status": "active",
+    "creditsRemaining": 100
+  }
+}`}
+              </pre>
+            </div>
+            <div className="mt-3 p-3 bg-[#111111] rounded border border-[#374151]">
+              <p className="text-xs text-[#9ca3af] mb-2">
+                <strong className="text-[#ededed]">Signature header format:</strong>
+              </p>
+              <code className="text-xs text-[#d1d5db] font-mono block">
+                1sub-signature: t=1702900000,v1=hmac_sha256_hex
+              </code>
+              <p className="text-xs text-[#9ca3af] mt-2">
+                Verify using HMAC-SHA256 with your webhook secret. Reject if timestamp is older than 5 minutes.
+              </p>
+            </div>
           </div>
         </div>
 

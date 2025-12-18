@@ -139,7 +139,9 @@ export interface WebhookPayload {
   data: {
     oneSubUserId: string;
     planId?: string;
+    productId?: string;
     status?: SubscriptionStatus;
+    currentPeriodStart?: string;
     currentPeriodEnd?: string;
     quantity?: number;
     creditsRemaining?: number;
