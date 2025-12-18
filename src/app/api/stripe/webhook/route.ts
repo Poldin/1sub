@@ -23,7 +23,7 @@ import { addCredits } from '@/lib/credits-service';
 import { createClient } from '@supabase/supabase-js';
 
 // Extended Invoice type to include expandable properties
-interface InvoiceWithSubscription extends Stripe.Invoice {
+interface InvoiceWithSubscription extends Omit<Stripe.Invoice, 'subscription' | 'payment_intent'> {
   subscription?: string | Stripe.Subscription | null;
   payment_intent?: string | Stripe.PaymentIntent | null;
 }
