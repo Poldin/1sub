@@ -301,7 +301,12 @@ export default function SupportPage() {
              <div className="p-4 bg-[#374151] rounded-lg">
                <h3 className="font-medium text-[#ededed] mb-2">Documentation</h3>
                <p className="text-sm text-[#9ca3af] mb-3">Browse our comprehensive guides and tutorials</p>
-               <button className="text-[#3ecf8e] text-sm hover:underline">View Docs →</button>
+               <Link
+                 href="/docs"
+                 className="text-[#3ecf8e] text-sm hover:underline inline-block"
+               >
+                 View Docs →
+               </Link>
              </div>
              <div className="p-4 bg-[#374151] rounded-lg">
                <h3 className="font-medium text-[#ededed] mb-2">Community</h3>
@@ -318,7 +323,12 @@ export default function SupportPage() {
              <div className="p-4 bg-[#374151] rounded-lg">
                <h3 className="font-medium text-[#ededed] mb-2">Status Page</h3>
                <p className="text-sm text-[#9ca3af] mb-3">Check our system status and uptime</p>
-               <button className="text-[#3ecf8e] text-sm hover:underline">Check Status →</button>
+               <a
+                 href="#"
+                 className="text-[#3ecf8e] text-sm hover:underline inline-block"
+               >
+                 Check Status →
+               </a>
              </div>
            </div>
          </div>
