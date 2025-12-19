@@ -1,5 +1,6 @@
 import { useMDXComponents as getDocsComponents } from 'nextra-theme-docs'
 import React from 'react'
+import Link from 'next/link'
 import { 
   Expandable, 
   Tabs, 
@@ -123,16 +124,22 @@ const Card = ({ title, icon, href, children }: { title: string; icon?: string; h
     </div>
   )
   
+  const content = (
+    <>
+      {titleContent}
+      {children && <div className="text-sm text-gray-600 dark:text-gray-400">{children}</div>}
+    </>
+  )
+  
   return (
     <div className="rounded-lg border border-gray-200 p-4 hover:border-gray-300 hover:shadow-sm transition dark:border-gray-700 dark:hover:border-gray-600">
       {href ? (
-        <a href={href} className="no-underline text-inherit hover:text-inherit">
-          {titleContent}
-        </a>
+        <Link href={href} className="no-underline text-inherit hover:text-inherit block">
+          {content}
+        </Link>
       ) : (
-        titleContent
+        content
       )}
-      {children && <div className="text-sm text-gray-600 dark:text-gray-400">{children}</div>}
     </div>
   )
 }
