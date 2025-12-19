@@ -6,15 +6,16 @@
  * Handles all credit and debit transactions with proper atomicity and idempotency.
  * 
  * Transaction Types:
- * - credit: Adds credits to a user (topup, vendor earnings, etc.)
- * - debit: Subtracts credits from a user (purchase, payout, fees, etc.)
+ * - add: Adds credits to a user (topup, vendor earnings, etc.)
+ * - subtract: Subtracts credits from a user (purchase, payout, fees, etc.)
  * 
  * Special Cases:
- * - Platform fees: credit transaction without user_id (platform account)
- * - Platform fees: debit transaction with user_id (user paying fee)
+ * - Platform fees: add transaction for platform account (platform receives fee)
+ * - Platform fees: subtract transaction with user_id (user pays fee)
  */
 
 import { createClient } from '@/lib/supabase/server';
+import { getCurrentBalance as getCurrentBalanceFromService } from '@/lib/credits-service';
 
 export interface CreditTransactionParams {
   userId: string;
@@ -57,41 +58,15 @@ export interface TransactionResult {
 
 /**
  * Get current balance for a user
- * Calculates balance by summing all credit and debit transactions
+ * 
+ * @deprecated This function calculates balance by summing transactions, which is slow and unreliable.
+ * Use getCurrentBalanceFromService instead, which reads from user_balances table.
+ * 
+ * This function is kept for backwards compatibility and debugging purposes only.
  */
 export async function getCurrentBalance(userId: string): Promise<number> {
-  if (!userId) {
-    throw new Error('User ID is required');
-  }
-
-  const supabase = await createClient();
-
-  // Get all transactions for the user
-  const { data: transactions, error } = await supabase
-    .from('credit_transactions')
-    .select('credits_amount, type')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: true });
-
-  if (error) {
-    console.error('Error fetching transactions for balance:', error);
-    throw new Error('Failed to fetch current balance');
-  }
-
-  if (!transactions || transactions.length === 0) {
-    return 0;
-  }
-
-  // Calculate balance by summing credits and subtracting debits
-  return transactions.reduce((balance, transaction) => {
-    const amount = transaction.credits_amount || 0;
-    if (transaction.type === 'credit') {
-      return balance + amount;
-    } else if (transaction.type === 'debit') {
-      return balance - amount;
-    }
-    return balance;
-  }, 0);
+  console.warn('[DEPRECATED] getCurrentBalance from credit-transactions is deprecated. Use getCurrentBalance from credits-service instead.');
+  return getCurrentBalanceFromService(userId);
 }
 
 /**
@@ -148,7 +123,7 @@ export async function createCreditTransaction(
 
       if (!existingError && existing) {
         // Transaction already processed, calculate current balance
-        const balanceAfter = await getCurrentBalance(userId);
+        const balanceAfter = await getCurrentBalanceFromService(userId);
         const balanceBefore = balanceAfter - (existing.credits_amount ?? 0);
         return {
           success: true,
@@ -160,7 +135,7 @@ export async function createCreditTransaction(
     }
 
     // Get current balance
-    const balanceBefore = await getCurrentBalance(userId);
+    const balanceBefore = await getCurrentBalanceFromService(userId);
     const balanceAfter = balanceBefore + amount;
 
     // Insert the credit transaction
@@ -169,7 +144,7 @@ export async function createCreditTransaction(
       .insert({
         user_id: userId,
         credits_amount: amount,
-        type: 'credit',
+        type: 'add',
         reason,
         idempotency_key: idempotencyKey || null,
         checkout_id: checkoutId || null,
@@ -192,7 +167,7 @@ export async function createCreditTransaction(
           .single();
 
         if (existing) {
-          const balanceAfter = await getCurrentBalance(userId);
+          const balanceAfter = await getCurrentBalanceFromService(userId);
           const balanceBefore = balanceAfter - (existing.credits_amount ?? 0);
           return {
             success: true,
@@ -283,7 +258,7 @@ export async function createDebitTransaction(
 
       if (!existingError && existing) {
         // Transaction already processed, calculate current balance
-        const balanceAfter = await getCurrentBalance(userId);
+        const balanceAfter = await getCurrentBalanceFromService(userId);
         const balanceBefore = balanceAfter + (existing.credits_amount ?? 0);
         return {
           success: true,
@@ -295,7 +270,7 @@ export async function createDebitTransaction(
     }
 
     // Get current balance
-    const balanceBefore = await getCurrentBalance(userId);
+    const balanceBefore = await getCurrentBalanceFromService(userId);
 
     // Check for sufficient balance
     if (balanceBefore < amount) {
@@ -315,7 +290,7 @@ export async function createDebitTransaction(
       .insert({
         user_id: userId,
         credits_amount: amount,
-        type: 'debit',
+        type: 'subtract',
         reason,
         idempotency_key: idempotencyKey || null,
         checkout_id: checkoutId || null,
@@ -337,7 +312,7 @@ export async function createDebitTransaction(
           .single();
 
         if (existing) {
-          const balanceAfter = await getCurrentBalance(userId);
+          const balanceAfter = await getCurrentBalanceFromService(userId);
           const balanceBefore = balanceAfter + (existing.credits_amount ?? 0);
           return {
             success: true,
@@ -434,7 +409,7 @@ export async function createPlatformFee(
         .single();
 
       if (existingDebit) {
-        const balanceAfter = await getCurrentBalance(userId);
+        const balanceAfter = await getCurrentBalanceFromService(userId);
         const balanceBefore = balanceAfter + (existingDebit.credits_amount ?? 0);
         return {
           success: true,
@@ -446,7 +421,7 @@ export async function createPlatformFee(
     }
 
     // Get current balance for user
-    const balanceBefore = await getCurrentBalance(userId);
+    const balanceBefore = await getCurrentBalanceFromService(userId);
 
     // Check for sufficient balance
     if (balanceBefore < amount) {
@@ -467,7 +442,7 @@ export async function createPlatformFee(
       .insert({
         user_id: userId,
         credits_amount: amount,
-        type: 'debit',
+        type: 'subtract',
         reason: `${reason} (fee)`,
         idempotency_key: userDebitIdempotencyKey,
         checkout_id: checkoutId || null,
@@ -501,7 +476,7 @@ export async function createPlatformFee(
       .insert({
         user_id: PLATFORM_USER_ID, // Platform account - special UUID
         credits_amount: amount,
-        type: 'credit',
+        type: 'add',
         reason: `Platform fee: ${reason}`,
         idempotency_key: platformCreditIdempotencyKey,
         checkout_id: checkoutId || null,
@@ -642,9 +617,9 @@ export async function transferCredits(params: {
           .eq('idempotency_key', `${idempotencyKey}-credit`)
           .single();
 
-        const fromBalanceAfter = await getCurrentBalance(fromUserId);
+        const fromBalanceAfter = await getCurrentBalanceFromService(fromUserId);
         const fromBalanceBefore = fromBalanceAfter + (existingDebit.credits_amount ?? 0);
-        const toBalanceAfter = await getCurrentBalance(toUserId);
+        const toBalanceAfter = await getCurrentBalanceFromService(toUserId);
         const toBalanceBefore = existingCredit 
           ? toBalanceAfter - (existingCredit.credits_amount ?? 0)
           : toBalanceAfter - amount;
@@ -662,8 +637,8 @@ export async function transferCredits(params: {
     }
 
     // Get current balances
-    const fromBalanceBefore = await getCurrentBalance(fromUserId);
-    const toBalanceBefore = await getCurrentBalance(toUserId);
+    const fromBalanceBefore = await getCurrentBalanceFromService(fromUserId);
+    const toBalanceBefore = await getCurrentBalanceFromService(toUserId);
 
     // Check for sufficient balance
     if (fromBalanceBefore < amount) {
@@ -687,7 +662,7 @@ export async function transferCredits(params: {
       .insert({
         user_id: fromUserId,
         credits_amount: amount,
-        type: 'debit',
+        type: 'subtract',
         reason: `${reason} (transfer to user)`,
         idempotency_key: debitIdempotencyKey,
         checkout_id: checkoutId || null,
@@ -720,7 +695,7 @@ export async function transferCredits(params: {
       .insert({
         user_id: toUserId,
         credits_amount: amount,
-        type: 'credit',
+        type: 'add',
         reason: `${reason} (transfer from user)`,
         idempotency_key: creditIdempotencyKey,
         checkout_id: checkoutId || null,

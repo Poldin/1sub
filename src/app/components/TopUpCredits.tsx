@@ -52,8 +52,33 @@ export default function TopUpCredits({ className = '', hasSubscription = true }:
 
     setIsLoading(true);
     
-    // Navigate to pricing page for credit purchases
-    router.push('/pricing');
+    try {
+      // Create Stripe checkout session with custom amount
+      const response = await fetch('/api/stripe/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          topup: numAmount, // Amount in credits (1 CR = 1 EUR)
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create checkout session');
+      }
+
+      // Redirect to Stripe Checkout
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (error) {
+      console.error('Error creating checkout session:', error);
+      alert(error instanceof Error ? error.message : 'Failed to create checkout. Please try again.');
+      setIsLoading(false);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -72,18 +97,12 @@ export default function TopUpCredits({ className = '', hasSubscription = true }:
       {/* Alert when no subscription */}
       {!hasSubscription && (
         <div className="mb-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
-          <div className="flex items-start gap-2 mb-2">
+          <div className="flex items-start gap-2">
             <AlertCircle className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-yellow-500 leading-relaxed">
-              To access one-time top-up, you need to activate a subscription plan first.
+              To access one-time top-up, you need to activate a subscription plan first at /pricing page.
             </p>
           </div>
-          <button
-            onClick={() => window.location.href = '/pricing'}
-            className="w-full bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-500 px-3 py-2 rounded-lg text-xs font-semibold transition-colors border border-yellow-500/30"
-          >
-            View Subscription Plans
-          </button>
         </div>
       )}
 

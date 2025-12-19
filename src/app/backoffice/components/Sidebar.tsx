@@ -18,7 +18,8 @@ import {
   LayoutDashboard,
   Package,
   BookOpen,
-  CreditCard
+  CreditCard,
+  LogOut
 } from 'lucide-react';
 import { getCurrentBalanceClient } from '@/lib/credits';
 import TopUpCredits from '@/app/components/TopUpCredits';
@@ -149,6 +150,17 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
     }, 100);
   };
 
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      router.push('/');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
   return (
     <>
       {/* Overlay for mobile when menu is open */}
@@ -191,13 +203,22 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
               <span className="font-medium">Tools</span>
             </button>
 
-            <button
-              onClick={() => handleNavigation('/profile')}
-              className="w-full flex items-center gap-3 px-3 py-1.5 rounded hover:bg-[#374151] transition-colors text-[#ededed] group text-sm"
-            >
-              <User className="w-5 h-5 text-[#3ecf8e] group-hover:text-[#2dd4bf]" />
-              <span className="font-medium">Profile</span>
-            </button>
+            <div className="w-full flex items-center gap-2">
+              <button
+                onClick={() => handleNavigation('/profile')}
+                className="flex-1 flex items-center gap-3 px-3 py-1.5 rounded hover:bg-[#374151] transition-colors text-[#ededed] group text-sm"
+              >
+                <User className="w-5 h-5 text-[#3ecf8e] group-hover:text-[#2dd4bf]" />
+                <span className="font-medium">Profile</span>
+              </button>
+              <button
+                onClick={handleLogout}
+                className="flex items-center justify-center p-1.5 rounded hover:bg-red-600/20 transition-colors group"
+                title="Logout"
+              >
+                <LogOut className="w-4 h-4 text-red-400 group-hover:text-red-300" />
+              </button>
+            </div>
 
             <button
               onClick={() => handleNavigation('/support')}

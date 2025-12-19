@@ -17,7 +17,7 @@ import { createClient } from '@/lib/supabase/client';
 
 interface CreditTransaction {
   credits_amount: number;
-  type: 'credit' | 'debit';
+  type: 'add' | 'subtract';
 }
 
 /**
@@ -41,9 +41,9 @@ export function calculateCreditsFromTransactions(transactions: CreditTransaction
 
   return transactions.reduce((sum, transaction) => {
     const amount = transaction.credits_amount || 0;
-    if (transaction.type === 'credit') {
+    if (transaction.type === 'add') {
       return sum + amount;
-    } else if (transaction.type === 'debit') {
+    } else if (transaction.type === 'subtract') {
       return sum - amount;
     }
     return sum;

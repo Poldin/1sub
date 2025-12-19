@@ -36,6 +36,7 @@ interface ToolSubscription {
   period: string;
   next_billing_date: string;
   created_at: string;
+  cancelled_at?: string | null;
   metadata: {
     tool_name?: string;
   };
@@ -72,6 +73,8 @@ export default function ProfilePage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loadingPortal, setLoadingPortal] = useState(false);
+  const [showPortalDialog, setShowPortalDialog] = useState(false);
   
   // Pagination states
   const [purchasedToolsToShow, setPurchasedToolsToShow] = useState(5);
@@ -171,12 +174,12 @@ export default function ProfilePage() {
           setPlatformSub(platformData as PlatformSubscription);
         }
 
-        // Fetch tool subscriptions
+        // Fetch tool subscriptions (including cancelled ones that are still active until end date)
         const { data: toolData, error: toolSubsError } = await supabase
           .from('tool_subscriptions')
           .select('*')
           .eq('user_id', authUser.id)
-          .eq('status', 'active')
+          .in('status', ['active', 'cancelled'])
           .order('created_at', { ascending: false });
 
         if (toolSubsError) {
@@ -486,49 +489,34 @@ export default function ProfilePage() {
     }
   };
 
-  const handleCancelPlatformSubscription = async () => {
-    if (!platformSub || !confirm('Are you sure you want to cancel your platform subscription? You will lose access to recurring credits at the end of this billing period.')) {
-      return;
-    }
+  const handleManageSubscription = () => {
+    setShowPortalDialog(true);
+  };
 
-    setCancellingId('platform');
-    setError(null);
+  const handleConfirmPortalOpen = async () => {
+    setShowPortalDialog(false);
+    setLoadingPortal(true);
 
     try {
-      const response = await fetch('/api/subscriptions/manage-platform-subscription', {
+      const response = await fetch('/api/stripe/create-portal-session', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'cancel',
-          subscriptionId: platformSub.id,
-        }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to cancel subscription');
+        throw new Error(data.error || 'Failed to open billing portal');
       }
 
-      // Refresh platform subscription
-      const supabase = createClient();
-      const { data: updatedSub } = await supabase
-        .from('platform_subscriptions')
-        .select('*')
-        .eq('id', platformSub.id)
-        .single();
-
-      if (updatedSub) {
-        setPlatformSub(updatedSub as PlatformSubscription);
-      } else {
-        setPlatformSub(null);
+      // Open Stripe Billing Portal in new tab
+      if (data.url) {
+        window.open(data.url, '_blank');
       }
-
-      alert('Subscription cancelled successfully. You will retain access until the end of your billing period.');
-    } catch (err) {
-      console.error('Error cancelling subscription:', err);
-      setError(err instanceof Error ? err.message : 'Failed to cancel subscription');
+    } catch (error) {
+      console.error('Error opening billing portal:', error);
+      setError(error instanceof Error ? error.message : 'Failed to open billing portal');
     } finally {
-      setCancellingId(null);
+      setLoadingPortal(false);
     }
   };
 
@@ -554,10 +542,15 @@ export default function ProfilePage() {
         throw new Error(data.error || 'Failed to cancel subscription');
       }
 
-      // Remove from list
-      setToolSubs(prev => prev.filter(sub => sub.id !== subscription.id));
+      // Update subscription status in the list (don't remove it)
+      setToolSubs(prev => prev.map(sub => 
+        sub.id === subscription.id 
+          ? { ...sub, status: 'cancelled', cancelled_at: new Date().toISOString() }
+          : sub
+      ));
 
-      alert('Tool subscription cancelled successfully.');
+      alert('Subscription cancelled successfully. You will retain access until ' + 
+            new Date(subscription.next_billing_date).toLocaleDateString() + '.');
     } catch (err) {
       console.error('Error cancelling tool subscription:', err);
       setError(err instanceof Error ? err.message : 'Failed to cancel subscription');
@@ -870,24 +863,21 @@ export default function ProfilePage() {
 
               <div className="flex gap-3">
                 <button
-                  onClick={handleCancelPlatformSubscription}
-                  disabled={cancellingId === 'platform'}
-                  className="px-4 py-2 bg-red-600/20 text-red-400 rounded-lg font-semibold hover:bg-red-600/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  onClick={handleManageSubscription}
+                  disabled={loadingPortal}
+                  className="text-xs text-[#9ca3af] hover:text-[#3ecf8e] underline transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1"
                 >
-                  {cancellingId === 'platform' ? (
+                  {loadingPortal ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Cancelling...
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span>Opening portal...</span>
                     </>
                   ) : (
-                    'Cancel Subscription'
+                    <>
+                      <ExternalLink className="w-3 h-3" />
+                      <span>Manage Subscription</span>
+                    </>
                   )}
-                </button>
-                <button
-                  onClick={() => router.push('/pricing')}
-                  className="px-4 py-2 bg-[#374151] text-[#ededed] rounded-lg font-semibold hover:bg-[#4b5563] transition-colors"
-                >
-                  Change Plan
                 </button>
               </div>
             </div>
@@ -998,45 +988,82 @@ export default function ProfilePage() {
             {toolSubs.length > 0 ? (
               <>
                 <div className="space-y-3">
-                  {toolSubs.slice(0, subscriptionsToShow).map((sub) => (
-                    <div key={sub.id} className="group bg-[#1f2937]/50 backdrop-blur-sm border border-[#374151]/50 rounded-xl p-4 hover:border-[#3ecf8e]/30 transition-all">
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-[#ededed] mb-2 truncate">
-                            {sub.metadata?.tool_name || 'Tool Subscription'}
-                          </h3>
-                          <div className="flex flex-wrap items-center gap-3 text-sm text-[#9ca3af]">
-                            <span className="inline-flex items-center gap-1.5">
-                              <DollarSign className="w-3.5 h-3.5" />
-                              {sub.credits_per_period} / {sub.period}
-                            </span>
-                            <span className="text-[#374151]">•</span>
-                            <span className="inline-flex items-center gap-1.5">
-                              <Calendar className="w-3.5 h-3.5" />
-                              Next: {new Date(sub.next_billing_date).toLocaleDateString()}
-                            </span>
+                  {toolSubs.slice(0, subscriptionsToShow).filter(sub => {
+                    // Filter out expired cancelled subscriptions older than 30 days
+                    if (sub.status === 'cancelled') {
+                      const endDate = new Date(sub.next_billing_date);
+                      const daysSinceExpiry = (Date.now() - endDate.getTime()) / (1000 * 60 * 60 * 24);
+                      return daysSinceExpiry < 30; // Keep for 30 days after expiry
+                    }
+                    return true;
+                  }).map((sub) => {
+                    const isCancelled = sub.status === 'cancelled';
+                    const endDate = new Date(sub.next_billing_date);
+                    const isExpired = isCancelled && endDate < new Date();
+                    
+                    return (
+                      <div key={sub.id} className={`group bg-[#1f2937]/50 backdrop-blur-sm border rounded-xl p-4 transition-all ${
+                        isCancelled 
+                          ? 'border-yellow-500/30 hover:border-yellow-500/50' 
+                          : 'border-[#374151]/50 hover:border-[#3ecf8e]/30'
+                      }`}>
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h3 className="font-semibold text-[#ededed] truncate">
+                                {sub.metadata?.tool_name || 'Tool Subscription'}
+                              </h3>
+                              {isCancelled && (
+                                <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-500 text-xs font-medium rounded-full shrink-0">
+                                  {isExpired ? 'Expired' : 'Cancelling'}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3 text-sm text-[#9ca3af]">
+                              <span className="inline-flex items-center gap-1.5">
+                                <DollarSign className="w-3.5 h-3.5" />
+                                {sub.credits_per_period} / {sub.period}
+                              </span>
+                              <span className="text-[#374151]">•</span>
+                              <span className="inline-flex items-center gap-1.5">
+                                <Calendar className="w-3.5 h-3.5" />
+                                {isCancelled ? 'Ends' : 'Next'}: {endDate.toLocaleDateString()}
+                              </span>
+                            </div>
+                            {isCancelled && !isExpired && (
+                              <p className="text-xs text-yellow-500/80 mt-2">
+                                Your subscription will remain active until {endDate.toLocaleDateString()}. No future charges.
+                              </p>
+                            )}
+                            {isCancelled && isExpired && (
+                              <p className="text-xs text-[#6b7280] mt-2">
+                                Subscription ended on {endDate.toLocaleDateString()}
+                              </p>
+                            )}
                           </div>
-                        </div>
-                        <button
-                          onClick={() => handleCancelToolSubscription(sub)}
-                          disabled={cancellingId === sub.id}
-                          className="px-4 py-2 bg-red-600/10 text-red-400 rounded-lg font-medium hover:bg-red-600/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm inline-flex items-center gap-2 shrink-0"
-                        >
-                          {cancellingId === sub.id ? (
-                            <>
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              <span className="hidden sm:inline">Cancelling...</span>
-                            </>
-                          ) : (
-                            <>
-                              <span className="hidden sm:inline">Cancel</span>
-                              <span className="sm:hidden">✕</span>
-                            </>
+                          {!isCancelled && (
+                            <button
+                              onClick={() => handleCancelToolSubscription(sub)}
+                              disabled={cancellingId === sub.id}
+                              className="px-4 py-2 bg-red-600/10 text-red-400 rounded-lg font-medium hover:bg-red-600/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm inline-flex items-center gap-2 shrink-0"
+                            >
+                              {cancellingId === sub.id ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  <span className="hidden sm:inline">Cancelling...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="hidden sm:inline">Cancel</span>
+                                  <span className="sm:hidden">✕</span>
+                                </>
+                              )}
+                            </button>
                           )}
-                        </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 
                 {/* Load More Button for Subscriptions */}
@@ -1193,6 +1220,42 @@ export default function ProfilePage() {
           </div>
         </div>
       </main>
+
+      {/* Portal Warning Dialog */}
+      {showPortalDialog && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1f2937] border border-[#374151] rounded-2xl max-w-md w-full p-6 shadow-2xl">
+            <div className="flex items-start gap-4 mb-4">
+              <div className="flex-shrink-0 w-12 h-12 rounded-full bg-[#3ecf8e]/20 flex items-center justify-center">
+                <ExternalLink className="w-6 h-6 text-[#3ecf8e]" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-[#ededed] mb-2">
+                  Opening Billing Portal
+                </h3>
+                <p className="text-sm text-[#9ca3af] leading-relaxed">
+                  You're about to be redirected to the Stripe Customer Portal in a new tab where you can manage your subscription, update payment methods, and view billing history.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowPortalDialog(false)}
+                className="flex-1 px-4 py-3 rounded-lg font-semibold bg-[#374151] text-[#ededed] hover:bg-[#4b5563] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmPortalOpen}
+                className="flex-1 px-4 py-3 rounded-lg font-semibold bg-[#3ecf8e] text-black hover:bg-[#2dd4bf] transition-colors flex items-center justify-center gap-2"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

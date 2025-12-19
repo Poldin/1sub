@@ -45,20 +45,52 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json();
-    const { packageKey } = body as { packageKey: string };
+    const { packageKey, topup } = body as { packageKey?: string; topup?: number };
 
-    // Validate package key
-    if (!packageKey || !(packageKey in CREDIT_PACKAGES)) {
+    let credits: number;
+    let price: number; // in cents
+    let packageName: string;
+
+    // Check if this is a custom top-up or a predefined package
+    if (topup !== undefined) {
+      // Custom top-up amount (1 CR = 1 EUR)
+      credits = parseFloat(topup.toString());
+
+      // Validate custom amount
+      if (isNaN(credits) || credits < 1) {
+        return NextResponse.json(
+          { error: 'Minimum top-up amount is 1 CR' },
+          { status: 400 }
+        );
+      }
+
+      if (credits > 10000) {
+        return NextResponse.json(
+          { error: 'Maximum top-up amount is 10,000 CR' },
+          { status: 400 }
+        );
+      }
+
+      // Calculate price: 1 CR = 1 EUR = 100 cents
+      price = Math.round(credits * 100);
+      packageName = `${credits} Credits Top-Up`;
+
+    } else if (packageKey && packageKey in CREDIT_PACKAGES) {
+      // Predefined package
+      const selectedPackage = CREDIT_PACKAGES[packageKey as unknown as PackageKey];
+      credits = selectedPackage.credits;
+      price = selectedPackage.price;
+      packageName = selectedPackage.name;
+
+    } else {
       return NextResponse.json(
         { 
-          error: 'Invalid package',
+          error: 'Invalid request. Provide either "topup" amount or "packageKey"',
           available_packages: Object.keys(CREDIT_PACKAGES)
         },
         { status: 400 }
       );
     }
-
-    const selectedPackage = CREDIT_PACKAGES[packageKey as unknown as PackageKey];
 
     // Generate idempotency key for this session
     const idempotencyKey = `stripe-${authUser.id}-${Date.now()}`;
@@ -78,11 +110,11 @@ export async function POST(request: NextRequest) {
           price_data: {
             currency: 'eur',
             product_data: {
-              name: selectedPackage.name,
-              description: `Purchase ${selectedPackage.credits} credits for the 1sub platform`,
+              name: packageName,
+              description: `Purchase ${credits} credits for the 1sub platform (1 CR = 1 EUR)`,
               images: ['https://yourdomain.com/logo.png'], // Update with your logo URL
             },
-            unit_amount: selectedPackage.price,
+            unit_amount: price,
           },
           quantity: 1,
         },
@@ -95,8 +127,8 @@ export async function POST(request: NextRequest) {
       metadata: {
         userId: authUser.id,
         userEmail: authUser.email || '',
-        creditAmount: selectedPackage.credits.toString(),
-        packageKey,
+        creditAmount: credits.toString(),
+        packageKey: packageKey || 'custom_topup',
         idempotencyKey,
       },
     });
@@ -104,8 +136,9 @@ export async function POST(request: NextRequest) {
     console.log('[Stripe] Checkout session created:', {
       sessionId: session.id,
       userId: authUser.id,
-      credits: selectedPackage.credits,
-      amount: selectedPackage.price / 100, // Convert cents to dollars
+      credits,
+      amount: price / 100, // Convert cents to euros
+      type: topup !== undefined ? 'custom_topup' : 'package',
     });
 
     return NextResponse.json({

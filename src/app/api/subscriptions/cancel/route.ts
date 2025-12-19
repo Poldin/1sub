@@ -31,7 +31,8 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json();
-    const { subscription_id } = body;
+    // Support both camelCase (subscriptionId) and snake_case (subscription_id) for compatibility
+    const subscription_id = body.subscription_id || body.subscriptionId;
 
     if (!subscription_id) {
       return NextResponse.json(
