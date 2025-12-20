@@ -5,7 +5,11 @@
       "Bash(dir:*)",
       "Bash(findstr:*)",
       "Bash(npm run build:*)",
-      "Bash(test:*)"
+      "Bash(test:*)",
+      "Bash(mkdir:*)",
+      "Bash(npm install)",
+      "Bash(npx tsc:*)",
+      "Bash(npm test:*)"
     ],
     "deny": [],
     "ask": []
