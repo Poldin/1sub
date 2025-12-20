@@ -2,10 +2,11 @@
 
 import { useState, memo } from 'react';
 import Image from 'next/image';
-import { Star, Users, ExternalLink } from 'lucide-react';
+import { Star, Users, ExternalLink, CheckCircle } from 'lucide-react';
 import { Tool, ToolProduct, DEFAULT_UI_METADATA, DEFAULT_ENGAGEMENT_METRICS, hasProducts } from '@/lib/tool-types';
 import { PricingSection } from './PricingDisplay';
 import { getToolPhase, getPhaseLabel, getPhaseTailwindClasses } from '@/lib/tool-phase';
+import { usePurchasedProducts } from '@/hooks/usePurchasedProducts';
 
 // Legacy props format (for backward compatibility)
 export interface LegacyToolCardProps {
@@ -176,6 +177,8 @@ function legacyToTool(props: LegacyToolCardProps): Tool {
     user_profile_id: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
+    active_users: null,
+    avg_rating: null,
     metadata: {
       ui: {
         emoji,
@@ -276,6 +279,11 @@ function ToolCardComponent(props: ToolCardProps) {
 
   const canShowHeroImage = hasHeroImage && !heroImageError;
   const canShowLogoImage = hasLogoImage && !logoImageError;
+
+  // Check if user has active subscription to this tool
+  const { hasTool, getToolSubscriptions } = usePurchasedProducts();
+  const hasSubscription = hasTool(tool.id);
+  const toolSubs = hasSubscription ? getToolSubscriptions(tool.id) : [];
 
   // Dynamic phase calculation based on paying user count and revenue
   const payingUserCount = tool.metadata?.paying_user_count ?? 0;
@@ -379,6 +387,20 @@ function ToolCardComponent(props: ToolCardProps) {
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-[#1f2937]/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
         </div>
+        {/* Subscription Badge */}
+        {hasSubscription && toolSubs[0] && (
+          <div className={`absolute top-3 left-3 px-3 py-1.5 rounded-lg shadow-lg flex items-center gap-1.5 ${
+            toolSubs[0].status === 'cancelled' 
+              ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white animate-pulse'
+              : 'bg-gradient-to-r from-blue-500 to-purple-600 text-white'
+          }`}>
+            <CheckCircle className="w-4 h-4" />
+            <span className="text-sm font-bold">
+              {toolSubs[0].status === 'cancelled' ? 'Ending Soon' : 'Active'}
+            </span>
+          </div>
+        )}
+        {/* Discount Badge */}
         {(uiMeta.discount_percentage ?? 0) > 0 && (
           <div className="absolute top-3 right-3 bg-gradient-to-r from-red-500 to-red-600 text-white px-3 py-1.5 rounded-lg shadow-lg animate-pulse-glow">
             <span className="text-lg font-black">-{uiMeta.discount_percentage}%</span>
@@ -418,13 +440,13 @@ function ToolCardComponent(props: ToolCardProps) {
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1">
                 <Star className="w-4 h-4 text-[#3ecf8e] fill-[#3ecf8e]" />
-                <span className="text-[#ededed] font-bold text-sm">{engagement.rating?.toFixed(1) ?? '4.5'}</span>
+                <span className="text-[#ededed] font-bold text-sm">{(tool.avg_rating ?? engagement.rating ?? 4.5).toFixed(1)}</span>
               </div>
 
               <div className="flex items-center gap-1">
                 <Users className="w-4 h-4 text-[#9ca3af]" />
                 <span className="text-[#9ca3af] font-medium text-sm">
-                  {formatAdoptions(engagement.adoption_count ?? 0)}
+                  {formatAdoptions(tool.active_users ?? engagement.adoption_count ?? 0)}
                 </span>
               </div>
             </div>
@@ -441,9 +463,13 @@ function ToolCardComponent(props: ToolCardProps) {
               e.stopPropagation();
               onLaunchClick();
             }}
-            className="w-full bg-[#3ecf8e] text-black px-3 py-2 rounded-md text-sm font-bold hover:bg-[#2dd4bf] transition-all flex items-center justify-center gap-2 group-hover:gap-3"
+            className={`w-full px-3 py-2 rounded-md text-sm font-bold transition-all flex items-center justify-center gap-2 group-hover:gap-3 ${
+              hasSubscription
+                ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700'
+                : 'bg-[#3ecf8e] text-black hover:bg-[#2dd4bf]'
+            }`}
           >
-            {mode === 'dashboard' ? 'launch' : 'start'}
+            {hasSubscription ? 'view' : (mode === 'dashboard' ? 'launch' : 'start')}
             <ExternalLink className="w-4 h-4" />
           </button>
         </div>

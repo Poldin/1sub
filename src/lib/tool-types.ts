@@ -170,6 +170,8 @@ export interface Tool {
   user_profile_id: string | null;
   created_at: string | null;
   updated_at: string | null;
+  active_users?: number | null;
+  avg_rating?: number | null;
 
   // Related data (when joined)
   products?: ToolProduct[];

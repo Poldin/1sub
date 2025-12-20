@@ -183,6 +183,7 @@ interface PricingCardProps {
   toolMetadata?: { custom_pricing_email?: string };
   onSelect?: (productId?: string) => void;
   onContactVendor?: (email: string, productName: string) => void;
+  ctaText?: string; // Custom CTA text (e.g., "Change Plan", "Current Plan")
 }
 
 export function PricingCard({ 
@@ -196,7 +197,8 @@ export function PricingCard({
   contactEmail,
   toolMetadata,
   onSelect,
-  onContactVendor
+  onContactVendor,
+  ctaText
 }: PricingCardProps) {
   const isCustom = isCustomPlan || pricingModel.custom_plan?.enabled;
   const emailToUse = contactEmail || pricingModel.custom_plan?.contact_email || toolMetadata?.custom_pricing_email;
@@ -245,12 +247,14 @@ export function PricingCard({
 
       {/* Pricing Information */}
       <div className="mb-4">
-        <MainPriceDisplay pricingOptions={pricingModel} />
-        {!isCustom && (
-          <div className="mt-2">
-            <PricingBadges pricingOptions={pricingModel} />
-          </div>
-        )}
+        <div className="flex items-center justify-between gap-2">
+          <MainPriceDisplay pricingOptions={pricingModel} />
+          {!isCustom && (
+            <div className="flex-shrink-0">
+              <PricingBadges pricingOptions={pricingModel} />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Features */}
@@ -271,7 +275,7 @@ export function PricingCard({
       {isCustom ? (
         <button 
           onClick={handleContactClick}
-          className="w-full bg-[#3ecf8e] text-black px-4 py-3 rounded-md font-bold hover:bg-[#2dd4bf] transition-all flex items-center justify-center gap-2 group mt-4"
+          className="w-full bg-[#3ecf8e] text-black px-4 py-2 rounded-md font-bold hover:bg-[#2dd4bf] transition-all flex items-center justify-center gap-2 group mt-4"
         >
           Contact for Quote
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -281,9 +285,14 @@ export function PricingCard({
       ) : onSelect && (
         <button 
           onClick={() => onSelect(id)}
-          className="w-full bg-[#3ecf8e] text-black px-4 py-3 rounded-md font-bold hover:bg-[#2dd4bf] transition-all flex items-center justify-center gap-2 group mt-4"
+          className={`w-full px-4 py-2 rounded-md font-bold transition-all flex items-center justify-center gap-2 group mt-4 ${
+            ctaText === 'Current Plan'
+              ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
+              : 'bg-[#3ecf8e] text-black hover:bg-[#2dd4bf]'
+          }`}
+          disabled={ctaText === 'Current Plan'}
         >
-          Select Plan
+          {ctaText || 'Select Plan'}
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>

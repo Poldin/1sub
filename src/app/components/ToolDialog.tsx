@@ -1,7 +1,7 @@
 'use client';
 
 import { memo, useMemo, useState } from 'react';
-import { X, Star, Users, ExternalLink, Check, ChevronDown, ChevronUp, Share2 } from 'lucide-react';
+import { X, Star, Users, ExternalLink, Check, ChevronDown, ChevronUp, Share2, CheckCircle } from 'lucide-react';
 import Image from 'next/image';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -9,6 +9,7 @@ import rehypeRaw from 'rehype-raw';
 import { Tool, DEFAULT_UI_METADATA, DEFAULT_ENGAGEMENT_METRICS, hasProducts } from '@/lib/tool-types';
 import { PricingCard, MainPriceDisplay, PricingBadges } from './PricingDisplay';
 import { getToolPhase, getPhaseLabel, getPhaseTailwindClasses } from '@/lib/tool-phase';
+import { usePurchasedProducts } from '@/hooks/usePurchasedProducts';
 
 // Custom scrollbar styles
 const scrollbarStyles = `
@@ -155,6 +156,8 @@ function ToolDialogComponent(props: ToolDialogProps) {
       user_profile_id: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      active_users: null,
+      avg_rating: null,
       metadata: {
         ui: {
           emoji,
@@ -205,6 +208,9 @@ function ToolDialogComponent(props: ToolDialogProps) {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   // State for share button feedback
   const [isShareCopied, setIsShareCopied] = useState(false);
+
+  // Check subscriptions
+  const { hasProduct, getProductSubscription } = usePurchasedProducts();
 
   // Determine which image to show - MEMOIZED
   const imageUrl = useMemo(() => uiMeta.hero_image_url || tool.url, [uiMeta.hero_image_url, tool.url]);
@@ -297,12 +303,12 @@ function ToolDialogComponent(props: ToolDialogProps) {
                 <div className="flex flex-wrap items-center gap-4 mb-3">
                   <div className="flex items-center gap-1.5">
                     <Star className="w-5 h-5 text-[#3ecf8e] fill-[#3ecf8e]" />
-                    <span className="text-[#ededed] font-bold text-lg">{engagement.rating?.toFixed(1) ?? '4.5'}</span>
+                    <span className="text-[#ededed] font-bold text-lg">{(tool.avg_rating ?? engagement.rating ?? 4.5).toFixed(1)}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <Users className="w-5 h-5 text-[#9ca3af]" />
                     <span className="text-[#9ca3af] font-medium text-lg">
-                      {formatAdoptions(engagement.adoption_count ?? 0)}
+                      {formatAdoptions(tool.active_users ?? engagement.adoption_count ?? 0)}
                     </span>
                   </div>
                   {/* Share Button */}
@@ -508,27 +514,64 @@ function ToolDialogComponent(props: ToolDialogProps) {
                 </h3>
 
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {tool.products.map((product) => (
-                    <PricingCard
-                      key={product.id}
-                      id={product.id}
-                      name={product.name}
-                      description={product.description ?? undefined}
-                      pricingModel={product.pricing_model}
-                      features={product.features}
-                      isPreferred={product.is_preferred}
-                      isCustomPlan={product.is_custom_plan}
-                      contactEmail={product.contact_email}
-                      toolMetadata={tool.metadata ?? undefined}
-                      onSelect={(productId) => {
-                        // Initiate checkout with selected product (only for non-custom plans)
-                        if (props.onToolLaunch && productId && !product.is_custom_plan && !product.pricing_model.custom_plan?.enabled) {
-                          props.onToolLaunch(tool.id, productId);
-                          // Keep dialog open - checkout opens in new tab
-                        }
-                      }}
-                    />
-                  ))}
+                  {tool.products.map((product) => {
+                    const subscription = getProductSubscription(product.id);
+                    const hasActiveSub = !!subscription;
+                    // Check if user has ANY subscription to this tool (for changing plans)
+                    const toolSubs = tool.products
+                      .map(p => getProductSubscription(p.id))
+                      .filter(Boolean);
+                    const hasAnySubscription = toolSubs.length > 0;
+                    const isCurrentPlan = hasActiveSub;
+                    
+                    return (
+                      <div key={product.id} className="relative">
+                        {/* Subscription Badge */}
+                        {hasActiveSub && (
+                          <div className={`absolute -top-2 -right-2 z-10 px-3 py-1 rounded-full shadow-lg flex items-center gap-1 ${
+                            subscription.status === 'cancelled'
+                              ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white animate-pulse'
+                              : 'bg-gradient-to-r from-blue-500 to-purple-600 text-white'
+                          }`}>
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            <span className="text-xs font-bold">
+                              {subscription.status === 'cancelled' ? 'Ending' : 'Active'}
+                            </span>
+                          </div>
+                        )}
+                        <PricingCard
+                          id={product.id}
+                          name={product.name}
+                          description={product.description ?? undefined}
+                          pricingModel={product.pricing_model}
+                          features={product.features}
+                          isPreferred={product.is_preferred}
+                          isCustomPlan={product.is_custom_plan}
+                          contactEmail={product.contact_email}
+                          toolMetadata={tool.metadata ?? undefined}
+                          // Override CTA text if user already has a subscription
+                          ctaText={
+                            isCurrentPlan 
+                              ? 'Current Plan'
+                              : hasAnySubscription 
+                                ? 'Change Plan' 
+                                : undefined
+                          }
+                          onSelect={(productId) => {
+                            // Don't allow re-purchase of current plan
+                            if (isCurrentPlan) {
+                              return;
+                            }
+                            // Initiate checkout with selected product (only for non-custom plans)
+                            if (props.onToolLaunch && productId && !product.is_custom_plan && !product.pricing_model.custom_plan?.enabled) {
+                              props.onToolLaunch(tool.id, productId);
+                              // Keep dialog open - checkout opens in new tab
+                            }
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
