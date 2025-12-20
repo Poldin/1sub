@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Footer from '../components/Footer';
 
 export default function VendorsPage() {
   return (
@@ -20,21 +21,16 @@ export default function VendorsPage() {
 
             {/* CTA Button */}
             <Link
-              href="/vendors/apply"
-              className="group relative inline-flex items-center justify-center px-6 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] rounded-full overflow-hidden transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-[#3ecf8e]/30"
+              href="/register"
+              className="text-base sm:text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] hover:opacity-80 transition-opacity border-b-2 border-[#3ecf8e]/50 hover:border-[#3ecf8e] pb-0.5"
             >
-              <span className="relative z-10 flex items-center gap-2">
-                become a vendor
-                <svg className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                </svg>
-              </span>
+              become a vendor
             </Link>
           </div>
         </div>
       </header>
 
-      {/* Hero Section */}
+      {/* Hero Section */}  
       <section className="relative section-padding text-center overflow-hidden">
         {/* Animated Background Gradient */}
         <div className="absolute inset-0 bg-gradient-to-br from-[#3ecf8e]/10 via-[#0a0a0a] to-[#2dd4bf]/10 animate-gradient opacity-50"></div>
@@ -60,16 +56,10 @@ export default function VendorsPage() {
 
           <div className="animate-fade-in-up delay-400 opacity-0">
             <Link
-              href="/vendors/apply"
-              className="group relative inline-flex items-center justify-center px-10 py-5 text-lg sm:text-xl font-bold text-white bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] rounded-full overflow-hidden transition-all duration-300 hover:scale-105 animate-pulse-glow active:scale-95"
+              href="/register"
+              className="text-lg sm:text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] hover:opacity-80 transition-opacity border-b-2 border-[#3ecf8e]/50 hover:border-[#3ecf8e] pb-0.5"
             >
-              <span className="relative z-10 flex items-center gap-3">
-                apply to become a vendor
-                <svg className="w-6 h-6 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                </svg>
-              </span>
-              <div className="absolute inset-0 bg-gradient-to-r from-[#2dd4bf] to-[#3ecf8e] opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              apply to become a vendor
             </Link>
           </div>
         </div>
@@ -211,15 +201,10 @@ export default function VendorsPage() {
           {/* Documentation CTA */}
           <div className="text-center">
             <Link
-              href="/vendors/apply"
-              className="group relative inline-flex items-center justify-center px-8 py-4 text-lg font-bold text-white bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] rounded-full overflow-hidden transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-[#3ecf8e]/30"
+              href="/register"
+              className="text-base sm:text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] hover:opacity-80 transition-opacity border-b-2 border-[#3ecf8e]/50 hover:border-[#3ecf8e] pb-0.5"
             >
-              <span className="relative z-10 flex items-center gap-2">
-                start your integration now
-                <svg className="w-5 h-5 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                </svg>
-              </span>
+              start your integration now
             </Link>
           </div>
         </div>
@@ -460,47 +445,17 @@ export default function VendorsPage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <Link
-              href="/vendors/apply"
-              className="group relative inline-flex items-center justify-center px-8 py-4 text-lg font-bold text-white bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] rounded-full overflow-hidden transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-[#3ecf8e]/30"
+              href="/register"
+              className="text-base sm:text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] hover:opacity-80 transition-opacity border-b-2 border-[#3ecf8e]/50 hover:border-[#3ecf8e] pb-0.5"
             >
-              <span className="relative z-10 flex items-center gap-2">
-                apply to become a vendor
-                <svg className="w-5 h-5 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                </svg>
-              </span>
+              apply to become a vendor
             </Link>
           </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="bg-[#111111] border-t border-[#374151]">
-        <div className="max-w-6xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h3 className="text-2xl font-bold text-[#3ecf8e] mb-2">
-              1sub<span className="text-[#9ca3af] font-normal">.io</span>
-            </h3>
-            <p className="text-[#9ca3af] mb-4">
-              1 subscription, countless tools.
-            </p>
-            <div className="flex justify-center gap-6 text-sm">
-              <a
-                href="/privacy"
-                className="text-[#9ca3af] hover:text-[#3ecf8e] transition-colors"
-              >
-                Privacy
-              </a>
-              <a
-                href="/terms"
-                className="text-[#9ca3af] hover:text-[#3ecf8e] transition-colors"
-              >
-                Terms and Conditions
-              </a>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }
