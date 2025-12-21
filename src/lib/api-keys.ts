@@ -1,12 +1,28 @@
 /**
  * Server-Side API Key Utilities for Tool Authentication
- * 
+ *
  * Server-side functions that require database access.
  * For client-safe functions, see api-keys-client.ts
+ *
+ * IMPORTANT: Uses service role client for RPC functions that require
+ * elevated permissions (validate_api_key_hash, update_api_key_usage).
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { verifyApiKey } from './api-keys-client';
+
+// Initialize Supabase client with service role for API key operations
+// This is required because validate_api_key_hash is only granted to service_role
+function getServiceClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Supabase environment variables are not configured');
+  }
+
+  return createSupabaseClient(supabaseUrl, supabaseKey);
+}
 
 /**
  * Update the last_used_at timestamp for an API key
@@ -21,7 +37,7 @@ export async function updateApiKeyLastUsed(
   toolId: string,
   lastUsedAt?: string
 ): Promise<void> {
-  const supabase = await createClient();
+  const supabase = getServiceClient();
   const timestamp = lastUsedAt || new Date().toISOString();
 
   // FIX: Use atomic JSONB update to avoid race conditions
@@ -67,7 +83,7 @@ export async function updateApiKeyLastUsed(
  * @returns Tool ID if found, null otherwise
  */
 export async function findToolByApiKeyHash(apiKeyHash: string): Promise<string | null> {
-  const supabase = await createClient();
+  const supabase = getServiceClient();
 
   // Query tools where metadata contains the api_key_hash
   const { data: tools, error } = await supabase
@@ -109,7 +125,7 @@ export async function findToolByApiKey(apiKey: string): Promise<{
   isActive: boolean;
   metadata: Record<string, unknown>;
 } | null> {
-  const supabase = await createClient();
+  const supabase = getServiceClient();
 
   // Extract key prefix for indexed lookup (first 8 chars)
   const keyPrefix = apiKey.substring(0, 8);
