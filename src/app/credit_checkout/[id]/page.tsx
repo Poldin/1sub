@@ -83,6 +83,7 @@ export default function CreditCheckoutPage() {
     toolAccessToken: string | null;
     isSubscription: boolean;
   } | null>(null);
+  const [isLaunching, setIsLaunching] = useState(false);
 
   // Fetch checkout data
   useEffect(() => {
@@ -364,8 +365,6 @@ export default function CreditCheckoutPage() {
   const isSubscription = selectedPricing?.includes('subscription') || checkout.type === 'tool_subscription';
   const subscriptionPeriod = checkout.metadata.subscription_period ||
     (selectedPricing === 'subscription_monthly' ? 'monthly' : selectedPricing === 'subscription_yearly' ? 'yearly' : null);
-
-  const [isLaunching, setIsLaunching] = useState(false);
 
   const handleLaunchTool = async () => {
     if (!purchaseData || !checkout.metadata.tool_id) return;
