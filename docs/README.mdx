@@ -1,0 +1,81 @@
+---
+title: "1Sub Vendor Documentation"
+description: "Complete technical documentation for integrating your tool with 1Sub"
+---
+
+# 1Sub Vendor Documentation
+
+Welcome to the complete technical documentation for integrating your tool with 1Sub.
+
+## 📚 Documentation Structure
+
+### Getting Started
+- [Index](index.mdx) - Overview and introduction to 1Sub integration
+- [Quickstart](quickstart.mdx) - Get integrated in 15 minutes
+
+### Core Concepts
+- [Monetization Models](concepts/monetization-models.mdx) - Choose between subscriptions, credits, and one-time purchases
+- [Tools and Accounts](concepts/tools-and-accounts.mdx) - User linking and management
+- [Credits and Subscriptions](concepts/credits-and-subscriptions.mdx) - Credit system and subscription models
+- [Vendor Payouts](concepts/vendor-payouts.mdx) - How to get paid, payout schedules, and Stripe Connect setup
+- [Authentication](concepts/authentication.mdx) - JWT tokens, API keys, and verification methods
+
+### API Reference
+- [API Overview](api/overview.mdx) - Base URLs, rate limits, and general info
+- [API Authentication](api/authentication.mdx) - Detailed authentication guide
+- [API Reference](api/reference.mdx) - Complete endpoint documentation
+- [Error Handling](api/errors.mdx) - Error codes and handling strategies
+
+### Webhooks
+- [Webhook Overview](webhooks/overview.mdx) - Introduction to webhooks
+- [Webhook Events](webhooks/events.mdx) - All event types and payloads
+- [Security and Signing](webhooks/security-and-signing.mdx) - HMAC verification
+- [Testing Webhooks](webhooks/testing.mdx) - Local testing strategies
+
+### Code Examples
+- [Node.js Example](examples/node.mdx) - Complete Express implementation
+- [Python Example](examples/python.mdx) - Complete Flask implementation
+- [cURL Examples](examples/curl.mdx) - Raw API requests
+
+### Testing & Guides
+- [Testing Sandbox](guides/testing-sandbox.mdx) - Local testing strategies
+
+### Troubleshooting
+- [Common Errors](troubleshooting/common-errors.mdx) - Solutions to frequent issues
+- [Integration Checklist](troubleshooting/checklist.mdx) - Pre-launch verification
+
+## 🚀 Quick Links
+
+### Most Used Resources
+
+**API Endpoints** (all vendor-facing):
+- `POST /api/v1/authorize/initiate` - Initiate authorization flow
+- `POST /api/v1/authorize/exchange` - Exchange authorization code for token
+- `POST /api/v1/verify` - Verify verification tokens and get entitlements
+- `POST /api/v1/credits/consume` - Deduct user credits
+- `GET /.well-known/1sub-jwks.json` - JWKS public keys
+
+**Webhook Events**:
+- `subscription.activated` - New subscription created
+- `subscription.canceled` - Subscription cancelled
+- `subscription.updated` - Subscription plan changed
+- `purchase.completed` - One-time purchase completed
+- `user.credit_low` - User credits below threshold
+- `user.credit_depleted` - User out of credits
+- `user.session_expired` - User session expired
+- `tool.status_changed` - Tool enabled/disabled
+
+### Base URL
+All API endpoints use: `https://1sub.io`
+
+## 📞 Support
+
+- **Email**: support@1sub.io
+- **Discord**: https://discord.gg/R87YSYpKK
+- **Vendor Dashboard**: https://1sub.io/vendor-dashboard
+
+## Next Steps
+
+1. Start with the [Quickstart Guide](quickstart.mdx) to get integrated quickly
+2. Review [Monetization Models](concepts/monetization-models.mdx) to choose your revenue strategy
+3. Check out [Code Examples](examples/node.mdx) for ready-to-use integration code
