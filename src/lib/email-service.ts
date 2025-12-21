@@ -248,3 +248,147 @@ export async function sendVendorRejectionEmail(params: {
   }
 }
 
+/**
+ * Send first-time tool purchase confirmation email
+ */
+export async function sendFirstToolPurchaseEmail(params: {
+  to: string;
+  userName?: string;
+  toolName: string;
+  toolUrl: string;
+  creditAmount: number;
+  purchaseType: 'one_time' | 'subscription';
+  billingPeriod?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    console.log('sendFirstToolPurchaseEmail called', {
+      to: params.to,
+      toolName: params.toolName,
+      purchaseType: params.purchaseType,
+      hasResendKey: !!process.env.RESEND_API_KEY,
+      fromEmail: FROM_EMAIL,
+    });
+
+    if (!process.env.RESEND_API_KEY) {
+      console.warn('RESEND_API_KEY not configured, skipping email send', {
+        to: params.to,
+        toolName: params.toolName,
+      });
+      return { success: false, error: 'Email service not configured' };
+    }
+
+    const { to, userName, toolName, toolUrl, creditAmount, purchaseType, billingPeriod } = params;
+
+    const isSubscription = purchaseType === 'subscription';
+    const purchaseTypeText = isSubscription
+      ? `Subscription (${billingPeriod || 'monthly'})`
+      : 'One-time purchase';
+
+    console.log('Sending first tool purchase email via Resend', {
+      from: FROM_EMAIL,
+      to,
+      toolName,
+    });
+
+    const { data, error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: [to],
+      subject: `Welcome to ${toolName}!`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Purchase Confirmation</title>
+          </head>
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: linear-gradient(135deg, #3ecf8e 0%, #2dd4bf 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+              <h1 style="color: white; margin: 0; font-size: 28px;">Purchase Confirmed!</h1>
+            </div>
+
+            <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
+              <p style="font-size: 16px; margin-top: 0;">Hi ${userName || 'there'},</p>
+
+              <p style="font-size: 16px;">Thank you for your purchase! You now have access to <strong>${toolName}</strong>.</p>
+
+              <div style="background: #f3f4f6; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                <h3 style="margin: 0 0 15px 0; color: #374151; font-size: 16px;">Purchase Details</h3>
+                <table style="width: 100%; font-size: 14px;">
+                  <tr>
+                    <td style="color: #6b7280; padding: 5px 0;">Tool:</td>
+                    <td style="text-align: right; font-weight: 600;">${toolName}</td>
+                  </tr>
+                  <tr>
+                    <td style="color: #6b7280; padding: 5px 0;">Type:</td>
+                    <td style="text-align: right; font-weight: 600;">${purchaseTypeText}</td>
+                  </tr>
+                  <tr>
+                    <td style="color: #6b7280; padding: 5px 0;">Credits:</td>
+                    <td style="text-align: right; font-weight: 600;">${creditAmount}</td>
+                  </tr>
+                </table>
+              </div>
+
+              <p style="font-size: 16px;">Here's what you can do next:</p>
+
+              <ul style="font-size: 16px; padding-left: 20px;">
+                <li>Access the tool using the button below</li>
+                <li>Explore all features available to you</li>
+                ${isSubscription ? '<li>Manage your subscription from your dashboard</li>' : ''}
+              </ul>
+
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${toolUrl}"
+                   style="display: inline-block; background: #3ecf8e; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">
+                  Access ${toolName}
+                </a>
+              </div>
+
+              <p style="font-size: 14px; color: #6b7280; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+                If you have any questions about using this tool, please don't hesitate to reach out to our support team.
+              </p>
+
+              <p style="font-size: 14px; color: #6b7280; margin-top: 10px;">
+                Best regards,<br>
+                The 1sub Team
+              </p>
+            </div>
+          </body>
+        </html>
+      `,
+    });
+
+    if (error) {
+      console.error('Error sending first tool purchase email via Resend:', {
+        error,
+        errorMessage: error.message,
+        errorName: error.name,
+        to,
+        toolName,
+        from: FROM_EMAIL,
+      });
+      return { success: false, error: error.message };
+    }
+
+    console.log('First tool purchase email sent successfully via Resend:', {
+      emailId: data?.id,
+      to,
+      toolName,
+      from: FROM_EMAIL,
+    });
+    return { success: true };
+  } catch (error) {
+    console.error('Unexpected error in sendFirstToolPurchaseEmail:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      to: params.to,
+      toolName: params.toolName,
+    });
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to send email',
+    };
+  }
+}
+

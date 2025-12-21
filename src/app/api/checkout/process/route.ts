@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { transferCredits, createDebitTransaction } from '@/lib/actions/credit-transactions';
 import { getCurrentBalance } from '@/lib/credits-service';
 import { notifySubscriptionActivated, notifyPurchaseCompleted } from '@/lib/tool-webhooks';
+import { sendFirstToolPurchaseEmail } from '@/lib/email-service';
 
 export async function POST(request: NextRequest) {
   try {
@@ -687,6 +688,56 @@ export async function POST(request: NextRequest) {
         // Don't fail the checkout if webhook fails
         console.error('[Webhook] Failed to send purchase.completed webhook:', webhookError);
       }
+    }
+
+    // 11.6. Send first-time purchase email
+    // Check if this is the user's first purchase of this tool
+    try {
+      const toolId = metadata.tool_id as string;
+
+      // Check for previous subscriptions for this tool (excluding current checkout)
+      const { count: previousSubscriptionCount } = await supabase
+        .from('tool_subscriptions')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', authUser.id)
+        .eq('tool_id', toolId)
+        .neq('checkout_id', checkout.id);
+
+      // Check for previous completed checkouts for this tool
+      const { data: previousCheckouts } = await supabase
+        .from('checkouts')
+        .select('id, metadata')
+        .eq('user_id', authUser.id)
+        .neq('id', checkout.id)
+        .in('type', ['tool_purchase', 'tool_subscription']);
+
+      const previousCompletedPurchases = previousCheckouts?.filter((c: { metadata: unknown }) => {
+        const meta = c.metadata as Record<string, unknown>;
+        return meta?.tool_id === toolId && meta?.status === 'completed';
+      }) || [];
+
+      const isFirstPurchase = (previousSubscriptionCount || 0) === 0 && previousCompletedPurchases.length === 0;
+
+      if (isFirstPurchase && authUser.email) {
+        console.log('[Email] Sending first-time purchase email:', {
+          userId: authUser.id,
+          toolId,
+          toolName: metadata.tool_name,
+          email: authUser.email,
+        });
+
+        await sendFirstToolPurchaseEmail({
+          to: authUser.email,
+          toolName: metadata.tool_name as string,
+          toolUrl: metadata.tool_url as string,
+          creditAmount: creditCost,
+          purchaseType: checkoutType === 'tool_subscription' ? 'subscription' : 'one_time',
+          billingPeriod: billingPeriod || undefined,
+        });
+      }
+    } catch (emailError) {
+      // Don't fail the checkout if email fails
+      console.error('[Email] Failed to send first-time purchase email:', emailError);
     }
 
     // 12. Return success with link code (for subscriptions)
