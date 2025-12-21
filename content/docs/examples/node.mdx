@@ -5,12 +5,12 @@ description: "Complete Node.js / Express integration example"
 
 # Node.js / Express Example
 
-Complete working example of a 1Sub integration using Node.js and Express.
+Complete working example of a 1Sub integration using Node.js and Express with the Authorization Code Flow.
 
 ## Installation
 
 ```bash
-npm install express axios dotenv
+npm install express express-session axios dotenv
 ```
 
 ## Environment Variables
@@ -19,7 +19,8 @@ npm install express axios dotenv
 # .env
 ONESUB_API_KEY=sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx
 ONESUB_WEBHOOK_SECRET=whsec-xxxxxxxxxxxxxxxxxxxxxxxx
-TOOL_ID=your-tool-uuid
+SESSION_SECRET=your-session-secret
+CALLBACK_URL=https://yourapp.com/auth/1sub/callback
 PORT=3000
 ```
 
@@ -27,7 +28,7 @@ PORT=3000
 
 ```typescript
 import express from 'express';
-import axios from 'axios';
+import session from 'express-session';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
 
@@ -37,273 +38,295 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Configuration
-const ONESUB_API_KEY = process.env.ONESUB_API_KEY;
-const ONESUB_WEBHOOK_SECRET = process.env.ONESUB_WEBHOOK_SECRET;
-const TOOL_ID = process.env.TOOL_ID;
+const ONESUB_API_KEY = process.env.ONESUB_API_KEY!;
+const ONESUB_WEBHOOK_SECRET = process.env.ONESUB_WEBHOOK_SECRET!;
+const CALLBACK_URL = process.env.CALLBACK_URL!;
 const BASE_URL = 'https://1sub.io/api/v1';
 
-// In-memory cache (use Redis in production)
-const subscriptionCache = new Map();
-const processedEvents = new Set();
+// Session configuration
+app.use(session({
+  secret: process.env.SESSION_SECRET!,
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: process.env.NODE_ENV === 'production' }
+}));
 
-// Middleware
 app.use(express.json());
 
-// ============================================================================
-// 1. Account Linking
-// ============================================================================
-
-/**
- * Hash email for 1Sub verification
- */
-function hashEmail(email: string): string {
-  const normalized = email.toLowerCase().trim();
-  return crypto.createHash('sha256').update(normalized).digest('hex');
-}
-
-/**
- * Verify subscription by oneSubUserId or email
- */
-async function verifySubscription(
-  oneSubUserId?: string,
-  email?: string
-): Promise<any> {
-  const url = `${BASE_URL}/tools/subscriptions/verify`;
-  const headers = {
-    'Authorization': `Bearer ${ONESUB_API_KEY}`,
-    'Content-Type': 'application/json',
-  };
-
-  // Prefer oneSubUserId for speed (10-20x faster)
-  const body = oneSubUserId
-    ? { oneSubUserId }
-    : { emailSha256: hashEmail(email!) };
-
-  try {
-    const response = await axios.post(url, body, { headers });
-
-    // Cache oneSubUserId for future lookups
-    if (response.data.oneSubUserId) {
-      subscriptionCache.set(response.data.oneSubUserId, {
-        active: response.data.active,
-        cachedAt: Date.now()
-      });
-    }
-
-    return response.data;
-  } catch (error: any) {
-    if (error.response?.status === 404) {
-      return null;
-    }
-    throw error;
+// Extend session type
+declare module 'express-session' {
+  interface SessionData {
+    onesubUserId: string;
+    verificationToken: string;
+    entitlements: Entitlements;
+    nextVerifyBefore: number;
   }
 }
 
-/**
- * Exchange link code for oneSubUserId
- */
-async function exchangeLinkCode(code: string, toolUserId: string): Promise<any> {
-  const url = `${BASE_URL}/tools/link/exchange-code`;
-  const headers = {
-    'Authorization': `Bearer ${ONESUB_API_KEY}`,
-    'Content-Type': 'application/json',
-  };
-  const body = {
-    code: code.toUpperCase(),
-    toolUserId
-  };
-
-  try {
-    const response = await axios.post(url, body, { headers });
-    return response.data;
-  } catch (error: any) {
-    if (error.response?.status === 404) {
-      throw new Error('Invalid or expired link code');
-    }
-    throw error;
-  }
+interface Entitlements {
+  planId: string | null;
+  creditsRemaining: number | null;
+  features: string[];
+  limits: Record<string, number>;
 }
+
+// ============================================================================
+// 1. Authorization Code Exchange
+// ============================================================================
+
+/**
+ * Exchange authorization code for verification token
+ */
+async function exchangeAuthCode(code: string): Promise<{
+  valid: boolean;
+  grantId: string;
+  onesubUserId: string;
+  entitlements: Entitlements;
+  verificationToken: string;
+  expiresAt: number;
+}> {
+  const response = await fetch(`${BASE_URL}/authorize/exchange`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${ONESUB_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      code,
+      redirectUri: CALLBACK_URL
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to exchange authorization code');
+  }
+
+  return response.json();
+}
+
+// ============================================================================
+// 2. Token Verification
+// ============================================================================
+
+interface VerifyResult {
+  valid: boolean;
+  onesubUserId?: string;
+  entitlements?: Entitlements;
+  verificationToken?: string;
+  cacheUntil?: number;
+  nextVerificationBefore?: number;
+  error?: string;
+  reason?: string;
+  action?: 'terminate_session' | 'reauthenticate';
+}
+
+/**
+ * Verify access token and get updated entitlements
+ * IMPORTANT: Token rolls on each successful call - store the new token!
+ */
+async function verifyAccess(verificationToken: string): Promise<VerifyResult> {
+  const response = await fetch(`${BASE_URL}/verify`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${ONESUB_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ verificationToken })
+  });
+
+  return response.json();
+}
+
+// ============================================================================
+// 3. Credit Consumption
+// ============================================================================
 
 /**
  * Consume credits from user balance
  */
 async function consumeCredits(
-  oneSubUserId: string,
+  onesubUserId: string,
   amount: number,
   reason: string,
   idempotencyKey: string
-): Promise<any> {
-  const url = `${BASE_URL}/credits/consume`;
-  const headers = {
-    'Authorization': `Bearer ${ONESUB_API_KEY}`,
-    'Content-Type': 'application/json',
-  };
-  const body = {
-    user_id: oneSubUserId,
-    amount,
-    reason,
-    idempotency_key: idempotencyKey
-  };
+): Promise<{ success: boolean; new_balance: number; transaction_id: string }> {
+  const response = await fetch(`${BASE_URL}/credits/consume`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${ONESUB_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      user_id: onesubUserId,
+      amount,
+      reason,
+      idempotency_key: idempotencyKey
+    })
+  });
 
-  const response = await axios.post(url, body, { headers });
-  return response.data;
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to consume credits');
+  }
+
+  return response.json();
 }
 
 // ============================================================================
-// 2. API Endpoints
+// 4. API Endpoints
 // ============================================================================
 
 /**
- * Link user account via email or link code
+ * OAuth Callback Handler
+ * Users are redirected here from 1Sub with an authorization code
  */
-app.post('/api/link', async (req, res) => {
-  const { email, code, toolUserId } = req.body;
+app.get('/auth/1sub/callback', async (req, res) => {
+  const { code, state } = req.query;
+
+  if (!code || typeof code !== 'string') {
+    return res.redirect('/auth/error?reason=missing_code');
+  }
+
+  // Optional: Validate state parameter for CSRF protection
+  // if (state !== req.session.oauthState) {
+  //   return res.redirect('/auth/error?reason=invalid_state');
+  // }
 
   try {
-    // Option 1: Email-based linking (for SaaS tools)
-    if (email) {
-      const subscription = await verifySubscription(undefined, email);
+    const result = await exchangeAuthCode(code);
 
-      if (!subscription) {
-        return res.status(404).json({ error: 'No subscription found for this email' });
-      }
+    // Store in session
+    req.session.onesubUserId = result.onesubUserId;
+    req.session.verificationToken = result.verificationToken;
+    req.session.entitlements = result.entitlements;
+    req.session.nextVerifyBefore = result.expiresAt;
 
-      // Store oneSubUserId in your database
-      // await db.users.update(userId, { oneSubUserId: subscription.oneSubUserId });
-
-      return res.json({
-        linked: true,
-        oneSubUserId: subscription.oneSubUserId,
-        active: subscription.active
-      });
-    }
-
-    // Option 2: Link code (for CLI/desktop apps)
-    if (code && toolUserId) {
-      const link = await exchangeLinkCode(code, toolUserId);
-
-      // Store oneSubUserId in your database
-      // await db.users.update(toolUserId, { oneSubUserId: link.oneSubUserId });
-
-      return res.json(link);
-    }
-
-    return res.status(400).json({ error: 'email or (code + toolUserId) required' });
+    // Redirect to dashboard
+    res.redirect('/dashboard');
   } catch (error: any) {
-    console.error('Link account error:', error);
-    return res.status(500).json({ error: error.message });
+    console.error('Auth callback error:', error);
+    res.redirect('/auth/error?reason=exchange_failed');
   }
 });
 
 /**
- * Check if user has active subscription
+ * Middleware: Require valid subscription
+ * Automatically verifies and refreshes tokens when needed
  */
-app.post('/api/check-access', async (req, res) => {
-  const { oneSubUserId } = req.body;
+async function requireSubscription(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+) {
+  const { verificationToken, nextVerifyBefore } = req.session;
 
-  if (!oneSubUserId) {
-    return res.status(400).json({ error: 'oneSubUserId required' });
-  }
-
-  try {
-    // Check cache first (optional)
-    const cached = subscriptionCache.get(oneSubUserId);
-    if (cached && Date.now() - cached.cachedAt < 300000) { // 5 min cache
-      return res.json({ active: cached.active });
-    }
-
-    // Verify with 1Sub
-    const subscription = await verifySubscription(oneSubUserId);
-
-    if (!subscription) {
-      return res.status(404).json({ error: 'Subscription not found' });
-    }
-
-    return res.json({
-      active: subscription.active,
-      status: subscription.status
-    });
-  } catch (error: any) {
-    console.error('Check access error:', error);
-    return res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * Protected endpoint - requires active subscription
- */
-app.post('/api/premium-feature', async (req, res) => {
-  const { oneSubUserId } = req.body;
-
-  if (!oneSubUserId) {
+  if (!verificationToken) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
 
-  try {
-    const subscription = await verifySubscription(oneSubUserId);
+  // Check if verification is needed
+  const now = Math.floor(Date.now() / 1000);
+  if (now >= (nextVerifyBefore || 0)) {
+    try {
+      const result = await verifyAccess(verificationToken);
 
-    if (!subscription || !subscription.active) {
-      return res.status(403).json({
-        error: 'Active subscription required',
-        status: subscription?.status || 'not_found'
-      });
-    }
-
-    // Perform premium feature
-    const result = { data: 'Premium content' };
-
-    return res.json({
-      success: true,
-      result,
-      subscription: {
-        planId: subscription.planId,
-        expiresAt: subscription.currentPeriodEnd
+      if (!result.valid) {
+        // Access revoked - destroy session
+        req.session.destroy(() => {});
+        return res.status(403).json({
+          error: 'Access revoked',
+          reason: result.reason,
+          action: result.action
+        });
       }
-    });
-  } catch (error: any) {
-    console.error('Premium feature error:', error);
-    return res.status(500).json({ error: error.message });
+
+      // Update session with new token (tokens roll!)
+      req.session.verificationToken = result.verificationToken!;
+      req.session.entitlements = result.entitlements!;
+      req.session.nextVerifyBefore = result.nextVerificationBefore!;
+
+    } catch (error: any) {
+      console.error('Verification error:', error);
+      return res.status(500).json({ error: 'Verification failed' });
+    }
   }
+
+  next();
+}
+
+/**
+ * Get current user info and entitlements
+ */
+app.get('/api/me', requireSubscription, (req, res) => {
+  res.json({
+    onesubUserId: req.session.onesubUserId,
+    entitlements: req.session.entitlements
+  });
 });
 
 /**
- * Credit-based feature - consumes credits
+ * Protected premium feature endpoint
  */
-app.post('/api/use-feature', async (req, res) => {
-  const { oneSubUserId } = req.body;
+app.post('/api/premium/feature', requireSubscription, async (req, res) => {
+  // User has valid subscription - proceed with feature
+  const result = { data: 'Premium content generated!' };
 
-  if (!oneSubUserId) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
+  res.json({
+    success: true,
+    result,
+    entitlements: req.session.entitlements
+  });
+});
+
+/**
+ * Credit-based feature endpoint
+ */
+app.post('/api/generate-image', requireSubscription, async (req, res) => {
+  const onesubUserId = req.session.onesubUserId!;
 
   try {
     // Consume credits
     const result = await consumeCredits(
-      oneSubUserId,
+      onesubUserId,
       10,
       'Generated AI image',
-      `img-${oneSubUserId}-${Date.now()}`
+      `img-${onesubUserId}-${Date.now()}`
     );
 
-    return res.json({
+    // Update cached credits
+    if (req.session.entitlements) {
+      req.session.entitlements.creditsRemaining = result.new_balance;
+    }
+
+    res.json({
       success: true,
-      credits_remaining: result.new_balance
+      imageUrl: 'https://example.com/generated-image.png',
+      creditsRemaining: result.new_balance
     });
   } catch (error: any) {
-    if (error.response?.status === 400) {
-      const errorData = error.response.data;
+    if (error.message.includes('Insufficient')) {
       return res.status(400).json({
         error: 'Insufficient credits',
-        shortfall: errorData.shortfall
+        message: 'Please purchase more credits to continue'
       });
     }
-    console.error('Use feature error:', error);
-    return res.status(500).json({ error: error.message });
+    console.error('Generate image error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
+/**
+ * Logout endpoint
+ */
+app.post('/api/logout', (req, res) => {
+  req.session.destroy(() => {
+    res.json({ success: true });
+  });
+});
+
 // ============================================================================
-// 3. Webhook Handler
+// 5. Webhook Handler
 // ============================================================================
 
 /**
@@ -324,7 +347,7 @@ function verifyWebhookSignature(
   const now = Math.floor(Date.now() / 1000);
   if (Math.abs(now - parseInt(timestamp)) > 300) return false;
 
-  // Compute signature
+  // Compute expected signature
   const signedPayload = `${timestamp}.${payload}`;
   const expected = crypto
     .createHmac('sha256', secret)
@@ -340,16 +363,17 @@ function verifyWebhookSignature(
 
 /**
  * Webhook endpoint
+ * Webhooks accelerate cache invalidation - not primary enforcement
  */
 app.post(
   '/webhooks/1sub',
-  express.raw({ type: 'application/json' }), // MUST use raw body
+  express.raw({ type: 'application/json' }),
   (req, res) => {
     const signature = req.headers['1sub-signature'] as string;
     const payload = req.body.toString();
 
     // Verify signature
-    if (!verifyWebhookSignature(payload, signature, ONESUB_WEBHOOK_SECRET!)) {
+    if (!verifyWebhookSignature(payload, signature, ONESUB_WEBHOOK_SECRET)) {
       console.error('Invalid webhook signature');
       return res.status(401).send('Invalid signature');
     }
@@ -357,70 +381,50 @@ app.post(
     // Parse event
     const event = JSON.parse(payload);
 
-    // Deduplicate
-    if (processedEvents.has(event.id)) {
-      console.log(`Event ${event.id} already processed`);
-      return res.json({ received: true });
-    }
-    processedEvents.add(event.id);
-
     // Acknowledge receipt immediately
     res.json({ received: true });
 
     // Process asynchronously
-    processWebhookAsync(event).catch(console.error);
+    processWebhook(event).catch(console.error);
   }
 );
 
 /**
- * Process webhook events asynchronously
+ * Process webhook events
  */
-async function processWebhookAsync(event: any) {
+async function processWebhook(event: any) {
   const { oneSubUserId } = event.data;
 
   switch (event.type) {
-    case 'subscription.activated':
-      console.log('Subscription activated:', oneSubUserId);
-      // Invalidate cache
-      subscriptionCache.delete(oneSubUserId);
-      // Grant access and send welcome email
+    case 'entitlement.granted':
+      console.log('Entitlement granted:', oneSubUserId);
+      // User can now access your tool
       break;
 
-    case 'subscription.canceled':
-      console.log('Subscription canceled:', oneSubUserId);
-      // Invalidate cache
-      subscriptionCache.delete(oneSubUserId);
-      // Revoke access
+    case 'entitlement.revoked':
+      console.log('Entitlement revoked:', oneSubUserId);
+      // Force re-verification on next request
+      // In production: invalidate all sessions for this user
       break;
 
-    case 'subscription.updated':
-      console.log('Subscription updated:', oneSubUserId);
-      // Invalidate cache
-      subscriptionCache.delete(oneSubUserId);
-      // Update plan if changed
-      if (event.data.previousPlanId !== event.data.planId) {
-        // await updateUserPlan(oneSubUserId, event.data.planId);
-      }
+    case 'entitlement.changed':
+      console.log('Entitlement changed:', oneSubUserId);
+      // Plan upgraded/downgraded - reverify to get new limits
       break;
 
-    case 'purchase.completed':
-      console.log('Purchase completed:', oneSubUserId);
-      // Log purchase
+    case 'verify.required':
+      console.log('Verify required:', oneSubUserId);
+      // 1Sub is requesting immediate verification
       break;
 
     case 'user.credit_low':
       console.log('User credits low:', oneSubUserId);
-      // Send low credit warning
+      // Optional: notify user
       break;
 
     case 'user.credit_depleted':
       console.log('User credits depleted:', oneSubUserId);
-      // Suspend credit features
-      break;
-
-    case 'tool.status_changed':
-      console.log('Tool status changed');
-      // Handle tool suspension/reactivation
+      // Optional: notify user
       break;
 
     default:
@@ -434,118 +438,119 @@ async function processWebhookAsync(event: any) {
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(`Callback URL: ${CALLBACK_URL}`);
   console.log(`Webhook endpoint: http://localhost:${PORT}/webhooks/1sub`);
 });
 ```
 
-## Key Concepts
+## Integration Flow
 
-### 1. Email-Based Linking (SaaS Tools)
+### 1. User Clicks "Launch Tool" on 1Sub
 
-For web applications where users have verified emails:
+User is redirected to your callback URL:
+
+```
+https://yourapp.com/auth/1sub/callback?code=ac_xxxxx&state=csrf_token
+```
+
+### 2. Exchange Code for Token
 
 ```typescript
-// User logs in with email they used on 1Sub
-const userEmail = "user@example.com";
-const subscription = await verifySubscription(undefined, userEmail);
+const result = await exchangeAuthCode(code);
 
-if (subscription) {
-  // Cache oneSubUserId for future lookups (10-20x faster)
-  await db.users.update(userId, {
-    oneSubUserId: subscription.oneSubUserId
+// Store in session
+req.session.verificationToken = result.verificationToken;
+req.session.entitlements = result.entitlements;
+```
+
+### 3. Periodic Verification
+
+The middleware automatically verifies every 5 minutes:
+
+```typescript
+app.post('/api/feature', requireSubscription, (req, res) => {
+  // User is verified - entitlements are fresh
+  res.json({ entitlements: req.session.entitlements });
+});
+```
+
+### 4. Handle Revocation
+
+When verification fails, terminate the session:
+
+```typescript
+if (!result.valid) {
+  req.session.destroy(() => {});
+  return res.status(403).json({
+    error: 'Access revoked',
+    action: result.action  // 'terminate_session' or 'reauthenticate'
   });
 }
 ```
 
-### 2. Link Code (CLI/Desktop Apps)
+## Key Concepts
 
-For applications where email linking isn't suitable:
+### Token Rolling
 
-```typescript
-// User enters 6-character code from 1Sub
-const linkCode = "AB12CD";
-const toolUserId = "internal-user-123";
-
-const link = await exchangeLinkCode(linkCode, toolUserId);
-
-// Store oneSubUserId
-await db.users.update(toolUserId, {
-  oneSubUserId: link.oneSubUserId
-});
-```
-
-### 3. Caching for Performance
-
-Always cache subscription status to reduce API calls:
+The verification token changes on every successful `/verify` call:
 
 ```typescript
-const cached = subscriptionCache.get(oneSubUserId);
-if (cached && Date.now() - cached.cachedAt < 300000) { // 5 min
-  return cached.active;
+const result = await verifyAccess(currentToken);
+
+if (result.valid) {
+  // CRITICAL: Store the new token!
+  req.session.verificationToken = result.verificationToken;
 }
-
-// Otherwise, verify with 1Sub API
-const subscription = await verifySubscription(oneSubUserId);
 ```
 
-### 4. Webhook Security
+### Webhook Processing
 
-Always verify webhook signatures to prevent spoofing:
+Webhooks accelerate revocation but are not the primary enforcement:
 
 ```typescript
-// MUST use raw body for signature verification
-app.post(
-  '/webhooks/1sub',
-  express.raw({ type: 'application/json' }),
-  (req, res) => {
-    const signature = req.headers['1sub-signature'];
-    const payload = req.body.toString();
-
-    if (!verifyWebhookSignature(payload, signature, WEBHOOK_SECRET)) {
-      return res.status(401).send('Invalid signature');
-    }
-
-    // Process event...
-  }
-);
+case 'entitlement.revoked':
+  // Invalidate cached sessions for this user
+  // Next request will fail verification
+  break;
 ```
 
 ## Production Checklist
 
-- ✅ Use Redis for subscription caching instead of in-memory Map
+- ✅ Use Redis for session storage instead of in-memory
 - ✅ Implement proper error handling and logging
 - ✅ Set up async webhook processing (Bull, BullMQ, etc.)
 - ✅ Add retry logic for API calls with exponential backoff
-- ✅ Monitor rate limits (100 req/min for verify, 30 req/min for email lookups)
-- ✅ Store oneSubUserId in your database after first lookup
+- ✅ Monitor rate limits (100 req/min for verify, 30 req/min for exchange)
 - ✅ Use environment variables for all secrets
-- ✅ Enable HTTPS for webhook endpoints
-- ✅ Implement webhook event deduplication (use Redis Set)
-- ✅ Set up monitoring and alerts for failed webhooks
+- ✅ Enable HTTPS for all endpoints
+- ✅ Implement webhook event deduplication
+- ✅ Set up monitoring and alerts
 
 ## Testing
 
 ```bash
-# Test email-based linking
-curl -X POST http://localhost:3000/api/link \
-  -H 'Content-Type: application/json' \
-  -d '{"email": "user@example.com"}'
+# Test authorization flow
+# 1. Visit your 1Sub tool page and click "Launch Tool"
+# 2. You'll be redirected to your callback
 
-# Test link code
-curl -X POST http://localhost:3000/api/link \
-  -H 'Content-Type: application/json' \
-  -d '{"code": "AB12CD", "toolUserId": "user123"}'
+# Test verification
+curl -X GET http://localhost:3000/api/me \
+  -H 'Cookie: connect.sid=YOUR_SESSION_COOKIE'
 
-# Test subscription check
-curl -X POST http://localhost:3000/api/check-access \
-  -H 'Content-Type: application/json' \
-  -d '{"oneSubUserId": "550e8400-e29b-41d4-a716-446655440000"}'
+# Test protected endpoint
+curl -X POST http://localhost:3000/api/premium/feature \
+  -H 'Cookie: connect.sid=YOUR_SESSION_COOKIE' \
+  -H 'Content-Type: application/json'
+
+# Test credit consumption
+curl -X POST http://localhost:3000/api/generate-image \
+  -H 'Cookie: connect.sid=YOUR_SESSION_COOKIE' \
+  -H 'Content-Type: application/json'
 ```
 
 ## Additional Resources
 
-- [Python Example](/examples/python) - Python/Flask implementation
-- [cURL Examples](/examples/curl) - Quick API examples
-- [API Reference](/api/reference) - Full endpoint documentation
-- [Webhook Events](/webhooks/events) - All event types
-- [Authentication Guide](/concepts/authentication) - Email vs link code flows
+- [Python Example](/docs/examples/python) - Python/Flask implementation
+- [cURL Examples](/docs/examples/curl) - Quick API testing
+- [API Reference](/docs/api/reference) - Full endpoint documentation
+- [Webhook Events](/docs/webhooks/events) - All event types

@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "onesub"
+version = "1.0.0"
+description = "Official 1Sub SDK for Python - Integrate subscription verification, credit consumption, and webhooks"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "1Sub", email = "support@1sub.io"}
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+keywords = ["1sub", "subscription", "billing", "credits", "monetization", "saas", "api", "sdk"]
+requires-python = ">=3.8"
+dependencies = [
+    "requests>=2.25.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[project.urls]
+Homepage = "https://1sub.io"
+Documentation = "https://1sub.io/docs"
+Repository = "https://github.com/1sub/python-sdk"
+Issues = "https://github.com/1sub/python-sdk/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["onesub*"]

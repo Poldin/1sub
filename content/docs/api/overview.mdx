@@ -42,10 +42,10 @@ All API requests should:
 **Example request:**
 
 ```bash
-curl -X POST 'https://1sub.io/api/v1/tools/subscriptions/verify' \
+curl -X POST 'https://1sub.io/api/v1/verify' \
   -H 'Authorization: Bearer sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx' \
   -H 'Content-Type: application/json' \
-  -d '{"oneSubUserId": "uuid-abc-123"}'
+  -d '{"verificationToken": "vt_xxxxxxxxxxxxxxxxxxxxxxxx"}'
 ```
 
 ## Response Format
@@ -56,9 +56,17 @@ All API responses return JSON with appropriate HTTP status codes.
 
 ```json
 {
-  "active": true,
-  "status": "active",
-  "planId": "monthly"
+  "valid": true,
+  "onesubUserId": "uuid-abc-123",
+  "entitlements": {
+    "planId": "monthly",
+    "creditsRemaining": 1000,
+    "features": ["pro"],
+    "limits": {}
+  },
+  "verificationToken": "vt_new_xxxxxxxxxxxxxxxxxxxxxxxx",
+  "cacheUntil": 1703000400,
+  "nextVerificationBefore": 1703000700
 }
 ```
 
@@ -96,9 +104,8 @@ API endpoints have the following rate limits:
 
 | Endpoint | Limit | Window |
 |----------|-------|--------|
-| `/tools/subscriptions/verify` | 100 requests | 1 minute |
-| `/tools/subscriptions/verify` (email) | 30 requests | 1 minute |
-| `/tools/link/exchange-code` | 30 requests | 1 minute |
+| `/authorize/exchange` | 30 requests | 1 minute |
+| `/verify` | 100 requests | 1 minute |
 | `/credits/consume` | 100 requests | 1 minute |
 
 ### Rate Limit Headers
@@ -226,16 +233,16 @@ Sandbox environment is coming soon. For now, use small credit amounts for testin
 ## API Endpoints
 
 <CardGroup cols={2}>
-<Card title="Subscription Verification" icon="check-circle" href="/docs/api/reference#verify-subscription">
-  Check if a user has an active subscription
+<Card title="Authorization Exchange" icon="key" href="/docs/api/reference#exchange-authorization-code">
+  Exchange an authorization code for a verification token
+</Card>
+
+<Card title="Token Verification" icon="check-circle" href="/docs/api/reference#verify-token">
+  Verify a user's access and get updated entitlements
 </Card>
 
 <Card title="Credit Consumption" icon="coins" href="/docs/api/reference#consume-credits">
   Deduct credits from a user's balance
-</Card>
-
-<Card title="Link Code Exchange" icon="link" href="/docs/api/reference#exchange-link-code">
-  Exchange a link code for a user mapping
 </Card>
 </CardGroup>
 
@@ -245,7 +252,7 @@ Sandbox environment is coming soon. For now, use small credit amounts for testin
 <Tab title="JavaScript / TypeScript">
 **Recommended libraries:**
 - `axios` or `fetch` - HTTP requests
-- `crypto` (built-in) - Email hashing and webhook verification
+- `crypto` (built-in) - Webhook signature verification
 
 ```bash
 npm install axios
@@ -255,7 +262,7 @@ npm install axios
 <Tab title="Python">
 **Recommended libraries:**
 - `requests` - HTTP client
-- `hashlib` (built-in) - Email hashing and webhook verification
+- `hmac` / `hashlib` (built-in) - Webhook signature verification
 
 ```bash
 pip install requests
@@ -265,8 +272,7 @@ pip install requests
 <Tab title="Go">
 **Recommended libraries:**
 - `net/http` - Standard library HTTP client
-- `crypto/sha256` (built-in) - Email hashing
-- `crypto/hmac` (built-in) - Webhook verification
+- `crypto/hmac` (built-in) - Webhook signature verification
 
 ```bash
 # No external dependencies needed - use standard library
@@ -284,12 +290,12 @@ Official SDKs are coming soon. For now, use standard HTTP libraries as shown in 
 
 Before going live, test:
 
-- ✅ Email hashing (SHA256, lowercase, trimmed)
-- ✅ Link code exchange (valid, expired, invalid)
-- ✅ Subscription verification (active, canceled, not found)
+- ✅ Authorization code exchange (valid, expired, invalid)
+- ✅ Token verification (valid, revoked, expired)
+- ✅ Token rolling (new token returned on each verify)
 - ✅ Credit consumption (success, insufficient credits)
 - ✅ Idempotency (retry with same key)
-- ✅ Error handling (401, 404, 429, 500)
+- ✅ Error handling (401, 403, 404, 429, 500)
 - ✅ Webhook signature verification
 - ✅ Rate limit handling
 

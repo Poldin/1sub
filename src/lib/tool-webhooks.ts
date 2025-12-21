@@ -1,13 +1,19 @@
 /**
  * Tool Webhook Utilities
- * 
+ *
  * Handles outgoing webhooks from 1sub to external tools for subscription events.
  * Uses HMAC signatures for authentication (tools verify using their webhook secret).
+ *
+ * STATE-OF-THE-ART OPTIMIZATION:
+ * - Webhooks invalidate entitlement cache immediately
+ * - Vendors receive immediate notification of changes
+ * - Bounded revocation: cache TTL ensures worst-case revocation time
  */
 
 import crypto from 'crypto';
 import { createClient } from '@/lib/supabase/server';
 import type { WebhookPayload, WebhookEventType } from '@/lib/tool-verification-types';
+import { invalidateCachedEntitlements } from '@/lib/redis-cache';
 
 /**
  * Generate HMAC signature for webhook payload
@@ -213,6 +219,7 @@ export async function notifyPurchaseCompleted(
 
 /**
  * Notify tool of subscription cancellation
+ * Also invalidates the entitlement cache for immediate effect.
  */
 export async function notifySubscriptionCanceled(
   toolId: string,
@@ -220,6 +227,9 @@ export async function notifySubscriptionCanceled(
   planId: string,
   currentPeriodEnd: string
 ): Promise<boolean> {
+  // Invalidate cache FIRST for immediate effect
+  await invalidateCachedEntitlements(toolId, oneSubUserId);
+
   return sendToolWebhook(toolId, 'subscription.canceled', {
     oneSubUserId,
     planId,
@@ -231,6 +241,7 @@ export async function notifySubscriptionCanceled(
 
 /**
  * Notify tool of subscription update
+ * Also invalidates the entitlement cache for immediate effect.
  */
 export async function notifySubscriptionUpdated(
   toolId: string,
@@ -240,6 +251,9 @@ export async function notifySubscriptionUpdated(
   currentPeriodEnd: string,
   creditsRemaining?: number
 ): Promise<boolean> {
+  // Invalidate cache FIRST for immediate effect
+  await invalidateCachedEntitlements(toolId, oneSubUserId);
+
   return sendToolWebhook(toolId, 'subscription.updated', {
     oneSubUserId,
     planId,
@@ -290,6 +304,92 @@ export async function notifyToolStatusChanged(
     oneSubUserId: 'system', // System event, not user-specific
     toolId,
     toolStatus,
+  });
+}
+
+// ============================================================================
+// NEW VENDOR INTEGRATION WEBHOOKS
+// ============================================================================
+
+/**
+ * Notify tool when a user's entitlement is granted (auth code exchanged)
+ */
+export async function notifyEntitlementGranted(
+  toolId: string,
+  oneSubUserId: string,
+  grantId: string,
+  planId: string,
+  creditsRemaining?: number
+): Promise<boolean> {
+  return sendToolWebhook(toolId, 'entitlement.granted', {
+    oneSubUserId,
+    grantId,
+    planId,
+    status: 'active',
+    creditsRemaining,
+  });
+}
+
+/**
+ * Notify tool when a user's entitlement is revoked
+ * Also invalidates the entitlement cache for immediate effect.
+ */
+export async function notifyEntitlementRevoked(
+  toolId: string,
+  oneSubUserId: string,
+  reason: string,
+  revokedAt: string
+): Promise<boolean> {
+  // Invalidate cache FIRST for immediate effect
+  await invalidateCachedEntitlements(toolId, oneSubUserId);
+
+  return sendToolWebhook(toolId, 'entitlement.revoked', {
+    oneSubUserId,
+    reason,
+    revokedAt,
+    status: 'canceled',
+  });
+}
+
+/**
+ * Notify tool when a user's entitlement changes (plan upgrade/downgrade)
+ * Also invalidates the entitlement cache for immediate effect.
+ */
+export async function notifyEntitlementChanged(
+  toolId: string,
+  oneSubUserId: string,
+  previousState: { planId?: string; features?: string[] },
+  newState: { planId?: string; features?: string[] },
+  creditsRemaining?: number
+): Promise<boolean> {
+  // Invalidate cache FIRST for immediate effect
+  await invalidateCachedEntitlements(toolId, oneSubUserId);
+
+  return sendToolWebhook(toolId, 'entitlement.changed', {
+    oneSubUserId,
+    previousState,
+    newState,
+    planId: newState.planId,
+    creditsRemaining,
+  });
+}
+
+/**
+ * Notify tool that immediate verification is required
+ * Used for security events (fraud, admin action, etc.)
+ * Also invalidates the entitlement cache to force fresh lookup.
+ */
+export async function notifyVerifyRequired(
+  toolId: string,
+  oneSubUserId: string,
+  reason: string
+): Promise<boolean> {
+  // Invalidate cache to force fresh verification
+  await invalidateCachedEntitlements(toolId, oneSubUserId);
+
+  return sendToolWebhook(toolId, 'verify.required', {
+    oneSubUserId,
+    reason,
   });
 }
 

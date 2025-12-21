@@ -1,0 +1,12 @@
+src/
+*.ts
+!*.d.ts
+tsconfig.json
+tsup.config.ts
+.eslintrc*
+*.test.ts
+*.spec.ts
+__tests__/
+coverage/
+.github/
+node_modules/

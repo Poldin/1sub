@@ -71,6 +71,30 @@ The integration process follows these simple steps:
 </Step>
 </Steps>
 
+## Choose Your Integration Method
+
+1sub offers two integration approaches. Choose based on your use case:
+
+<CardGroup cols={2}>
+<Card title="Email/Link Code Integration" icon="envelope" href="/docs/quickstart">
+  **Best for:** Most tools, flexible user experience
+
+  - Users link accounts using their email or a link code
+  - Works with existing authentication systems
+  - Users can access your tool from anywhere
+  - Simpler implementation
+</Card>
+
+<Card title="OAuth-Like Authorization Flow" icon="key" href="/docs/vendor-integration">
+  **Best for:** Tools launched directly from 1sub
+
+  - Users click "Launch Tool" on 1sub
+  - Automatic redirect with authorization code
+  - Built-in revocation support
+  - Higher security with token rolling
+</Card>
+</CardGroup>
+
 ## Integration Patterns
 
 Choose the integration pattern that best fits your tool:

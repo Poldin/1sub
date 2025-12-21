@@ -7,34 +7,84 @@ description: "Quick cURL examples for testing the 1Sub API"
 
 Quick reference for testing 1Sub API endpoints with cURL.
 
-## Subscription Verification
+## Authorization Code Exchange
 
-### Using oneSubUserId (Recommended - Fastest)
+After a user is redirected to your callback with an authorization code, exchange it for a verification token:
 
 ```bash
-curl -X POST 'https://1sub.io/api/v1/tools/subscriptions/verify' \
+curl -X POST 'https://1sub.io/api/v1/authorize/exchange' \
   -H 'Authorization: Bearer sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx' \
   -H 'Content-Type: application/json' \
   -d '{
-    "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000"
+    "code": "ac_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "redirectUri": "https://yourapp.com/auth/1sub/callback"
   }'
 ```
 
-### Using Email SHA256 Hash (First-Time Linking)
+**Response:**
+
+```json
+{
+  "valid": true,
+  "grantId": "grant_xxxxx",
+  "onesubUserId": "550e8400-e29b-41d4-a716-446655440000",
+  "entitlements": {
+    "planId": "pro",
+    "creditsRemaining": 1000,
+    "features": ["advanced_export", "api_access"],
+    "limits": {"requests_per_day": 10000}
+  },
+  "verificationToken": "vt_xxxxxxxxxxxxxxxxxxxxxxxx",
+  "expiresAt": 1702345978
+}
+```
+
+## Token Verification
+
+Verify a user's access and get updated entitlements (call every 5 minutes):
 
 ```bash
-# First, hash the user's email (lowercase, trimmed)
-EMAIL="user@example.com"
-EMAIL_HASH=$(echo -n "${EMAIL,,}" | openssl dgst -sha256 -hex | cut -d' ' -f2)
-
-# Then verify subscription
-curl -X POST 'https://1sub.io/api/v1/tools/subscriptions/verify' \
+curl -X POST 'https://1sub.io/api/v1/verify' \
   -H 'Authorization: Bearer sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx' \
   -H 'Content-Type: application/json' \
-  -d "{
-    \"emailSha256\": \"$EMAIL_HASH\"
-  }"
+  -d '{
+    "verificationToken": "vt_xxxxxxxxxxxxxxxxxxxxxxxx"
+  }'
 ```
+
+**Success Response:**
+
+```json
+{
+  "valid": true,
+  "onesubUserId": "550e8400-e29b-41d4-a716-446655440000",
+  "entitlements": {
+    "planId": "pro",
+    "creditsRemaining": 950,
+    "features": ["advanced_export", "api_access"],
+    "limits": {"requests_per_day": 10000}
+  },
+  "verificationToken": "vt_NEW_TOKEN_xxxxxxxxxxxxxxxx",
+  "cacheUntil": 1702346278,
+  "nextVerificationBefore": 1702346578
+}
+```
+
+**Revoked Response:**
+
+```json
+{
+  "valid": false,
+  "error": "access_revoked",
+  "reason": "Subscription canceled",
+  "revokedAt": 1702345000,
+  "action": "terminate_session"
+}
+```
+
+<Warning>
+The `verificationToken` changes on every successful verify call. Always store the new token for subsequent requests.
+</Warning>
 
 ## Credit Consumption
 
@@ -50,16 +100,14 @@ curl -X POST 'https://1sub.io/api/v1/credits/consume' \
   }'
 ```
 
-## Exchange Link Code
+**Response:**
 
-```bash
-curl -X POST 'https://1sub.io/api/v1/tools/link/exchange-code' \
-  -H 'Authorization: Bearer sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx' \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "code": "AB12CD",
-    "toolUserId": "user_12345"
-  }'
+```json
+{
+  "success": true,
+  "new_balance": 940,
+  "transaction_id": "txn_xxxxx"
+}
 ```
 
 ## Testing Webhooks
@@ -70,12 +118,12 @@ curl -X POST 'http://localhost:3000/webhooks/1sub' \
   -H 'Content-Type: application/json' \
   -d '{
     "id": "evt_test_001",
-    "type": "subscription.activated",
+    "type": "entitlement.revoked",
     "created": 1700000000,
     "data": {
       "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000",
-      "planId": "pro",
-      "status": "active"
+      "reason": "Subscription canceled",
+      "revokedAt": "2024-12-01T12:00:00Z"
     }
   }'
 ```
@@ -85,33 +133,73 @@ curl -X POST 'http://localhost:3000/webhooks/1sub' \
 ### With jq for JSON Formatting
 
 ```bash
-curl -X POST 'https://1sub.io/api/v1/tools/subscriptions/verify' \
+curl -X POST 'https://1sub.io/api/v1/verify' \
   -H 'Authorization: Bearer YOUR_API_KEY' \
   -H 'Content-Type: application/json' \
-  -d '{"oneSubUserId": "user-id"}' \
+  -d '{"verificationToken": "vt_xxx"}' \
   | jq .
 ```
 
 ### Save Response to File
 
 ```bash
-curl -X POST 'https://1sub.io/api/v1/tools/subscriptions/verify' \
+curl -X POST 'https://1sub.io/api/v1/authorize/exchange' \
   -H 'Authorization: Bearer YOUR_API_KEY' \
   -H 'Content-Type: application/json' \
-  -d '{"oneSubUserId": "user-id"}' \
+  -d '{"code": "ac_xxx", "redirectUri": "https://yourapp.com/callback"}' \
   -o response.json
 ```
 
-See the [API Reference](/api/reference) for complete endpoint documentation.
+### Check HTTP Status Code
 
+```bash
+HTTP_CODE=$(curl -s -o response.json -w "%{http_code}" \
+  -X POST 'https://1sub.io/api/v1/verify' \
+  -H 'Authorization: Bearer YOUR_API_KEY' \
+  -H 'Content-Type: application/json' \
+  -d '{"verificationToken": "vt_xxx"}')
 
+if [ "$HTTP_CODE" -eq 200 ]; then
+  echo "Verification successful"
+  cat response.json | jq .
+elif [ "$HTTP_CODE" -eq 403 ]; then
+  echo "Access revoked"
+  cat response.json | jq .
+else
+  echo "Error: HTTP $HTTP_CODE"
+fi
+```
 
+## Error Responses
 
+### Invalid Authorization Code (400)
 
+```json
+{
+  "error": "invalid_code",
+  "message": "Authorization code is invalid or expired"
+}
+```
 
+### Invalid Token (403)
 
+```json
+{
+  "valid": false,
+  "error": "token_expired",
+  "reason": "Verification token has expired",
+  "action": "reauthenticate"
+}
+```
 
+### Rate Limited (429)
 
+```json
+{
+  "error": "rate_limit_exceeded",
+  "message": "Too many requests",
+  "retryAfter": 60
+}
+```
 
-
-
+See the [API Reference](/docs/api/reference) for complete endpoint documentation.

@@ -239,7 +239,10 @@ describe('V1 API - Vendor Tool Integration', () => {
     });
   });
 
-  describe('Tool Linking API', () => {
+  // DEPRECATED: The link-based flow has been replaced with the authorization code flow
+  // These tests are kept for reference but should be updated or removed
+  // See: https://1sub.io/docs/vendor-integration for the new flow
+  describe.skip('Tool Linking API (DEPRECATED)', () => {
     describe('POST /api/v1/tools/link/generate-code', () => {
       it('should generate linking code for user', async () => {
         const response = await fetch(

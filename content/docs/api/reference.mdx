@@ -12,202 +12,300 @@ All endpoints require Bearer authentication with your tool's API key unless othe
 </Note>
 
 
-## Verify Subscription
+## Exchange Authorization Code
 
-Check if a user has an active subscription to your tool.
+Exchange an authorization code for a verification token and user entitlements.
 
 <ParamField header="Authorization" type="string" required>
 Bearer token with your tool API key (format: `Bearer sk-tool-xxxxx`)
 </ParamField>
 
-<ParamField body="oneSubUserId" type="string (UUID)">
-The 1Sub user ID to check. Either this or `emailSha256` is required.
+<ParamField body="code" type="string" required>
+The authorization code received from the callback redirect
 </ParamField>
 
-<ParamField body="emailSha256" type="string">
-SHA-256 hash of the user's lowercase email. Either this or `oneSubUserId` is required.
+<ParamField body="redirectUri" type="string">
+Optional redirect URI used in the authorization flow (must match registered callback)
 </ParamField>
 
-**Endpoint:** `POST /api/v1/tools/subscriptions/verify`
+**Endpoint:** `POST /api/v1/authorize/exchange`
 
-**Rate Limit:** 100 requests per minute
+**Rate Limit:** 60 requests per minute
 
 <RequestExample>
 ```bash cURL
-curl -X POST 'https://1sub.io/api/v1/tools/subscriptions/verify' \
+curl -X POST 'https://1sub.io/api/v1/authorize/exchange' \
   -H 'Authorization: Bearer sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx' \
   -H 'Content-Type: application/json' \
   -d '{
-    "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000"
+    "code": "ac_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "redirectUri": "https://yourapp.com/auth/1sub/callback"
   }'
 ```
 
 ```javascript Node.js
-const response = await fetch('https://1sub.io/api/v1/tools/subscriptions/verify', {
+const response = await fetch('https://1sub.io/api/v1/authorize/exchange', {
   method: 'POST',
   headers: {
     'Authorization': `Bearer ${process.env.ONESUB_API_KEY}`,
     'Content-Type': 'application/json',
   },
   body: JSON.stringify({
-    oneSubUserId: 'uuid-abc-123'
+    code: 'ac_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+    redirectUri: 'https://yourapp.com/auth/1sub/callback'
   })
 });
 
-const subscription = await response.json();
+const result = await response.json();
 ```
 
 ```python Python
 import requests
 
 response = requests.post(
-    'https://1sub.io/api/v1/tools/subscriptions/verify',
-    json={'oneSubUserId': 'uuid-abc-123'},
+    'https://1sub.io/api/v1/authorize/exchange',
+    json={
+        'code': 'ac_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+        'redirectUri': 'https://yourapp.com/auth/1sub/callback'
+    },
     headers={
         'Authorization': f'Bearer {os.environ["ONESUB_API_KEY"]}',
         'Content-Type': 'application/json'
     }
 )
 
-subscription = response.json()
+result = response.json()
 ```
 </RequestExample>
 
 <ResponseExample>
-```json 200 OK - Active Subscription
+```json 200 OK - Success
 {
-  "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000",
-  "active": true,
-  "status": "active",
-  "planId": "monthly",
-  "productId": "tool-uuid-123",
-  "currentPeriodStart": "2025-11-01T00:00:00Z",
-  "currentPeriodEnd": "2025-12-01T00:00:00Z",
-  "cancelAtPeriodEnd": false,
-  "seats": 1,
-  "quantity": 1,
-  "creditsRemaining": 1200,
-  "trialEndsAt": null,
-  "lastPaymentStatus": "paid"
+  "valid": true,
+  "grantId": "grant_xxxxx",
+  "onesubUserId": "550e8400-e29b-41d4-a716-446655440000",
+  "entitlements": {
+    "planId": "monthly",
+    "creditsRemaining": 1200,
+    "features": ["pro", "api_access"],
+    "limits": {
+      "api_calls_per_day": 10000
+    }
+  },
+  "verificationToken": "vt_xxxxxxxxxxxxxxxxxxxxxxxx",
+  "expiresAt": 1703000400
 }
 ```
 
-```json 200 OK - Trialing
+```json 400 Bad Request - Invalid Code
 {
-  "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000",
-  "active": true,
-  "status": "trialing",
-  "planId": "pro",
-  "currentPeriodStart": "2025-11-15T00:00:00Z",
-  "currentPeriodEnd": "2025-12-15T00:00:00Z",
-  "cancelAtPeriodEnd": false,
-  "trialEndsAt": "2025-11-22T00:00:00Z",
-  "hasLifetimeAccess": false
-}
-```
-
-```json 200 OK - Lifetime Access (One-Time Purchase)
-{
-  "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000",
-  "active": false,
-  "status": "none",
-  "hasLifetimeAccess": true,
-  "purchaseDate": "2025-11-16T12:34:56Z",
-  "purchaseAmount": 9900
-}
-```
-
-```json 404 Not Found
-{
-  "error": "Not found",
-  "message": "No subscription found for this tool"
+  "valid": false,
+  "error": "INVALID_CODE",
+  "message": "Authorization code is invalid or expired"
 }
 ```
 
 ```json 401 Unauthorized
 {
-  "error": "Unauthorized",
+  "valid": false,
+  "error": "UNAUTHORIZED",
   "message": "Invalid API key"
 }
 ```
 
-```json 422 Unprocessable Entity
+```json 403 Forbidden - Access Revoked
 {
-  "error": "Invalid request",
-  "message": "Either oneSubUserId or emailSha256 is required"
+  "valid": false,
+  "error": "ACCESS_REVOKED",
+  "message": "User's access has been revoked"
 }
 ```
 </ResponseExample>
 
 ### Response Fields
 
-<ResponseField name="oneSubUserId" type="string (UUID)">
-The 1Sub user ID. Cache this value for faster future verification calls (10-20x faster than email lookups).
+<ResponseField name="valid" type="boolean" required>
+Whether the authorization was successful
 </ResponseField>
 
-<ResponseField name="active" type="boolean" required>
-Whether the subscription allows access. `true` for `active`, `trialing`, or `past_due` (within grace period).
+<ResponseField name="grantId" type="string" required>
+Unique identifier for this authorization grant
 </ResponseField>
 
-<ResponseField name="status" type="string" required>
-Current subscription state: `trialing`, `active`, `past_due`, `canceled`, `incomplete`, or `incomplete_expired`
+<ResponseField name="onesubUserId" type="string (UUID)" required>
+The 1Sub user ID. Store this for future API calls.
 </ResponseField>
 
-<ResponseField name="planId" type="string" required>
+<ResponseField name="entitlements" type="object" required>
+User's subscription details and entitlements
+</ResponseField>
+
+<ResponseField name="entitlements.planId" type="string | null">
 Plan identifier (e.g., `"monthly"`, `"annual"`, `"pro"`)
 </ResponseField>
 
-<ResponseField name="productId" type="string" required>
-Your tool's unique product ID (UUID)
-</ResponseField>
-
-<ResponseField name="currentPeriodStart" type="string (ISO 8601)" required>
-Start date/time of current billing period
-</ResponseField>
-
-<ResponseField name="currentPeriodEnd" type="string (ISO 8601)" required>
-End date/time of current billing period (next renewal date)
-</ResponseField>
-
-<ResponseField name="cancelAtPeriodEnd" type="boolean" required>
-Whether subscription will cancel at period end (user has canceled but still has access)
-</ResponseField>
-
-<ResponseField name="seats" type="number">
-Number of seats/licenses for this subscription
-</ResponseField>
-
-<ResponseField name="quantity" type="number">
-Quantity of this subscription
-</ResponseField>
-
-<ResponseField name="creditsRemaining" type="number">
+<ResponseField name="entitlements.creditsRemaining" type="number | null">
 Credits remaining if subscription includes credits
 </ResponseField>
 
-<ResponseField name="trialEndsAt" type="string (ISO 8601) | null">
-When trial ends, if applicable
+<ResponseField name="entitlements.features" type="string[]">
+Array of enabled feature flags for this user
 </ResponseField>
 
-<ResponseField name="lastPaymentStatus" type="string">
-Status of most recent payment: `paid`, `failed`, `pending`
+<ResponseField name="entitlements.limits" type="Record<string, number>">
+Usage limits configured for this subscription
 </ResponseField>
 
-<ResponseField name="hasLifetimeAccess" type="boolean">
-Whether user has lifetime access via one-time purchase. If `true`, user should have permanent access regardless of subscription status.
+<ResponseField name="verificationToken" type="string" required>
+Token for periodic verification. Store this securely in the user's session.
 </ResponseField>
 
-<ResponseField name="purchaseDate" type="string (ISO 8601)">
-Date when one-time purchase was completed (only present if `hasLifetimeAccess` is `true`)
+<ResponseField name="expiresAt" type="number" required>
+Unix timestamp when the verification token expires (typically 24 hours)
 </ResponseField>
 
-<ResponseField name="purchaseAmount" type="number">
-Amount paid for lifetime access in cents (only present if `hasLifetimeAccess` is `true`)
+<Warning>
+Store the `verificationToken` securely. You'll need it for periodic verification calls.
+</Warning>
+
+---
+
+## Verify Token
+
+Verify a user's access token and get updated entitlements. Call this every 5 minutes to ensure access is still valid.
+
+<ParamField header="Authorization" type="string" required>
+Bearer token with your tool API key (format: `Bearer sk-tool-xxxxx`)
+</ParamField>
+
+<ParamField body="verificationToken" type="string" required>
+The verification token from the exchange or previous verify call
+</ParamField>
+
+**Endpoint:** `POST /api/v1/verify`
+
+**Rate Limit:** 120 requests per minute
+
+<RequestExample>
+```bash cURL
+curl -X POST 'https://1sub.io/api/v1/verify' \
+  -H 'Authorization: Bearer sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "verificationToken": "vt_xxxxxxxxxxxxxxxxxxxxxxxx"
+  }'
+```
+
+```javascript Node.js
+const response = await fetch('https://1sub.io/api/v1/verify', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${process.env.ONESUB_API_KEY}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    verificationToken: currentToken
+  })
+});
+
+const result = await response.json();
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'https://1sub.io/api/v1/verify',
+    json={'verificationToken': current_token},
+    headers={
+        'Authorization': f'Bearer {os.environ["ONESUB_API_KEY"]}',
+        'Content-Type': 'application/json'
+    }
+)
+
+result = response.json()
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200 OK - Valid Access
+{
+  "valid": true,
+  "onesubUserId": "550e8400-e29b-41d4-a716-446655440000",
+  "entitlements": {
+    "planId": "monthly",
+    "creditsRemaining": 1150,
+    "features": ["pro", "api_access"],
+    "limits": {
+      "api_calls_per_day": 10000
+    }
+  },
+  "verificationToken": "vt_NEW_xxxxxxxxxxxxxxxxxxxxxxxx",
+  "cacheUntil": 1703000700,
+  "nextVerificationBefore": 1703001000
+}
+```
+
+```json 403 Forbidden - Access Revoked
+{
+  "valid": false,
+  "error": "ACCESS_REVOKED",
+  "reason": "Subscription canceled",
+  "action": "terminate_session"
+}
+```
+
+```json 401 Unauthorized - Token Expired
+{
+  "valid": false,
+  "error": "TOKEN_EXPIRED",
+  "reason": "Verification token has expired",
+  "action": "reauthenticate"
+}
+```
+</ResponseExample>
+
+### Response Fields
+
+<ResponseField name="valid" type="boolean" required>
+Whether the user's access is still valid
 </ResponseField>
 
-<Note>
-When checking access, verify EITHER `active === true` OR `hasLifetimeAccess === true`. Users with lifetime access don't need an active subscription.
-</Note>
+<ResponseField name="onesubUserId" type="string (UUID)">
+The 1Sub user ID (only present when `valid: true`)
+</ResponseField>
+
+<ResponseField name="entitlements" type="object">
+Updated user entitlements (only present when `valid: true`)
+</ResponseField>
+
+<ResponseField name="verificationToken" type="string">
+NEW verification token for the next call. Always update your stored token! (only present when `valid: true`)
+</ResponseField>
+
+<ResponseField name="cacheUntil" type="number">
+Unix timestamp - you can cache entitlements until this time (only present when `valid: true`)
+</ResponseField>
+
+<ResponseField name="nextVerificationBefore" type="number">
+Unix timestamp - verify again before this time (only present when `valid: true`)
+</ResponseField>
+
+<ResponseField name="error" type="string">
+Error code (only present when `valid: false`)
+</ResponseField>
+
+<ResponseField name="reason" type="string">
+Human-readable reason for failure (only present when `valid: false`)
+</ResponseField>
+
+<ResponseField name="action" type="string">
+Recommended action: `terminate_session` or `reauthenticate` (only present when `valid: false`)
+</ResponseField>
+
+<Warning>
+**Critical:** The `verificationToken` changes on every successful verify call (token rolling). Always store the new token for subsequent requests!
+</Warning>
 
 ---
 
@@ -356,121 +454,6 @@ Unique ID for this transaction
 <Tip>
 Store the `transaction_id` for auditing and support purposes.
 </Tip>
-
----
-
-## Exchange Link Code
-
-Exchange a short-lived link code for a user link mapping.
-
-<ParamField header="Authorization" type="string" required>
-Bearer token with your tool API key
-</ParamField>
-
-<ParamField body="code" type="string" required>
-6-character link code provided by user (format: `AB12CD`)
-</ParamField>
-
-<ParamField body="toolUserId" type="string" required>
-Your tool's internal user ID to link
-</ParamField>
-
-**Endpoint:** `POST /api/v1/tools/link/exchange-code`
-
-**Rate Limit:** 30 requests per minute
-
-<RequestExample>
-```bash cURL
-curl -X POST 'https://1sub.io/api/v1/tools/link/exchange-code' \
-  -H 'Authorization: Bearer sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx' \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "code": "AB12CD",
-    "toolUserId": "user_12345"
-  }'
-```
-
-```javascript Node.js
-const response = await fetch('https://1sub.io/api/v1/tools/link/exchange-code', {
-  method: 'POST',
-  headers: {
-    'Authorization': `Bearer ${process.env.ONESUB_API_KEY}`,
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    code: userEnteredCode,
-    toolUserId: internalUserId
-  })
-});
-
-const link = await response.json();
-console.log(`Linked to 1Sub user: ${link.oneSubUserId}`);
-```
-
-```python Python
-response = requests.post(
-    'https://1sub.io/api/v1/tools/link/exchange-code',
-    json={
-        'code': user_entered_code,
-        'toolUserId': internal_user_id
-    },
-    headers={
-        'Authorization': f'Bearer {os.environ["ONESUB_API_KEY"]}',
-        'Content-Type': 'application/json'
-    }
-)
-
-link = response.json()
-print(f"Linked to 1Sub user: {link['oneSubUserId']}")
-```
-</RequestExample>
-
-<ResponseExample>
-```json 200 OK - Success
-{
-  "linked": true,
-  "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000",
-  "toolUserId": "user_12345",
-  "linkedAt": "2025-11-16T12:34:56Z"
-}
-```
-
-```json 400 Bad Request - Invalid Code
-{
-  "error": "Invalid code",
-  "message": "Invalid or expired code"
-}
-```
-
-```json 409 Conflict - Already Linked
-{
-  "error": "Conflict",
-  "message": "Tool user already linked to different 1sub user"
-}
-```
-</ResponseExample>
-
-### Response Fields
-
-<ResponseField name="linked" type="boolean" required>
-Whether the link was successfully created
-</ResponseField>
-
-<ResponseField name="oneSubUserId" type="string (UUID)" required>
-The 1Sub user ID that was linked
-</ResponseField>
-
-<ResponseField name="toolUserId" type="string" required>
-Your tool's user ID that was linked
-</ResponseField>
-
-<ResponseField name="linkedAt" type="string (ISO 8601)" required>
-When the link was created
-</ResponseField>
-
-<Note>
-Link codes expire after 10 minutes and are single-use. Repeated calls with the same valid data return the existing link (idempotent).
-</Note>
 
 ---
 

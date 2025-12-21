@@ -5,12 +5,12 @@ description: "Complete Python / Flask integration example"
 
 # Python / Flask Example
 
-Complete working example of a 1Sub integration using Python and Flask.
+Complete working example of a 1Sub integration using Python and Flask with the Authorization Code Flow.
 
 ## Installation
 
 ```bash
-pip install flask requests python-dotenv
+pip install flask flask-session requests python-dotenv
 ```
 
 ## Environment Variables
@@ -19,69 +19,74 @@ pip install flask requests python-dotenv
 # .env
 ONESUB_API_KEY=sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx
 ONESUB_WEBHOOK_SECRET=whsec-xxxxxxxxxxxxxxxxxxxxxxxx
-TOOL_ID=your-tool-uuid
+SESSION_SECRET=your-session-secret
+CALLBACK_URL=https://yourapp.com/auth/1sub/callback
 ```
 
 ## Complete Implementation
 
 ```python
 import os
-import hashlib
 import hmac
+import hashlib
 import time
 import requests
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, session, redirect
 from dotenv import load_dotenv
 
 load_dotenv()
 
 app = Flask(__name__)
+app.secret_key = os.environ['SESSION_SECRET']
 
+# Configuration
 API_KEY = os.environ['ONESUB_API_KEY']
 WEBHOOK_SECRET = os.environ['ONESUB_WEBHOOK_SECRET']
-TOOL_ID = os.environ['TOOL_ID']
+CALLBACK_URL = os.environ['CALLBACK_URL']
 BASE_URL = 'https://1sub.io/api/v1'
 
-# In-memory cache (use Redis in production)
-subscription_cache = {}
+# ============================================================================
+# 1. Authorization Code Exchange
+# ============================================================================
 
-def hash_email(email: str) -> str:
-    """Hash email for 1Sub verification"""
-    normalized = email.lower().strip()
-    return hashlib.sha256(normalized.encode()).hexdigest()
-
-def verify_subscription(onesub_user_id: str = None, email: str = None) -> dict:
-    """Verify user subscription"""
-    url = f'{BASE_URL}/tools/subscriptions/verify'
+def exchange_auth_code(code: str) -> dict:
+    """Exchange authorization code for verification token"""
+    url = f'{BASE_URL}/authorize/exchange'
     headers = {
         'Authorization': f'Bearer {API_KEY}',
         'Content-Type': 'application/json'
     }
-
-    # Prefer oneSubUserId for speed (10x faster)
-    if onesub_user_id:
-        body = {'oneSubUserId': onesub_user_id}
-    elif email:
-        body = {'emailSha256': hash_email(email)}
-    else:
-        raise ValueError('Either onesub_user_id or email required')
+    body = {
+        'code': code,
+        'redirectUri': CALLBACK_URL
+    }
 
     response = requests.post(url, json=body, headers=headers)
-
-    if response.status_code == 404:
-        return None
-
     response.raise_for_status()
-    data = response.json()
+    return response.json()
 
-    # Cache oneSubUserId for future lookups
-    if data.get('oneSubUserId'):
-        subscription_cache[data['oneSubUserId']] = {
-            'active': data['active'],
-            'cached_at': time.time()
-        }
+# ============================================================================
+# 2. Token Verification
+# ============================================================================
 
-    return data
+def verify_access(verification_token: str) -> dict:
+    """
+    Verify access token and get updated entitlements.
+    IMPORTANT: Token rolls on each successful call - store the new token!
+    """
+    url = f'{BASE_URL}/verify'
+    headers = {
+        'Authorization': f'Bearer {API_KEY}',
+        'Content-Type': 'application/json'
+    }
+    body = {'verificationToken': verification_token}
+
+    response = requests.post(url, json=body, headers=headers)
+    return response.json()
+
+# ============================================================================
+# 3. Credit Consumption
+# ============================================================================
 
 def consume_credits(onesub_user_id: str, amount: int, reason: str, idempotency_key: str) -> dict:
     """Consume credits from user balance"""
@@ -101,125 +106,150 @@ def consume_credits(onesub_user_id: str, amount: int, reason: str, idempotency_k
     response.raise_for_status()
     return response.json()
 
-def exchange_link_code(code: str, tool_user_id: str) -> dict:
-    """Exchange link code for oneSubUserId"""
-    url = f'{BASE_URL}/tools/link/exchange-code'
-    headers = {
-        'Authorization': f'Bearer {API_KEY}',
-        'Content-Type': 'application/json'
-    }
-    body = {
-        'code': code.upper(),
-        'toolUserId': tool_user_id
-    }
-
-    response = requests.post(url, json=body, headers=headers)
-
-    if response.status_code == 404:
-        raise ValueError('Invalid or expired link code')
-
-    response.raise_for_status()
-    return response.json()
+# ============================================================================
+# 4. Webhook Signature Verification
+# ============================================================================
 
 def verify_webhook_signature(payload: str, signature: str) -> bool:
     """Verify webhook signature"""
     if not signature:
         return False
 
-    parts = dict(part.split('=') for part in signature.split(','))
-    timestamp = parts.get('t')
-    sig = parts.get('v1')
-
-    if not timestamp or not sig:
-        return False
-
-    # Check timestamp (within 5 minutes)
-    now = int(time.time())
-    if abs(now - int(timestamp)) > 300:
-        return False
-
-    # Compute expected signature
-    signed_payload = f"{timestamp}.{payload}"
-    expected = hmac.new(
-        WEBHOOK_SECRET.encode(),
-        signed_payload.encode(),
-        hashlib.sha256
-    ).hexdigest()
-
-    # Timing-safe comparison
-    return hmac.compare_digest(expected, sig)
-
-@app.route('/api/link', methods=['POST'])
-def link_account():
-    """Link user account via email or link code"""
-    data = request.json
-
-    # Option 1: Email-based linking (for SaaS tools)
-    if 'email' in data:
-        try:
-            sub = verify_subscription(email=data['email'])
-            if not sub:
-                return jsonify({'error': 'No subscription found'}), 404
-
-            # Store oneSubUserId in your database
-            # db.users.update(user_id, onesub_user_id=sub['oneSubUserId'])
-
-            return jsonify({
-                'linked': True,
-                'oneSubUserId': sub['oneSubUserId'],
-                'active': sub['active']
-            })
-        except Exception as e:
-            return jsonify({'error': str(e)}), 500
-
-    # Option 2: Link code (for CLI/desktop apps)
-    elif 'code' in data:
-        try:
-            link = exchange_link_code(data['code'], data['toolUserId'])
-
-            # Store oneSubUserId in your database
-            # db.users.update(tool_user_id, onesub_user_id=link['oneSubUserId'])
-
-            return jsonify(link)
-        except ValueError as e:
-            return jsonify({'error': str(e)}), 404
-        except Exception as e:
-            return jsonify({'error': str(e)}), 500
-
-    return jsonify({'error': 'email or code required'}), 400
-
-@app.route('/api/check-access', methods=['POST'])
-def check_access():
-    """Check if user has active subscription"""
-    data = request.json
-    onesub_user_id = data.get('oneSubUserId')
-
-    if not onesub_user_id:
-        return jsonify({'error': 'oneSubUserId required'}), 400
-
-    # Check cache first (optional)
-    cached = subscription_cache.get(onesub_user_id)
-    if cached and time.time() - cached['cached_at'] < 300:  # 5 min cache
-        return jsonify({'active': cached['active']})
-
-    # Verify with 1Sub
     try:
-        sub = verify_subscription(onesub_user_id=onesub_user_id)
-        if not sub:
-            return jsonify({'error': 'Subscription not found'}), 404
+        parts = dict(part.split('=') for part in signature.split(','))
+        timestamp = parts.get('t')
+        sig = parts.get('v1')
 
-        return jsonify({'active': sub['active'], 'status': sub['status']})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        if not timestamp or not sig:
+            return False
 
-@app.route('/api/use-feature', methods=['POST'])
-def use_feature():
-    """Use a feature that consumes credits"""
-    data = request.json
-    onesub_user_id = data.get('oneSubUserId')
+        # Check timestamp (within 5 minutes)
+        now = int(time.time())
+        if abs(now - int(timestamp)) > 300:
+            return False
 
-    if not onesub_user_id:
-        return jsonify({'error': 'oneSubUserId required'}), 400
+        # Compute expected signature
+        signed_payload = f"{timestamp}.{payload}"
+        expected = hmac.new(
+            WEBHOOK_SECRET.encode(),
+            signed_payload.encode(),
+            hashlib.sha256
+        ).hexdigest()
+
+        # Timing-safe comparison
+        return hmac.compare_digest(expected, sig)
+    except Exception:
+        return False
+
+# ============================================================================
+# 5. Middleware
+# ============================================================================
+
+def require_subscription(f):
+    """Decorator to require valid subscription"""
+    from functools import wraps
+
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        verification_token = session.get('verification_token')
+        next_verify_before = session.get('next_verify_before', 0)
+
+        if not verification_token:
+            return jsonify({'error': 'Not authenticated'}), 401
+
+        # Check if verification is needed
+        now = int(time.time())
+        if now >= next_verify_before:
+            try:
+                result = verify_access(verification_token)
+
+                if not result.get('valid'):
+                    # Access revoked - clear session
+                    session.clear()
+                    return jsonify({
+                        'error': 'Access revoked',
+                        'reason': result.get('reason'),
+                        'action': result.get('action')
+                    }), 403
+
+                # Update session with new token (tokens roll!)
+                session['verification_token'] = result['verificationToken']
+                session['entitlements'] = result['entitlements']
+                session['next_verify_before'] = result['nextVerificationBefore']
+
+            except Exception as e:
+                print(f'Verification error: {e}')
+                return jsonify({'error': 'Verification failed'}), 500
+
+        return f(*args, **kwargs)
+
+    return decorated_function
+
+# ============================================================================
+# 6. API Endpoints
+# ============================================================================
+
+@app.route('/auth/1sub/callback')
+def auth_callback():
+    """
+    OAuth Callback Handler
+    Users are redirected here from 1Sub with an authorization code
+    """
+    code = request.args.get('code')
+    state = request.args.get('state')
+
+    if not code:
+        return redirect('/auth/error?reason=missing_code')
+
+    # Optional: Validate state parameter for CSRF protection
+    # if state != session.get('oauth_state'):
+    #     return redirect('/auth/error?reason=invalid_state')
+
+    try:
+        result = exchange_auth_code(code)
+
+        # Store in session
+        session['onesub_user_id'] = result['onesubUserId']
+        session['verification_token'] = result['verificationToken']
+        session['entitlements'] = result['entitlements']
+        session['next_verify_before'] = result['expiresAt']
+
+        return redirect('/dashboard')
+
+    except requests.HTTPError as e:
+        print(f'Auth callback error: {e}')
+        return redirect('/auth/error?reason=exchange_failed')
+
+
+@app.route('/api/me')
+@require_subscription
+def get_me():
+    """Get current user info and entitlements"""
+    return jsonify({
+        'onesubUserId': session.get('onesub_user_id'),
+        'entitlements': session.get('entitlements')
+    })
+
+
+@app.route('/api/premium/feature', methods=['POST'])
+@require_subscription
+def premium_feature():
+    """Protected premium feature endpoint"""
+    # User has valid subscription - proceed with feature
+    result = {'data': 'Premium content generated!'}
+
+    return jsonify({
+        'success': True,
+        'result': result,
+        'entitlements': session.get('entitlements')
+    })
+
+
+@app.route('/api/generate-image', methods=['POST'])
+@require_subscription
+def generate_image():
+    """Credit-based feature endpoint"""
+    onesub_user_id = session.get('onesub_user_id')
 
     try:
         # Consume credits
@@ -230,22 +260,44 @@ def use_feature():
             idempotency_key=f"img-{onesub_user_id}-{int(time.time())}"
         )
 
+        # Update cached credits
+        if 'entitlements' in session:
+            session['entitlements']['creditsRemaining'] = result['new_balance']
+            session.modified = True
+
         return jsonify({
             'success': True,
-            'credits_remaining': result['new_balance']
+            'imageUrl': 'https://example.com/generated-image.png',
+            'creditsRemaining': result['new_balance']
         })
+
     except requests.HTTPError as e:
         if e.response.status_code == 400:
-            error_data = e.response.json()
             return jsonify({
                 'error': 'Insufficient credits',
-                'shortfall': error_data.get('shortfall')
+                'message': 'Please purchase more credits to continue'
             }), 400
+        print(f'Generate image error: {e}')
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/logout', methods=['POST'])
+def logout():
+    """Logout endpoint"""
+    session.clear()
+    return jsonify({'success': True})
+
+
+# ============================================================================
+# 7. Webhook Handler
+# ============================================================================
 
 @app.route('/webhooks/1sub', methods=['POST'])
 def webhook_handler():
-    """Handle 1Sub webhooks"""
+    """
+    Handle 1Sub webhooks
+    Webhooks accelerate cache invalidation - not primary enforcement
+    """
     signature = request.headers.get('1sub-signature')
     payload = request.get_data(as_text=True)
 
@@ -255,85 +307,164 @@ def webhook_handler():
 
     event = request.get_json()
     event_type = event['type']
+    onesub_user_id = event['data'].get('oneSubUserId')
 
     # Process event
-    if event_type == 'subscription.activated':
-        # Update user status in database
-        print(f"Subscription activated: {event['data']['oneSubUserId']}")
-        pass
+    if event_type == 'entitlement.granted':
+        print(f"Entitlement granted: {onesub_user_id}")
+        # User can now access your tool
 
-    elif event_type == 'subscription.canceled':
-        # Revoke access
-        print(f"Subscription canceled: {event['data']['oneSubUserId']}")
-        pass
+    elif event_type == 'entitlement.revoked':
+        print(f"Entitlement revoked: {onesub_user_id}")
+        # Force re-verification on next request
+        # In production: invalidate all sessions for this user
 
-    elif event_type == 'subscription.updated':
-        # Update subscription details
-        print(f"Subscription updated: {event['data']['oneSubUserId']}")
-        pass
+    elif event_type == 'entitlement.changed':
+        print(f"Entitlement changed: {onesub_user_id}")
+        # Plan upgraded/downgraded - reverify to get new limits
+
+    elif event_type == 'verify.required':
+        print(f"Verify required: {onesub_user_id}")
+        # 1Sub is requesting immediate verification
+
+    elif event_type == 'user.credit_low':
+        print(f"User credits low: {onesub_user_id}")
+        # Optional: notify user
+
+    elif event_type == 'user.credit_depleted':
+        print(f"User credits depleted: {onesub_user_id}")
+        # Optional: notify user
 
     return jsonify({'received': True})
 
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=3000)
+```
+
+## Integration Flow
+
+### 1. User Clicks "Launch Tool" on 1Sub
+
+User is redirected to your callback URL:
+
+```
+https://yourapp.com/auth/1sub/callback?code=ac_xxxxx&state=csrf_token
+```
+
+### 2. Exchange Code for Token
+
+```python
+result = exchange_auth_code(code)
+
+# Store in session
+session['verification_token'] = result['verificationToken']
+session['entitlements'] = result['entitlements']
+```
+
+### 3. Periodic Verification
+
+The decorator automatically verifies every 5 minutes:
+
+```python
+@app.route('/api/feature', methods=['POST'])
+@require_subscription
+def feature():
+    # User is verified - entitlements are fresh
+    return jsonify({'entitlements': session.get('entitlements')})
+```
+
+### 4. Handle Revocation
+
+When verification fails, clear the session:
+
+```python
+if not result.get('valid'):
+    session.clear()
+    return jsonify({
+        'error': 'Access revoked',
+        'action': result.get('action')  # 'terminate_session' or 'reauthenticate'
+    }), 403
 ```
 
 ## Key Concepts
 
-### 1. Email-Based Linking (SaaS Tools)
+### Token Rolling
 
-For web applications where users have verified emails:
+The verification token changes on every successful `/verify` call:
 
 ```python
-# User logs in with email they used on 1Sub
-user_email = "user@example.com"
-subscription = verify_subscription(email=user_email)
+result = verify_access(current_token)
 
-if subscription:
-    # Cache oneSubUserId for future lookups
-    db.users.update(user_id, onesub_user_id=subscription['oneSubUserId'])
+if result.get('valid'):
+    # CRITICAL: Store the new token!
+    session['verification_token'] = result['verificationToken']
 ```
 
-### 2. Link Code (CLI/Desktop Apps)
+### Webhook Processing
 
-For applications where email linking isn't suitable:
-
-```python
-# User enters 6-character code from 1Sub
-link_code = "AB12CD"
-link_result = exchange_link_code(code=link_code, tool_user_id="internal-user-123")
-
-# Store oneSubUserId
-db.users.update(tool_user_id, onesub_user_id=link_result['oneSubUserId'])
-```
-
-### 3. Webhook Security
-
-Always verify webhook signatures to prevent spoofing:
+Webhooks accelerate revocation but are not the primary enforcement:
 
 ```python
-# Use raw request body (not parsed JSON)
-payload = request.get_data(as_text=True)
-signature = request.headers.get('1sub-signature')
-
-if not verify_webhook_signature(payload, signature):
-    return 'Invalid signature', 401
+if event_type == 'entitlement.revoked':
+    # Invalidate cached sessions for this user
+    # Next request will fail verification
+    pass
 ```
 
 ## Production Checklist
 
-- ✅ Use Redis for subscription caching instead of in-memory dict
+- ✅ Use Redis for session storage (Flask-Session with Redis)
 - ✅ Implement proper error handling and logging
 - ✅ Set up async webhook processing (Celery, RQ, etc.)
 - ✅ Add retry logic for API calls with exponential backoff
-- ✅ Monitor rate limits (100 req/min for verify, 30 req/min for email lookups)
-- ✅ Store oneSubUserId in your database after first lookup
+- ✅ Monitor rate limits (100 req/min for verify, 30 req/min for exchange)
 - ✅ Use environment variables for all secrets
-- ✅ Enable HTTPS for webhook endpoints
+- ✅ Enable HTTPS for all endpoints
+- ✅ Implement webhook event deduplication
+- ✅ Set up monitoring and alerts
+
+## Redis Session Configuration
+
+For production, use Redis for session storage:
+
+```python
+from flask_session import Session
+import redis
+
+app.config['SESSION_TYPE'] = 'redis'
+app.config['SESSION_REDIS'] = redis.from_url('redis://localhost:6379')
+app.config['SESSION_PERMANENT'] = True
+app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 hour
+
+Session(app)
+```
+
+## Testing
+
+```bash
+# Test authorization flow
+# 1. Visit your 1Sub tool page and click "Launch Tool"
+# 2. You'll be redirected to your callback
+
+# Test verification
+curl -X GET http://localhost:3000/api/me \
+  -H 'Cookie: session=YOUR_SESSION_COOKIE'
+
+# Test protected endpoint
+curl -X POST http://localhost:3000/api/premium/feature \
+  -H 'Cookie: session=YOUR_SESSION_COOKIE' \
+  -H 'Content-Type: application/json'
+
+# Test credit consumption
+curl -X POST http://localhost:3000/api/generate-image \
+  -H 'Cookie: session=YOUR_SESSION_COOKIE' \
+  -H 'Content-Type: application/json'
+```
 
 ## Additional Resources
 
-- [API Reference](/api/reference) - Full endpoint documentation
-- [Webhook Events](/webhooks/events) - All event types
-- [Webhook Security](/webhooks/security-and-signing) - Signature verification details
-- [Authentication Guide](/concepts/authentication) - Email vs link code flows
+- [Node.js Example](/docs/examples/node) - Node.js/Express implementation
+- [cURL Examples](/docs/examples/curl) - Quick API testing
+- [API Reference](/docs/api/reference) - Full endpoint documentation
+- [Webhook Events](/docs/webhooks/events) - All event types

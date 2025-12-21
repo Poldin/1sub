@@ -365,15 +365,43 @@ export default function CreditCheckoutPage() {
   const subscriptionPeriod = checkout.metadata.subscription_period ||
     (selectedPricing === 'subscription_monthly' ? 'monthly' : selectedPricing === 'subscription_yearly' ? 'yearly' : null);
 
-  const handleLaunchTool = () => {
-    if (!purchaseData) return;
+  const [isLaunching, setIsLaunching] = useState(false);
 
-    const { toolUrl, toolAccessToken } = purchaseData;
-    if (toolUrl && toolUrl !== 'https://example.com/tool/' && !toolUrl.includes('example.com')) {
-      const redirectUrl = toolAccessToken
-        ? `${toolUrl}${toolUrl.includes('?') ? '&' : '?'}token=${toolAccessToken}`
-        : toolUrl;
-      window.open(redirectUrl, '_blank');
+  const handleLaunchTool = async () => {
+    if (!purchaseData || !checkout.metadata.tool_id) return;
+
+    const { toolUrl } = purchaseData;
+    if (!toolUrl || toolUrl === 'https://example.com/tool/' || toolUrl.includes('example.com')) {
+      return;
+    }
+
+    setIsLaunching(true);
+
+    try {
+      // Use the new authorization code flow
+      const response = await fetch('/api/v1/authorize/initiate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          toolId: checkout.metadata.tool_id,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Redirect to vendor's callback with authorization code
+        window.open(data.authorizationUrl, '_blank');
+      } else {
+        // Fallback to direct tool URL if authorization fails
+        console.warn('Authorization initiate failed, falling back to direct URL');
+        window.open(toolUrl, '_blank');
+      }
+    } catch (error) {
+      console.error('Error launching tool:', error);
+      // Fallback to direct tool URL
+      window.open(toolUrl, '_blank');
+    } finally {
+      setIsLaunching(false);
     }
   };
 
@@ -424,10 +452,20 @@ export default function CreditCheckoutPage() {
                 !purchaseData.toolUrl.includes('example.com') && (
                   <button
                     onClick={handleLaunchTool}
-                    className="w-full bg-[#374151] text-[#ededed] px-6 py-4 rounded-lg font-semibold hover:bg-[#4b5563] transition-colors flex items-center justify-center gap-2"
+                    disabled={isLaunching}
+                    className="w-full bg-[#374151] text-[#ededed] px-6 py-4 rounded-lg font-semibold hover:bg-[#4b5563] transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <ExternalLink className="w-5 h-5" />
-                    {checkout.metadata.tool_name}
+                    {isLaunching ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Launching...
+                      </>
+                    ) : (
+                      <>
+                        <ExternalLink className="w-5 h-5" />
+                        {checkout.metadata.tool_name}
+                      </>
+                    )}
                   </button>
                 )}
             </div>

@@ -1,127 +1,23 @@
 /**
- * Types for tool subscription verification and user linking
+ * Types for tool verification and webhooks
+ *
+ * IMPORTANT: This file contains types for the SINGLE vendor integration path:
+ * Authorization Code Flow -> Token Exchange -> Periodic Verification
  */
-
-// ===========================================================================
-// Tool User Link Types
-// ===========================================================================
-
-export interface ToolUserLink {
-  id: string;
-  tool_id: string;
-  onesub_user_id: string;
-  tool_user_id: string;
-  link_method: 'jwt_redirect' | 'link_code' | 'email_link';
-  linked_at: string;
-  last_verified_at: string | null;
-  metadata?: Record<string, unknown>;
-}
-
-// ===========================================================================
-// Tool Link Code Types
-// ===========================================================================
-
-export interface ToolLinkCode {
-  id: string;
-  code: string;
-  tool_id: string;
-  onesub_user_id: string;
-  created_at: string;
-  expires_at: string;
-  used_at: string | null;
-  is_used: boolean;
-  tool_user_id: string | null;
-  metadata?: Record<string, unknown>;
-}
-
-// ===========================================================================
-// JWKS Types
-// ===========================================================================
-
-export interface JWKSKey {
-  id: string;
-  kid: string;
-  key_type: 'RSA' | 'EC';
-  algorithm: 'RS256' | 'RS384' | 'RS512' | 'ES256' | 'ES384' | 'ES512';
-  public_key: string;
-  private_key_ref: string | null;
-  created_at: string;
-  expires_at: string | null;
-  is_active: boolean;
-  is_primary: boolean;
-  metadata?: Record<string, unknown>;
-}
-
-// ===========================================================================
-// API Request/Response Types
-// ===========================================================================
-
-// Verify Subscription Request
-export interface VerifySubscriptionRequest {
-  oneSubUserId?: string;
-  toolUserId?: string;
-  emailSha256?: string;
-}
-
-// Verify Subscription Response
-export type SubscriptionStatus = 
-  | 'trialing' 
-  | 'active' 
-  | 'past_due' 
-  | 'canceled' 
-  | 'incomplete' 
-  | 'incomplete_expired';
-
-export type PaymentStatus = 'paid' | 'failed' | 'pending';
-
-export interface VerifySubscriptionResponse {
-  oneSubUserId?: string;
-  active: boolean;
-  status: SubscriptionStatus;
-  planId: string;
-  productId: string;
-  currentPeriodStart: string;
-  currentPeriodEnd: string;
-  cancelAtPeriodEnd: boolean;
-  seats: number;
-  quantity: number;
-  trialEndsAt?: string;
-  lastPaymentStatus?: PaymentStatus;
-  creditsRemaining?: number;
-}
-
-// Exchange Code Request
-export interface ExchangeCodeRequest {
-  code: string;
-  toolUserId: string;
-}
-
-// Exchange Code Response
-export interface ExchangeCodeResponse {
-  linked: boolean;
-  oneSubUserId: string;
-  toolUserId: string;
-  linkedAt: string;
-}
-
-// ===========================================================================
-// JWT Token Claims
-// ===========================================================================
-
-export interface ToolAccessJWTClaims {
-  iss: string; // "1sub"
-  aud: string; // tool_id
-  sub: string; // onesub_user_id
-  email: string;
-  jti: string;
-  iat: number;
-  exp: number;
-  nonce?: string;
-}
 
 // ===========================================================================
 // Webhook Types
 // ===========================================================================
+
+export type SubscriptionStatus =
+  | 'trialing'
+  | 'active'
+  | 'past_due'
+  | 'canceled'
+  | 'incomplete'
+  | 'incomplete_expired';
+
+export type PaymentStatus = 'paid' | 'failed' | 'pending';
 
 export type WebhookEventType =
   | 'subscription.activated'
@@ -130,7 +26,12 @@ export type WebhookEventType =
   | 'purchase.completed'
   | 'user.credit_low'
   | 'user.credit_depleted'
-  | 'tool.status_changed';
+  | 'tool.status_changed'
+  // Vendor integration events
+  | 'entitlement.granted'
+  | 'entitlement.revoked'
+  | 'entitlement.changed'
+  | 'verify.required';
 
 export interface WebhookPayload {
   id: string;
@@ -153,6 +54,18 @@ export interface WebhookPayload {
     checkoutId?: string;
     amount?: number;
     purchaseType?: string;
+    // Entitlement event fields
+    grantId?: string;
+    reason?: string;
+    revokedAt?: string;
+    previousState?: {
+      planId?: string;
+      features?: string[];
+    };
+    newState?: {
+      planId?: string;
+      features?: string[];
+    };
   };
 }
 
@@ -178,5 +91,3 @@ export interface APIError {
   message: string;
   details?: unknown;
 }
-
-
