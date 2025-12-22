@@ -75,7 +75,7 @@ res.json({ received: true });
 
 ## Webhook Events
 
-1Sub sends webhooks for subscription lifecycle, purchases, credit status, and system events:
+1Sub sends webhooks for subscription lifecycle, purchases, credit status, entitlements, credit consumption, and system events:
 
 ### Subscription Lifecycle Events
 
@@ -256,6 +256,170 @@ Sent when a user's credit balance reaches zero.
 </Accordion>
 </AccordionGroup>
 
+### Entitlement Events
+
+<AccordionGroup>
+<Accordion title="entitlement.granted">
+Sent when a user is granted access via authorization code exchange.
+
+**When it's sent:**
+- User completes OAuth-style authorization flow
+- Authorization code is exchanged for access
+- User's entitlement is activated
+
+**Use cases:**
+- Create or activate user account
+- Grant tool access
+- Send welcome email
+- Log entitlement grant
+
+```json
+{
+  "type": "entitlement.granted",
+  "data": {
+    "oneSubUserId": "uuid-abc-123",
+    "userEmail": "user@example.com",
+    "grantId": "grant_abc123",
+    "planId": "pro",
+    "status": "active",
+    "creditsRemaining": 1000
+  }
+}
+```
+</Accordion>
+
+<Accordion title="entitlement.revoked">
+Sent when a user's access is revoked.
+
+**When it's sent:**
+- Subscription expires or is canceled
+- User manually revokes access
+- Admin revokes access (fraud, TOS violation)
+- Payment failure after grace period
+
+**Use cases:**
+- Immediately revoke user access
+- Clear cached user data
+- Send appropriate notification
+- Log revocation event
+
+```json
+{
+  "type": "entitlement.revoked",
+  "data": {
+    "oneSubUserId": "uuid-abc-123",
+    "userEmail": "user@example.com",
+    "reason": "subscription_ended",
+    "revokedAt": "2025-12-01T00:00:00Z",
+    "status": "canceled"
+  }
+}
+```
+</Accordion>
+
+<Accordion title="entitlement.changed">
+Sent when a user's entitlement changes (plan upgrade/downgrade, feature modifications).
+
+**When it's sent:**
+- User upgrades or downgrades their plan
+- Plan features are modified
+- Access level changes
+
+**Use cases:**
+- Update user's access level
+- Enable/disable features
+- Send plan change notification
+- Clear entitlement cache
+
+```json
+{
+  "type": "entitlement.changed",
+  "data": {
+    "oneSubUserId": "uuid-abc-123",
+    "userEmail": "user@example.com",
+    "previousState": {
+      "planId": "basic",
+      "features": ["feature_a", "feature_b"]
+    },
+    "newState": {
+      "planId": "pro",
+      "features": ["feature_a", "feature_b", "feature_c", "feature_d"]
+    },
+    "planId": "pro",
+    "creditsRemaining": 2000
+  }
+}
+```
+</Accordion>
+
+<Accordion title="verify.required">
+Sent when immediate verification is required due to a security event.
+
+**When it's sent:**
+- Fraud detection triggers
+- Admin manually flags account
+- Suspicious activity detected
+- Policy violations
+
+**Use cases:**
+- Invalidate all cached entitlements
+- Flag user for fresh verification
+- Optionally suspend access
+- Alert security team
+
+```json
+{
+  "type": "verify.required",
+  "data": {
+    "oneSubUserId": "uuid-abc-123",
+    "userEmail": "user@example.com",
+    "reason": "suspicious_activity"
+  }
+}
+```
+
+<Warning>
+When you receive this event, you MUST verify the user's current entitlements via the `/api/v1/verify` endpoint before allowing further access.
+</Warning>
+</Accordion>
+</AccordionGroup>
+
+### Credit Consumption Events
+
+<AccordionGroup>
+<Accordion title="credits.consumed">
+Sent when a user consumes credits for your tool.
+
+**When it's sent:**
+- User makes API call that consumes credits
+- Tool uses `/api/v1/credits/consume` endpoint
+- Credits successfully deducted from balance
+
+**Use cases:**
+- Log credit usage for analytics
+- Send low balance warnings
+- Update usage metrics
+- Track for billing/reporting
+
+```json
+{
+  "event": "credits.consumed",
+  "timestamp": "2025-12-22T10:30:00.000Z",
+  "data": {
+    "user_id": "uuid-abc-123",
+    "amount": 10,
+    "balance_remaining": 90,
+    "transaction_id": "txn_abc123"
+  }
+}
+```
+
+<Note>
+This event uses a different payload structure: `event` instead of `type`, and `timestamp` (ISO 8601) instead of `created` (Unix timestamp).
+</Note>
+</Accordion>
+</AccordionGroup>
+
 ### System Events
 
 <AccordionGroup>
@@ -294,7 +458,7 @@ Unique event identifier (format: `evt_xxxxx`)
 </ResponseField>
 
 <ResponseField name="type" type="string" required>
-Event type: `subscription.activated`, `subscription.updated`, or `subscription.canceled`
+Event type: `subscription.activated`, `subscription.updated`, `subscription.canceled`, `purchase.completed`, `user.credit_low`, `user.credit_depleted`, `tool.status_changed`, `entitlement.granted`, `entitlement.revoked`, `entitlement.changed`, `verify.required`, or `credits.consumed` (note: `credits.consumed` uses `event` field instead)
 </ResponseField>
 
 <ResponseField name="created" type="number" required>

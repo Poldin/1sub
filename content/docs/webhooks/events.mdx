@@ -7,6 +7,23 @@ description: "Complete reference for all webhook event types and their payloads"
 
 Detailed reference for all webhook events sent by 1Sub.
 
+## Available Events
+
+1Sub sends webhooks for the following events:
+
+- **`subscription.activated`** - New subscription created or reactivated
+- **`subscription.updated`** - Subscription details changed (renewal, plan change, etc.)
+- **`subscription.canceled`** - Subscription canceled or expired
+- **`purchase.completed`** - One-time purchase completed
+- **`user.credit_low`** - User's credit balance is running low
+- **`user.credit_depleted`** - User's credit balance reached zero
+- **`tool.status_changed`** - Your tool's status changed on 1Sub platform
+- **`entitlement.granted`** - User granted access via authorization flow
+- **`entitlement.revoked`** - User's access revoked
+- **`entitlement.changed`** - User's plan or features changed
+- **`verify.required`** - Immediate verification required (security event)
+- **`credits.consumed`** - Credits consumed by a user
+
 ## Event Structure
 
 All webhook events follow this structure:
@@ -822,6 +839,575 @@ case 'tool.status_changed':
 
 ---
 
+## entitlement.granted
+
+Sent when a user is granted access to your tool via authorization code exchange.
+
+### When Sent
+
+- User completes OAuth-style authorization flow
+- Authorization code is successfully exchanged for access token
+- User's entitlement is activated
+- This is the primary event for OAuth/authorization-based integrations
+
+### Payload
+
+<ResponseField name="id" type="string" required>
+Unique event ID
+</ResponseField>
+
+<ResponseField name="type" type="string" required>
+Always `"entitlement.granted"`
+</ResponseField>
+
+<ResponseField name="created" type="number" required>
+Unix timestamp
+</ResponseField>
+
+<ResponseField name="data" type="object" required>
+Event data
+
+<Expandable title="Data Fields">
+  <ResponseField name="oneSubUserId" type="string (UUID)" required>
+  The 1Sub user ID
+  </ResponseField>
+
+  <ResponseField name="userEmail" type="string">
+  The user's email address
+  </ResponseField>
+
+  <ResponseField name="grantId" type="string (UUID)" required>
+  Unique identifier for this entitlement grant
+  </ResponseField>
+
+  <ResponseField name="planId" type="string" required>
+  Plan identifier associated with this entitlement
+  </ResponseField>
+
+  <ResponseField name="status" type="string" required>
+  Always `"active"` for granted entitlements
+  </ResponseField>
+
+  <ResponseField name="creditsRemaining" type="number">
+  User's remaining credit balance if applicable
+  </ResponseField>
+</Expandable>
+</ResponseField>
+
+### Example Payload
+
+```json
+{
+  "id": "evt_entitlement_granted_001",
+  "type": "entitlement.granted",
+  "created": 1700000000,
+  "data": {
+    "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000",
+    "userEmail": "user@example.com",
+    "grantId": "grant_abc123def456",
+    "planId": "pro",
+    "status": "active",
+    "creditsRemaining": 1000
+  }
+}
+```
+
+### How to Handle
+
+```typescript
+case 'entitlement.granted':
+  const { oneSubUserId, userEmail, grantId, planId } = event.data;
+
+  // Create or activate user account
+  await createUserAccount(oneSubUserId, userEmail, planId);
+
+  // Grant access to your tool
+  await grantToolAccess(oneSubUserId, planId);
+
+  // Send welcome email
+  await sendWelcomeEmail(userEmail, planId);
+
+  // Log entitlement grant
+  logger.info('Entitlement granted', {
+    userId: oneSubUserId,
+    email: userEmail,
+    grantId,
+    plan: planId
+  });
+
+  break;
+```
+
+---
+
+## entitlement.revoked
+
+Sent when a user's access to your tool is revoked.
+
+### When Sent
+
+- Subscription expires or is canceled
+- User manually revokes access
+- Admin revokes access (fraud, TOS violation, etc.)
+- Payment failure after grace period
+
+### Payload
+
+<ResponseField name="id" type="string" required>
+Unique event ID
+</ResponseField>
+
+<ResponseField name="type" type="string" required>
+Always `"entitlement.revoked"`
+</ResponseField>
+
+<ResponseField name="created" type="number" required>
+Unix timestamp
+</ResponseField>
+
+<ResponseField name="data" type="object" required>
+Event data
+
+<Expandable title="Data Fields">
+  <ResponseField name="oneSubUserId" type="string (UUID)" required>
+  The 1Sub user ID
+  </ResponseField>
+
+  <ResponseField name="userEmail" type="string">
+  The user's email address
+  </ResponseField>
+
+  <ResponseField name="reason" type="string" required>
+  Reason for revocation: `"subscription_ended"`, `"user_requested"`, `"payment_failed"`, `"admin_action"`, `"fraud"`
+  </ResponseField>
+
+  <ResponseField name="revokedAt" type="string (ISO 8601)" required>
+  When the entitlement was revoked
+  </ResponseField>
+
+  <ResponseField name="status" type="string" required>
+  Always `"canceled"`
+  </ResponseField>
+</Expandable>
+</ResponseField>
+
+### Example Payload
+
+```json
+{
+  "id": "evt_entitlement_revoked_001",
+  "type": "entitlement.revoked",
+  "created": 1700000000,
+  "data": {
+    "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000",
+    "userEmail": "user@example.com",
+    "reason": "subscription_ended",
+    "revokedAt": "2025-12-01T00:00:00Z",
+    "status": "canceled"
+  }
+}
+```
+
+### How to Handle
+
+```typescript
+case 'entitlement.revoked':
+  const { oneSubUserId, userEmail, reason, revokedAt } = event.data;
+
+  // Immediately revoke user access
+  await revokeUserAccess(oneSubUserId);
+
+  // Handle based on revocation reason
+  switch (reason) {
+    case 'subscription_ended':
+      await sendSubscriptionEndedEmail(userEmail);
+      break;
+    case 'payment_failed':
+      await sendPaymentFailedEmail(userEmail);
+      break;
+    case 'fraud':
+      await flagAccountForReview(oneSubUserId);
+      break;
+  }
+
+  // Clear any cached user data
+  await clearUserCache(oneSubUserId);
+
+  // Log revocation
+  logger.info('Entitlement revoked', {
+    userId: oneSubUserId,
+    email: userEmail,
+    reason,
+    revokedAt
+  });
+
+  break;
+```
+
+---
+
+## entitlement.changed
+
+Sent when a user's entitlement changes (plan upgrade, downgrade, or feature modifications).
+
+### When Sent
+
+- User upgrades or downgrades their plan
+- Plan features are modified
+- Access level changes
+- Subscription tier transitions
+
+### Payload
+
+<ResponseField name="id" type="string" required>
+Unique event ID
+</ResponseField>
+
+<ResponseField name="type" type="string" required>
+Always `"entitlement.changed"`
+</ResponseField>
+
+<ResponseField name="created" type="number" required>
+Unix timestamp
+</ResponseField>
+
+<ResponseField name="data" type="object" required>
+Event data
+
+<Expandable title="Data Fields">
+  <ResponseField name="oneSubUserId" type="string (UUID)" required>
+  The 1Sub user ID
+  </ResponseField>
+
+  <ResponseField name="userEmail" type="string">
+  The user's email address
+  </ResponseField>
+
+  <ResponseField name="previousState" type="object" required>
+  Previous entitlement state
+
+  <Expandable title="Previous State Fields">
+    <ResponseField name="planId" type="string">
+    Previous plan ID
+    </ResponseField>
+
+    <ResponseField name="features" type="array">
+    Previous feature list
+    </ResponseField>
+  </Expandable>
+  </ResponseField>
+
+  <ResponseField name="newState" type="object" required>
+  New entitlement state
+
+  <Expandable title="New State Fields">
+    <ResponseField name="planId" type="string">
+    New plan ID
+    </ResponseField>
+
+    <ResponseField name="features" type="array">
+    New feature list
+    </ResponseField>
+  </Expandable>
+  </ResponseField>
+
+  <ResponseField name="planId" type="string" required>
+  Current plan ID (same as newState.planId)
+  </ResponseField>
+
+  <ResponseField name="creditsRemaining" type="number">
+  User's remaining credit balance if applicable
+  </ResponseField>
+</Expandable>
+</ResponseField>
+
+### Example Payload
+
+```json
+{
+  "id": "evt_entitlement_changed_001",
+  "type": "entitlement.changed",
+  "created": 1700000000,
+  "data": {
+    "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000",
+    "userEmail": "user@example.com",
+    "previousState": {
+      "planId": "basic",
+      "features": ["feature_a", "feature_b"]
+    },
+    "newState": {
+      "planId": "pro",
+      "features": ["feature_a", "feature_b", "feature_c", "feature_d"]
+    },
+    "planId": "pro",
+    "creditsRemaining": 2000
+  }
+}
+```
+
+### How to Handle
+
+```typescript
+case 'entitlement.changed':
+  const { oneSubUserId, userEmail, previousState, newState, planId } = event.data;
+
+  // Determine if this is an upgrade or downgrade
+  const isUpgrade = compareplanIds(newState.planId, previousState.planId) > 0;
+
+  // Update user's access level
+  await updateUserPlan(oneSubUserId, newState.planId);
+
+  // Update feature flags
+  const addedFeatures = newState.features?.filter(f => !previousState.features?.includes(f));
+  const removedFeatures = previousState.features?.filter(f => !newState.features?.includes(f));
+
+  if (addedFeatures?.length) {
+    await enableFeatures(oneSubUserId, addedFeatures);
+  }
+
+  if (removedFeatures?.length) {
+    await disableFeatures(oneSubUserId, removedFeatures);
+  }
+
+  // Send notification email
+  await sendPlanChangeEmail(userEmail, {
+    previousPlan: previousState.planId,
+    newPlan: newState.planId,
+    isUpgrade
+  });
+
+  // Clear entitlement cache
+  await clearUserCache(oneSubUserId);
+
+  // Log change
+  logger.info('Entitlement changed', {
+    userId: oneSubUserId,
+    email: userEmail,
+    from: previousState.planId,
+    to: newState.planId,
+    type: isUpgrade ? 'upgrade' : 'downgrade'
+  });
+
+  break;
+```
+
+---
+
+## verify.required
+
+Sent when immediate verification of user entitlements is required due to a security or system event.
+
+### When Sent
+
+- Fraud detection triggers
+- Admin manually flags account for review
+- Suspicious activity detected
+- System-level security events
+- Policy violations
+- Payment disputes
+
+<Warning>
+When you receive this event, you MUST verify the user's current entitlements via the `/api/v1/verify` endpoint before allowing further access.
+</Warning>
+
+### Payload
+
+<ResponseField name="id" type="string" required>
+Unique event ID
+</ResponseField>
+
+<ResponseField name="type" type="string" required>
+Always `"verify.required"`
+</ResponseField>
+
+<ResponseField name="created" type="number" required>
+Unix timestamp
+</ResponseField>
+
+<ResponseField name="data" type="object" required>
+Event data
+
+<Expandable title="Data Fields">
+  <ResponseField name="oneSubUserId" type="string (UUID)" required>
+  The 1Sub user ID
+  </ResponseField>
+
+  <ResponseField name="userEmail" type="string">
+  The user's email address
+  </ResponseField>
+
+  <ResponseField name="reason" type="string" required>
+  Reason verification is required: `"fraud_detected"`, `"admin_review"`, `"suspicious_activity"`, `"payment_dispute"`, `"policy_violation"`
+  </ResponseField>
+</Expandable>
+</ResponseField>
+
+### Example Payload
+
+```json
+{
+  "id": "evt_verify_required_001",
+  "type": "verify.required",
+  "created": 1700000000,
+  "data": {
+    "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000",
+    "userEmail": "user@example.com",
+    "reason": "suspicious_activity"
+  }
+}
+```
+
+### How to Handle
+
+```typescript
+case 'verify.required':
+  const { oneSubUserId, userEmail, reason } = event.data;
+
+  // CRITICAL: Immediately invalidate all cached entitlements
+  await clearUserCache(oneSubUserId);
+
+  // Flag user for fresh verification on next request
+  await setVerificationRequired(oneSubUserId, true);
+
+  // Optionally suspend access until verification
+  if (reason === 'fraud_detected' || reason === 'policy_violation') {
+    await suspendUserAccess(oneSubUserId);
+  }
+
+  // Log security event
+  logger.warn('Verification required', {
+    userId: oneSubUserId,
+    email: userEmail,
+    reason,
+    severity: reason === 'fraud_detected' ? 'critical' : 'warning'
+  });
+
+  // Alert security team for critical reasons
+  if (reason === 'fraud_detected') {
+    await alertSecurityTeam({
+      userId: oneSubUserId,
+      email: userEmail,
+      reason
+    });
+  }
+
+  break;
+```
+
+### Important Notes
+
+- This event forces a cache invalidation
+- All subsequent requests for this user should call `/api/v1/verify`
+- Do NOT rely on cached entitlement data after receiving this event
+- Consider implementing automatic suspension for high-risk reasons
+
+---
+
+## credits.consumed
+
+Sent when a user consumes credits for your tool.
+
+### When Sent
+
+- User makes API call that consumes credits
+- Tool uses `/api/v1/credits/consume` endpoint
+- Credits are successfully deducted from user's balance
+- Sent after each successful credit consumption transaction
+
+<Note>
+This event uses a slightly different payload structure than other events. It uses `event` instead of `type`, and `timestamp` (ISO 8601 string) instead of `created` (Unix timestamp).
+</Note>
+
+### Payload
+
+<ResponseField name="event" type="string" required>
+Always `"credits.consumed"`
+</ResponseField>
+
+<ResponseField name="timestamp" type="string (ISO 8601)" required>
+When the credits were consumed
+</ResponseField>
+
+<ResponseField name="data" type="object" required>
+Event data
+
+<Expandable title="Data Fields">
+  <ResponseField name="user_id" type="string (UUID)" required>
+  The 1Sub user ID
+  </ResponseField>
+
+  <ResponseField name="amount" type="number" required>
+  Number of credits consumed in this transaction
+  </ResponseField>
+
+  <ResponseField name="balance_remaining" type="number" required>
+  User's remaining credit balance after this transaction
+  </ResponseField>
+
+  <ResponseField name="transaction_id" type="string (UUID)" required>
+  Unique identifier for this credit transaction
+  </ResponseField>
+</Expandable>
+</ResponseField>
+
+### Example Payload
+
+```json
+{
+  "event": "credits.consumed",
+  "timestamp": "2025-12-22T10:30:00.000Z",
+  "data": {
+    "user_id": "550e8400-e29b-41d4-a716-446655440000",
+    "amount": 10,
+    "balance_remaining": 90,
+    "transaction_id": "txn_abc123def456"
+  }
+}
+```
+
+### How to Handle
+
+```typescript
+case 'credits.consumed':
+  const { user_id, amount, balance_remaining, transaction_id } = event.data;
+
+  // Log credit consumption for analytics
+  await logCreditUsage(user_id, {
+    amount,
+    balanceRemaining: balance_remaining,
+    transactionId: transaction_id,
+    timestamp: event.timestamp
+  });
+
+  // Check if user is approaching low balance
+  if (balance_remaining < 50) {
+    await sendLowBalanceWarning(user_id, balance_remaining);
+  }
+
+  // Update usage metrics
+  await updateUsageMetrics(user_id, amount);
+
+  // Track for billing/reporting
+  await recordCreditConsumption({
+    userId: user_id,
+    creditsUsed: amount,
+    remainingBalance: balance_remaining,
+    transactionId: transaction_id
+  });
+
+  break;
+```
+
+### Use Cases
+
+- **Usage Analytics**: Track how users consume credits over time
+- **Low Balance Warnings**: Proactively notify users before they run out
+- **Billing & Reporting**: Generate usage reports for customers
+- **Rate Limiting**: Implement custom rate limiting based on credit consumption
+- **Fraud Detection**: Monitor unusual consumption patterns
+
+---
+
 ## Event Deduplication
 
 Always deduplicate events using the event `id` to handle retries:
@@ -845,6 +1431,12 @@ function handleWebhook(event: WebhookEvent) {
     case 'subscription.activated':
       // ...
       break;
+    case 'subscription.updated':
+      // ...
+      break;
+    case 'subscription.canceled':
+      // ...
+      break;
     case 'purchase.completed':
       // ...
       break;
@@ -855,6 +1447,22 @@ function handleWebhook(event: WebhookEvent) {
       // ...
       break;
     case 'tool.status_changed':
+      // ...
+      break;
+    case 'entitlement.granted':
+      // ...
+      break;
+    case 'entitlement.revoked':
+      // ...
+      break;
+    case 'entitlement.changed':
+      // ...
+      break;
+    case 'verify.required':
+      // ...
+      break;
+    case 'credits.consumed':
+      // Note: This event uses 'event' field instead of 'type'
       // ...
       break;
     // ...

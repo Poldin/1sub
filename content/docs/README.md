@@ -50,15 +50,19 @@ Complete technical documentation for integrating your tool with 1Sub.
    - `POST /api/v1/tools/link/exchange-code` - Link code fallback flow
    - `GET /.well-known/1sub-jwks.json` - JWKS public keys
 
-2. **Webhook Events** (all 8 types):
+2. **Webhook Events** (all 12 types):
    - `subscription.activated` - New subscription created
-   - `subscription.canceled` - Subscription cancelled
    - `subscription.updated` - Subscription plan changed
+   - `subscription.canceled` - Subscription cancelled
    - `purchase.completed` - One-time purchase completed
    - `user.credit_low` - User credits below threshold
    - `user.credit_depleted` - User out of credits
-   - `user.session_expired` - User session expired
    - `tool.status_changed` - Tool enabled/disabled
+   - `entitlement.granted` - User granted access via authorization
+   - `entitlement.revoked` - User access revoked
+   - `entitlement.changed` - User plan/features changed
+   - `verify.required` - Security event requiring verification
+   - `credits.consumed` - Credits consumed by user
 
 ### Important Notes
 
@@ -89,7 +93,7 @@ All API endpoints use: `https://1sub.io`
 
 ### Complete Coverage
 - ✅ All 5 vendor-facing REST API endpoints
-- ✅ All 8 webhook event types with payloads
+- ✅ All 12 webhook event types with payloads
 - ✅ All monetization models (subscriptions, credits, one-time purchases)
 - ✅ Vendor payout and revenue documentation
 - ✅ Both JWT verification methods (JWKS + API)
