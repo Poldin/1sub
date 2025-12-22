@@ -9,13 +9,15 @@ description: "Integrate 1Sub in under an hour - simpler than building your own p
 
 ---
 
-## What You Need to Build
+## What you need to get started
 
-Just three things:
+Just one thing:
 
-1. **One callback endpoint** - receives users after they click "Launch Tool"
-2. **One access check** - verifies the user still has access (every 5 minutes)
-3. **One webhook endpoint** - so access stops immediately when payment stops
+1. <a href="#step-1-add-the-webhook-endpoint" className="inline-block px-2 py-1 bg-[#3ecf8e]/20 text-[#3ecf8e] rounded text-sm font-medium hover:bg-[#3ecf8e]/30 transition-colors">**webhook endpoint**</a> - automatically stop access when payment stops
+
+**Optional but strongly recommended:**
+
+- <a href="#step-2-add-the-callback-endpoint-optional" className="inline-block px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-sm font-medium hover:bg-blue-500/30 transition-colors">**callback endpoint**</a> - automatically receive users after they click "Launch Tool"
 
 That's it. This replaces:
 - User signup and login
@@ -41,7 +43,26 @@ Users never create accounts on your site. 1Sub handles identity and payment.
 
 ## Step-by-Step Integration
 
-### Step 1: Add the Callback Endpoint
+### Step 1: Add the Webhook Endpoint
+
+When a user cancels, 1Sub notifies you immediately so you can end their session:
+
+```typescript
+app.post('/webhooks/1sub', express.json(), (req, res) => {
+  const event = req.body;
+
+  if (event.type === 'subscription.canceled') {
+    // Invalidate this user's session
+    sessionStore.destroy(event.data.oneSubUserId);
+  }
+
+  res.status(200).send('OK');
+});
+```
+
+---
+
+### Step 2: Add the Callback Endpoint (Optional)
 
 When users click "Launch Tool", they're redirected to your app with a `code`. Exchange it for user info:
 
@@ -69,77 +90,7 @@ app.get('/auth/callback', async (req, res) => {
 
 You get back the user's ID, their plan details, and a token for checking access later.
 
----
-
-### Step 2: Protect Your Paid Routes
-
-Check access before serving premium features. Do this every 5 minutes:
-
-```typescript
-async function checkAccess(req, res, next) {
-  const lastCheck = req.session.lastCheck || 0;
-  const fiveMinutes = 5 * 60 * 1000;
-
-  if (Date.now() - lastCheck < fiveMinutes) return next();
-
-  const { data } = await fetch('https://1sub.io/api/v1/verify', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.ONESUB_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ verificationToken: req.session.token }),
-  }).then(r => r.json());
-
-  if (!data.valid) {
-    req.session.destroy();
-    return res.redirect('/?error=subscription_ended');
-  }
-
-  req.session.token = data.verificationToken;
-  req.session.lastCheck = Date.now();
-  next();
-}
-
-app.use('/dashboard', checkAccess);
-```
-
----
-
-### Step 3: Add the Webhook Endpoint
-
-When a user cancels, 1Sub notifies you immediately so you can end their session:
-
-```typescript
-app.post('/webhooks/1sub', express.json(), (req, res) => {
-  const event = req.body;
-
-  if (event.type === 'subscription.canceled') {
-    // Invalidate this user's session
-    sessionStore.destroy(event.data.oneSubUserId);
-  }
-
-  res.status(200).send('OK');
-});
-```
-
 That's the complete integration.
-
----
-
-## What You Do Not Need to Build
-
-- User accounts
-- Password management
-- Email verification
-- Login forms
-- Subscription management
-- Payment processing
-- Billing UI
-- Refund handling
-- Plan upgrades/downgrades
-
-1Sub handles all of this.
 
 ---
 
@@ -147,15 +98,11 @@ That's the complete integration.
 
 **What happens if a user cancels?**
 
-You get a webhook immediately. Their next access check will also fail. Either way, access stops within 5 minutes.
+You get a webhook immediately so you can end their session right away.
 
 **What if 1Sub is temporarily unavailable?**
 
-Keep the session active. The 5-minute window gives time for brief outages. If verification fails repeatedly, end the session gracefully.
-
-**Can I cache results?**
-
-Yes. The access check response includes a `cacheUntil` timestamp. You can trust cached data until then.
+Keep the session active and retry the webhook or verification when the service is back online.
 
 ---
 

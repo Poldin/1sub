@@ -120,10 +120,9 @@ export async function POST(request: NextRequest) {
       case 'subscription.activated':
         eventData = {
           oneSubUserId: testUserId,
+          userEmail: 'test@example.com',
           planId: 'test-plan-monthly',
-          productId: tool_id,
           status: 'active',
-          currentPeriodStart: new Date().toISOString(),
           currentPeriodEnd: periodEnd,
           quantity: 1,
           creditsRemaining: 100,
@@ -133,8 +132,8 @@ export async function POST(request: NextRequest) {
       case 'subscription.canceled':
         eventData = {
           oneSubUserId: testUserId,
+          userEmail: 'test@example.com',
           planId: 'test-plan-monthly',
-          productId: tool_id,
           status: 'canceled',
           currentPeriodEnd: periodEnd,
           quantity: 1,
@@ -144,8 +143,8 @@ export async function POST(request: NextRequest) {
       case 'subscription.updated':
         eventData = {
           oneSubUserId: testUserId,
+          userEmail: 'test@example.com',
           planId: 'test-plan-yearly',
-          productId: tool_id,
           status: 'active',
           currentPeriodEnd: periodEnd,
           quantity: 1,
@@ -156,6 +155,7 @@ export async function POST(request: NextRequest) {
       case 'purchase.completed':
         eventData = {
           oneSubUserId: testUserId,
+          userEmail: 'test@example.com',
           checkoutId: `test_checkout_${crypto.randomUUID().slice(0, 8)}`,
           amount: 50,
           creditsRemaining: 150,
@@ -166,6 +166,7 @@ export async function POST(request: NextRequest) {
       case 'user.credit_low':
         eventData = {
           oneSubUserId: testUserId,
+          userEmail: 'test@example.com',
           creditBalance: 8,
           threshold: 10,
         };
@@ -174,6 +175,7 @@ export async function POST(request: NextRequest) {
       case 'user.credit_depleted':
         eventData = {
           oneSubUserId: testUserId,
+          userEmail: 'test@example.com',
           creditBalance: 0,
         };
         break;
@@ -189,6 +191,7 @@ export async function POST(request: NextRequest) {
       default:
         eventData = {
           oneSubUserId: testUserId,
+          userEmail: 'test@example.com',
           planId: 'test-plan',
           status: 'active',
         };

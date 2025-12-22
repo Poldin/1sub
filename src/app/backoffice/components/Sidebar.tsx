@@ -19,7 +19,8 @@ import {
   Package,
   BookOpen,
   CreditCard,
-  LogOut
+  LogOut,
+  ExternalLink
 } from 'lucide-react';
 import { getCurrentBalanceClient } from '@/lib/credits';
 import TopUpCredits from '@/app/components/TopUpCredits';
@@ -179,7 +180,7 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
         ${forceDesktopOpen ? 'lg:translate-x-0' : ''}
       `}>
         {/* Header with close button - always visible */}
-        <div className="flex items-center justify-between p-4 border-b border-[#374151]">
+        <div className="flex items-center justify-between px-4 py-2 sm:py-3 border-b border-[#374151]">
           <h1 className="text-xl font-bold text-[#3ecf8e]">
             1sub<span className="text-[#9ca3af] font-normal">.io</span>
           </h1>
@@ -294,11 +295,14 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
                         <span>API Key & Webhook</span>
                       </button>
                       <button
-                        onClick={() => handleNavigation('/vendor-dashboard/integration')}
-                        className="w-full flex items-center gap-3 p-2 rounded hover:bg-[#374151] transition-colors text-[#d1d5db] text-sm"
+                        onClick={() => window.open('/docs', '_blank')}
+                        className="w-full flex items-center justify-between gap-3 p-2 rounded hover:bg-[#374151] transition-colors text-[#d1d5db] text-sm"
                       >
-                        <BookOpen className="w-4 h-4 text-[#3ecf8e]" />
-                        <span>Integration Guide</span>
+                        <div className="flex items-center gap-3">
+                          <BookOpen className="w-4 h-4 text-[#3ecf8e]" />
+                          <span>Integration Docs</span>
+                        </div>
+                        <ExternalLink className="w-3.5 h-3.5 text-[#9ca3af]" />
                       </button>
                     </div>
                   )}

@@ -57,6 +57,23 @@ export default function VendorAPIPage() {
   } | null>(null);
   const [selectedTestEventType, setSelectedTestEventType] = useState('subscription.activated');
 
+  // Auto-hide webhook secret after 5 seconds
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    
+    if (showWebhookSecret) {
+      timeoutId = setTimeout(() => {
+        setShowWebhookSecret(false);
+      }, 5000); // 5 seconds
+    }
+    
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [showWebhookSecret]);
+
   // UI notification states
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -472,16 +489,6 @@ export default function VendorAPIPage() {
         </header>
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Important Notice */}
-        <div className="bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/30 rounded-lg p-3 mb-6">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-yellow-500 flex-shrink-0" />
-            <p className="text-sm text-[#d1d5db]">
-              API keys are shown once when generated (only last 4 chars visible here). Keep secure and never expose client-side.
-            </p>
-          </div>
-        </div>
-
         {/* API Keys Section */}
         <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151] mb-8">
           <div className="flex items-center justify-between mb-6">
