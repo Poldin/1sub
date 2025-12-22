@@ -15,17 +15,30 @@ export {
   type WebhookResult,
 } from './stripe-webhooks';
 
-// Vendor Webhooks (outgoing)
+// Outbound Webhooks (UNIFIED - replaces both tool-webhooks and vendor-webhooks)
 export {
+  // Event senders
+  notifySubscriptionCreated,
+  notifySubscriptionActivated,
+  notifySubscriptionRenewed,
+  notifySubscriptionCanceled,
+  notifySubscriptionUpdated,
+  notifyPurchaseCompleted,
+  notifyEntitlementGranted,
+  notifyEntitlementRevoked,
+  notifyEntitlementChanged,
+  notifyCreditsConsumed,
+  notifyUserCreditLow,
+  notifyUserCreditDepleted,
+  notifyToolStatusChanged,
+  notifyVerifyRequired,
+  // Low-level functions
   sendWebhook,
   getToolWebhookConfig,
-  sendSubscriptionCreated,
-  sendSubscriptionCancelled,
-  sendAccessRevoked,
-  sendCreditsConsumed,
   logWebhookDelivery,
+  // Types
   type WebhookEventType,
   type WebhookPayload,
   type WebhookDeliveryResult,
   type WebhookConfig,
-} from './vendor-webhooks';
+} from './outbound-webhooks';

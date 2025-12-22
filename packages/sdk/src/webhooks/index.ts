@@ -60,7 +60,7 @@ export class WebhooksClient {
    * Verify a webhook signature
    *
    * @param payload - Raw request body (string, not parsed JSON)
-   * @param signature - Value of the 1sub-signature header
+   * @param signature - Value of the X-1Sub-Signature header
    * @returns true if signature is valid
    *
    * @example
@@ -83,7 +83,7 @@ export class WebhooksClient {
    * Verify and throw if invalid
    *
    * @param payload - Raw request body
-   * @param signature - Value of the 1sub-signature header
+   * @param signature - Value of the X-1Sub-Signature header
    * @throws {WebhookVerificationError} If signature is invalid
    *
    * @example
@@ -105,7 +105,7 @@ export class WebhooksClient {
    * Parse and verify a webhook event
    *
    * @param payload - Raw request body
-   * @param signature - Value of the 1sub-signature header
+   * @param signature - Value of the X-1Sub-Signature header
    * @returns Parsed webhook event
    * @throws {WebhookVerificationError} If signature is invalid
    *
@@ -190,14 +190,14 @@ export class WebhooksClient {
    * Process a raw webhook request (verify, parse, and handle)
    *
    * @param payload - Raw request body
-   * @param signature - Value of the 1sub-signature header
+   * @param signature - Value of the X-1Sub-Signature header
    * @returns The parsed event after handling
    *
    * @example
    * ```typescript
    * app.post('/webhooks/1sub', async (req, res) => {
    *   try {
-   *     await onesub.webhooks.process(req.body, req.headers['1sub-signature']);
+   *     await onesub.webhooks.process(req.body, req.headers['x-1sub-signature']);
    *     res.json({ received: true });
    *   } catch (error) {
    *     res.status(401).send('Invalid signature');

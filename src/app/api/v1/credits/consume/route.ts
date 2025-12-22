@@ -28,7 +28,7 @@ import {
   logValidationError,
   logInsufficientCredits,
 } from '@/security';
-import { sendCreditsConsumed } from '@/domains/webhooks';
+import { notifyCreditsConsumed } from '@/domains/webhooks';
 
 export async function POST(request: NextRequest) {
   const clientIp = getClientIp(request);
@@ -269,16 +269,14 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Send credits.consumed webhook (async, don't await)
-    sendCreditsConsumed({
+    // Send credits.consumed webhook (NON-BLOCKING)
+    notifyCreditsConsumed(
       toolId,
-      userId: user_id,
+      user_id,
       amount,
-      balanceRemaining: rpcResult.balance_after,
-      transactionId: rpcResult.transaction_id || '',
-    }).catch(err => {
-      console.error('[Webhook] Failed to send credits consumed webhook:', err);
-    });
+      rpcResult.balance_after,
+      rpcResult.transaction_id || ''
+    );
 
     // Log successful credit consumption
     logCreditConsumption({

@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { generateWebhookSignature } from '@/lib/tool-webhooks';
+import { generateWebhookSignature } from '@/security';
 import type { WebhookPayload, WebhookEventType } from '@/lib/tool-verification-types';
 import crypto from 'crypto';
 

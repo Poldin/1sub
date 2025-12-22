@@ -25,7 +25,7 @@ class WebhooksClient:
 
         Args:
             payload: Raw request body
-            signature: Value of the 1sub-signature header
+            signature: Value of the X-1Sub-Signature header
 
         Returns:
             True if signature is valid
@@ -50,7 +50,7 @@ class WebhooksClient:
 
         Args:
             payload: Raw request body
-            signature: Value of the 1sub-signature header
+            signature: Value of the X-1Sub-Signature header
 
         Returns:
             Parsed webhook event

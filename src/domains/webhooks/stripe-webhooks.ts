@@ -16,6 +16,7 @@ import { completeToolCheckout } from '@/domains/checkout/tool-checkout';
 import { completeCreditCheckout } from '@/domains/checkout/credit-checkout';
 import { invalidateEntitlements } from '@/domains/verification';
 import { revokeAccess } from '@/domains/auth';
+import { notifySubscriptionUpdated } from './outbound-webhooks';
 
 // ============================================================================
 // TYPES
@@ -183,6 +184,16 @@ export async function handleSubscriptionUpdated(
 
   // Invalidate entitlements cache
   await invalidateEntitlements(toolSub.user_id, toolSub.tool_id);
+
+  // Send subscription.updated webhook (non-blocking)
+  const periodEndDate = periodEnd ? new Date(periodEnd * 1000).toISOString() : new Date().toISOString();
+  notifySubscriptionUpdated(
+    toolSub.tool_id,
+    toolSub.user_id,
+    'default', // planId - would need to be stored in tool_subscriptions metadata
+    newStatus,
+    periodEndDate
+  );
 
   return { success: true, handled: true, message: `Updated subscription to ${newStatus}` };
 }

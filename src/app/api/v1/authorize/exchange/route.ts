@@ -17,7 +17,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { findToolByApiKey, checkRateLimit, getClientIp } from '@/security';
 import { exchangeAuthorizationCode } from '@/domains/auth';
 import { getEntitlements, formatEntitlementsForResponse } from '@/domains/verification';
-import { sendSubscriptionCreated } from '@/domains/webhooks';
+import { notifyEntitlementGranted } from '@/domains/webhooks';
 import { z } from 'zod';
 
 // ============================================================================
@@ -220,16 +220,15 @@ export async function POST(request: NextRequest) {
       : { planId: null, creditsRemaining: null, features: [], limits: {} };
 
     // =========================================================================
-    // 7. Send subscription.created Webhook (async, don't await)
+    // 7. Send entitlement.granted Webhook (NON-BLOCKING)
     // =========================================================================
-    sendSubscriptionCreated({
+    notifyEntitlementGranted(
       toolId,
-      userId: exchangeResult.userId!,
-      subscriptionId: exchangeResult.grantId!,
-      planId: entitlements.planId || 'default',
-    }).catch(err => {
-      console.error('[Exchange] Failed to send webhook:', err);
-    });
+      exchangeResult.userId!,
+      exchangeResult.grantId!,
+      entitlements.planId || 'default',
+      entitlements.creditsRemaining || undefined
+    );
 
     // =========================================================================
     // 8. Return Success Response

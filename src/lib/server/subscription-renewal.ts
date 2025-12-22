@@ -13,7 +13,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { notifySubscriptionUpdated } from '@/lib/tool-webhooks';
+import { notifySubscriptionUpdated } from '@/domains/webhooks';
 
 // Initialize Supabase (service role for cron job)
 function getSupabaseClient() {

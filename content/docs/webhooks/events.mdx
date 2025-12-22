@@ -1314,25 +1314,25 @@ Sent when a user consumes credits for your tool.
 - Credits are successfully deducted from user's balance
 - Sent after each successful credit consumption transaction
 
-<Note>
-This event uses a slightly different payload structure than other events. It uses `event` instead of `type`, and `timestamp` (ISO 8601 string) instead of `created` (Unix timestamp).
-</Note>
-
 ### Payload
 
-<ResponseField name="event" type="string" required>
+<ResponseField name="id" type="string" required>
+Unique event ID (UUID format) for deduplication
+</ResponseField>
+
+<ResponseField name="type" type="string" required>
 Always `"credits.consumed"`
 </ResponseField>
 
-<ResponseField name="timestamp" type="string (ISO 8601)" required>
-When the credits were consumed
+<ResponseField name="created" type="number" required>
+Unix timestamp when the event was created
 </ResponseField>
 
 <ResponseField name="data" type="object" required>
 Event data
 
 <Expandable title="Data Fields">
-  <ResponseField name="user_id" type="string (UUID)" required>
+  <ResponseField name="oneSubUserId" type="string (UUID)" required>
   The 1Sub user ID
   </ResponseField>
 
@@ -1340,11 +1340,11 @@ Event data
   Number of credits consumed in this transaction
   </ResponseField>
 
-  <ResponseField name="balance_remaining" type="number" required>
+  <ResponseField name="balanceRemaining" type="number" required>
   User's remaining credit balance after this transaction
   </ResponseField>
 
-  <ResponseField name="transaction_id" type="string (UUID)" required>
+  <ResponseField name="transactionId" type="string (UUID)" required>
   Unique identifier for this credit transaction
   </ResponseField>
 </Expandable>
@@ -1354,13 +1354,14 @@ Event data
 
 ```json
 {
-  "event": "credits.consumed",
-  "timestamp": "2025-12-22T10:30:00.000Z",
+  "id": "evt_abc123def456",
+  "type": "credits.consumed",
+  "created": 1700000000,
   "data": {
-    "user_id": "550e8400-e29b-41d4-a716-446655440000",
+    "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000",
     "amount": 10,
-    "balance_remaining": 90,
-    "transaction_id": "txn_abc123def456"
+    "balanceRemaining": 90,
+    "transactionId": "txn_abc123def456"
   }
 }
 ```
@@ -1369,30 +1370,30 @@ Event data
 
 ```typescript
 case 'credits.consumed':
-  const { user_id, amount, balance_remaining, transaction_id } = event.data;
+  const { oneSubUserId, amount, balanceRemaining, transactionId } = event.data;
 
   // Log credit consumption for analytics
-  await logCreditUsage(user_id, {
+  await logCreditUsage(oneSubUserId, {
     amount,
-    balanceRemaining: balance_remaining,
-    transactionId: transaction_id,
-    timestamp: event.timestamp
+    balanceRemaining,
+    transactionId,
+    timestamp: new Date(event.created * 1000).toISOString()
   });
 
   // Check if user is approaching low balance
-  if (balance_remaining < 50) {
-    await sendLowBalanceWarning(user_id, balance_remaining);
+  if (balanceRemaining < 50) {
+    await sendLowBalanceWarning(oneSubUserId, balanceRemaining);
   }
 
   // Update usage metrics
-  await updateUsageMetrics(user_id, amount);
+  await updateUsageMetrics(oneSubUserId, amount);
 
   // Track for billing/reporting
   await recordCreditConsumption({
-    userId: user_id,
+    userId: oneSubUserId,
     creditsUsed: amount,
-    remainingBalance: balance_remaining,
-    transactionId: transaction_id
+    remainingBalance: balanceRemaining,
+    transactionId
   });
 
   break;

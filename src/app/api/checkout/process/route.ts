@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { transferCredits, createDebitTransaction } from '@/lib/actions/credit-transactions';
 import { getCurrentBalance } from '@/lib/credits-service';
-import { notifySubscriptionActivated, notifyPurchaseCompleted } from '@/lib/tool-webhooks';
+import { notifySubscriptionActivated, notifyPurchaseCompleted } from '@/domains/webhooks';
 import { sendFirstToolPurchaseEmail } from '@/lib/email-service';
 
 export async function POST(request: NextRequest) {

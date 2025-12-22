@@ -21,10 +21,10 @@ Without signature verification, anyone could send fake webhooks to your endpoint
 
 ## Signature Format
 
-Webhooks include an HMAC-SHA256 signature in the `1sub-signature` header:
+Webhooks include an HMAC-SHA256 signature in the `X-1Sub-Signature` header:
 
 ```http
-1sub-signature: t=1700000000,v1=abcdef123456789...
+X-1Sub-Signature: t=1700000000,v1=abcdef123456789...
 ```
 
 **Format breakdown:**
@@ -35,10 +35,10 @@ Webhooks include an HMAC-SHA256 signature in the `1sub-signature` header:
 
 <Steps>
 <Step title="Extract signature components">
-Parse the `1sub-signature` header to get timestamp and signature:
+Parse the `X-1Sub-Signature` header to get timestamp and signature:
 
 ```typescript
-const signature = req.headers['1sub-signature'];
+const signature = req.headers['x-1sub-signature'];
 const parts = signature.split(',');
 const timestamp = parts.find(p => p.startsWith('t='))?.split('=')[1];
 const sig = parts.find(p => p.startsWith('v1='))?.split('=')[1];
