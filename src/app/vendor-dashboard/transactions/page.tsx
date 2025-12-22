@@ -305,16 +305,22 @@ export default function VendorTransactionsPage() {
     return () => clearInterval(interval);
   }, [userId, loading]);
 
-  const filteredTransactions = transactions;
+  // Filter transactions based on selected tool
+  const filteredTransactions = transactions.filter(transaction => {
+    // If no tool is selected, show all transactions
+    if (!selectedToolId) return true;
+    // Otherwise, only show transactions for the selected tool
+    return transaction.tool_id === selectedToolId;
+  });
 
-  const totalCredits = transactions.reduce((sum, t) => sum + t.credits_amount, 0);
-  const totalTransactions = transactions.length;
+  const totalCredits = filteredTransactions.reduce((sum, t) => sum + t.credits_amount, 0);
+  const totalTransactions = filteredTransactions.length;
   const successRate = totalTransactions > 0 ? 100 : 0; // All vendor transactions are "completed" since they're earnings
 
   const handleExport = () => {
-    // Convert transactions to CSV
+    // Convert filtered transactions to CSV
     const csvHeaders = ['Date', 'Buyer', 'Tool', 'Credits', 'Reason'];
-    const csvRows = transactions.map(tx => [
+    const csvRows = filteredTransactions.map(tx => [
       new Date(tx.created_at).toLocaleString(),
       tx.buyer_email || tx.buyer_name || 'Unknown',
       tx.tool_name || 'Unknown',
@@ -405,7 +411,7 @@ export default function VendorTransactionsPage() {
               </button>
               <button
                 onClick={handleExport}
-                disabled={transactions.length === 0}
+                disabled={filteredTransactions.length === 0}
                 className="flex items-center px-3 py-2 bg-[#374151] text-[#ededed] rounded-lg hover:bg-[#4b5563] transition-colors text-sm disabled:opacity-50"
               >
                 <Download className="w-4 h-4 mr-1" />

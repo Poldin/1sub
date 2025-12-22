@@ -55,6 +55,10 @@ Event data
   The 1Sub user ID
   </ResponseField>
   
+  <ResponseField name="userEmail" type="string">
+  The user's email address
+  </ResponseField>
+  
   <ResponseField name="planId" type="string" required>
   Plan identifier (e.g., `"monthly"`, `"annual"`, `"pro"`)
   </ResponseField>
@@ -99,6 +103,7 @@ Event data
   "created": 1700000000,
   "data": {
     "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000",
+    "userEmail": "user@example.com",
     "planId": "monthly",
     "productId": "660e8400-e29b-41d4-a716-446655440000",
     "status": "active",
@@ -118,6 +123,7 @@ Event data
   "created": 1700000000,
   "data": {
     "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000",
+    "userEmail": "user@example.com",
     "planId": "pro",
     "productId": "660e8400-e29b-41d4-a716-446655440000",
     "status": "trialing",
@@ -134,16 +140,16 @@ Event data
 
 ```typescript
 case 'subscription.activated':
-  const { oneSubUserId, planId, status } = event.data;
+  const { oneSubUserId, userEmail, planId, status } = event.data;
   
   // Grant user access
   await grantUserAccess(oneSubUserId, planId);
   
   // Send welcome email
   if (status === 'trialing') {
-    await sendTrialStartedEmail(oneSubUserId);
+    await sendTrialStartedEmail(userEmail);
   } else {
-    await sendWelcomeEmail(oneSubUserId);
+    await sendWelcomeEmail(userEmail);
   }
   
   // Clear subscription cache
@@ -152,6 +158,7 @@ case 'subscription.activated':
   // Log event
   logger.info('Subscription activated', {
     userId: oneSubUserId,
+    email: userEmail,
     plan: planId,
     status
   });
@@ -192,6 +199,10 @@ Event data
 <Expandable title="Data Fields">
   <ResponseField name="oneSubUserId" type="string (UUID)" required>
   The 1Sub user ID
+  </ResponseField>
+  
+  <ResponseField name="userEmail" type="string">
+  The user's email address
   </ResponseField>
   
   <ResponseField name="planId" type="string" required>
@@ -238,6 +249,7 @@ Event data
   "created": 1700000000,
   "data": {
     "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000",
+    "userEmail": "user@example.com",
     "planId": "enterprise",
     "previousPlanId": "pro",
     "productId": "660e8400-e29b-41d4-a716-446655440000",
@@ -257,6 +269,7 @@ Event data
   "created": 1700000000,
   "data": {
     "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000",
+    "userEmail": "user@example.com",
     "planId": "pro",
     "productId": "660e8400-e29b-41d4-a716-446655440000",
     "status": "active",
@@ -275,6 +288,7 @@ Event data
   "created": 1700000000,
   "data": {
     "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000",
+    "userEmail": "user@example.com",
     "planId": "monthly",
     "productId": "660e8400-e29b-41d4-a716-446655440000",
     "status": "active",
@@ -291,17 +305,17 @@ Event data
 
 ```typescript
 case 'subscription.updated':
-  const { oneSubUserId, planId, previousPlanId, status, previousStatus } = event.data;
+  const { oneSubUserId, userEmail, planId, previousPlanId, status, previousStatus } = event.data;
   
   // Handle plan changes
   if (previousPlanId && previousPlanId !== planId) {
     await updateUserPlan(oneSubUserId, planId, previousPlanId);
-    await sendPlanChangeEmail(oneSubUserId, planId, previousPlanId);
+    await sendPlanChangeEmail(userEmail, planId, previousPlanId);
   }
   
   // Handle status changes
   if (previousStatus === 'trialing' && status === 'active') {
-    await sendTrialConvertedEmail(oneSubUserId);
+    await sendTrialConvertedEmail(userEmail);
   }
   
   // Handle renewals (period changed but same plan)
@@ -349,6 +363,10 @@ Event data
   The 1Sub user ID
   </ResponseField>
   
+  <ResponseField name="userEmail" type="string">
+  The user's email address
+  </ResponseField>
+  
   <ResponseField name="planId" type="string" required>
   Plan that was canceled
   </ResponseField>
@@ -385,6 +403,7 @@ Event data
   "created": 1700000000,
   "data": {
     "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000",
+    "userEmail": "user@example.com",
     "planId": "pro",
     "productId": "660e8400-e29b-41d4-a716-446655440000",
     "status": "canceled",
@@ -402,6 +421,7 @@ Event data
   "created": 1700000000,
   "data": {
     "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000",
+    "userEmail": "user@example.com",
     "planId": "monthly",
     "productId": "660e8400-e29b-41d4-a716-446655440000",
     "status": "canceled",
@@ -417,7 +437,7 @@ Event data
 
 ```typescript
 case 'subscription.canceled':
-  const { oneSubUserId, planId, cancellationReason, effectiveDate } = event.data;
+  const { oneSubUserId, userEmail, planId, cancellationReason, effectiveDate } = event.data;
   
   // Check if effective immediately or at period end
   const now = new Date();
@@ -433,9 +453,9 @@ case 'subscription.canceled':
   
   // Send appropriate email
   if (cancellationReason === 'user_requested') {
-    await sendCancellationConfirmationEmail(oneSubUserId, effective);
+    await sendCancellationConfirmationEmail(userEmail, effective);
   } else if (cancellationReason === 'payment_failed') {
-    await sendPaymentFailedEmail(oneSubUserId);
+    await sendPaymentFailedEmail(userEmail);
   }
   
   // Clear subscription cache
@@ -482,6 +502,10 @@ Event data
   The 1Sub user ID
   </ResponseField>
   
+  <ResponseField name="userEmail" type="string">
+  The user's email address
+  </ResponseField>
+  
   <ResponseField name="checkoutId" type="string (UUID)" required>
   Checkout session ID for this purchase
   </ResponseField>
@@ -509,6 +533,7 @@ Event data
   "created": 1700000000,
   "data": {
     "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000",
+    "userEmail": "user@example.com",
     "checkoutId": "chk_abc123def456",
     "amount": 100,
     "creditsRemaining": 150,
@@ -521,7 +546,7 @@ Event data
 
 ```typescript
 case 'purchase.completed':
-  const { oneSubUserId, checkoutId, amount, purchaseType } = event.data;
+  const { oneSubUserId, userEmail, checkoutId, amount, purchaseType } = event.data;
   
   // Log purchase
   await logPurchase(oneSubUserId, checkoutId, amount, purchaseType);
@@ -532,7 +557,7 @@ case 'purchase.completed':
   }
   
   // Send purchase confirmation email
-  await sendPurchaseConfirmation(oneSubUserId, amount);
+  await sendPurchaseConfirmation(userEmail, amount);
   
   break;
 ```
@@ -571,6 +596,10 @@ Event data
   The 1Sub user ID
   </ResponseField>
   
+  <ResponseField name="userEmail" type="string">
+  The user's email address
+  </ResponseField>
+  
   <ResponseField name="creditBalance" type="number" required>
   User's current credit balance
   </ResponseField>
@@ -590,6 +619,7 @@ Event data
   "created": 1700000000,
   "data": {
     "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000",
+    "userEmail": "user@example.com",
     "creditBalance": 8,
     "threshold": 10
   }
@@ -600,10 +630,10 @@ Event data
 
 ```typescript
 case 'user.credit_low':
-  const { oneSubUserId, creditBalance, threshold } = event.data;
+  const { oneSubUserId, userEmail, creditBalance, threshold } = event.data;
   
   // Send low credit warning email
-  await sendLowCreditWarning(oneSubUserId, creditBalance);
+  await sendLowCreditWarning(userEmail, creditBalance);
   
   // Show in-app notification on next login
   await queueNotification(oneSubUserId, {
@@ -612,7 +642,7 @@ case 'user.credit_low':
   });
   
   // Log for analytics
-  await trackEvent('credit_low_warning', { userId: oneSubUserId, balance: creditBalance });
+  await trackEvent('credit_low_warning', { userId: oneSubUserId, email: userEmail, balance: creditBalance });
   
   break;
 ```
@@ -651,6 +681,10 @@ Event data
   The 1Sub user ID
   </ResponseField>
   
+  <ResponseField name="userEmail" type="string">
+  The user's email address
+  </ResponseField>
+  
   <ResponseField name="creditBalance" type="number" required>
   Always 0
   </ResponseField>
@@ -666,6 +700,7 @@ Event data
   "created": 1700000000,
   "data": {
     "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000",
+    "userEmail": "user@example.com",
     "creditBalance": 0
   }
 }
@@ -675,19 +710,19 @@ Event data
 
 ```typescript
 case 'user.credit_depleted':
-  const { oneSubUserId } = event.data;
+  const { oneSubUserId, userEmail } = event.data;
   
   // Suspend credit-based features
   await suspendCreditFeatures(oneSubUserId);
   
   // Send urgent notification
-  await sendCreditDepletedEmail(oneSubUserId);
+  await sendCreditDepletedEmail(userEmail);
   
   // Show paywall on next request
   await setUserFlag(oneSubUserId, 'show_credit_paywall', true);
   
   // Log for analytics
-  await trackEvent('credits_depleted', { userId: oneSubUserId });
+  await trackEvent('credits_depleted', { userId: oneSubUserId, email: userEmail });
   
   break;
 ```

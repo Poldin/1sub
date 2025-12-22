@@ -48,6 +48,7 @@ https://yourtool.com/webhooks/1sub
   "created": 1700000000,
   "data": {
     "oneSubUserId": "uuid-abc-123",
+    "userEmail": "user@example.com",
     "planId": "monthly",
     "status": "active"
   }
@@ -104,6 +105,7 @@ Sent when a new subscription is created or reactivated.
   "type": "subscription.activated",
   "data": {
     "oneSubUserId": "uuid-abc-123",
+    "userEmail": "user@example.com",
     "planId": "pro",
     "status": "trialing",
     "currentPeriodEnd": "2025-12-01T00:00:00Z",
@@ -133,6 +135,7 @@ Sent when subscription details change.
   "type": "subscription.updated",
   "data": {
     "oneSubUserId": "uuid-abc-123",
+    "userEmail": "user@example.com",
     "planId": "enterprise",
     "status": "active",
     "previousPlanId": "pro",
@@ -161,6 +164,7 @@ Sent when a subscription is canceled.
   "type": "subscription.canceled",
   "data": {
     "oneSubUserId": "uuid-abc-123",
+    "userEmail": "user@example.com",
     "planId": "pro",
     "status": "canceled",
     "cancellationReason": "user_requested",
@@ -193,6 +197,7 @@ Sent when a user completes a one-time purchase.
   "type": "purchase.completed",
   "data": {
     "oneSubUserId": "uuid-abc-123",
+    "userEmail": "user@example.com",
     "checkoutId": "chk_abc123",
     "amount": 100,
     "purchaseType": "credits"
@@ -223,6 +228,7 @@ Sent when a user's credits fall below the threshold (10 credits).
   "type": "user.credit_low",
   "data": {
     "oneSubUserId": "uuid-abc-123",
+    "userEmail": "user@example.com",
     "creditBalance": 8,
     "threshold": 10
   }
@@ -248,6 +254,7 @@ Sent when a user's credit balance reaches zero.
   "type": "user.credit_depleted",
   "data": {
     "oneSubUserId": "uuid-abc-123",
+    "userEmail": "user@example.com",
     "creditBalance": 0
   }
 }
@@ -306,6 +313,10 @@ Event-specific data about the subscription change
 <Expandable title="Common Data Fields">
   <ResponseField name="oneSubUserId" type="string (UUID)" required>
   The 1Sub user ID
+  </ResponseField>
+  
+  <ResponseField name="userEmail" type="string">
+  The user's email address (included in all user-specific events)
   </ResponseField>
   
   <ResponseField name="planId" type="string" required>

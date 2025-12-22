@@ -465,24 +465,24 @@ export default function VendorUsersPage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-8">
             <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
               <h3 className="text-sm font-medium text-[#9ca3af] mb-2">Total Users</h3>
-              <p className="text-2xl font-bold text-[#ededed]">{users.length}</p>
+              <p className="text-2xl font-bold text-[#ededed]">{filteredUsers.length}</p>
             </div>
             <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
               <h3 className="text-sm font-medium text-[#9ca3af] mb-2">Total Credits Earned</h3>
               <p className="text-2xl font-bold text-[#3ecf8e]">
-                {users.reduce((sum, user) => sum + user.creditsSpent, 0).toLocaleString()}
+                {filteredUsers.reduce((sum, user) => sum + user.creditsSpent, 0).toLocaleString()}
               </p>
             </div>
             <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
               <h3 className="text-sm font-medium text-[#9ca3af] mb-2">Active Subscribers</h3>
               <p className="text-2xl font-bold text-[#ededed]">
-                {users.filter(user => user.isSubscribed).length}
+                {filteredUsers.filter(user => user.isSubscribed).length}
               </p>
             </div>
             <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
               <h3 className="text-sm font-medium text-[#9ca3af] mb-2">Total Uses</h3>
               <p className="text-2xl font-bold text-[#ededed]">
-                {users.reduce((sum, user) => sum + user.totalUsages, 0).toLocaleString()}
+                {filteredUsers.reduce((sum, user) => sum + user.totalUsages, 0).toLocaleString()}
               </p>
             </div>
           </div>

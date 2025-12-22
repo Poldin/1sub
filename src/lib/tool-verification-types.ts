@@ -39,6 +39,7 @@ export interface WebhookPayload {
   created: number;
   data: {
     oneSubUserId: string;
+    userEmail?: string; // Email of the user (for user-specific events)
     planId?: string;
     productId?: string;
     status?: SubscriptionStatus;

@@ -16,6 +16,31 @@ import type { WebhookPayload, WebhookEventType } from '@/lib/tool-verification-t
 import { invalidateCachedEntitlements } from '@/lib/redis-cache';
 
 /**
+ * Get user email from auth.users table
+ * 
+ * @param userId - The user ID
+ * @returns User email or undefined if not found
+ */
+async function getUserEmail(userId: string): Promise<string | undefined> {
+  try {
+    const supabase = await createClient();
+    
+    // Query auth.users via admin API
+    const { data, error } = await supabase.auth.admin.getUserById(userId);
+    
+    if (error || !data?.user) {
+      console.warn(`[Webhook] Could not fetch email for user ${userId}:`, error);
+      return undefined;
+    }
+    
+    return data.user.email;
+  } catch (error) {
+    console.error(`[Webhook] Error fetching user email:`, error);
+    return undefined;
+  }
+}
+
+/**
  * Generate HMAC signature for webhook payload
  * 
  * @param payload - The webhook payload (as string)
@@ -187,8 +212,12 @@ export async function notifySubscriptionActivated(
   currentPeriodEnd: string,
   creditsRemaining?: number
 ): Promise<boolean> {
+  // Get user email
+  const userEmail = await getUserEmail(oneSubUserId);
+  
   return sendToolWebhook(toolId, 'subscription.activated', {
     oneSubUserId,
+    userEmail,
     planId,
     status: 'active',
     currentPeriodEnd,
@@ -208,8 +237,12 @@ export async function notifyPurchaseCompleted(
   creditsRemaining?: number,
   purchaseType?: string
 ): Promise<boolean> {
+  // Get user email
+  const userEmail = await getUserEmail(oneSubUserId);
+  
   return sendToolWebhook(toolId, 'purchase.completed', {
     oneSubUserId,
+    userEmail,
     checkoutId,
     amount,
     creditsRemaining,
@@ -230,8 +263,12 @@ export async function notifySubscriptionCanceled(
   // Invalidate cache FIRST for immediate effect
   await invalidateCachedEntitlements(toolId, oneSubUserId);
 
+  // Get user email
+  const userEmail = await getUserEmail(oneSubUserId);
+
   return sendToolWebhook(toolId, 'subscription.canceled', {
     oneSubUserId,
+    userEmail,
     planId,
     status: 'canceled',
     currentPeriodEnd,
@@ -254,8 +291,12 @@ export async function notifySubscriptionUpdated(
   // Invalidate cache FIRST for immediate effect
   await invalidateCachedEntitlements(toolId, oneSubUserId);
 
+  // Get user email
+  const userEmail = await getUserEmail(oneSubUserId);
+
   return sendToolWebhook(toolId, 'subscription.updated', {
     oneSubUserId,
+    userEmail,
     planId,
     status,
     currentPeriodEnd,
@@ -273,8 +314,12 @@ export async function notifyUserCreditLow(
   creditBalance: number,
   threshold: number
 ): Promise<boolean> {
+  // Get user email
+  const userEmail = await getUserEmail(oneSubUserId);
+  
   return sendToolWebhook(toolId, 'user.credit_low', {
     oneSubUserId,
+    userEmail,
     creditBalance,
     threshold,
   });
@@ -287,8 +332,12 @@ export async function notifyUserCreditDepleted(
   toolId: string,
   oneSubUserId: string
 ): Promise<boolean> {
+  // Get user email
+  const userEmail = await getUserEmail(oneSubUserId);
+  
   return sendToolWebhook(toolId, 'user.credit_depleted', {
     oneSubUserId,
+    userEmail,
     creditBalance: 0,
   });
 }
@@ -321,8 +370,12 @@ export async function notifyEntitlementGranted(
   planId: string,
   creditsRemaining?: number
 ): Promise<boolean> {
+  // Get user email
+  const userEmail = await getUserEmail(oneSubUserId);
+  
   return sendToolWebhook(toolId, 'entitlement.granted', {
     oneSubUserId,
+    userEmail,
     grantId,
     planId,
     status: 'active',
@@ -343,8 +396,12 @@ export async function notifyEntitlementRevoked(
   // Invalidate cache FIRST for immediate effect
   await invalidateCachedEntitlements(toolId, oneSubUserId);
 
+  // Get user email
+  const userEmail = await getUserEmail(oneSubUserId);
+
   return sendToolWebhook(toolId, 'entitlement.revoked', {
     oneSubUserId,
+    userEmail,
     reason,
     revokedAt,
     status: 'canceled',
@@ -365,8 +422,12 @@ export async function notifyEntitlementChanged(
   // Invalidate cache FIRST for immediate effect
   await invalidateCachedEntitlements(toolId, oneSubUserId);
 
+  // Get user email
+  const userEmail = await getUserEmail(oneSubUserId);
+
   return sendToolWebhook(toolId, 'entitlement.changed', {
     oneSubUserId,
+    userEmail,
     previousState,
     newState,
     planId: newState.planId,
@@ -387,8 +448,12 @@ export async function notifyVerifyRequired(
   // Invalidate cache to force fresh verification
   await invalidateCachedEntitlements(toolId, oneSubUserId);
 
+  // Get user email
+  const userEmail = await getUserEmail(oneSubUserId);
+
   return sendToolWebhook(toolId, 'verify.required', {
     oneSubUserId,
+    userEmail,
     reason,
   });
 }
