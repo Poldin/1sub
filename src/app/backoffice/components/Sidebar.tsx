@@ -291,7 +291,7 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
                         className="w-full flex items-center gap-3 p-2 rounded hover:bg-[#374151] transition-colors text-[#d1d5db] text-sm"
                       >
                         <Key className="w-4 h-4 text-[#3ecf8e]" />
-                        <span>API</span>
+                        <span>API Key & Webhook</span>
                       </button>
                       <button
                         onClick={() => handleNavigation('/vendor-dashboard/integration')}
