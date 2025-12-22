@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Menu, Download, RefreshCw, Loader2 } from 'lucide-react';
+import { Menu, Download, RefreshCw, Loader2, DollarSign, Hash, TrendingUp } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import Sidebar from '../../backoffice/components/Sidebar';
 import ToolSelector from '../components/ToolSelector';
@@ -40,6 +40,7 @@ export default function VendorTransactionsPage() {
   const [hasTools, setHasTools] = useState(false);
   const [isVendor, setIsVendor] = useState(false);
   const [selectedToolId, setSelectedToolId] = useState<string>('');
+  const [isToolSelectorReady, setIsToolSelectorReady] = useState(false);
 
   // Initialize sidebar state based on screen size
   useEffect(() => {
@@ -136,9 +137,10 @@ export default function VendorTransactionsPage() {
         vendor_id: userId,
         filter: filter,
         date_filter: dateFilter.toISOString(),
+        selected_tool_id: selectedToolId,
       });
       
-      const { data: transactionData, error: transactionError } = await supabase
+      let query = supabase
         .from('credit_transactions')
         .select(`
           id,
@@ -152,7 +154,14 @@ export default function VendorTransactionsPage() {
         .eq('user_id', userId) // Vendor is the user earning credits
         .eq('type', 'add') // Only 'add' transactions (earnings)
         .ilike('reason', 'Tool sale:%') // Filter by tool sales
-        .gte('created_at', dateFilter.toISOString())
+        .gte('created_at', dateFilter.toISOString());
+      
+      // Filter by tool_id if a tool is selected
+      if (selectedToolId) {
+        query = query.eq('tool_id', selectedToolId);
+      }
+      
+      const { data: transactionData, error: transactionError } = await query
         .order('created_at', { ascending: false })
         .limit(100);
       
@@ -274,53 +283,31 @@ export default function VendorTransactionsPage() {
   };
 
   useEffect(() => {
-    if (userId) {
+    if (userId && hasTools && isToolSelectorReady) {
+      // Fetch data only when ToolSelector is ready to avoid flashing wrong data
       fetchTransactions();
+    } else if (userId && !hasTools) {
+      // No tools, no transactions to fetch
+      setLoading(false);
     }
-  }, [userId, filter]);
-
-  // Auto-refresh on window focus
+  }, [userId, hasTools, filter, selectedToolId, isToolSelectorReady]);
+  
+  // Set isToolSelectorReady to false when hasTools changes to ensure clean state
   useEffect(() => {
-    const handleFocus = () => {
-      if (userId && !loading) {
-        fetchTransactions();
-      }
-    };
+    if (!hasTools) {
+      setIsToolSelectorReady(false);
+    }
+  }, [hasTools]);
 
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [userId, loading]);
-
-  // Optional: Polling every 60 seconds when page is active
-  useEffect(() => {
-    if (!userId) return;
-
-    const interval = setInterval(() => {
-      // Only refresh if page is visible (not in background)
-      if (document.visibilityState === 'visible' && !loading) {
-        fetchTransactions();
-      }
-    }, 60000); // 60 seconds
-
-    return () => clearInterval(interval);
-  }, [userId, loading]);
-
-  // Filter transactions based on selected tool
-  const filteredTransactions = transactions.filter(transaction => {
-    // If no tool is selected, show all transactions
-    if (!selectedToolId) return true;
-    // Otherwise, only show transactions for the selected tool
-    return transaction.tool_id === selectedToolId;
-  });
-
-  const totalCredits = filteredTransactions.reduce((sum, t) => sum + t.credits_amount, 0);
-  const totalTransactions = filteredTransactions.length;
+  // No client-side filtering needed - data comes filtered from the database
+  const totalCredits = transactions.reduce((sum, t) => sum + t.credits_amount, 0);
+  const totalTransactions = transactions.length;
   const successRate = totalTransactions > 0 ? 100 : 0; // All vendor transactions are "completed" since they're earnings
 
   const handleExport = () => {
-    // Convert filtered transactions to CSV
+    // Convert transactions to CSV
     const csvHeaders = ['Date', 'Buyer', 'Tool', 'Credits', 'Reason'];
-    const csvRows = filteredTransactions.map(tx => [
+    const csvRows = transactions.map(tx => [
       new Date(tx.created_at).toLocaleString(),
       tx.buyer_email || tx.buyer_name || 'Unknown',
       tx.tool_name || 'Unknown',
@@ -381,6 +368,7 @@ export default function VendorTransactionsPage() {
                   currentToolId={selectedToolId}
                   onToolChange={(toolId, toolName) => {
                     setSelectedToolId(toolId);
+                    setIsToolSelectorReady(true);
                   }}
                 />
               )}
@@ -411,7 +399,7 @@ export default function VendorTransactionsPage() {
               </button>
               <button
                 onClick={handleExport}
-                disabled={filteredTransactions.length === 0}
+                disabled={transactions.length === 0}
                 className="flex items-center px-3 py-2 bg-[#374151] text-[#ededed] rounded-lg hover:bg-[#4b5563] transition-colors text-sm disabled:opacity-50"
               >
                 <Download className="w-4 h-4 mr-1" />
@@ -422,33 +410,34 @@ export default function VendorTransactionsPage() {
         </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
-            <h3 className="text-sm font-medium text-[#9ca3af] mb-2">Total Credits Earned</h3>
-            <p className="text-2xl font-bold text-[#3ecf8e]">{totalCredits.toFixed(2)}</p>
-            <p className="text-xs text-[#9ca3af] mt-1">From all tool sales</p>
+        {/* Quick Stats */}
+        {!loading && (
+          <div className="flex flex-wrap items-center gap-6 mb-6 bg-[#1f2937] rounded-lg p-4 border border-[#374151]">
+            <div className="flex items-center gap-2">
+              <DollarSign className="w-4 h-4 text-[#3ecf8e]" />
+              <p className="text-xs text-[#9ca3af]">
+                Credits Earned <span className="font-bold text-[#ededed]">{totalCredits.toFixed(2)}</span>
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Hash className="w-4 h-4 text-[#3ecf8e]" />
+              <p className="text-xs text-[#9ca3af]">
+                Total Transactions <span className="font-bold text-[#ededed]">{totalTransactions}</span>
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-[#3ecf8e]" />
+              <p className="text-xs text-[#9ca3af]">
+                Avg per Sale <span className="font-bold text-[#ededed]">{totalTransactions > 0 ? (totalCredits / totalTransactions).toFixed(2) : '0.00'}</span>
+              </p>
+            </div>
           </div>
-          <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
-            <h3 className="text-sm font-medium text-[#9ca3af] mb-2">Total Transactions</h3>
-            <p className="text-2xl font-bold text-[#ededed]">{totalTransactions}</p>
-            <p className="text-xs text-[#9ca3af] mt-1">Sales recorded</p>
-          </div>
-          <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
-            <h3 className="text-sm font-medium text-[#9ca3af] mb-2">Average per Sale</h3>
-            <p className="text-2xl font-bold text-[#3ecf8e]">
-              {totalTransactions > 0 ? (totalCredits / totalTransactions).toFixed(2) : '0.00'}
-            </p>
-            <p className="text-xs text-[#9ca3af] mt-1">Credits per transaction</p>
-          </div>
-        </div>
+        )}
 
         {/* Transactions Table */}
         <div className="bg-[#1f2937] rounded-lg border border-[#374151]">
-          <div className="p-6 border-b border-[#374151]">
-            <h2 className="text-lg font-semibold text-[#ededed]">Transaction History</h2>
-            <p className="text-sm text-[#9ca3af] mt-1">All earnings from your published tools</p>
-          </div>
           {loading ? (
             <div className="p-12 text-center">
               <Loader2 className="w-8 h-8 animate-spin text-[#3ecf8e] mx-auto mb-4" />
@@ -477,7 +466,7 @@ export default function VendorTransactionsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredTransactions.length === 0 ? (
+                  {transactions.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="px-6 py-8 text-center text-[#9ca3af]">
                         No transactions found
@@ -485,7 +474,7 @@ export default function VendorTransactionsPage() {
                       </td>
                     </tr>
                   ) : (
-                    filteredTransactions.map((transaction) => {
+                    transactions.map((transaction) => {
                       // Determine transaction type from reason
                       const isSubscription = transaction.reason?.includes('Subscription');
                       const transactionType = isSubscription ? 'Subscription' : 'One-time';

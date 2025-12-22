@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Menu, Users, Search } from 'lucide-react';
+import { Menu, Users, DollarSign, Hash, UserCheck } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import Sidebar from '../../backoffice/components/Sidebar';
 import ToolSelector from '../components/ToolSelector';
@@ -25,7 +25,6 @@ interface VendorUser {
 
 export default function VendorUsersPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
   
   // States for unified Sidebar
   const [userId, setUserId] = useState<string>('');
@@ -38,6 +37,7 @@ export default function VendorUsersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedToolId, setSelectedToolId] = useState<string>('');
+  const [isToolSelectorReady, setIsToolSelectorReady] = useState(false);
 
   // Initialize sidebar state from localStorage
   useEffect(() => {
@@ -58,17 +58,23 @@ export default function VendorUsersPage() {
   };
   
   // Fetch vendor users data
-  const fetchVendorUsers = async (vendorId: string) => {
+  const fetchVendorUsers = async (vendorId: string, toolId?: string) => {
     try {
       setLoading(true);
       setError(null);
       const supabase = createClient();
 
-      // 1. Get vendor's tools
-      const { data: tools, error: toolsError } = await supabase
+      // 1. Get vendor's tools (filtered by toolId if provided)
+      let toolsQuery = supabase
         .from('tools')
         .select('id, name')
         .eq('user_profile_id', vendorId);
+      
+      if (toolId) {
+        toolsQuery = toolsQuery.eq('id', toolId);
+      }
+
+      const { data: tools, error: toolsError } = await toolsQuery;
 
       if (toolsError) {
         throw new Error('Failed to fetch tools');
@@ -245,7 +251,7 @@ export default function VendorUsersPage() {
     }
   };
 
-  // Fetch user data
+  // Fetch user data (initial load only)
   useEffect(() => {
     const fetchUserData = async () => {
       try {
@@ -279,13 +285,6 @@ export default function VendorUsersPage() {
         
         const hasTools = (toolsData?.length || 0) > 0;
         setHasTools(hasTools);
-        
-        // Fetch vendor users if user has tools
-        if (hasTools) {
-          await fetchVendorUsers(user.id);
-        } else {
-          setLoading(false);
-        }
       } catch (err) {
         console.error('Error fetching user data:', err);
         setError('Failed to load user data');
@@ -296,18 +295,25 @@ export default function VendorUsersPage() {
     fetchUserData();
   }, []);
   
-  // Filter users based on search term and selected tool
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = 
-      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (user.fullName && user.fullName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      user.toolsUsed.some(tool => tool.toolName.toLowerCase().includes(searchTerm.toLowerCase()));
-    
-    const matchesSelectedTool = !selectedToolId || 
-      user.toolsUsed.some(tool => tool.toolId === selectedToolId);
-    
-    return matchesSearch && matchesSelectedTool;
-  });
+  // Fetch vendor users when userId or selectedToolId changes
+  useEffect(() => {
+    if (userId && hasTools && isToolSelectorReady) {
+      // Fetch data only when ToolSelector is ready to avoid flashing wrong data
+      fetchVendorUsers(userId, selectedToolId);
+    } else if (userId && !hasTools) {
+      // No tools, no need to wait for ToolSelector
+      setLoading(false);
+    }
+  }, [userId, hasTools, selectedToolId, isToolSelectorReady]);
+  
+  // Set isToolSelectorReady to false when hasTools changes to ensure clean state
+  useEffect(() => {
+    if (!hasTools) {
+      setIsToolSelectorReady(false);
+    }
+  }, [hasTools]);
+  
+  // No client-side filtering needed - data comes filtered from the database
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex overflow-x-hidden">
@@ -346,24 +352,14 @@ export default function VendorUsersPage() {
                   currentToolId={selectedToolId}
                   onToolChange={(toolId, toolName) => {
                     setSelectedToolId(toolId);
+                    setIsToolSelectorReady(true);
+                    // Data will be refetched automatically via useEffect
                   }}
                 />
               )}
               
               {/* Page Title */}
               <h1 className="text-xl sm:text-2xl font-bold text-[#ededed]">Users</h1>
-            </div>
-            
-            {/* Search Bar */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#9ca3af] w-4 h-4" />
-              <input
-                type="text"
-                placeholder="Search users or tools..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent text-sm"
-              />
             </div>
           </div>
         </header>
@@ -384,33 +380,61 @@ export default function VendorUsersPage() {
           </div>
         )}
 
+        {/* Quick Stats */}
+        {!loading && (
+          <div className="flex flex-wrap items-center gap-6 mb-6 bg-[#1f2937] rounded-lg p-4 border border-[#374151]">
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4 text-[#3ecf8e]" />
+              <p className="text-xs text-[#9ca3af]">
+                Total Users <span className="font-bold text-[#ededed]">{users.length}</span>
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <DollarSign className="w-4 h-4 text-[#3ecf8e]" />
+              <p className="text-xs text-[#9ca3af]">
+                Credits Earned <span className="font-bold text-[#ededed]">{users.reduce((sum, user) => sum + user.creditsSpent, 0).toLocaleString()}</span>
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <UserCheck className="w-4 h-4 text-[#3ecf8e]" />
+              <p className="text-xs text-[#9ca3af]">
+                Subscribers <span className="font-bold text-[#ededed]">{users.filter(user => user.isSubscribed).length}</span>
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Hash className="w-4 h-4 text-[#3ecf8e]" />
+              <p className="text-xs text-[#9ca3af]">
+                Transactions <span className="font-bold text-[#ededed]">{users.reduce((sum, user) => sum + user.totalUsages, 0).toLocaleString()}</span>
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Users Table */}
         {!loading && (
           <div className="bg-[#1f2937] rounded-lg border border-[#374151]">
-            <div className="p-6 border-b border-[#374151]">
-              <h2 className="text-lg font-semibold text-[#ededed]">Users Who Used Your Tools</h2>
-              <p className="text-sm text-[#9ca3af] mt-1">Users who have interacted with your published tools</p>
-            </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-[#374151]">
                   <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">User</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Tools Used</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Credits Spent</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Total Uses</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Last Active</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">#Transactions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-[#9ca3af] uppercase tracking-wider">Last Seen</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredUsers.length === 0 ? (
+                {users.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-[#9ca3af]">
-                      {searchTerm || selectedToolId ? 'No users found matching your search' : 'No users have used your tools yet'}
+                    <td colSpan={4} className="px-6 py-8 text-center text-[#9ca3af]">
+                      {selectedToolId ? 'No users found for this tool' : 'No users have used your tools yet'}
                     </td>
                   </tr>
                 ) : (
-                  filteredUsers.map((user) => (
+                  users.map((user) => (
                     <tr key={user.id} className="border-b border-[#374151] hover:bg-[#374151]/50">
                       <td className="px-6 py-4">
                         <div className="flex items-center">
@@ -430,18 +454,6 @@ export default function VendorUsersPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-wrap gap-1">
-                          {user.toolsUsed.map((tool, index) => (
-                            <span
-                              key={index}
-                              className="px-2 py-1 bg-[#374151] text-[#9ca3af] text-xs rounded"
-                            >
-                              {tool.toolName} ({tool.usageCount})
-                            </span>
-                          ))}
-                        </div>
-                      </td>
                       <td className="px-6 py-4 text-[#3ecf8e] font-medium">
                         {user.creditsSpent.toLocaleString()}
                       </td>
@@ -458,34 +470,6 @@ export default function VendorUsersPage() {
             </table>
           </div>
         </div>
-        )}
-
-        {/* Summary Stats */}
-        {!loading && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-8">
-            <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
-              <h3 className="text-sm font-medium text-[#9ca3af] mb-2">Total Users</h3>
-              <p className="text-2xl font-bold text-[#ededed]">{filteredUsers.length}</p>
-            </div>
-            <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
-              <h3 className="text-sm font-medium text-[#9ca3af] mb-2">Total Credits Earned</h3>
-              <p className="text-2xl font-bold text-[#3ecf8e]">
-                {filteredUsers.reduce((sum, user) => sum + user.creditsSpent, 0).toLocaleString()}
-              </p>
-            </div>
-            <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
-              <h3 className="text-sm font-medium text-[#9ca3af] mb-2">Active Subscribers</h3>
-              <p className="text-2xl font-bold text-[#ededed]">
-                {filteredUsers.filter(user => user.isSubscribed).length}
-              </p>
-            </div>
-            <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
-              <h3 className="text-sm font-medium text-[#9ca3af] mb-2">Total Uses</h3>
-              <p className="text-2xl font-bold text-[#ededed]">
-                {filteredUsers.reduce((sum, user) => sum + user.totalUsages, 0).toLocaleString()}
-              </p>
-            </div>
-          </div>
         )}
 
         {/* Footer */}

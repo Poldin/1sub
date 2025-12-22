@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Menu, Settings, Plus, BarChart3, TrendingUp, DollarSign, Users, Rocket, ArrowRight, Edit, Check } from 'lucide-react';
+import { Menu, Settings, Plus, BarChart3, TrendingUp, DollarSign, Users, Rocket, ArrowRight, Edit, Check, Trash2 } from 'lucide-react';
 import Sidebar from '../backoffice/components/Sidebar';
 import Footer from '../components/Footer';
 import { createClient } from '@/lib/supabase/client';
@@ -23,7 +23,6 @@ export default function VendorDashboard() {
   const [userRole, setUserRole] = useState<string>('user');
   const [hasTools, setHasTools] = useState(false);
   const [isVendor, setIsVendor] = useState(false);
-  const [companyName, setCompanyName] = useState<string | null>(null);
 
   // Tool selection states
   const [selectedToolId, setSelectedToolId] = useState<string>('');
@@ -38,6 +37,7 @@ export default function VendorDashboard() {
   const [toolPendingDeletion, setToolPendingDeletion] = useState<ToolSummary | null>(null);
   const [isDeletingTool, setIsDeletingTool] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteConfirmationText, setDeleteConfirmationText] = useState('');
 
   // Vendor-wide stats (always shown)
   const [vendorStats, setVendorStats] = useState({
@@ -104,6 +104,7 @@ export default function VendorDashboard() {
   const handleDeleteToolRequest = (tool: ToolSummary) => {
     setToolPendingDeletion(tool);
     setDeleteError(null);
+    setDeleteConfirmationText('');
     setIsDeleteDialogOpen(true);
   };
 
@@ -160,6 +161,7 @@ export default function VendorDashboard() {
 
       setToolPendingDeletion(null);
       setIsDeleteDialogOpen(false);
+      setDeleteConfirmationText('');
       setToolRefreshToken((prev) => prev + 1);
     } catch (error) {
       console.error('Error deleting tool:', error);
@@ -173,6 +175,7 @@ export default function VendorDashboard() {
     setIsDeleteDialogOpen(false);
     setToolPendingDeletion(null);
     setDeleteError(null);
+    setDeleteConfirmationText('');
   };
 
   // Fetch vendor-wide analytics
@@ -391,19 +394,6 @@ export default function VendorDashboard() {
           setIsVendor(data.isVendor);
         }
 
-        // Fetch vendor application to get company name
-        const supabase = createClient();
-        const { data: vendorApplication } = await supabase
-          .from('vendor_applications')
-          .select('company')
-          .eq('user_id', data.id)
-          .eq('status', 'approved')
-          .single();
-
-        if (vendorApplication?.company) {
-          setCompanyName(vendorApplication.company);
-        }
-
         // Fetch user's tools via the server-side API endpoint
         const toolsResponse = await fetch('/api/vendor/tools');
         
@@ -532,7 +522,7 @@ export default function VendorDashboard() {
               )}
 
               <h1 className="text-xl sm:text-2xl font-bold text-[#ededed]">
-                {companyName || (hasTools ? 'Vendor Dashboard' : 'Become a Vendor')}
+                {hasTools ? 'Vendor Dashboard' : 'Become a Vendor'}
               </h1>
             </div>
 
@@ -540,10 +530,10 @@ export default function VendorDashboard() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => router.push('/vendor-dashboard/publish')}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#3ecf8e] text-black rounded-lg hover:bg-[#2dd4bf] transition-colors font-semibold"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#3ecf8e] text-black rounded-lg hover:bg-[#2dd4bf] transition-colors text-sm"
                 >
-                  <Plus className="w-4 h-4" />
-                  Create New Tool
+                  <Plus className="w-3.5 h-3.5" />
+                  add new tool
                 </button>
 
                 <button
@@ -553,10 +543,10 @@ export default function VendorDashboard() {
                     }
                   }}
                   disabled={!selectedToolId}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#374151] text-white rounded-lg hover:bg-[#4b5563] transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Edit className="w-4 h-4" />
-                  Edit Tool
+                  <Edit className="w-3.5 h-3.5" />
+                  edit
                 </button>
 
                 <button
@@ -569,9 +559,10 @@ export default function VendorDashboard() {
                     }
                   }}
                   disabled={!selectedToolId || isDeletingTool}
-                  className="inline-flex items-center gap-2 px-4 py-2 border border-red-500/60 text-red-200 rounded-lg hover:bg-red-500/10 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="p-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Delete Tool"
                 >
-                  Delete Tool
+                  <Trash2 className="w-4 h-4" />
                 </button>
               </div>
             )}
@@ -784,20 +775,6 @@ export default function VendorDashboard() {
 
               {(selectedToolName || selectedToolId) && (
                 <>
-                  <div className="mb-8">
-                    <div className="flex items-center gap-3 mb-6">
-                      <div className="w-2 h-8 bg-[#3ecf8e] rounded-full"></div>
-                      <h2 className="text-3xl font-bold text-[#ededed]">
-                        Currently Viewing:{' '}
-                        {selectedToolName ? (
-                          <span>{selectedToolName}</span>
-                        ) : (
-                          <span className="inline-block h-8 w-32 bg-[#374151] rounded animate-pulse ml-2"></span>
-                        )}
-                      </h2>
-                    </div>
-                  </div>
-
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151]">
                       <div className="flex items-center">
@@ -985,6 +962,21 @@ export default function VendorDashboard() {
             <p className="text-sm text-[#9ca3af] mb-4">
               Are you sure you want to delete <span className="text-[#ededed] font-semibold">{toolPendingDeletion.name}</span>? This action will permanently remove the tool and all associated products, subscriptions, and usage history.
             </p>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-[#ededed] mb-2">
+                Type <span className="font-mono bg-[#374151] px-2 py-0.5 rounded text-[#3ecf8e]">{toolPendingDeletion.name}</span> to confirm deletion:
+              </label>
+              <input
+                type="text"
+                value={deleteConfirmationText}
+                onChange={(e) => setDeleteConfirmationText(e.target.value)}
+                placeholder="Enter tool name"
+                className="w-full px-4 py-2 bg-[#1f2937] border border-[#374151] rounded-lg text-[#ededed] placeholder-[#6b7280] focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                disabled={isDeletingTool}
+              />
+            </div>
+            
             {deleteError && <p className="mb-4 text-sm text-red-400">{deleteError}</p>}
             <div className="flex justify-end gap-3">
               <button
@@ -996,7 +988,7 @@ export default function VendorDashboard() {
               </button>
               <button
                 onClick={handleConfirmDeleteTool}
-                disabled={isDeletingTool}
+                disabled={isDeletingTool || deleteConfirmationText !== toolPendingDeletion.name}
                 className="px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isDeletingTool ? 'Deleting…' : 'Delete tool'}
