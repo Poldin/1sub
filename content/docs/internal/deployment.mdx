@@ -1,0 +1,66 @@
+# Deployment Guide
+
+## Environment Variables
+
+### Required
+
+```bash
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# Stripe
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_...
+
+# App
+NEXT_PUBLIC_APP_URL=https://your-domain.com
+```
+
+### Optional
+
+```bash
+# Redis (for entitlement caching)
+REDIS_URL=redis://...
+
+# Email (Resend)
+RESEND_API_KEY=re_...
+
+# Stripe Connect
+STRIPE_CONNECT_WEBHOOK_SECRET=whsec_...
+```
+
+## Pre-Deployment Checklist
+
+1. [ ] All environment variables set
+2. [ ] Database migrations applied
+3. [ ] Stripe webhooks configured
+4. [ ] Redis connected (if using caching)
+5. [ ] Email service configured
+
+## Database Migrations
+
+```bash
+# Apply migrations
+npx supabase db push
+
+# Check migration status
+npx supabase migration list
+```
+
+## Stripe Webhook Setup
+
+Configure these webhook endpoints in Stripe Dashboard:
+
+1. **Payment Webhook**: `https://your-domain.com/api/stripe/webhook`
+   - Events: `checkout.session.completed`, `payment_intent.succeeded`
+
+2. **Connect Webhook**: `https://your-domain.com/api/stripe/connect/webhook`
+   - Events: `account.updated`, `payout.paid`
+
+## Health Checks
+
+- `/api/health` - Basic health check
+- `/api/v1/verify` - Vendor API health (requires auth)

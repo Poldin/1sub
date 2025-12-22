@@ -3,14 +3,14 @@ title: "Node.js Example"
 description: "Complete Node.js / Express integration example"
 ---
 
-# Node.js / Express Example
+# Node.js Example
 
-Complete working example of a 1Sub integration using Node.js and Express with the Authorization Code Flow.
+A complete working example using Node.js and Express.
 
 ## Installation
 
 ```bash
-npm install express express-session axios dotenv
+npm install express express-session
 ```
 
 ## Environment Variables
@@ -20,537 +20,151 @@ npm install express express-session axios dotenv
 ONESUB_API_KEY=sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx
 ONESUB_WEBHOOK_SECRET=whsec-xxxxxxxxxxxxxxxxxxxxxxxx
 SESSION_SECRET=your-session-secret
-CALLBACK_URL=https://yourapp.com/auth/1sub/callback
-PORT=3000
 ```
 
-## Complete Implementation
+## Complete Example
 
 ```typescript
 import express from 'express';
 import session from 'express-session';
 import crypto from 'crypto';
-import dotenv from 'dotenv';
-
-dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const API_KEY = process.env.ONESUB_API_KEY;
+const WEBHOOK_SECRET = process.env.ONESUB_WEBHOOK_SECRET;
 
-// Configuration
-const ONESUB_API_KEY = process.env.ONESUB_API_KEY!;
-const ONESUB_WEBHOOK_SECRET = process.env.ONESUB_WEBHOOK_SECRET!;
-const CALLBACK_URL = process.env.CALLBACK_URL!;
-const BASE_URL = 'https://1sub.io/api/v1';
-
-// Session configuration
 app.use(session({
-  secret: process.env.SESSION_SECRET!,
+  secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: process.env.NODE_ENV === 'production' }
 }));
 
-app.use(express.json());
+// ============================================
+// Step 1: Callback endpoint
+// ============================================
+app.get('/auth/callback', async (req, res) => {
+  const { code } = req.query;
 
-// Extend session type
-declare module 'express-session' {
-  interface SessionData {
-    onesubUserId: string;
-    verificationToken: string;
-    entitlements: Entitlements;
-    nextVerifyBefore: number;
-  }
-}
-
-interface Entitlements {
-  planId: string | null;
-  creditsRemaining: number | null;
-  features: string[];
-  limits: Record<string, number>;
-}
-
-// ============================================================================
-// 1. Authorization Code Exchange
-// ============================================================================
-
-/**
- * Exchange authorization code for verification token
- */
-async function exchangeAuthCode(code: string): Promise<{
-  valid: boolean;
-  grantId: string;
-  onesubUserId: string;
-  entitlements: Entitlements;
-  verificationToken: string;
-  expiresAt: number;
-}> {
-  const response = await fetch(`${BASE_URL}/authorize/exchange`, {
+  const response = await fetch('https://1sub.io/api/v1/authorize/exchange', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${ONESUB_API_KEY}`,
+      'Authorization': `Bearer ${API_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      code,
-      redirectUri: CALLBACK_URL
-    })
+    body: JSON.stringify({ code }),
   });
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || 'Failed to exchange authorization code');
+  const data = await response.json();
+
+  if (!data.valid) {
+    return res.redirect('/?error=auth_failed');
   }
 
-  return response.json();
-}
+  // Create session
+  req.session.userId = data.onesubUserId;
+  req.session.token = data.verificationToken;
+  req.session.entitlements = data.entitlements;
+  req.session.lastCheck = Date.now();
 
-// ============================================================================
-// 2. Token Verification
-// ============================================================================
-
-interface VerifyResult {
-  valid: boolean;
-  onesubUserId?: string;
-  entitlements?: Entitlements;
-  verificationToken?: string;
-  cacheUntil?: number;
-  nextVerificationBefore?: number;
-  error?: string;
-  reason?: string;
-  action?: 'terminate_session' | 'reauthenticate';
-}
-
-/**
- * Verify access token and get updated entitlements
- * IMPORTANT: Token rolls on each successful call - store the new token!
- */
-async function verifyAccess(verificationToken: string): Promise<VerifyResult> {
-  const response = await fetch(`${BASE_URL}/verify`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${ONESUB_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ verificationToken })
-  });
-
-  return response.json();
-}
-
-// ============================================================================
-// 3. Credit Consumption
-// ============================================================================
-
-/**
- * Consume credits from user balance
- */
-async function consumeCredits(
-  onesubUserId: string,
-  amount: number,
-  reason: string,
-  idempotencyKey: string
-): Promise<{ success: boolean; new_balance: number; transaction_id: string }> {
-  const response = await fetch(`${BASE_URL}/credits/consume`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${ONESUB_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      user_id: onesubUserId,
-      amount,
-      reason,
-      idempotency_key: idempotencyKey
-    })
-  });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || 'Failed to consume credits');
-  }
-
-  return response.json();
-}
-
-// ============================================================================
-// 4. API Endpoints
-// ============================================================================
-
-/**
- * OAuth Callback Handler
- * Users are redirected here from 1Sub with an authorization code
- */
-app.get('/auth/1sub/callback', async (req, res) => {
-  const { code, state } = req.query;
-
-  if (!code || typeof code !== 'string') {
-    return res.redirect('/auth/error?reason=missing_code');
-  }
-
-  // Optional: Validate state parameter for CSRF protection
-  // if (state !== req.session.oauthState) {
-  //   return res.redirect('/auth/error?reason=invalid_state');
-  // }
-
-  try {
-    const result = await exchangeAuthCode(code);
-
-    // Store in session
-    req.session.onesubUserId = result.onesubUserId;
-    req.session.verificationToken = result.verificationToken;
-    req.session.entitlements = result.entitlements;
-    req.session.nextVerifyBefore = result.expiresAt;
-
-    // Redirect to dashboard
-    res.redirect('/dashboard');
-  } catch (error: any) {
-    console.error('Auth callback error:', error);
-    res.redirect('/auth/error?reason=exchange_failed');
-  }
+  res.redirect('/dashboard');
 });
 
-/**
- * Middleware: Require valid subscription
- * Automatically verifies and refreshes tokens when needed
- */
-async function requireSubscription(
-  req: express.Request,
-  res: express.Response,
-  next: express.NextFunction
-) {
-  const { verificationToken, nextVerifyBefore } = req.session;
+// ============================================
+// Step 2: Access check middleware
+// ============================================
+async function checkAccess(req, res, next) {
+  const { token, lastCheck } = req.session;
 
-  if (!verificationToken) {
+  if (!token) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
 
-  // Check if verification is needed
-  const now = Math.floor(Date.now() / 1000);
-  if (now >= (nextVerifyBefore || 0)) {
-    try {
-      const result = await verifyAccess(verificationToken);
+  // Check every 5 minutes
+  const fiveMinutes = 5 * 60 * 1000;
+  if (Date.now() - lastCheck > fiveMinutes) {
+    const response = await fetch('https://1sub.io/api/v1/verify', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ verificationToken: token }),
+    });
 
-      if (!result.valid) {
-        // Access revoked - destroy session
-        req.session.destroy(() => {});
-        return res.status(403).json({
-          error: 'Access revoked',
-          reason: result.reason,
-          action: result.action
-        });
-      }
+    const data = await response.json();
 
-      // Update session with new token (tokens roll!)
-      req.session.verificationToken = result.verificationToken!;
-      req.session.entitlements = result.entitlements!;
-      req.session.nextVerifyBefore = result.nextVerificationBefore!;
-
-    } catch (error: any) {
-      console.error('Verification error:', error);
-      return res.status(500).json({ error: 'Verification failed' });
+    if (!data.valid) {
+      req.session.destroy(() => {});
+      return res.status(403).json({ error: 'Access revoked' });
     }
+
+    // Update session with new token
+    req.session.token = data.verificationToken;
+    req.session.entitlements = data.entitlements;
+    req.session.lastCheck = Date.now();
   }
 
   next();
 }
 
-/**
- * Get current user info and entitlements
- */
-app.get('/api/me', requireSubscription, (req, res) => {
-  res.json({
-    onesubUserId: req.session.onesubUserId,
-    entitlements: req.session.entitlements
-  });
-});
-
-/**
- * Protected premium feature endpoint
- */
-app.post('/api/premium/feature', requireSubscription, async (req, res) => {
-  // User has valid subscription - proceed with feature
-  const result = { data: 'Premium content generated!' };
-
-  res.json({
-    success: true,
-    result,
-    entitlements: req.session.entitlements
-  });
-});
-
-/**
- * Credit-based feature endpoint
- */
-app.post('/api/generate-image', requireSubscription, async (req, res) => {
-  const onesubUserId = req.session.onesubUserId!;
-
-  try {
-    // Consume credits
-    const result = await consumeCredits(
-      onesubUserId,
-      10,
-      'Generated AI image',
-      `img-${onesubUserId}-${Date.now()}`
-    );
-
-    // Update cached credits
-    if (req.session.entitlements) {
-      req.session.entitlements.creditsRemaining = result.new_balance;
-    }
-
-    res.json({
-      success: true,
-      imageUrl: 'https://example.com/generated-image.png',
-      creditsRemaining: result.new_balance
-    });
-  } catch (error: any) {
-    if (error.message.includes('Insufficient')) {
-      return res.status(400).json({
-        error: 'Insufficient credits',
-        message: 'Please purchase more credits to continue'
-      });
-    }
-    console.error('Generate image error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * Logout endpoint
- */
-app.post('/api/logout', (req, res) => {
-  req.session.destroy(() => {
-    res.json({ success: true });
-  });
-});
-
-// ============================================================================
-// 5. Webhook Handler
-// ============================================================================
-
-/**
- * Verify webhook signature
- */
-function verifyWebhookSignature(
-  payload: string,
-  signature: string,
-  secret: string
-): boolean {
-  const parts = signature.split(',');
-  const timestamp = parts.find(p => p.startsWith('t='))?.split('=')[1];
-  const sig = parts.find(p => p.startsWith('v1='))?.split('=')[1];
-
-  if (!timestamp || !sig) return false;
-
-  // Check timestamp (within 5 minutes)
-  const now = Math.floor(Date.now() / 1000);
-  if (Math.abs(now - parseInt(timestamp)) > 300) return false;
-
-  // Compute expected signature
-  const signedPayload = `${timestamp}.${payload}`;
-  const expected = crypto
-    .createHmac('sha256', secret)
-    .update(signedPayload)
-    .digest('hex');
-
-  // Timing-safe comparison
-  return crypto.timingSafeEqual(
-    Buffer.from(expected),
-    Buffer.from(sig)
-  );
-}
-
-/**
- * Webhook endpoint
- * Webhooks accelerate cache invalidation - not primary enforcement
- */
-app.post(
-  '/webhooks/1sub',
-  express.raw({ type: 'application/json' }),
-  (req, res) => {
-    const signature = req.headers['1sub-signature'] as string;
-    const payload = req.body.toString();
-
-    // Verify signature
-    if (!verifyWebhookSignature(payload, signature, ONESUB_WEBHOOK_SECRET)) {
-      console.error('Invalid webhook signature');
-      return res.status(401).send('Invalid signature');
-    }
-
-    // Parse event
-    const event = JSON.parse(payload);
-
-    // Acknowledge receipt immediately
-    res.json({ received: true });
-
-    // Process asynchronously
-    processWebhook(event).catch(console.error);
-  }
-);
-
-/**
- * Process webhook events
- */
-async function processWebhook(event: any) {
-  const { oneSubUserId } = event.data;
+// ============================================
+// Step 3: Webhook handler
+// ============================================
+app.post('/webhooks/1sub', express.json(), (req, res) => {
+  const event = req.body;
 
   switch (event.type) {
-    case 'entitlement.granted':
-      console.log('Entitlement granted:', oneSubUserId);
-      // User can now access your tool
+    case 'subscription.canceled':
+      // Invalidate user's sessions
+      console.log('Subscription canceled:', event.data.oneSubUserId);
       break;
-
-    case 'entitlement.revoked':
-      console.log('Entitlement revoked:', oneSubUserId);
-      // Force re-verification on next request
-      // In production: invalidate all sessions for this user
-      break;
-
-    case 'entitlement.changed':
-      console.log('Entitlement changed:', oneSubUserId);
-      // Plan upgraded/downgraded - reverify to get new limits
-      break;
-
-    case 'verify.required':
-      console.log('Verify required:', oneSubUserId);
-      // 1Sub is requesting immediate verification
-      break;
-
-    case 'user.credit_low':
-      console.log('User credits low:', oneSubUserId);
-      // Optional: notify user
-      break;
-
-    case 'user.credit_depleted':
-      console.log('User credits depleted:', oneSubUserId);
-      // Optional: notify user
-      break;
-
-    default:
-      console.log('Unknown event type:', event.type);
   }
-}
 
-// ============================================================================
-// Start Server
-// ============================================================================
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Callback URL: ${CALLBACK_URL}`);
-  console.log(`Webhook endpoint: http://localhost:${PORT}/webhooks/1sub`);
+  res.status(200).send('OK');
 });
-```
 
-## Integration Flow
-
-### 1. User Clicks "Launch Tool" on 1Sub
-
-User is redirected to your callback URL:
-
-```
-https://yourapp.com/auth/1sub/callback?code=ac_xxxxx&state=csrf_token
-```
-
-### 2. Exchange Code for Token
-
-```typescript
-const result = await exchangeAuthCode(code);
-
-// Store in session
-req.session.verificationToken = result.verificationToken;
-req.session.entitlements = result.entitlements;
-```
-
-### 3. Periodic Verification
-
-The middleware automatically verifies every 5 minutes:
-
-```typescript
-app.post('/api/feature', requireSubscription, (req, res) => {
-  // User is verified - entitlements are fresh
-  res.json({ entitlements: req.session.entitlements });
-});
-```
-
-### 4. Handle Revocation
-
-When verification fails, terminate the session:
-
-```typescript
-if (!result.valid) {
-  req.session.destroy(() => {});
-  return res.status(403).json({
-    error: 'Access revoked',
-    action: result.action  // 'terminate_session' or 'reauthenticate'
+// ============================================
+// Protected routes
+// ============================================
+app.get('/dashboard', checkAccess, (req, res) => {
+  res.json({
+    message: 'Welcome!',
+    entitlements: req.session.entitlements,
   });
-}
+});
+
+app.post('/api/feature', checkAccess, (req, res) => {
+  // User has valid subscription
+  res.json({ result: 'Premium content!' });
+});
+
+// ============================================
+// Start server
+// ============================================
+app.listen(3000, () => {
+  console.log('Server running on port 3000');
+});
 ```
-
-## Key Concepts
-
-### Token Rolling
-
-The verification token changes on every successful `/verify` call:
-
-```typescript
-const result = await verifyAccess(currentToken);
-
-if (result.valid) {
-  // CRITICAL: Store the new token!
-  req.session.verificationToken = result.verificationToken;
-}
-```
-
-### Webhook Processing
-
-Webhooks accelerate revocation but are not the primary enforcement:
-
-```typescript
-case 'entitlement.revoked':
-  // Invalidate cached sessions for this user
-  // Next request will fail verification
-  break;
-```
-
-## Production Checklist
-
-- ✅ Use Redis for session storage instead of in-memory
-- ✅ Implement proper error handling and logging
-- ✅ Set up async webhook processing (Bull, BullMQ, etc.)
-- ✅ Add retry logic for API calls with exponential backoff
-- ✅ Monitor rate limits (100 req/min for verify, 30 req/min for exchange)
-- ✅ Use environment variables for all secrets
-- ✅ Enable HTTPS for all endpoints
-- ✅ Implement webhook event deduplication
-- ✅ Set up monitoring and alerts
 
 ## Testing
 
 ```bash
-# Test authorization flow
-# 1. Visit your 1Sub tool page and click "Launch Tool"
-# 2. You'll be redirected to your callback
+# 1. Click "Launch Tool" on your 1Sub tool page
+# 2. You'll be redirected to /auth/callback
 
-# Test verification
-curl -X GET http://localhost:3000/api/me \
-  -H 'Cookie: connect.sid=YOUR_SESSION_COOKIE'
+# Test protected route
+curl http://localhost:3000/dashboard \
+  -H 'Cookie: connect.sid=YOUR_SESSION'
 
-# Test protected endpoint
-curl -X POST http://localhost:3000/api/premium/feature \
-  -H 'Cookie: connect.sid=YOUR_SESSION_COOKIE' \
-  -H 'Content-Type: application/json'
-
-# Test credit consumption
-curl -X POST http://localhost:3000/api/generate-image \
-  -H 'Cookie: connect.sid=YOUR_SESSION_COOKIE' \
-  -H 'Content-Type: application/json'
+# Test webhook
+curl -X POST http://localhost:3000/webhooks/1sub \
+  -H 'Content-Type: application/json' \
+  -d '{"type":"subscription.canceled","data":{"oneSubUserId":"test"}}'
 ```
 
-## Additional Resources
+## Production Notes
 
-- [Python Example](/docs/examples/python) - Python/Flask implementation
-- [cURL Examples](/docs/examples/curl) - Quick API testing
-- [API Reference](/docs/api/reference) - Full endpoint documentation
-- [Webhook Events](/docs/webhooks/events) - All event types
+- Use Redis for session storage
+- Add signature verification to webhooks
+- Implement proper error handling
+- Add logging and monitoring

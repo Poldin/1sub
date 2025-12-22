@@ -1,58 +1,73 @@
 ---
 title: "API Overview"
-description: "Introduction to the 1Sub API for vendor integrations"
+description: "Simple REST API for verifying subscriptions"
 ---
 
 # API Overview
 
-The 1Sub API enables your tool to verify user subscriptions, consume credits, and manage user accounts programmatically.
+The 1Sub API lets you verify user subscriptions and consume credits. All you need is your API key.
 
 ## Base URL
-
-All API requests are made to:
 
 ```
 https://1sub.io/api/v1
 ```
 
-<Note>
-All endpoints require HTTPS. HTTP requests will be rejected.
-</Note>
-
 ## Authentication
 
-API requests use Bearer token authentication with your tool's API key:
+Include your API key in every request:
 
 ```http
 Authorization: Bearer sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-<Tip>
-Get your API key from the vendor dashboard after publishing your tool.
-</Tip>
+## Endpoints
 
-## Request Format
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /authorize/exchange` | Exchange callback code for user info |
+| `POST /verify` | Check if user still has access |
+| `POST /credits/consume` | Deduct credits from user balance |
 
-All API requests should:
-- Use HTTPS
-- Include the `Authorization` header
-- Set `Content-Type: application/json` for POST/PUT requests
-- Send JSON payloads for request bodies
+---
 
-**Example request:**
+## Quick Examples
 
-```bash
-curl -X POST 'https://1sub.io/api/v1/verify' \
-  -H 'Authorization: Bearer sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx' \
-  -H 'Content-Type: application/json' \
-  -d '{"verificationToken": "vt_xxxxxxxxxxxxxxxxxxxxxxxx"}'
+### Exchange callback code
+
+```typescript
+const response = await fetch('https://1sub.io/api/v1/authorize/exchange', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${API_KEY}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({ code }),
+});
+
+const { onesubUserId, verificationToken, entitlements } = await response.json();
 ```
+
+### Check access
+
+```typescript
+const response = await fetch('https://1sub.io/api/v1/verify', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${API_KEY}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({ verificationToken }),
+});
+
+const { valid, entitlements } = await response.json();
+```
+
+---
 
 ## Response Format
 
-All API responses return JSON with appropriate HTTP status codes.
-
-### Success Response
+Successful responses return JSON with a `valid` field:
 
 ```json
 {
@@ -60,270 +75,51 @@ All API responses return JSON with appropriate HTTP status codes.
   "onesubUserId": "uuid-abc-123",
   "entitlements": {
     "planId": "monthly",
-    "creditsRemaining": 1000,
-    "features": ["pro"],
-    "limits": {}
-  },
-  "verificationToken": "vt_new_xxxxxxxxxxxxxxxxxxxxxxxx",
-  "cacheUntil": 1703000400,
-  "nextVerificationBefore": 1703000700
+    "creditsRemaining": 1000
+  }
 }
 ```
 
-### Error Response
+Error responses include an error message:
 
 ```json
 {
   "error": "Error type",
-  "message": "Human-readable error message",
-  "details": {}
+  "message": "Human-readable description"
 }
 ```
 
-## Status Codes
-
-| Code | Meaning | Description |
-|------|---------|-------------|
-| 200 | Success | Request completed successfully |
-| 400 | Bad Request | Invalid request data or insufficient credits |
-| 401 | Unauthorized | Invalid or missing API key |
-| 403 | Forbidden | Valid auth but insufficient permissions |
-| 404 | Not Found | Resource does not exist |
-| 409 | Conflict | Request conflicts with existing resource |
-| 422 | Unprocessable Entity | Validation failed |
-| 429 | Too Many Requests | Rate limit exceeded |
-| 500 | Internal Server Error | Server error (rare) |
-
-<Warning>
-Always check the HTTP status code before parsing the response body.
-</Warning>
+---
 
 ## Rate Limits
 
-API endpoints have the following rate limits:
+| Endpoint | Limit |
+|----------|-------|
+| `/authorize/exchange` | 30/min |
+| `/verify` | 100/min |
+| `/credits/consume` | 100/min |
 
-| Endpoint | Limit | Window |
-|----------|-------|--------|
-| `/authorize/exchange` | 30 requests | 1 minute |
-| `/verify` | 100 requests | 1 minute |
-| `/credits/consume` | 100 requests | 1 minute |
+If you hit a rate limit, you'll get a `429` response. Wait and retry.
 
-### Rate Limit Headers
+---
 
-All responses include rate limit information:
+## Status Codes
 
-```http
-X-RateLimit-Limit: 100
-X-RateLimit-Remaining: 95
-X-RateLimit-Reset: 2025-12-01T12:35:00Z
-```
-
-### Handling Rate Limits
-
-When you exceed the rate limit, you'll receive a `429` response:
-
-```json
-{
-  "error": "Rate limit exceeded",
-  "message": "Too many requests. Please try again later.",
-  "retryAfter": 60
-}
-```
-
-**Recommended retry logic:**
-
-```typescript
-async function callAPIWithRetry(fn, maxRetries = 3) {
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      return await fn();
-    } catch (error) {
-      if (error.response?.status === 429) {
-        const retryAfter = error.response.headers['retry-after'] || 60;
-        await sleep(retryAfter * 1000);
-        continue;
-      }
-      throw error;
-    }
-  }
-}
-```
-
-## Idempotency
-
-Certain endpoints support idempotency to prevent duplicate operations:
-
-- **Credit consumption** uses `idempotency_key` parameter
-- Idempotency keys are stored for 24 hours
-- Repeat requests with the same key return the original result
-
-**Example:**
-
-```typescript
-// First request
-await consumeCredits({
-  user_id: 'uuid-123',
-  amount: 10,
-  reason: 'Generated image',
-  idempotency_key: 'img-gen-123-abc',
-});
-// Credits consumed, returns transaction
-
-// Retry (network error, etc.)
-await consumeCredits({
-  user_id: 'uuid-123',
-  amount: 10,
-  reason: 'Generated image',
-  idempotency_key: 'img-gen-123-abc', // Same key
-});
-// Returns cached result, NO duplicate charge
-```
-
-<Check>
-Always use unique idempotency keys for distinct operations to prevent duplicate charges.
-</Check>
-
-## Pagination
-
-Endpoints that return lists use cursor-based pagination:
-
-```json
-{
-  "data": [ ... ],
-  "pagination": {
-    "hasMore": true,
-    "nextCursor": "abc123"
-  }
-}
-```
-
-**Request next page:**
-
-```bash
-curl 'https://1sub.io/api/v1/resource?cursor=abc123&limit=50'
-```
-
-<Note>
-Default page size is 20 items. Maximum is 100.
-</Note>
-
-## Versioning
-
-The API is versioned via the URL path (`/api/v1`).
-
-- Current version: **v1**
-- Breaking changes will result in a new version (`/api/v2`)
-- Deprecated endpoints will be supported for at least 6 months
-
-<Tip>
-Subscribe to our changelog to be notified of API changes and deprecations.
-</Tip>
-
-## Environments
-
-| Environment | Base URL | Purpose |
-|-------------|----------|---------|
-| Production | `https://1sub.io` | Live traffic |
-| Sandbox | Coming soon | Testing without real charges |
-
-<Info>
-Sandbox environment is coming soon. For now, use small credit amounts for testing.
-</Info>
-
-## API Endpoints
+| Code | Meaning |
+|------|---------|
+| 200 | Success |
+| 400 | Invalid request |
+| 401 | Invalid API key |
+| 403 | Access denied |
+| 429 | Rate limit exceeded |
+| 500 | Server error |
 
 <CardGroup cols={2}>
-<Card title="Authorization Exchange" icon="key" href="/docs/api/reference#exchange-authorization-code">
-  Exchange an authorization code for a verification token
+<Card title="Full API Reference" icon="code" href="/docs/api/reference">
+  Complete endpoint documentation
 </Card>
 
-<Card title="Token Verification" icon="check-circle" href="/docs/api/reference#verify-token">
-  Verify a user's access and get updated entitlements
-</Card>
-
-<Card title="Credit Consumption" icon="coins" href="/docs/api/reference#consume-credits">
-  Deduct credits from a user's balance
+<Card title="Error Codes" icon="triangle-exclamation" href="/docs/api/errors">
+  All error types and how to handle them
 </Card>
 </CardGroup>
-
-## SDKs and Libraries
-
-<Tabs>
-<Tab title="JavaScript / TypeScript">
-**Recommended libraries:**
-- `axios` or `fetch` - HTTP requests
-- `crypto` (built-in) - Webhook signature verification
-
-```bash
-npm install axios
-```
-</Tab>
-
-<Tab title="Python">
-**Recommended libraries:**
-- `requests` - HTTP client
-- `hmac` / `hashlib` (built-in) - Webhook signature verification
-
-```bash
-pip install requests
-```
-</Tab>
-
-<Tab title="Go">
-**Recommended libraries:**
-- `net/http` - Standard library HTTP client
-- `crypto/hmac` (built-in) - Webhook signature verification
-
-```bash
-# No external dependencies needed - use standard library
-```
-</Tab>
-</Tabs>
-
-<Note>
-Official SDKs are coming soon. For now, use standard HTTP libraries as shown in our examples.
-</Note>
-
-## Testing
-
-### Testing Checklist
-
-Before going live, test:
-
-- ✅ Authorization code exchange (valid, expired, invalid)
-- ✅ Token verification (valid, revoked, expired)
-- ✅ Token rolling (new token returned on each verify)
-- ✅ Credit consumption (success, insufficient credits)
-- ✅ Idempotency (retry with same key)
-- ✅ Error handling (401, 403, 404, 429, 500)
-- ✅ Webhook signature verification
-- ✅ Rate limit handling
-
-### Test Tools
-
-Use these tools for testing:
-
-- **Postman/Insomnia** - API client for manual testing
-- **ngrok** - Expose local server for webhook testing
-- **RequestBin** - Capture and inspect webhooks
-
-## Support
-
-<CardGroup cols={2}>
-<Card title="View API Reference" icon="book" href="/docs/api/reference">
-  Complete endpoint documentation with examples
-</Card>
-
-<Card title="Check Error Codes" icon="triangle-exclamation" href="/docs/api/errors">
-  Understand error responses and how to handle them
-</Card>
-
-<Card title="Get Help" icon="headset">
-  Email support@1sub.io or join our [Discord](https://discord.gg/1sub)
-</Card>
-
-<Card title="Report Issues" icon="bug">
-  Found a bug? Email bugs@1sub.io with reproduction steps
-</Card>
-</CardGroup>
-

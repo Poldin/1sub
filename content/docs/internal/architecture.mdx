@@ -1,0 +1,86 @@
+# System Architecture
+
+## Overview
+
+1sub uses a domain-driven architecture with clear layer separation.
+
+## Layer Structure
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      API Routes (HTTP)                       │
+│  src/app/api/                                                │
+│  - Request/response handling                                 │
+│  - Input validation                                          │
+│  - Rate limiting                                             │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Domains (Business Logic)                  │
+│  src/domains/                                                │
+│  - auth, verification, credits, subscriptions                │
+│  - checkout, webhooks, vendors, payments, tools              │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  Infrastructure (Data Layer)                 │
+│  src/infrastructure/                                         │
+│  - database/ (Supabase clients)                             │
+│  - cache/ (Redis)                                           │
+│  - email/ (Resend)                                          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Cross-Cutting Concerns
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Security Layer                          │
+│  src/security/                                               │
+│  - api-keys/ (generation, verification, rotation)           │
+│  - tokens/ (verification, rotation)                         │
+│  - signatures/ (HMAC)                                       │
+│  - rate-limiting, validation, sanitization, audit           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Domain Map
+
+| Domain | Purpose | Key Tables |
+|--------|---------|------------|
+| `auth` | Authorization flow, revocation | authorization_codes, verification_tokens, revocations |
+| `verification` | Entitlement checks | tool_subscriptions, platform_subscriptions |
+| `credits` | Credit balance, consumption | user_balances, credit_transactions |
+| `subscriptions` | Subscription lifecycle | platform_subscriptions, tool_subscriptions |
+| `checkout` | Tool & credit purchases | checkouts, tool_subscriptions |
+| `webhooks` | Outgoing webhooks | N/A (sends to external URLs) |
+| `vendors` | Vendor management | vendor_applications, tools |
+| `payments` | Stripe integration | Stripe metadata |
+| `tools` | Tool CRUD, phases | tools, api_keys |
+
+## The ONE Vendor Integration Path
+
+```
+POST /api/v1/authorize/initiate   →  src/domains/auth/service.ts::initiate()
+POST /api/v1/authorize/exchange   →  src/domains/auth/service.ts::exchange()
+POST /api/v1/verify               →  src/domains/verification/service.ts::verify()
+POST /api/v1/credits/consume      →  src/domains/credits/service.ts::consume()
+```
+
+No other integration path is supported.
+
+## Database
+
+- **Primary**: Supabase (PostgreSQL)
+- **Cache**: Redis (optional, for entitlements)
+- **RLS**: Enabled on all tables
+
+## Key Design Decisions
+
+1. **Single source of truth**: Each domain owns its logic exclusively
+2. **No direct DB access from routes**: Routes call domains, domains call infrastructure
+3. **Cached entitlements**: Redis cache with 15-min TTL
+4. **Atomic credit operations**: Using PostgreSQL RPC with row locking
+5. **Rolling tokens**: 24-hour expiry with automatic rotation

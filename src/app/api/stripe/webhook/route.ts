@@ -19,8 +19,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { addCredits } from '@/lib/credits-service';
-import { createClient } from '@supabase/supabase-js';
+import { addCredits } from '@/domains/credits';
+import { createServiceClient } from '@/infrastructure/database/client';
 
 // Extended Invoice type to include expandable properties
 interface InvoiceWithSubscription extends Omit<Stripe.Invoice, 'subscription' | 'payment_intent'> {
@@ -28,21 +28,12 @@ interface InvoiceWithSubscription extends Omit<Stripe.Invoice, 'subscription' | 
   payment_intent?: string | Stripe.PaymentIntent | null;
 }
 
-// Initialize Stripe with latest API version
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-09-30.clover' as any,
-});
+// Initialize Stripe
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
-// Initialize Supabase (service role for webhook)
+// Get Supabase service client for webhook
 function getSupabaseClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  
-  if (!supabaseUrl || !supabaseKey) {
-    throw new Error('Supabase environment variables are not configured');
-  }
-  
-  return createClient(supabaseUrl, supabaseKey);
+  return createServiceClient();
 }
 
 export async function POST(request: NextRequest) {

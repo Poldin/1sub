@@ -14,11 +14,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { findToolByApiKey } from '@/lib/api-keys';
-import { exchangeAuthorizationCode } from '@/lib/vendor-auth';
-import { getEntitlements, formatEntitlementsForResponse } from '@/lib/entitlements';
-import { sendToolWebhook } from '@/lib/tool-webhooks';
-import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
+import { findToolByApiKey, checkRateLimit, getClientIp } from '@/security';
+import { exchangeAuthorizationCode } from '@/domains/auth';
+import { getEntitlements, formatEntitlementsForResponse } from '@/domains/verification';
+import { sendSubscriptionCreated } from '@/domains/webhooks';
 import { z } from 'zod';
 
 // ============================================================================
@@ -122,16 +121,18 @@ export async function POST(request: NextRequest) {
     // =========================================================================
     const toolData = await findToolByApiKey(apiKey);
 
-    if (!toolData) {
+    if (!toolData.success) {
       return NextResponse.json<ExchangeErrorResponse>(
         {
           valid: false,
           error: 'UNAUTHORIZED',
-          message: 'Invalid API key',
+          message: toolData.error || 'Invalid API key',
         },
         { status: 401 }
       );
     }
+
+    const toolId = toolData.toolId!;
 
     if (!toolData.isActive) {
       return NextResponse.json<ExchangeErrorResponse>(
@@ -180,7 +181,7 @@ export async function POST(request: NextRequest) {
     // =========================================================================
     const exchangeResult = await exchangeAuthorizationCode(
       body.code,
-      toolData.toolId,
+      toolId,
       body.redirectUri
     );
 
@@ -206,7 +207,7 @@ export async function POST(request: NextRequest) {
     // =========================================================================
     const entitlementsResult = await getEntitlements(
       exchangeResult.userId!,
-      toolData.toolId
+      toolId
     );
 
     if (!entitlementsResult.success || !entitlementsResult.entitlements) {
@@ -219,15 +220,13 @@ export async function POST(request: NextRequest) {
       : { planId: null, creditsRemaining: null, features: [], limits: {} };
 
     // =========================================================================
-    // 7. Send entitlement.granted Webhook (async, don't await)
+    // 7. Send subscription.created Webhook (async, don't await)
     // =========================================================================
-    sendToolWebhook(toolData.toolId, 'subscription.activated', {
-      oneSubUserId: exchangeResult.userId!,
+    sendSubscriptionCreated({
+      toolId,
+      userId: exchangeResult.userId!,
+      subscriptionId: exchangeResult.grantId!,
       planId: entitlements.planId || 'default',
-      status: 'active',
-      currentPeriodEnd: entitlementsResult.entitlements?.currentPeriodEnd || new Date().toISOString(),
-      quantity: 1,
-      creditsRemaining: entitlements.creditsRemaining ?? undefined,
     }).catch(err => {
       console.error('[Exchange] Failed to send webhook:', err);
     });

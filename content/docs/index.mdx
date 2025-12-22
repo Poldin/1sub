@@ -1,208 +1,87 @@
 ---
-title: "Welcome to 1Sub Vendor Integration"
-description: "Integrate your tool with 1Sub in minutes and start earning revenue from your users"
+title: "1Sub Vendor Docs"
+description: "Add subscriptions to your tool in under an hour"
 ---
 
-# Welcome to 1Sub Vendor Integration
+# 1Sub Vendor Docs
 
-Integrate your tool with 1Sub to monetize through our credit system and subscription platform. Users purchase credits or subscribe on our platform and use them on your tool, while you earn revenue for each transaction.
+1Sub lets you monetize your tool without building billing infrastructure. Users subscribe on 1Sub, click "Launch Tool", and your app knows who they are and what they paid for.
 
-<CardGroup cols={2}>
-<Card title="Quickstart Guide" icon="rocket" href="/docs/quickstart">
-  Get your tool integrated in under 15 minutes
+<Card title="Get Started" icon="rocket" href="/docs/quickstart">
+  Integrate in 30-60 minutes with ~40 lines of code
 </Card>
 
-<Card title="API Reference" icon="code" href="/docs/api/overview">
-  Complete API documentation and endpoints
+---
+
+## How It Works
+
+1. **User subscribes** on 1Sub to your tool
+2. **User launches** your tool from their 1Sub dashboard
+3. **You receive** the user's identity and subscription details
+4. **You check** access every 5 minutes
+5. **We notify you** immediately when subscriptions change
+
+You handle the product. We handle the payments.
+
+---
+
+## What You Build
+
+| Component | Purpose | Code |
+|-----------|---------|------|
+| Callback endpoint | Receives users from 1Sub | ~15 lines |
+| Access check | Verifies subscription is active | ~15 lines |
+| Webhook handler | Handles cancellations | ~10 lines |
+
+---
+
+## What 1Sub Handles
+
+- Payment processing
+- Subscription management
+- User billing portal
+- Refunds and disputes
+- Plan upgrades/downgrades
+- Credit systems
+- Revenue payouts
+
+---
+
+## Documentation
+
+<CardGroup cols={2}>
+<Card title="Integration Guide" icon="book" href="/docs/quickstart">
+  Step-by-step setup with code examples
+</Card>
+
+<Card title="API Reference" icon="code" href="/docs/api/reference">
+  All endpoints and response formats
 </Card>
 
 <Card title="Webhooks" icon="webhook" href="/docs/webhooks/overview">
-  Real-time notifications for subscription events
+  Real-time subscription notifications
 </Card>
 
-<Card title="Code Examples" icon="file-code" href="/docs/examples/node">
-  Ready-to-use integration examples
-</Card>
-</CardGroup>
-
-## Why Integrate with 1Sub?
-
-<CardGroup cols={3}>
-<Card title="Quick Setup" icon="zap">
-  Simple REST API with email-based or link code authentication. Get integrated in minutes, not days.
-</Card>
-
-<Card title="Secure & Reliable" icon="shield-check">
-  Enterprise-grade security with HMAC signatures, rate limiting, and comprehensive audit logs.
-</Card>
-
-<Card title="Flexible Monetization" icon="dollar-sign">
-  Support subscriptions, credits, and one-time purchases. Get paid weekly via Stripe Connect.
+<Card title="Monetization" icon="dollar-sign" href="/docs/concepts/monetization-models">
+  Subscriptions, credits, and one-time purchases
 </Card>
 </CardGroup>
 
-## Integration Overview
+---
 
-The integration process follows these simple steps:
+## Get Your Credentials
 
-<Steps>
-<Step title="Publish your tool">
-  Create your tool listing on the 1Sub vendor dashboard and configure your redirect URL.
-</Step>
+Before integrating, grab your credentials from the [vendor dashboard](https://1sub.io/vendor/dashboard):
 
-<Step title="Get your credentials">
-  Receive your API key and webhook secret (shown once — save them securely!).
-  
-  <Warning>
-  API keys are shown only once. If lost, you'll need to regenerate them from the vendor dashboard.
-  </Warning>
-</Step>
+- **API Key** - for authenticating requests (format: `sk-tool-xxxxx`)
+- **Webhook Secret** - for verifying webhook signatures
 
-<Step title="Implement authentication">
-  Link user accounts via email-based verification (for SaaS) or link codes (for CLI/desktop apps).
-</Step>
+<Note>
+API keys are shown only once. Store them securely.
+</Note>
 
-<Step title="Verify subscriptions">
-  Check if users have active subscriptions before granting access to premium features.
-</Step>
-
-<Step title="Set up webhooks">
-  Receive real-time notifications when subscriptions are activated, updated, or canceled.
-</Step>
-</Steps>
-
-## Choose Your Integration Method
-
-1sub offers two integration approaches. Choose based on your use case:
-
-<CardGroup cols={2}>
-<Card title="Email/Link Code Integration" icon="envelope" href="/docs/quickstart">
-  **Best for:** Most tools, flexible user experience
-
-  - Users link accounts using their email or a link code
-  - Works with existing authentication systems
-  - Users can access your tool from anywhere
-  - Simpler implementation
-</Card>
-
-<Card title="OAuth-Like Authorization Flow" icon="key" href="/docs/vendor-integration">
-  **Best for:** Tools launched directly from 1sub
-
-  - Users click "Launch Tool" on 1sub
-  - Automatic redirect with authorization code
-  - Built-in revocation support
-  - Higher security with token rolling
-</Card>
-</CardGroup>
-
-## Integration Patterns
-
-Choose the integration pattern that best fits your tool:
-
-<Tabs>
-<Tab title="Subscription-Based">
-  **Best for:** SaaS tools with recurring access
-
-  - Users subscribe to plans on 1Sub
-  - Verify subscription status via API
-  - Receive webhook notifications on changes
-  - Support tiered plans with different features
-</Tab>
-
-<Tab title="Credit-Based">
-  **Best for:** Usage-based tools (API calls, generations, etc.)
-
-  - Users purchase credit packages on 1Sub
-  - Consume credits for each tool usage
-  - Real-time balance tracking
-  - Automatic refunds on failures
-</Tab>
-
-<Tab title="One-Time Purchase">
-  **Best for:** Desktop apps, CLI tools, lifetime access
-
-  - Users pay once for permanent access
-  - No recurring billing complexity
-  - Simple user experience
-  - Higher upfront revenue per user
-</Tab>
-
-<Tab title="Hybrid">
-  **Best for:** Tools with base access + usage charges
-
-  - Subscription or one-time purchase grants base access
-  - Credits used for premium features
-  - Best of all models
-</Tab>
-</Tabs>
-
-## What You'll Need
-
-<AccordionGroup>
-<Accordion title="Development Environment">
-  - A server-side environment (Node.js, Python, Go, etc.)
-  - HTTPS endpoint for webhooks
-  - Ability to store user sessions and credentials
-</Accordion>
-
-<Accordion title="Credentials from 1Sub">
-  - **API Key**: For authenticating API requests (format: `sk-tool-xxxxx`)
-  - **Webhook Secret**: For verifying webhook signatures (format: `whsec-xxxxx`)
-  - **Tool ID**: Your unique tool identifier (UUID format)
-</Accordion>
-
-<Accordion title="Technical Knowledge">
-  - REST API integration
-  - Email hashing (SHA256) or link code exchange
-  - HMAC signature validation for webhooks
-  - Basic error handling
-</Accordion>
-</AccordionGroup>
-
-## Next Steps
-
-<CardGroup cols={2}>
-<Card title="Start with Quickstart" icon="play" href="/docs/quickstart">
-  Follow our step-by-step guide to get your first integration working
-</Card>
-
-<Card title="Choose Your Model" icon="dollar-sign" href="/docs/concepts/monetization-models">
-  Understand subscriptions, credits, and one-time purchases to maximize revenue
-</Card>
-
-<Card title="View API Reference" icon="terminal" href="/docs/api/reference">
-  Explore all available endpoints and their parameters
-</Card>
-
-<Card title="Check Examples" icon="brackets-curly" href="/docs/examples/node">
-  Browse complete working examples in multiple languages
-</Card>
-</CardGroup>
+---
 
 ## Need Help?
 
-<Card title="Get Support" icon="headset" href="/docs/support">
-  Contact our developer support team at support@1sub.io or join our [Discord community](https://discord.gg/1sub).
-</Card>
-
-<Info>
-All code examples in this documentation are tested and production-ready. Feel free to copy and adapt them for your integration.
-</Info>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Contact support at support@1sub.io

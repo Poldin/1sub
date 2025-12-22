@@ -1,645 +1,178 @@
 ---
-title: "Quickstart Guide"
-description: "Get your tool integrated with 1Sub in under 15 minutes"
+title: "Vendor Integration"
+description: "Integrate 1Sub in under an hour - simpler than building your own paywall"
 ---
 
-# Quickstart Guide
+# Vendor Integration
 
-This guide walks you through integrating your tool with 1Sub using the Authorization Code Flow. By the end, you'll have user authentication, subscription verification, and webhooks fully configured.
+1Sub handles subscriptions and payments for you. When a user clicks "Launch Tool" on 1Sub, we tell you whether access is allowed. You just need to receive that signal and create a session.
 
-<Note>
-**Prerequisites**: Make sure you have your API key and webhook secret from the 1Sub vendor dashboard. If you haven't received these yet, publish your tool first.
-</Note>
+---
 
-## How It Works
+## What You Need to Build
 
-1Sub uses an OAuth-like authorization flow:
+Just three things:
 
-1. **User clicks "Launch Tool"** on 1Sub and is redirected to your app with an authorization code
-2. **You exchange the code** for a verification token and user entitlements
-3. **You verify periodically** (every 5 minutes) to ensure access is still valid
+1. **One callback endpoint** - receives users after they click "Launch Tool"
+2. **One access check** - verifies the user still has access (every 5 minutes)
+3. **One webhook endpoint** - so access stops immediately when payment stops
 
-<Note>
-This is the **only** integration method. There is no alternative email-based or link code flow.
-</Note>
+That's it. This replaces:
+- User signup and login
+- Password management
+- Subscription logic
+- Billing integration
+- Payment processing
 
-## Installation
+---
 
-Install any HTTP client:
+## The User Experience
 
-<CodeGroup>
-```bash npm
-npm install axios  # or use native fetch
-```
+From the user's perspective:
 
-```bash yarn
-yarn add axios
-```
+1. User subscribes to your tool on 1Sub
+2. User clicks "Launch Tool"
+3. Your app opens with the user already signed in
+4. They use your tool - no account creation needed
 
-```bash pnpm
-pnpm add axios
-```
-</CodeGroup>
+Users never create accounts on your site. 1Sub handles identity and payment.
 
-## Step 1: Handle the Callback
+---
 
-When a user clicks "Launch Tool" on 1Sub, they're redirected to your registered callback URL with an authorization code.
+## Step-by-Step Integration
 
-<Steps>
-<Step title="Set up your callback endpoint">
-  Create an endpoint to receive the authorization code:
+### Step 1: Add the Callback Endpoint
+
+When users click "Launch Tool", they're redirected to your app with a `code`. Exchange it for user info:
 
 ```typescript
-import express from 'express';
-
-const app = express();
-
-// Your callback URL (register this in 1Sub dashboard)
-app.get('/auth/1sub/callback', async (req, res) => {
-  const { code, state } = req.query;
-
-  if (!code) {
-    return res.status(400).send('Missing authorization code');
-  }
-
-  // Validate state parameter if you're using CSRF protection
-  if (state !== req.session.oauthState) {
-    return res.status(400).send('Invalid state parameter');
-  }
-
-  // Continue to exchange the code...
-});
-```
-</Step>
-
-<Step title="Exchange the code for a verification token">
-  Call the exchange endpoint to get user entitlements and a verification token:
-
-```typescript
-async function exchangeAuthCode(code: string): Promise<ExchangeResult> {
-  const response = await fetch('https://1sub.io/api/v1/authorize/exchange', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.ONESUB_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      code,
-      redirectUri: 'https://yourapp.com/auth/1sub/callback'
-    })
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to exchange authorization code');
-  }
-
-  return response.json();
-}
-
-// In your callback handler:
-app.get('/auth/1sub/callback', async (req, res) => {
+app.get('/auth/callback', async (req, res) => {
   const { code } = req.query;
 
-  try {
-    const result = await exchangeAuthCode(code as string);
-
-    // Store in user session
-    req.session.onesubUserId = result.onesubUserId;
-    req.session.verificationToken = result.verificationToken;
-    req.session.entitlements = result.entitlements;
-    req.session.tokenExpiresAt = result.expiresAt;
-
-    // Redirect to your app
-    res.redirect('/dashboard');
-  } catch (error) {
-    console.error('Auth failed:', error);
-    res.redirect('/auth/error?reason=exchange_failed');
-  }
-});
-```
-
-<Check>
-The user is now authenticated! Store the `verificationToken` for periodic checks.
-</Check>
-</Step>
-
-<Step title="Understand the exchange response">
-  The exchange endpoint returns:
-
-```typescript
-interface ExchangeResult {
-  valid: true;
-  grantId: string;           // Unique authorization ID
-  onesubUserId: string;      // User's 1Sub ID
-  entitlements: {
-    planId: string | null;   // e.g., 'monthly', 'yearly'
-    creditsRemaining: number | null;
-    features: string[];      // Enabled feature flags
-    limits: Record<string, number>;
-  };
-  verificationToken: string; // For periodic verification
-  expiresAt: number;         // Unix timestamp
-}
-```
-
-<Warning>
-The `verificationToken` is required for periodic verification. Store it securely in the user's session.
-</Warning>
-</Step>
-</Steps>
-
-## Step 2: Verify Periodically
-
-You must verify the user's access periodically (at least every 5 minutes) to ensure their subscription is still active.
-
-<Steps>
-<Step title="Create a verification function">
-  Call the verify endpoint with the current verification token:
-
-```typescript
-interface VerifyResult {
-  valid: boolean;
-  onesubUserId?: string;
-  entitlements?: Entitlements;
-  verificationToken?: string;  // NEW token for next call
-  cacheUntil?: number;
-  nextVerificationBefore?: number;
-  error?: string;
-  reason?: string;
-  action?: 'terminate_session' | 'reauthenticate';
-}
-
-async function verifyAccess(token: string): Promise<VerifyResult> {
-  const response = await fetch('https://1sub.io/api/v1/verify', {
+  const { data } = await fetch('https://1sub.io/api/v1/authorize/exchange', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${process.env.ONESUB_API_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ verificationToken: token })
-  });
+    body: JSON.stringify({ code }),
+  }).then(r => r.json());
 
-  return response.json();
-}
+  // Create your session
+  req.session.userId = data.onesubUserId;
+  req.session.token = data.verificationToken;
+  req.session.plan = data.entitlements;
+
+  res.redirect('/dashboard');
+});
 ```
 
-<Warning>
-**Important:** The verification token ROLLS on every successful call. You must store the new token from the response for subsequent verifications.
-</Warning>
-</Step>
+You get back the user's ID, their plan details, and a token for checking access later.
 
-<Step title="Add verification middleware">
-  Check verification status before granting access to premium features:
+---
+
+### Step 2: Protect Your Paid Routes
+
+Check access before serving premium features. Do this every 5 minutes:
 
 ```typescript
-async function requireSubscription(req, res, next) {
-  const { verificationToken, tokenExpiresAt } = req.session;
+async function checkAccess(req, res, next) {
+  const lastCheck = req.session.lastCheck || 0;
+  const fiveMinutes = 5 * 60 * 1000;
 
-  if (!verificationToken) {
-    return res.status(401).json({ error: 'Not authenticated' });
+  if (Date.now() - lastCheck < fiveMinutes) return next();
+
+  const { data } = await fetch('https://1sub.io/api/v1/verify', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.ONESUB_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ verificationToken: req.session.token }),
+  }).then(r => r.json());
+
+  if (!data.valid) {
+    req.session.destroy();
+    return res.redirect('/?error=subscription_ended');
   }
 
-  // Check if we need to verify
-  const now = Date.now();
-  if (now > tokenExpiresAt * 1000) {
-    try {
-      const result = await verifyAccess(verificationToken);
-
-      if (!result.valid) {
-        // Access revoked - terminate session
-        req.session.destroy();
-        return res.status(403).json({
-          error: 'Access revoked',
-          reason: result.reason,
-          action: result.action
-        });
-      }
-
-      // Update session with new token (tokens roll!)
-      req.session.verificationToken = result.verificationToken;
-      req.session.entitlements = result.entitlements;
-      req.session.tokenExpiresAt = result.nextVerificationBefore;
-
-    } catch (error) {
-      console.error('Verification failed:', error);
-      return res.status(500).json({ error: 'Verification failed' });
-    }
-  }
-
+  req.session.token = data.verificationToken;
+  req.session.lastCheck = Date.now();
   next();
 }
 
-// Apply to premium routes
-app.use('/api/premium', requireSubscription);
+app.use('/dashboard', checkAccess);
 ```
 
-<Check>
-Your premium endpoints now require valid subscription verification.
-</Check>
-</Step>
+---
 
-<Step title="Handle revocation gracefully">
-  When verification fails, handle the user experience:
+### Step 3: Add the Webhook Endpoint
+
+When a user cancels, 1Sub notifies you immediately so you can end their session:
 
 ```typescript
-app.get('/api/premium/feature', requireSubscription, async (req, res) => {
-  // User has valid subscription - proceed
-  const result = await yourPremiumFeature();
-  res.json({ result });
-});
+app.post('/webhooks/1sub', express.json(), (req, res) => {
+  const event = req.body;
 
-// Handle revoked access on the client
-async function callPremiumAPI() {
-  const response = await fetch('/api/premium/feature');
-
-  if (response.status === 403) {
-    const data = await response.json();
-    if (data.action === 'reauthenticate') {
-      // Redirect to 1Sub to re-authenticate
-      window.location.href = 'https://1sub.io/tools/your-tool';
-    } else {
-      // Show subscription required message
-      showSubscriptionRequired();
-    }
-  }
-}
-```
-</Step>
-</Steps>
-
-## Step 3: Configure Webhooks
-
-Webhooks provide real-time notifications when subscriptions change. Use them to **accelerate** cache invalidation, not as the primary enforcement mechanism.
-
-<Steps>
-<Step title="Create webhook endpoint">
-  Set up an endpoint to receive webhook events:
-
-```typescript
-import crypto from 'crypto';
-
-app.post(
-  '/webhooks/1sub',
-  express.raw({ type: 'application/json' }),
-  (req, res) => {
-    const signature = req.headers['1sub-signature'] as string;
-    const payload = req.body.toString();
-
-    // Verify signature first
-    if (!verifyWebhookSignature(payload, signature, process.env.ONESUB_WEBHOOK_SECRET!)) {
-      return res.status(401).send('Invalid signature');
-    }
-
-    const event = JSON.parse(payload);
-
-    // Process event...
-    res.json({ received: true });
-  }
-);
-```
-
-<Warning>
-Use `express.raw()` middleware for webhook endpoints. You need the raw body to verify signatures.
-</Warning>
-</Step>
-
-<Step title="Verify webhook signatures">
-  Validate that webhooks came from 1Sub:
-
-```typescript
-function verifyWebhookSignature(
-  payload: string,
-  signature: string,
-  secret: string
-): boolean {
-  const parts = signature.split(',');
-  const timestamp = parts.find(p => p.startsWith('t='))?.split('=')[1];
-  const sig = parts.find(p => p.startsWith('v1='))?.split('=')[1];
-
-  if (!timestamp || !sig) return false;
-
-  // Reject old timestamps (replay attack protection)
-  const now = Math.floor(Date.now() / 1000);
-  if (Math.abs(now - parseInt(timestamp)) > 300) return false;
-
-  // Compute expected signature
-  const signedPayload = `${timestamp}.${payload}`;
-  const expected = crypto
-    .createHmac('sha256', secret)
-    .update(signedPayload)
-    .digest('hex');
-
-  // Timing-safe comparison
-  return crypto.timingSafeEqual(
-    Buffer.from(expected),
-    Buffer.from(sig)
-  );
-}
-```
-</Step>
-
-<Step title="Handle webhook events">
-  Use webhooks to trigger immediate re-verification:
-
-```typescript
-const event = JSON.parse(payload);
-
-switch (event.type) {
-  case 'entitlement.revoked':
-    // Force re-verification for this user
-    console.log('Access revoked:', event.data.oneSubUserId);
-    await forceReverify(event.data.oneSubUserId);
-    break;
-
-  case 'entitlement.changed':
-    // Entitlements updated - reverify to get new state
-    console.log('Entitlements changed:', event.data.oneSubUserId);
-    await forceReverify(event.data.oneSubUserId);
-    break;
-
-  case 'verify.required':
-    // 1Sub is requesting immediate verification
-    console.log('Verify required:', event.data.oneSubUserId);
-    await forceReverify(event.data.oneSubUserId);
-    break;
-}
-
-res.json({ received: true });
-```
-
-<Note>
-Webhooks are **accelerators** for cache invalidation. The periodic verification flow is the authoritative enforcement mechanism.
-</Note>
-</Step>
-
-<Step title="Configure webhook URL">
-  Set your webhook URL in the 1Sub vendor dashboard:
-
-```
-https://yourapp.com/webhooks/1sub
-```
-
-<Tip>
-Make sure your webhook endpoint is publicly accessible via HTTPS. Use ngrok for local testing.
-</Tip>
-</Step>
-</Steps>
-
-## Complete Example
-
-Here's a complete working example:
-
-```typescript
-import express from 'express';
-import crypto from 'crypto';
-import session from 'express-session';
-
-const app = express();
-
-app.use(session({
-  secret: process.env.SESSION_SECRET!,
-  resave: false,
-  saveUninitialized: false,
-}));
-
-app.use(express.json());
-
-const ONESUB_API_KEY = process.env.ONESUB_API_KEY!;
-const ONESUB_WEBHOOK_SECRET = process.env.ONESUB_WEBHOOK_SECRET!;
-const CALLBACK_URL = 'https://yourapp.com/auth/1sub/callback';
-
-// ============================================================
-// Step 1: Handle OAuth Callback
-// ============================================================
-
-app.get('/auth/1sub/callback', async (req, res) => {
-  const { code, state } = req.query;
-
-  if (!code) {
-    return res.redirect('/auth/error?reason=missing_code');
+  if (event.type === 'subscription.canceled') {
+    // Invalidate this user's session
+    sessionStore.destroy(event.data.oneSubUserId);
   }
 
-  try {
-    // Exchange code for verification token
-    const response = await fetch('https://1sub.io/api/v1/authorize/exchange', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${ONESUB_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ code, redirectUri: CALLBACK_URL })
-    });
-
-    if (!response.ok) {
-      throw new Error('Exchange failed');
-    }
-
-    const result = await response.json();
-
-    // Store in session
-    req.session.onesubUserId = result.onesubUserId;
-    req.session.verificationToken = result.verificationToken;
-    req.session.entitlements = result.entitlements;
-    req.session.nextVerifyBefore = result.expiresAt;
-
-    res.redirect('/dashboard');
-  } catch (error) {
-    console.error('Auth error:', error);
-    res.redirect('/auth/error?reason=exchange_failed');
-  }
-});
-
-// ============================================================
-// Step 2: Verification Middleware
-// ============================================================
-
-async function requireSubscription(req: any, res: any, next: any) {
-  const { verificationToken, nextVerifyBefore } = req.session;
-
-  if (!verificationToken) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-
-  // Check if verification is needed
-  const now = Math.floor(Date.now() / 1000);
-  if (now >= nextVerifyBefore) {
-    try {
-      const response = await fetch('https://1sub.io/api/v1/verify', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${ONESUB_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ verificationToken })
-      });
-
-      const result = await response.json();
-
-      if (!result.valid) {
-        req.session.destroy(() => {});
-        return res.status(403).json({
-          error: 'Access revoked',
-          reason: result.reason,
-          action: result.action
-        });
-      }
-
-      // Update session with new token
-      req.session.verificationToken = result.verificationToken;
-      req.session.entitlements = result.entitlements;
-      req.session.nextVerifyBefore = result.nextVerificationBefore;
-
-    } catch (error) {
-      console.error('Verification error:', error);
-      return res.status(500).json({ error: 'Verification failed' });
-    }
-  }
-
-  next();
-}
-
-// Protected route
-app.get('/api/premium/feature', requireSubscription, async (req: any, res) => {
-  res.json({
-    message: 'Premium feature accessed!',
-    entitlements: req.session.entitlements
-  });
-});
-
-// ============================================================
-// Step 3: Webhook Handler
-// ============================================================
-
-app.post(
-  '/webhooks/1sub',
-  express.raw({ type: 'application/json' }),
-  (req, res) => {
-    const signature = req.headers['1sub-signature'] as string;
-    const payload = req.body.toString();
-
-    if (!verifyWebhookSignature(payload, signature, ONESUB_WEBHOOK_SECRET)) {
-      return res.status(401).send('Invalid signature');
-    }
-
-    const event = JSON.parse(payload);
-
-    switch (event.type) {
-      case 'entitlement.revoked':
-      case 'entitlement.changed':
-      case 'verify.required':
-        console.log(`${event.type}:`, event.data.oneSubUserId);
-        // Trigger immediate reverification for affected sessions
-        break;
-    }
-
-    res.json({ received: true });
-  }
-);
-
-function verifyWebhookSignature(payload: string, signature: string, secret: string): boolean {
-  const parts = signature.split(',');
-  const timestamp = parts.find(p => p.startsWith('t='))?.split('=')[1];
-  const sig = parts.find(p => p.startsWith('v1='))?.split('=')[1];
-
-  if (!timestamp || !sig) return false;
-
-  const now = Math.floor(Date.now() / 1000);
-  if (Math.abs(now - parseInt(timestamp)) > 300) return false;
-
-  const signedPayload = `${timestamp}.${payload}`;
-  const expected = crypto.createHmac('sha256', secret).update(signedPayload).digest('hex');
-
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sig));
-}
-
-app.listen(3000, () => {
-  console.log('Server running on port 3000');
+  res.status(200).send('OK');
 });
 ```
 
-## Test Your Integration
+That's the complete integration.
 
-<AccordionGroup>
-<Accordion title="Test Authorization Flow">
-  1. Click "Launch Tool" on your 1Sub tool page
-  2. Verify you're redirected to your callback URL with a code
-  3. Check that the code is exchanged successfully
-  4. Verify the session contains `verificationToken` and `entitlements`
-</Accordion>
+---
 
-<Accordion title="Test Periodic Verification">
-  1. Access a protected endpoint - should succeed
-  2. Wait for the verification window to expire
-  3. Access again - should trigger re-verification
-  4. Check that the token was rolled (new token in session)
-</Accordion>
+## What You Do Not Need to Build
 
-<Accordion title="Test Revocation">
-  1. Cancel your subscription on 1Sub
-  2. Access a protected endpoint
-  3. Verify you receive a 403 with `action: 'reauthenticate'`
-  4. Session should be destroyed
-</Accordion>
+- User accounts
+- Password management
+- Email verification
+- Login forms
+- Subscription management
+- Payment processing
+- Billing UI
+- Refund handling
+- Plan upgrades/downgrades
 
-<Accordion title="Test Webhooks">
-  1. Use ngrok to expose your local webhook endpoint
-  2. Trigger events by changing subscription status
-  3. Verify signature validation works
-  4. Check that events trigger re-verification
-</Accordion>
-</AccordionGroup>
+1Sub handles all of this.
 
-## Next Steps
+---
+
+## Common Questions
+
+**What happens if a user cancels?**
+
+You get a webhook immediately. Their next access check will also fail. Either way, access stops within 5 minutes.
+
+**What if 1Sub is temporarily unavailable?**
+
+Keep the session active. The 5-minute window gives time for brief outages. If verification fails repeatedly, end the session gracefully.
+
+**Can I cache results?**
+
+Yes. The access check response includes a `cacheUntil` timestamp. You can trust cached data until then.
+
+---
+
+## Ready to Integrate?
+
+- **Time to integrate:** 30-60 minutes
+- **Lines of code:** ~40
+- **Complexity:** If you can add a webhook, you can integrate 1Sub
+
+Get your API key from the [vendor dashboard](https://1sub.io/vendor/dashboard) and you're ready to go.
 
 <CardGroup cols={2}>
-<Card title="Vendor Integration Guide" icon="book" href="/docs/vendor-integration">
-  Detailed guide for the authorization code flow
-</Card>
-
 <Card title="API Reference" icon="code" href="/docs/api/reference">
-  Complete documentation of all API endpoints
+  Full endpoint documentation
 </Card>
 
 <Card title="Webhook Events" icon="webhook" href="/docs/webhooks/events">
-  Learn about all webhook event types
-</Card>
-
-<Card title="Troubleshooting" icon="wrench" href="/docs/troubleshooting/checklist">
-  Common issues and solutions
+  All event types and payloads
 </Card>
 </CardGroup>
-
-## Troubleshooting
-
-<AccordionGroup>
-<Accordion title="Authorization Code Exchange Fails">
-  **Possible causes:**
-  - Code has expired (codes are short-lived)
-  - Redirect URI doesn't match the registered callback
-  - Invalid API key
-
-  **Solution:** Ensure your callback URL matches exactly what's registered in the 1Sub dashboard. Exchange the code immediately upon receiving it.
-</Accordion>
-
-<Accordion title="Verification Returns Invalid">
-  **Possible causes:**
-  - Token has expired and wasn't refreshed
-  - User's subscription was revoked
-  - Using an old token (tokens roll on each verify)
-
-  **Solution:** Always store the new `verificationToken` from each successful verify response. Handle revocation gracefully by redirecting to re-authenticate.
-</Accordion>
-
-<Accordion title="Webhook Signature Invalid">
-  **Possible causes:**
-  - Using parsed body instead of raw body
-  - Wrong webhook secret
-  - Timestamp too old (>5 minutes)
-
-  **Solution:** Use `express.raw()` middleware and verify your webhook secret is correct in environment variables.
-</Accordion>
-</AccordionGroup>
-
-<Warning>
-Always store your API key and webhook secret securely in environment variables. Never commit them to version control.
-</Warning>

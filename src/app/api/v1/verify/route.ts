@@ -20,10 +20,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { findToolByApiKey } from '@/lib/api-keys';
-import { validateTokenReadOnly, rotateTokenIfNeeded } from '@/lib/vendor-auth';
-import { getEntitlementsWithAuthority, formatEntitlementsForResponse } from '@/lib/entitlements';
-import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
+import { findToolByApiKey, checkRateLimit, getClientIp } from '@/security';
+import { validateTokenReadOnly, rotateToken } from '@/domains/auth';
+import { getEntitlementsWithAuthority, formatEntitlementsForResponse } from '@/domains/verification';
 import { z } from 'zod';
 
 // ============================================================================
@@ -137,17 +136,19 @@ export async function POST(request: NextRequest) {
     // =========================================================================
     const toolData = await findToolByApiKey(apiKey);
 
-    if (!toolData) {
+    if (!toolData.success) {
       return NextResponse.json<VerifyRevokedResponse>(
         {
           valid: false,
           error: 'UNAUTHORIZED',
-          reason: 'Invalid API key',
+          reason: toolData.error || 'Invalid API key',
           action: 'terminate_session',
         },
         { status: 401 }
       );
     }
+
+    const toolId = toolData.toolId!;
 
     if (!toolData.isActive) {
       return NextResponse.json<VerifyRevokedResponse>(
@@ -197,7 +198,7 @@ export async function POST(request: NextRequest) {
     // =========================================================================
     // 5. Validate Token (READ-ONLY - no DB writes)
     // =========================================================================
-    const validateResult = await validateTokenReadOnly(body.verificationToken, toolData.toolId);
+    const validateResult = await validateTokenReadOnly(body.verificationToken, toolId);
 
     if (!validateResult.valid) {
       // Map error to appropriate HTTP status
@@ -224,7 +225,7 @@ export async function POST(request: NextRequest) {
     // =========================================================================
     const entitlementsResult = await getEntitlementsWithAuthority(
       validateResult.userId!,
-      toolData.toolId
+      toolId
     );
 
     // Check if subscription is still active
@@ -253,7 +254,7 @@ export async function POST(request: NextRequest) {
     let tokenRotated = false;
 
     if (validateResult.needsRotation) {
-      const rotateResult = await rotateTokenIfNeeded(body.verificationToken, toolData.toolId);
+      const rotateResult = await rotateToken(body.verificationToken, toolId);
       if (rotateResult.success && rotateResult.verificationToken) {
         verificationToken = rotateResult.verificationToken;
         tokenRotated = true;

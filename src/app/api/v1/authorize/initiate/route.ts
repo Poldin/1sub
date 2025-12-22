@@ -14,9 +14,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { createAuthorizationCode, generateState, getToolRedirectUri } from '@/lib/vendor-auth';
-import { hasActiveSubscription } from '@/lib/entitlements';
+import { createServerClient } from '@/infrastructure/database/client';
+import { createAuthorizationCode, generateState } from '@/domains/auth';
+import { hasActiveSubscription } from '@/domains/verification';
 import { z } from 'zod';
 
 // ============================================================================
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     // =========================================================================
     // 1. Authenticate User
     // =========================================================================
-    const supabase = await createClient();
+    const supabase = await createServerClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
@@ -151,7 +151,15 @@ export async function POST(request: NextRequest) {
 
     if (!redirectUri) {
       // Get configured redirect URI from tool's API key metadata
-      const toolRedirectUri = await getToolRedirectUri(toolId);
+      const { data: apiKey } = await supabase
+        .from('api_keys')
+        .select('metadata')
+        .eq('tool_id', toolId)
+        .eq('is_active', true)
+        .single();
+
+      const metadata = (apiKey?.metadata as Record<string, unknown>) || {};
+      const toolRedirectUri = metadata.redirect_uri as string | undefined;
 
       if (!toolRedirectUri) {
         return NextResponse.json<ErrorResponse>(

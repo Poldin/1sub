@@ -186,7 +186,7 @@ Request format is valid but validation failed.
 ```json
 {
   "error": "Invalid request",
-  "message": "Either oneSubUserId or emailSha256 is required"
+  "message": "Missing required parameter: verificationToken"
 }
 ```
 
@@ -367,8 +367,7 @@ const ERROR_MESSAGES = {
   'Not found': 'Please subscribe to this tool on 1Sub first.',
   'Invalid API key': 'Configuration error. Please contact support.',
   'Rate limit exceeded': 'Too many requests. Please wait a moment and try again.',
-  'Tool user already linked': 'This account is already linked to a different user.',
-  'Invalid or expired code': 'This link code has expired. Please generate a new one.',
+  'Invalid or expired code': 'This code has expired. Please click "Launch Tool" again.',
 };
 
 function getUserMessage(error: any): string {

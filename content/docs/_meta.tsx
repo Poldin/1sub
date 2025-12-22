@@ -1,10 +1,16 @@
 export default {
   index: 'Introduction',
-  quickstart: 'Quickstart',
-  concepts: 'Core Concepts',
+  quickstart: 'Integration Guide',
   api: 'API Reference',
   webhooks: 'Webhooks',
+  concepts: 'Concepts',
   examples: 'Examples',
-  guides: 'Guides',
-  troubleshooting: 'Troubleshooting'
+  troubleshooting: 'Troubleshooting',
+  '---': {
+    type: 'separator'
+  },
+  internal: {
+    title: 'Internal Docs',
+    type: 'menu'
+  }
 }

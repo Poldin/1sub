@@ -1,0 +1,94 @@
+# Checkout Flows
+
+1sub has **TWO separate checkout flows**. They serve different purposes and must NOT be merged.
+
+## Flow 1: Tool/Subscription Purchase
+
+Users buy access to vendor tools (subscriptions or one-time purchases).
+
+### API Flow
+
+```
+POST /api/checkout/create
+  ↓ Creates checkout session with tool/product info
+POST /api/checkout/generate-otp
+  ↓ Sends OTP to user email
+POST /api/checkout/verify-otp
+  ↓ Validates OTP
+POST /api/checkout/process
+  ↓ Processes payment & creates subscription
+```
+
+### Service
+
+`src/domains/checkout/tool-purchase.service.ts`
+
+### Database
+
+- `checkouts` - Checkout session records
+- `tool_subscriptions` - Created on successful purchase
+
+### Features
+
+- OTP verification required
+- Supports one-time and recurring payments
+- Creates entitlements after payment
+
+---
+
+## Flow 2: Credit Purchase
+
+Users buy credit packages for consumption-based tool usage.
+
+### API Flow
+
+```
+POST /api/stripe/create-checkout-session
+  ↓ Creates Stripe Checkout session
+[User completes Stripe payment]
+  ↓
+POST /api/stripe/webhook (called by Stripe)
+  ↓ Validates webhook signature
+[Internal] addCredits()
+  ↓ Adds credits to user balance
+```
+
+### Service
+
+`src/domains/checkout/credit-purchase.service.ts`
+
+### Database
+
+- `credit_transactions` - Credit ledger
+- `user_balances` - Current balance (source of truth)
+
+### Credit Packages
+
+| Package | Credits | Price |
+|---------|---------|-------|
+| Basic | 100 CR | $10.00 |
+| Standard | 500 CR | $45.00 (10% discount) |
+| Premium | 1000 CR | $80.00 (20% discount) |
+| Custom | Variable | 1 CR = $1.00 |
+
+---
+
+## Comparison
+
+| Aspect | Tool Purchase | Credit Purchase |
+|--------|---------------|-----------------|
+| **Purpose** | Buy tool access | Buy credits |
+| **Entry Point** | `/api/checkout/create` | `/api/stripe/create-checkout-session` |
+| **OTP Required** | Yes | No |
+| **Payment Provider** | Configurable | Stripe Checkout |
+| **Result** | Subscription created | Credits added |
+
+---
+
+## Legacy: Credit Consumption
+
+`POST /api/credit-checkout` - Legacy endpoint for immediate credit deduction during tool usage.
+
+Being replaced by: `POST /api/v1/credits/consume`
+
+This is NOT a checkout flow - it's credit consumption.

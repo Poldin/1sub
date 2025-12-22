@@ -1,398 +1,82 @@
 ---
 title: "Tools and User Accounts"
-description: "Understanding how tools, user linking, and account management work in 1Sub"
+description: "How 1Sub manages tools and user identity"
 ---
 
 # Tools and User Accounts
 
-Learn how 1Sub manages tools, user identities, and the linking between your tool's users and 1Sub accounts.
+1Sub handles user identity and subscriptions for you. Users never create accounts on your site.
 
-## Tools
+---
 
-A **tool** in 1Sub is your application or service that users can subscribe to or purchase credits for.
+## How It Works
 
-### Tool Properties
+1. User subscribes to your tool on 1Sub
+2. User clicks "Launch Tool"
+3. Your app receives a code containing their identity
+4. You create a session - that's it
 
-Each tool has the following attributes:
+Users are automatically identified. No account creation, no passwords, no email verification.
 
-<ResponseField name="id" type="string (UUID)" required>
-Unique identifier for your tool
-</ResponseField>
-
-<ResponseField name="name" type="string" required>
-Display name shown to users (e.g., "AI Image Generator")
-</ResponseField>
-
-<ResponseField name="description" type="string">
-Brief description of what your tool does
-</ResponseField>
-
-<ResponseField name="redirect_uri" type="string (URL)" required>
-Callback URL where users are redirected after subscribing
-</ResponseField>
-
-<ResponseField name="webhook_url" type="string (URL)">
-Endpoint where 1Sub sends webhook notifications
-</ResponseField>
-
-<ResponseField name="api_key" type="string">
-Server-to-server authentication credential (format: `sk-tool-xxxxx`)
-</ResponseField>
-
-<ResponseField name="webhook_secret" type="string">
-Secret for verifying webhook signatures (format: `whsec-xxxxx`)
-</ResponseField>
-
-### Tool Configuration
-
-Configure your tool in the 1Sub vendor dashboard:
-
-<Steps>
-<Step title="Publish your tool">
-  Create a tool listing with name, description, pricing, and features.
-</Step>
-
-<Step title="Set redirect URL">
-  Configure where users should be sent after subscribing:
-  
-```
-https://yourtool.com/auth/1sub/callback
-```
-
-<Tip>
-The redirect URL must use HTTPS in production.
-</Tip>
-</Step>
-
-<Step title="Configure webhooks (optional)">
-  Set the endpoint to receive subscription lifecycle notifications:
-  
-```
-https://yourtool.com/webhooks/1sub
-```
-</Step>
-
-<Step title="Get credentials">
-  After publishing, you'll receive:
-  - **API Key** (shown once)
-  - **Webhook Secret** (shown once)
-  - **Tool ID** (always visible)
-  
-  <Warning>
-  Save these credentials immediately. API keys and webhook secrets are shown only once.
-  </Warning>
-</Step>
-</Steps>
+---
 
 ## User Identity
 
-1Sub manages user identities separately from your tool. Users have a **1Sub account** that's independent of their accounts in your tool.
-
-### User Linking
-
-To enable access control, you need to link **your tool's user IDs** with **1Sub user IDs**.
-
-```
-Your User ID ←→ 1Sub User ID (oneSubUserId)
-```
-
-### Primary Linking Flow: Email-Based (SaaS Tools)
-
-For web applications where users have verified emails:
-
-<Steps>
-<Step title="User subscribes on 1Sub">
-  User completes subscription on the 1Sub platform with their email.
-</Step>
-
-<Step title="User logs into your tool">
-  User logs into your tool with the same email they used on 1Sub.
-</Step>
-
-<Step title="Hash email and verify subscription">
-  Your tool hashes the user's email and calls the verify endpoint:
+Every user has a unique `onesubUserId` that you receive when they launch your tool:
 
 ```typescript
-import crypto from 'crypto';
+const data = await exchangeCode(code);
 
-// Hash the email (SHA256)
-const normalizedEmail = userEmail.toLowerCase().trim();
-const emailHash = crypto
-  .createHash('sha256')
-  .update(normalizedEmail)
-  .digest('hex');
-
-// Verify subscription
-const subscription = await verifySubscription({ emailSha256: emailHash });
-```
-</Step>
-
-<Step title="Extract and cache oneSubUserId">
-  Extract the `oneSubUserId` from the response and cache it:
-
-```typescript
-const oneSubUserId = subscription.oneSubUserId;
-
-// Store for future lookups (10-20x faster)
-await db.users.update(localUserId, { oneSubUserId });
-```
-</Step>
-
-<Step title="Store the link">
-  Save the mapping in your database:
-
-```sql
-CREATE TABLE onesub_user_links (
-  id UUID PRIMARY KEY,
-  tool_user_id VARCHAR NOT NULL UNIQUE,
-  onesub_user_id VARCHAR NOT NULL,
-  linked_at TIMESTAMP DEFAULT NOW()
-);
-
-INSERT INTO onesub_user_links (tool_user_id, onesub_user_id)
-VALUES ('user_123', 'uuid-from-verify')
-ON CONFLICT (tool_user_id) DO UPDATE
-SET onesub_user_id = EXCLUDED.onesub_user_id;
-```
-</Step>
-</Steps>
-
-<Tip>
-After the first email lookup, always use the cached `oneSubUserId` for subsequent verifications - it's 10-20x faster than email lookups.
-</Tip>
-
-### Alternative Linking Flow: Link Codes
-
-For tools without web interfaces (CLI tools, desktop apps, etc.), users can link via short codes:
-
-<Steps>
-<Step title="User generates code on 1Sub">
-  After subscribing, user generates a 6-character link code:
-  
-```
-Your link code: AB12CD
-```
-</Step>
-
-<Step title="User enters code in your tool">
-  User pastes the code into your tool's settings or CLI.
-</Step>
-
-<Step title="Exchange code for link">
-  Your tool calls the exchange endpoint:
-  
-<RequestExample>
-```bash cURL
-curl -X POST 'https://1sub.io/api/v1/tools/link/exchange-code' \
-  -H 'Authorization: Bearer sk-tool-xxxxx' \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "code": "AB12CD",
-    "toolUserId": "user_123"
-  }'
-```
-</RequestExample>
-
-<ResponseExample>
-```json Success
-{
-  "linked": true,
-  "oneSubUserId": "uuid-abc-123",
-  "toolUserId": "user_123",
-  "linkedAt": "2025-11-16T12:34:56Z"
-}
-```
-</ResponseExample>
-</Step>
-
-<Step title="Store the link">
-  Save the mapping in your database (same as email-based flow).
-</Step>
-</Steps>
-
-<Note>
-Link codes expire after 10 minutes and are single-use.
-</Note>
-
-## User Lookup Strategies
-
-Once linked, you can verify subscriptions using either the **1Sub user ID** or **email hash**:
-
-### Option 1: By 1Sub User ID (Recommended)
-
-Use the stored `oneSubUserId` from your user link:
-
-```typescript
-const oneSubUserId = await getOneSubUserId(localUserId);
-
-const subscription = await axios.post(
-  'https://1sub.io/api/v1/tools/subscriptions/verify',
-  { oneSubUserId },
-  { headers: { Authorization: `Bearer ${apiKey}` } }
-);
+// Store this - it identifies the user
+const userId = data.onesubUserId;
 ```
 
-<Tip>
-This is the fastest and most reliable method.
-</Tip>
+Use this ID to:
+- Identify the user across sessions
+- Store user-specific data in your database
+- Track usage and entitlements
 
-### Option 2: By Email Hash (Fallback)
+---
 
-If you don't have the `oneSubUserId`, use a SHA-256 hash of the email:
+## Tool Configuration
 
-```typescript
-import crypto from 'crypto';
+Configure your tool in the [vendor dashboard](https://1sub.io/vendor/dashboard):
 
-function hashEmail(email: string): string {
-  const normalized = email.toLowerCase().trim();
-  return crypto.createHash('sha256').update(normalized).digest('hex');
-}
+| Setting | Description |
+|---------|-------------|
+| **Callback URL** | Where users land after clicking "Launch Tool" |
+| **Webhook URL** | Where you receive subscription events |
+| **API Key** | For authenticating your requests |
+| **Webhook Secret** | For verifying webhook signatures |
 
-const emailHash = hashEmail('user@example.com');
+---
 
-const subscription = await axios.post(
-  'https://1sub.io/api/v1/tools/subscriptions/verify',
-  { emailSha256: emailHash },
-  { headers: { Authorization: `Bearer ${apiKey}` } }
-);
-```
+## What 1Sub Handles
 
-<Warning>
-Email-based lookup is slower and less reliable if users change their email. Use `oneSubUserId` when possible.
-</Warning>
+- User authentication
+- Subscription management
+- Payment processing
+- Plan upgrades/downgrades
+- Billing portal
+- Refunds
 
-## Multi-Tool Support
+---
 
-Users can have subscriptions to multiple tools with a single 1Sub account.
+## What You Handle
 
-### Subscription Isolation
+- Session management (after receiving the user)
+- Your app's features
+- Access control based on entitlements
+- User-specific data storage
 
-- Each tool has its own subscription status
-- Users manage all subscriptions from their 1Sub dashboard
-- Tools only see their own subscription data
+---
 
-### User Data Sharing
-
-Tools **cannot** access:
-- User's subscriptions to other tools
-- User's payment methods
-- User's personal information beyond email
-
-This ensures user privacy across the platform.
-
-## Account Management
-
-### User Perspective
+## User Management
 
 Users manage their accounts entirely on 1Sub:
-- Subscribe/unsubscribe to tools
+- Subscribe/unsubscribe
 - Update payment methods
-- View usage and billing history
-- Manage account settings
+- View billing history
+- Cancel subscriptions
 
-Your tool does not need to handle these operations.
-
-### Vendor Perspective
-
-As a vendor, you should:
-- **Listen to webhooks** for subscription changes
-- **Verify subscriptions** before granting access
-- **Not store** payment information (handled by 1Sub)
-- **Link users** when they first subscribe
-
-<Check>
-This separation of concerns means you focus on your core product while 1Sub handles billing and subscriptions.
-</Check>
-
-## Best Practices
-
-<AccordionGroup>
-<Accordion title="Link users immediately">
-Always link users when they first arrive from 1Sub. Store the `oneSubUserId` for fast lookups later.
-</Accordion>
-
-<Accordion title="Handle link conflicts">
-If a user tries to link an already-linked 1Sub account to a different tool user, decide whether to:
-- Reject the link (strict mode)
-- Update the link (allow migration)
-- Allow multiple tool users per 1Sub user (rare)
-
-```typescript
-try {
-  await storeUserLink(toolUserId, oneSubUserId);
-} catch (error) {
-  if (error.code === 'UNIQUE_VIOLATION') {
-    // Handle conflict
-    throw new Error('This 1Sub account is already linked');
-  }
-}
-```
-</Accordion>
-
-<Accordion title="Cache subscription status">
-Don't verify subscriptions on every request. Cache the result and update via webhooks:
-
-```typescript
-const cache = new Map();
-
-async function getSubscription(oneSubUserId: string) {
-  if (cache.has(oneSubUserId)) {
-    return cache.get(oneSubUserId);
-  }
-  
-  const sub = await verifySubscription(oneSubUserId);
-  cache.set(oneSubUserId, sub);
-  return sub;
-}
-
-// Update cache on webhook
-webhookHandler.on('subscription.updated', (data) => {
-  cache.delete(data.oneSubUserId);
-});
-```
-</Accordion>
-
-<Accordion title="Support email changes">
-Users may change their email on 1Sub. Always use `oneSubUserId` for lookups, not email.
-</Accordion>
-</AccordionGroup>
-
-## Example Schema
-
-Recommended database schema for user linking:
-
-```sql
--- User links table
-CREATE TABLE onesub_user_links (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tool_user_id VARCHAR NOT NULL UNIQUE,
-  onesub_user_id VARCHAR NOT NULL,
-  email VARCHAR, -- Optional, for reference
-  linked_at TIMESTAMP NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_onesub_user_id ON onesub_user_links(onesub_user_id);
-
--- Optional: Subscription cache table
-CREATE TABLE subscription_cache (
-  onesub_user_id VARCHAR PRIMARY KEY,
-  active BOOLEAN NOT NULL,
-  status VARCHAR NOT NULL,
-  plan_id VARCHAR,
-  current_period_end TIMESTAMP,
-  cached_at TIMESTAMP NOT NULL DEFAULT NOW()
-);
-```
-
-
-
-
-
-
-
-
-
-
-
-
+You just verify access and serve your features.

@@ -14,17 +14,21 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { findToolByApiKey, updateApiKeyLastUsed } from '@/lib/api-keys';
-import { checkRateLimit, RATE_LIMITS, getClientIp } from '@/lib/rate-limit';
-import { safeValidate, creditConsumeRequestSchema } from '@/lib/validation';
-import { 
-  logApiKeyAuth, 
-  logCreditConsumption, 
-  logRateLimitExceeded, 
+import { createServerClient } from '@/infrastructure/database/client';
+import {
+  findToolByApiKey,
+  checkRateLimit,
+  RATE_LIMITS,
+  getClientIp,
+  safeValidate,
+  creditConsumeRequestSchema,
+  logApiKeyAuth,
+  logCreditConsumption,
+  logRateLimitExceeded,
   logValidationError,
-  logInsufficientCredits 
-} from '@/lib/audit-log';
+  logInsufficientCredits,
+} from '@/security';
+import { sendCreditsConsumed } from '@/domains/webhooks';
 
 export async function POST(request: NextRequest) {
   const clientIp = getClientIp(request);
@@ -84,7 +88,7 @@ export async function POST(request: NextRequest) {
 
     // Find tool by API key
     const toolData = await findToolByApiKey(apiKey);
-    if (!toolData) {
+    if (!toolData.success) {
       // Track authentication failures for security monitoring
       const failureRateLimit = checkRateLimit(
         `auth-failures:${clientIp}`,
@@ -94,7 +98,7 @@ export async function POST(request: NextRequest) {
       logApiKeyAuth({
         success: false,
         apiKey: apiKey.substring(0, 8) + '...',
-        reason: 'Invalid API key',
+        reason: toolData.error || 'Invalid API key',
         ip: clientIp
       });
 
@@ -117,18 +121,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const toolId = toolData.toolId!;
+    const toolName = toolData.toolName || 'Unknown';
+    const metadata = toolData.metadata || {};
+
     // Log successful authentication
     logApiKeyAuth({
       success: true,
       apiKey: apiKey.substring(0, 8) + '...',
-      toolId: toolData.toolId,
-      toolName: toolData.toolName,
+      toolId,
+      toolName,
       ip: clientIp
     });
 
-    const supabase = await createClient();
-    const toolId = toolData.toolId;
-    const metadata = toolData.metadata;
+    const supabase = await createServerClient();
 
     // Verify tool is active
     if (!toolData.isActive) {
@@ -191,7 +197,7 @@ export async function POST(request: NextRequest) {
         p_idempotency_key: idempotency_key,
         p_tool_id: toolId,
         p_metadata: {
-          tool_name: toolData.toolName,
+          tool_name: toolName,
           api_consumption: true,
         }
       }
@@ -263,38 +269,22 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Update API key last used timestamp
-    try {
-      await updateApiKeyLastUsed(toolId);
-    } catch (error) {
-      // Don't fail the request if this fails, just log it
-      console.error('Error updating API key last used:', error);
-    }
-
-    // Check for low credit warnings and send webhooks
-    const LOW_CREDIT_THRESHOLD = 10; // Credits
-    const newBalance = rpcResult.balance_after;
-
-    try {
-      if (newBalance === 0) {
-        // Credits depleted - send webhook
-        const { notifyUserCreditDepleted } = await import('@/lib/tool-webhooks');
-        await notifyUserCreditDepleted(toolId, user_id);
-      } else if (newBalance <= LOW_CREDIT_THRESHOLD && rpcResult.balance_before > LOW_CREDIT_THRESHOLD) {
-        // Credits fell below threshold - send webhook
-        const { notifyUserCreditLow } = await import('@/lib/tool-webhooks');
-        await notifyUserCreditLow(toolId, user_id, newBalance, LOW_CREDIT_THRESHOLD);
-      }
-    } catch (webhookError) {
-      // Don't fail the request if webhook fails
-      console.error('[Webhook] Failed to send credit status webhook:', webhookError);
-    }
+    // Send credits.consumed webhook (async, don't await)
+    sendCreditsConsumed({
+      toolId,
+      userId: user_id,
+      amount,
+      balanceRemaining: rpcResult.balance_after,
+      transactionId: rpcResult.transaction_id || '',
+    }).catch(err => {
+      console.error('[Webhook] Failed to send credits consumed webhook:', err);
+    });
 
     // Log successful credit consumption
     logCreditConsumption({
       userId: user_id,
       toolId: toolId,
-      toolName: toolData.toolName,
+      toolName: toolName,
       amount: amount,
       balanceBefore: rpcResult.balance_before,
       balanceAfter: rpcResult.balance_after,
