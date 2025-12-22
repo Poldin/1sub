@@ -489,192 +489,100 @@ export default function VendorAPIPage() {
         </header>
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* API Keys Section */}
+        {/* 1. Webhook Section */}
         <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151] mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-[#ededed]">API Key</h2>
-            {toolApiKeys.length > 0 && selectedToolForConfig && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-[#9ca3af]">
-                  {toolApiKeys.find(t => t.toolId === selectedToolForConfig)?.toolName}
-                </span>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(selectedToolForConfig);
-                    showToast('Tool ID copied to clipboard!');
-                  }}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-[#374151] hover:bg-[#4b5563] text-[#ededed] rounded text-sm transition-colors"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  Copy Tool ID
-                </button>
-              </div>
-            )}
-          </div>
-          
-          {toolApiKeys.length === 0 ? (
-            <div className="text-center py-8">
-              <Key className="w-12 h-12 text-[#9ca3af] mx-auto mb-4" />
-              <p className="text-[#9ca3af] mb-2">No API keys found</p>
-              <p className="text-sm text-[#9ca3af]">
-                API keys are automatically generated when you publish a tool.
-              </p>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Webhook className="w-5 h-5 text-[#3ecf8e]" />
+              <h2 className="text-lg font-semibold text-[#ededed]">Webhook</h2>
             </div>
-          ) : (
-            selectedToolForConfig && toolApiKeys.find(t => t.toolId === selectedToolForConfig) && (() => {
-              const toolKey = toolApiKeys.find(t => t.toolId === selectedToolForConfig)!;
-              return (
-                <div>
-                  <div className="flex items-center gap-4 text-sm text-[#9ca3af] mb-4">
-                    {toolKey.createdAt && (
-                      <span>Created: {new Date(toolKey.createdAt).toLocaleDateString()}</span>
-                    )}
-                    {toolKey.lastUsedAt && (
-                      <span>Last used: {new Date(toolKey.lastUsedAt).toLocaleDateString()}</span>
-                    )}
-                    {!toolKey.lastUsedAt && (
-                      <span className="text-yellow-400">Never used</span>
-                    )}
-                    {!toolKey.isActive && (
-                      <span className="text-xs bg-red-400/20 text-red-400 px-2 py-1 rounded-full">
-                        Inactive
-                      </span>
-                    )}
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="text"
-                      value={maskApiKey(toolKey.apiKeyHash)}
-                      readOnly
-                      className="flex-1 px-4 py-2 bg-[#0a0a0a] border border-[#4b5563] rounded-lg text-[#ededed] font-mono text-sm"
-                    />
-                    <button
-                      onClick={() => handleCopyKey(toolKey.toolId, toolKey.apiKeyHash)}
-                      className="p-2 bg-[#374151] border border-[#4b5563] rounded-lg hover:bg-[#4b5563] transition-colors"
-                      title="Copy key reference"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleRegenerateKey(toolKey.toolId)}
-                      disabled={regeneratingToolId === toolKey.toolId}
-                      className="p-2 bg-[#3ecf8e] text-black rounded-lg hover:bg-[#2dd4bf] disabled:opacity-50 transition-colors"
-                      title="Regenerate API key"
-                    >
-                      <RefreshCw className={`w-4 h-4 ${regeneratingToolId === toolKey.toolId ? 'animate-spin' : ''}`} />
-                    </button>
-                  </div>
-                </div>
-              );
-            })()
-          )}
-        </div>
-
-        {/* Configuration */}
-        <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151] mb-8">
-          <div className="flex items-center gap-2 mb-4">
-            <Webhook className="w-5 h-5 text-[#3ecf8e]" />
-            <h2 className="text-lg font-semibold text-[#ededed]">Configuration</h2>
+            <a
+              href="/docs/webhooks"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-sm text-[#3ecf8e] hover:text-[#2dd4bf] transition-colors"
+            >
+              <span>View docs</span>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
           </div>
 
-          {selectedToolForConfig && (
+          {selectedToolForConfig ? (
             <div className="space-y-4">
-              {/* Redirect URI */}
+              {/* Webhook URL */}
               <div>
                 <label className="block text-sm font-medium text-[#ededed] mb-2">
                   <div className="flex items-center gap-2">
-                    <LinkIcon className="w-4 h-4 text-[#3ecf8e]" />
-                    Redirect URI (JWT Flow)
+                    <Webhook className="w-4 h-4 text-[#3ecf8e]" />
+                    Webhook URL
                   </div>
                 </label>
                 <input
                   type="url"
-                  value={redirectUri}
-                  onChange={(e) => setRedirectUri(e.target.value)}
-                  placeholder="https://yourtool.com/auth/callback"
+                  value={webhookUrl}
+                  onChange={(e) => setWebhookUrl(e.target.value)}
+                  placeholder="https://yourtool.com/webhooks/1sub"
                   className="w-full px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e]"
                 />
                 <p className="text-xs text-[#9ca3af] mt-1">
-                  Where users are redirected after subscribing, with a signed JWT token
+                  Endpoint to receive subscription lifecycle events (activated, canceled, updated)
                 </p>
               </div>
 
-              {/* Webhook Section - Dark Background */}
-              <div className="bg-[#111111] rounded-lg p-4 space-y-4">
-                {/* Webhook URL */}
-                <div>
-                  <label className="block text-sm font-medium text-[#ededed] mb-2">
-                    <div className="flex items-center gap-2">
-                      <Webhook className="w-4 h-4 text-[#3ecf8e]" />
-                      Webhook URL
-                    </div>
-                  </label>
-                  <input
-                    type="url"
-                    value={webhookUrl}
-                    onChange={(e) => setWebhookUrl(e.target.value)}
-                    placeholder="https://yourtool.com/webhooks/1sub"
-                    className="w-full px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e]"
-                  />
-                  <p className="text-xs text-[#9ca3af] mt-1">
-                    Endpoint to receive subscription lifecycle events (activated, canceled, updated)
-                  </p>
-                </div>
-
-                {/* Webhook Secret */}
-                <div>
-                  <label className="block text-sm font-medium text-[#ededed] mb-2">
-                    <div className="flex items-center gap-2">
-                      <Key className="w-4 h-4 text-[#3ecf8e]" />
-                      Webhook Secret
-                    </div>
-                  </label>
+              {/* Webhook Secret */}
+              <div>
+                <label className="block text-sm font-medium text-[#ededed] mb-2">
                   <div className="flex items-center gap-2">
-                    <div className="flex-1 relative">
-                      <input
-                        type={showWebhookSecret ? 'text' : 'password'}
-                        value={webhookSecret}
-                        onChange={(e) => setWebhookSecret(e.target.value)}
-                        placeholder="whsec_••••••••"
-                        className="w-full px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] font-mono text-sm"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowWebhookSecret(!showWebhookSecret)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9ca3af] hover:text-[#ededed]"
-                      >
-                        {showWebhookSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
+                    <Key className="w-4 h-4 text-[#3ecf8e]" />
+                    Webhook Secret
+                  </div>
+                </label>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 relative">
+                    <input
+                      type={showWebhookSecret ? 'text' : 'password'}
+                      value={webhookSecret}
+                      onChange={(e) => setWebhookSecret(e.target.value)}
+                      placeholder="whsec_••••••••"
+                      className="w-full px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] font-mono text-sm"
+                    />
                     <button
                       type="button"
-                      onClick={handleGenerateWebhookSecret}
-                      className="px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg hover:bg-[#4b5563] transition-colors text-sm whitespace-nowrap"
+                      onClick={() => setShowWebhookSecret(!showWebhookSecret)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9ca3af] hover:text-[#ededed]"
                     >
-                      Generate
+                      {showWebhookSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
-                    {webhookSecret && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          navigator.clipboard.writeText(webhookSecret);
-                          showToast('Webhook secret copied to clipboard!');
-                        }}
-                        className="p-2 bg-[#374151] border border-[#4b5563] rounded-lg hover:bg-[#4b5563] transition-colors"
-                        title="Copy secret"
-                      >
-                        <Copy className="w-4 h-4" />
-                      </button>
-                    )}
                   </div>
-                  <p className="text-xs text-[#9ca3af] mt-1">
-                    Used to verify webhook signatures (HMAC-SHA256). Store this securely in your tool.
-                  </p>
+                  <button
+                    type="button"
+                    onClick={handleGenerateWebhookSecret}
+                    className="px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg hover:bg-[#4b5563] transition-colors text-sm whitespace-nowrap"
+                  >
+                    Generate
+                  </button>
+                  {webhookSecret && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(webhookSecret);
+                        showToast('Webhook secret copied to clipboard!');
+                      }}
+                      className="p-2 bg-[#374151] border border-[#4b5563] rounded-lg hover:bg-[#4b5563] transition-colors"
+                      title="Copy secret"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
+                <p className="text-xs text-[#9ca3af] mt-1">
+                  Used to verify webhook signatures (HMAC-SHA256). Store this securely in your tool.
+                </p>
               </div>
 
-              {/* Save Button */}
+              {/* Save Button for Webhook */}
               <div className="flex items-center gap-3">
                 <button
                   onClick={handleSaveConfiguration}
@@ -783,6 +691,156 @@ export default function VendorAPIPage() {
                 </div>
               )}
             </div>
+          ) : (
+            <p className="text-[#9ca3af] text-sm">Select a tool to configure webhooks</p>
+          )}
+        </div>
+
+        {/* 2. API Key Section */}
+        <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151] mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-semibold text-[#ededed]">API Key</h2>
+            {toolApiKeys.length > 0 && selectedToolForConfig && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-[#9ca3af]">
+                  {toolApiKeys.find(t => t.toolId === selectedToolForConfig)?.toolName}
+                </span>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(selectedToolForConfig);
+                    showToast('Tool ID copied to clipboard!');
+                  }}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-[#374151] hover:bg-[#4b5563] text-[#ededed] rounded text-sm transition-colors"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  Copy Tool ID
+                </button>
+              </div>
+            )}
+          </div>
+          
+          {toolApiKeys.length === 0 ? (
+            <div className="text-center py-8">
+              <Key className="w-12 h-12 text-[#9ca3af] mx-auto mb-4" />
+              <p className="text-[#9ca3af] mb-2">No API keys found</p>
+              <p className="text-sm text-[#9ca3af]">
+                API keys are automatically generated when you publish a tool.
+              </p>
+            </div>
+          ) : (
+            selectedToolForConfig && toolApiKeys.find(t => t.toolId === selectedToolForConfig) && (() => {
+              const toolKey = toolApiKeys.find(t => t.toolId === selectedToolForConfig)!;
+              return (
+                <div>
+                  <div className="flex items-center gap-4 text-sm text-[#9ca3af] mb-4">
+                    {toolKey.createdAt && (
+                      <span>Created: {new Date(toolKey.createdAt).toLocaleDateString()}</span>
+                    )}
+                    {toolKey.lastUsedAt && (
+                      <span>Last used: {new Date(toolKey.lastUsedAt).toLocaleDateString()}</span>
+                    )}
+                    {!toolKey.lastUsedAt && (
+                      <span className="text-yellow-400">Never used</span>
+                    )}
+                    {!toolKey.isActive && (
+                      <span className="text-xs bg-red-400/20 text-red-400 px-2 py-1 rounded-full">
+                        Inactive
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="text"
+                      value={maskApiKey(toolKey.apiKeyHash)}
+                      readOnly
+                      className="flex-1 px-4 py-2 bg-[#0a0a0a] border border-[#4b5563] rounded-lg text-[#ededed] font-mono text-sm"
+                    />
+                    <button
+                      onClick={() => handleCopyKey(toolKey.toolId, toolKey.apiKeyHash)}
+                      className="p-2 bg-[#374151] border border-[#4b5563] rounded-lg hover:bg-[#4b5563] transition-colors"
+                      title="Copy key reference"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleRegenerateKey(toolKey.toolId)}
+                      disabled={regeneratingToolId === toolKey.toolId}
+                      className="p-2 bg-[#3ecf8e] text-black rounded-lg hover:bg-[#2dd4bf] disabled:opacity-50 transition-colors"
+                      title="Regenerate API key"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${regeneratingToolId === toolKey.toolId ? 'animate-spin' : ''}`} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })()
+          )}
+        </div>
+
+        {/* 3. Callback Endpoint Section */}
+        <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151] mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <LinkIcon className="w-5 h-5 text-[#3ecf8e]" />
+            <h2 className="text-lg font-semibold text-[#ededed]">Callback Endpoint</h2>
+          </div>
+
+          {selectedToolForConfig ? (
+            <div className="space-y-4">
+              {/* Redirect URI */}
+              <div>
+                <label className="block text-sm font-medium text-[#ededed] mb-2">
+                  Redirect URI
+                </label>
+                <input
+                  type="url"
+                  value={redirectUri}
+                  onChange={(e) => setRedirectUri(e.target.value)}
+                  placeholder="https://yourtool.com/auth/callback"
+                  className="w-full px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e]"
+                />
+                <p className="text-xs text-[#9ca3af] mt-1">
+                  Where users are redirected, with a signed JWT token
+                </p>
+              </div>
+
+              {/* Save Button for Redirect URI */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleSaveConfiguration}
+                  disabled={
+                    savingConfig || 
+                    (webhookUrl === originalWebhookUrl && 
+                     webhookSecret === originalWebhookSecret && 
+                     redirectUri === originalRedirectUri)
+                  }
+                  className="flex items-center gap-1.5 bg-[#3ecf8e] hover:bg-[#2dd4bf] text-[#0a0a0a] px-4 py-1.5 rounded text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {savingConfig ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      Saving...
+                    </>
+                  ) : configSaved ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      Saved!
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-3.5 h-3.5" />
+                      Save
+                    </>
+                  )}
+                </button>
+                
+                {configSaved && (
+                  <span className="text-xs text-[#3ecf8e]">Configuration saved successfully!</span>
+                )}
+              </div>
+            </div>
+          ) : (
+            <p className="text-[#9ca3af] text-sm">Select a tool to configure callback endpoint</p>
           )}
         </div>
 
