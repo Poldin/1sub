@@ -12,6 +12,7 @@
 
 import crypto from 'crypto';
 import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/infrastructure/database/client';
 import type { WebhookPayload, WebhookEventType } from '@/lib/tool-verification-types';
 import { invalidateCachedEntitlements } from '@/lib/redis-cache';
 
@@ -23,16 +24,17 @@ import { invalidateCachedEntitlements } from '@/lib/redis-cache';
  */
 async function getUserEmail(userId: string): Promise<string | undefined> {
   try {
-    const supabase = await createClient();
-    
+    // Use service role client for admin API access
+    const supabase = createServiceClient();
+
     // Query auth.users via admin API
     const { data, error } = await supabase.auth.admin.getUserById(userId);
-    
+
     if (error || !data?.user) {
       console.warn(`[Webhook] Could not fetch email for user ${userId}:`, error);
       return undefined;
     }
-    
+
     return data.user.email;
   } catch (error) {
     console.error(`[Webhook] Error fetching user email:`, error);

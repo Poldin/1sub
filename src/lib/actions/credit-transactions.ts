@@ -15,6 +15,7 @@
  */
 
 import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/infrastructure/database/client';
 import { getCurrentBalance as getCurrentBalanceFromService } from '@/lib/credits-service';
 
 export interface CreditTransactionParams {
@@ -689,8 +690,10 @@ export async function transferCredits(params: {
     }
 
     // Create credit transaction for receiver
+    // Use service role client to bypass RLS policy (buyer cannot create transactions for vendor)
+    const serviceSupabase = createServiceClient();
     const creditIdempotencyKey = idempotencyKey ? `${idempotencyKey}-credit` : null;
-    const { data: creditTransaction, error: creditError } = await supabase
+    const { data: creditTransaction, error: creditError } = await serviceSupabase
       .from('credit_transactions')
       .insert({
         user_id: toUserId,
