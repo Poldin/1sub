@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useState, useEffect, useCallback, Suspense, useMemo } from 'react';
 import { Menu, User, LogOut, Check } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -8,6 +8,8 @@ import Sidebar from './components/Sidebar';
 import SearchBar from './components/SearchBar';
 import Footer from '@/app/components/Footer';
 import ToolsGrid from '@/app/components/ToolsGrid';
+import { usePurchasedProducts } from '@/hooks/usePurchasedProducts';
+import { useTools } from '@/hooks/useTools';
 
 function BackofficeContent() {
   const router = useRouter();
@@ -24,6 +26,12 @@ function BackofficeContent() {
   const [isVendor, setIsVendor] = useState(false);
   const [highlightedToolId, setHighlightedToolId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showMyToolsOnly, setShowMyToolsOnly] = useState(false);
+  const [purchasedToolIds, setPurchasedToolIds] = useState<Set<string>>(new Set());
+
+  // Get user's purchased tools and active subscriptions
+  const { subscriptions, hasTool, loading: purchasedLoading } = usePurchasedProducts();
+  const { tools: allTools, loading: toolsLoading } = useTools();
 
   // Initialize sidebar state based on screen size
   useEffect(() => {
@@ -207,6 +215,69 @@ function BackofficeContent() {
   useEffect(() => {
     fetchUserData();
   }, [fetchUserData]);
+
+  // Fetch user's purchased tools (one-time purchases)
+  useEffect(() => {
+    const fetchPurchasedTools = async () => {
+      if (!user?.id) return;
+
+      try {
+        const supabase = createClient();
+        
+        // Get completed one-time purchases (exclude subscriptions)
+        const { data: checkouts, error } = await supabase
+          .from('checkouts')
+          .select('metadata, type, created_at')
+          .eq('user_id', user.id);
+
+        if (error) {
+          console.error('Error fetching purchased tools:', error);
+          return;
+        }
+
+        if (checkouts && Array.isArray(checkouts)) {
+          // Filter completed purchases, exclude subscriptions
+          const completedPurchases = checkouts.filter((checkout: { metadata: unknown; type: string | null }) => {
+            const meta = checkout.metadata as Record<string, unknown>;
+            const isCompleted = meta?.status === 'completed';
+            // Exclude subscriptions - check both type and metadata
+            const isNotSubscription = checkout.type !== 'tool_subscription' && 
+              !(meta?.checkout_type === 'tool_subscription') &&
+              !(meta?.billing_period);
+            return isCompleted && isNotSubscription;
+          });
+
+          // Extract unique tool IDs
+          const toolIds = new Set<string>();
+          completedPurchases.forEach((checkout: { metadata: unknown }) => {
+            const meta = checkout.metadata as Record<string, unknown>;
+            const toolId = meta?.tool_id as string;
+            if (toolId) {
+              toolIds.add(toolId);
+            }
+          });
+
+          setPurchasedToolIds(toolIds);
+        }
+      } catch (error) {
+        console.error('Error fetching purchased tools:', error);
+      }
+    };
+
+    fetchPurchasedTools();
+  }, [user?.id]);
+
+  // Filter tools based on "my tools" toggle
+  const filteredTools = useMemo(() => {
+    if (!showMyToolsOnly) return allTools;
+
+    // Combine subscription tool IDs and purchased tool IDs
+    return allTools.filter(tool => {
+      const hasSubscription = hasTool(tool.id);
+      const hasPurchased = purchasedToolIds.has(tool.id);
+      return hasSubscription || hasPurchased;
+    });
+  }, [showMyToolsOnly, allTools, hasTool, purchasedToolIds]);
 
   // Handle vendor_applied parameter to force refresh user data
   useEffect(() => {
@@ -546,15 +617,37 @@ function BackofficeContent() {
           <div className="overflow-x-hidden" data-testid="dashboard-content">
             <div>
 
-              {/* Category Filter Tags */}
+              {/* Category Filter Tags with My Tools Button */}
               <div className="my-0 px-3 sm:px-4 lg:px-8">
                 <div className="flex justify-center overflow-x-auto gap-2 scrollbar-hide pb-2">
+                  {/* My Tools Button */}
+                  <button
+                    onClick={() => {
+                      setShowMyToolsOnly(!showMyToolsOnly);
+                      // Clear search term when enabling my tools filter
+                      if (!showMyToolsOnly) {
+                        setSearchTerm('');
+                      }
+                    }}
+                    className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${
+                      showMyToolsOnly
+                        ? 'bg-gradient-to-r from-[#6366f1] to-[#8b5cf6] text-white shadow-lg shadow-[#6366f1]/30'
+                        : 'bg-[#1f2937] border border-[#374151] text-[#d1d5db] hover:bg-[#374151] hover:border-[#6366f1] hover:text-[#6366f1]'
+                    }`}
+                  >
+                    My Tools
+                  </button>
+
+                  {/* Category Tags */}
                   {['AI', 'Design', 'Analytics', 'Video', 'Marketing', 'Code'].map((category) => (
                     <button
                       key={category}
                       onClick={() => setSearchTerm(searchTerm === category ? '' : category)}
+                      disabled={showMyToolsOnly}
                       className={`group/cat flex-shrink-0 px-4 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${
-                        searchTerm === category
+                        showMyToolsOnly
+                          ? 'bg-[#1a1a1a] border border-[#2a2a2a] text-[#6b7280] cursor-not-allowed opacity-50'
+                          : searchTerm === category
                           ? 'bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] text-white shadow-lg shadow-[#3ecf8e]/30'
                           : 'bg-[#1f2937] border border-[#374151] text-[#d1d5db] hover:bg-[#374151] hover:border-[#3ecf8e] hover:text-[#3ecf8e]'
                       }`}
@@ -575,11 +668,43 @@ function BackofficeContent() {
 
               {/* All Tools Section */}
               <div className="my-8 px-2 sm:px-3">
-                <ToolsGrid
-                  onToolLaunch={handleLaunchTool}
-                  highlightedToolId={highlightedToolId}
-                  searchTerm={searchTerm}
-                />
+                {showMyToolsOnly && filteredTools.length === 0 && !toolsLoading && !purchasedLoading ? (
+                  <div className="text-center py-12">
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#1f2937] border-2 border-[#374151] mb-4">
+                      <svg 
+                        className="w-8 h-8 text-[#6b7280]" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path 
+                          strokeLinecap="round" 
+                          strokeLinejoin="round" 
+                          strokeWidth={2} 
+                          d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" 
+                        />
+                      </svg>
+                    </div>
+                    <h3 className="text-xl font-semibold text-[#ededed] mb-2">No Tools Yet</h3>
+                    <p className="text-[#9ca3af] mb-4">
+                      You haven&apos;t purchased or subscribed to any tools yet.
+                    </p>
+                    <button
+                      onClick={() => setShowMyToolsOnly(false)}
+                      className="px-6 py-2 bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] text-white rounded-lg font-semibold hover:shadow-lg hover:shadow-[#3ecf8e]/30 transition-all duration-300"
+                    >
+                      Browse All Tools
+                    </button>
+                  </div>
+                ) : (
+                  <ToolsGrid
+                    onToolLaunch={handleLaunchTool}
+                    highlightedToolId={highlightedToolId}
+                    searchTerm={searchTerm}
+                    tools={filteredTools}
+                    loading={toolsLoading || purchasedLoading}
+                  />
+                )}
               </div>
 
             </div>
