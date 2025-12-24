@@ -20,7 +20,6 @@ export {
   // Event senders
   notifySubscriptionCreated,
   notifySubscriptionActivated,
-  notifySubscriptionRenewed,
   notifySubscriptionCanceled,
   notifySubscriptionUpdated,
   notifyPurchaseCompleted,

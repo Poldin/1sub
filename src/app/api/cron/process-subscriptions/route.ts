@@ -27,6 +27,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { processSubscriptionRenewals, retryFailedSubscriptionRenewals } from '@/lib/server/subscription-renewal';
+import { processWebhookRetries } from '@/domains/webhooks/webhook-retry-service';
+import { sendWebhookFailureAlert } from '@/domains/webhooks/webhook-alerts';
 
 export async function GET(request: NextRequest) {
   return NextResponse.json(
@@ -99,6 +101,25 @@ export async function POST(request: NextRequest) {
       retryResults = await retryFailedSubscriptionRenewals(retryBatchSize);
     }
 
+    // Process webhook retries (Phase 1)
+    console.log('[Cron] Processing webhook retries');
+    const webhookStats = await processWebhookRetries(100);
+    console.log('[Cron] Webhook retry stats:', webhookStats);
+
+    // Send alerts if webhooks moved to dead letter queue
+    if (webhookStats.deadLetter > 0) {
+      console.log(`[Cron] Sending alert for ${webhookStats.deadLetter} dead letter webhooks`);
+      try {
+        await sendWebhookFailureAlert({
+          count: webhookStats.deadLetter,
+          period: 'daily run',
+        });
+      } catch (alertError) {
+        console.error('[Cron] Failed to send webhook failure alert:', alertError);
+        // Don't fail the cron if alert fails
+      }
+    }
+
     const endTime = Date.now();
     const duration = endTime - startTime;
 
@@ -118,6 +139,12 @@ export async function POST(request: NextRequest) {
         failed: retryResults.failed,
         paused: retryResults.paused,
       } : null,
+      webhook_retries: {
+        processed: webhookStats.processed,
+        succeeded: webhookStats.succeeded,
+        failed: webhookStats.failed,
+        deadLetter: webhookStats.deadLetter,
+      },
       totals: {
         subscriptions_processed: renewalResults.totalProcessed + (retryResults?.totalProcessed || 0),
         successful_renewals: renewalResults.successful + (retryResults?.successful || 0),
@@ -126,7 +153,7 @@ export async function POST(request: NextRequest) {
       }
     };
 
-    console.log('[Cron] Subscription processing complete', response);
+    console.log('[Cron] Processing complete (subscriptions + webhooks)', response);
 
     return NextResponse.json(response);
 

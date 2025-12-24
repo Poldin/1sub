@@ -19,6 +19,7 @@ import crypto from 'crypto';
 import { createServiceClient } from '@/infrastructure/database/client';
 import { generateWebhookSignature } from '@/security';
 import { invalidateCachedEntitlements } from '@/lib/redis-cache';
+import { enqueueWebhookRetry, isRetryableError } from './webhook-retry-service';
 
 // ============================================================================
 // UNIFIED EVENT TYPES (canonical list)
@@ -29,7 +30,6 @@ export type WebhookEventType =
   | 'subscription.created'
   | 'subscription.activated'
   | 'subscription.updated'
-  | 'subscription.renewed'
   | 'subscription.canceled'
   // Purchases
   | 'purchase.completed'
@@ -206,6 +206,8 @@ export async function logWebhookDelivery(params: {
   error?: string;
   deliveryTime?: number;
   attemptNumber?: number;
+  isRetry?: boolean;
+  retryQueueId?: string;
 }): Promise<void> {
   const supabase = createServiceClient();
 
@@ -220,6 +222,9 @@ export async function logWebhookDelivery(params: {
       error: params.error,
       delivery_time_ms: params.deliveryTime,
       attempt_number: params.attemptNumber || 1,
+      is_retry: params.isRetry || false,
+      retry_attempt: params.attemptNumber || 1,
+      retry_queue_id: params.retryQueueId,
       created_at: new Date().toISOString(),
     });
   } catch (error) {
@@ -279,6 +284,29 @@ async function sendToolWebhookInternal(
       `[Webhook] Failed to send ${eventType} to tool ${toolId}:`,
       result.error
     );
+
+    // Check if error is retryable (5xx, timeout, network errors)
+    if (isRetryableError(result.statusCode, result.error)) {
+      // Enqueue for retry with exponential backoff
+      await enqueueWebhookRetry({
+        toolId,
+        eventId: payload.id,
+        eventType,
+        url: config.url,
+        payload,
+        webhookSecret: config.secret,
+        error: result.error,
+        statusCode: result.statusCode,
+      });
+      console.log(
+        `[Webhook] Enqueued ${eventType} for retry (5xx/timeout error)`
+      );
+    } else {
+      console.log(
+        `[Webhook] Not enqueueing ${eventType} for retry (4xx/non-retryable error)`
+      );
+    }
+
     return false;
   }
 
@@ -356,32 +384,6 @@ export async function notifySubscriptionActivated(
     creditsRemaining,
   }).catch(err => {
     console.error('[Webhook] subscription.activated failed:', err);
-  });
-}
-
-/**
- * Notify tool of subscription renewal
- */
-export async function notifySubscriptionRenewed(
-  toolId: string,
-  oneSubUserId: string,
-  planId: string,
-  currentPeriodStart: string,
-  currentPeriodEnd: string,
-  creditsRemaining?: number
-): Promise<void> {
-  const userEmail = await getUserEmail(oneSubUserId);
-
-  sendToolWebhookInternal(toolId, 'subscription.renewed', {
-    oneSubUserId,
-    userEmail,
-    planId,
-    status: 'active',
-    currentPeriodStart,
-    currentPeriodEnd,
-    creditsRemaining,
-  }).catch(err => {
-    console.error('[Webhook] subscription.renewed failed:', err);
   });
 }
 
