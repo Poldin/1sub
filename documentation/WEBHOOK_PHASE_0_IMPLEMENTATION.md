@@ -101,17 +101,14 @@ All imports now use: `import { ... } from '@/domains/webhooks'`
 - `packages/sdk/src/webhooks/index.ts` - Updated TypeScript SDK comments
 - `packages/python-sdk/onesub/webhooks.py` - Updated Python SDK comments
 
-## Files That Should Be Deprecated
+## Deprecated Files Status
 
-These files are now obsolete and can be removed after verification:
+✅ **REMOVED** - The following files have been deleted:
 
-- `src/lib/tool-webhooks.ts` - Replaced by `outbound-webhooks.ts`
-- `src/domains/webhooks/vendor-webhooks.ts` - Replaced by `outbound-webhooks.ts`
+- `src/lib/tool-webhooks.ts` - Replaced by `outbound-webhooks.ts` (DELETED)
+- `src/domains/webhooks/vendor-webhooks.ts` - Replaced by `outbound-webhooks.ts` (DELETED)
 
-**Recommended Approach**:
-1. Monitor production for 1 week with new system
-2. Verify `webhook_logs` table populating correctly
-3. Delete old files in follow-up PR
+All webhook functionality is now unified in `src/domains/webhooks/outbound-webhooks.ts`.
 
 ## Testing Checklist
 

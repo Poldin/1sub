@@ -67,8 +67,3 @@ import {
 - Replay protection (5-minute tolerance)
 - Signature generation via `src/security/signatures/hmac.ts`
 
-## Deprecated Files
-
-⚠️ **Do not use these files** - they are kept for reference only:
-- `tool-webhooks.ts` - Replaced by `outbound-webhooks.ts`
-- `vendor-webhooks.ts` - Replaced by `outbound-webhooks.ts`
