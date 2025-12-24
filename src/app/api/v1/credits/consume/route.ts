@@ -29,6 +29,7 @@ import {
   logInsufficientCredits,
 } from '@/security';
 import { notifyCreditsConsumed } from '@/domains/webhooks';
+import { checkRevocation } from '@/domains/auth/service';
 
 export async function POST(request: NextRequest) {
   const clientIp = getClientIp(request);
@@ -182,6 +183,31 @@ export async function POST(request: NextRequest) {
 
     const { user_id, amount, reason, idempotency_key } = validation.data;
 
+    // CRITICAL: Check if user's access to this tool has been revoked
+    // Revocation takes precedence over all other checks (subscription, credits, etc.)
+    const revocationCheck = await checkRevocation(user_id, toolId);
+    if (revocationCheck.revoked) {
+      console.info('[Auth] Revoked access, blocking credit consumption', {
+        userId: user_id,
+        toolId,
+        toolName,
+        reason: revocationCheck.reason,
+        revokedAt: revocationCheck.revokedAt,
+        ip: clientIp,
+      });
+
+      return NextResponse.json(
+        {
+          error: 'Forbidden',
+          message: 'Access to this tool has been revoked',
+          reason: revocationCheck.reason,
+          revoked_at: revocationCheck.revokedAt?.toISOString(),
+          action: 'terminate_session', // Vendor should terminate user session
+        },
+        { status: 403 }
+      );
+    }
+
     // Consume credits using improved RPC function with atomic operations
     // The RPC now handles:
     // - Idempotency checking
@@ -238,13 +264,13 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json(
           {
-            error: 'Insufficient credits',
+            error: 'Payment required',
             message: 'User does not have sufficient credits',
             current_balance: rpcResult.balance_before,
             required: amount,
             shortfall: amount - rpcResult.balance_before,
           },
-          { status: 400 }
+          { status: 402 } // 402 Payment Required (standardized)
         );
       }
 

@@ -400,9 +400,9 @@ print(f"New balance: {result['new_balance']}")
 }
 ```
 
-```json 400 Bad Request - Insufficient Credits
+```json 402 Payment Required - Insufficient Credits
 {
-  "error": "Insufficient credits",
+  "error": "Payment required",
   "message": "User does not have sufficient credits",
   "current_balance": 5,
   "required": 10,
@@ -414,6 +414,15 @@ print(f"New balance: {result['new_balance']}")
 {
   "error": "Invalid API key",
   "message": "The provided API key is invalid or does not exist"
+}
+```
+
+```json 403 Forbidden - Access Revoked
+{
+  "error": "Forbidden",
+  "message": "Access to this tool has been revoked",
+  "reason": "subscription_cancelled",
+  "action": "terminate_session"
 }
 ```
 
@@ -473,9 +482,10 @@ All endpoints return standard error responses:
 
 | Status | Error | Meaning | Action |
 |--------|-------|---------|--------|
-| 400 | Bad Request | Invalid parameters or insufficient credits | Check request body |
-| 401 | Unauthorized | Invalid/missing API key | Verify API key |
-| 403 | Forbidden | Valid auth but no permission | Check tool/user access |
+| 400 | Bad Request | Invalid parameters | Check request body |
+| 401 | Unauthorized | Invalid/missing API key or token expired | Verify API key or reauthenticate |
+| 402 | Payment Required | No active subscription or insufficient credits | User needs to subscribe or add credits |
+| 403 | Forbidden | Access revoked or tool inactive | Terminate user session immediately |
 | 404 | Not Found | Resource doesn't exist | Verify user/subscription exists |
 | 409 | Conflict | Duplicate/conflicting request | Check idempotency key or existing links |
 | 422 | Unprocessable Entity | Validation failed | Fix validation errors |
@@ -497,4 +507,99 @@ X-RateLimit-Reset: 2025-12-01T12:35:00Z
 ```
 
 Use these headers to track your usage and avoid hitting rate limits.
+
+---
+
+## Handling Revocation
+
+When a user's access is revoked (subscription cancelled, payment failed, fraud, etc.), 1Sub enforces this across all endpoints:
+
+### Revocation Flow
+
+1. **Webhook Notification** (immediate)
+   - You receive an `entitlement.revoked` webhook
+   - Invalidate any cached user data
+   - Update your database to mark access as ended
+
+2. **API Enforcement** (on next request)
+   - Next `/verify` call returns: `{ valid: false, action: "terminate_session" }`
+   - `/credits/consume` returns: `403 Forbidden` with revocation reason
+   - User can no longer access your tool
+
+### Implementation Guide
+
+```typescript
+// 1. Handle the webhook (proactive notification)
+app.post('/webhooks/1sub', (req, res) => {
+  const event = req.body;
+
+  if (event.type === 'entitlement.revoked') {
+    const { onesubUserId, toolId, reason } = event.data;
+
+    // Invalidate cached data
+    cache.delete(`user:${onesubUserId}`);
+
+    // Mark in database
+    await db.users.update(onesubUserId, { accessRevoked: true });
+
+    console.log(`Access revoked for ${onesubUserId}: ${reason}`);
+  }
+
+  res.status(200).send('OK');
+});
+
+// 2. Check on every request (enforcement guarantee)
+app.use(async (req, res, next) => {
+  const verificationToken = req.session.verificationToken;
+
+  const response = await fetch('https://1sub.io/api/v1/verify', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.ONESUB_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ verificationToken })
+  });
+
+  const result = await response.json();
+
+  if (!result.valid) {
+    // Access revoked or token expired
+    req.session.destroy();
+    return res.status(403).render('access-ended', {
+      reason: result.reason,
+      action: result.action // 'terminate_session' or 'reauthenticate'
+    });
+  }
+
+  // Update session with new token (token rolling)
+  req.session.verificationToken = result.verificationToken;
+  next();
+});
+```
+
+### Best Practices
+
+<Warning>
+**Critical:** When you receive `valid: false` with `action: "terminate_session"`, you MUST:
+1. Terminate the user's session immediately
+2. Clear any cached data
+3. Show a clear "Your access has ended" message
+4. Do NOT allow further access to paid features
+</Warning>
+
+<Tip>
+**Performance:** Cache the verification result for up to `cacheUntil` seconds, but always check the webhook first for immediate revocation notifications.
+</Tip>
+
+### Revocation Reasons
+
+| Reason | Description | User Action |
+|--------|-------------|-------------|
+| `subscription_cancelled` | User cancelled their subscription | Resubscribe on 1Sub |
+| `payment_failed` | Payment method failed | Update payment method |
+| `bundle_changed` | Tool removed from user's bundle | Add tool back to bundle |
+| `manual` | Admin manually revoked access | Contact support |
+| `fraud` | Detected fraudulent activity | Contact support |
+| `tool_deactivated` | Tool is no longer active | Tool unavailable |
 

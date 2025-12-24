@@ -40,31 +40,61 @@ The request was malformed or contains invalid parameters.
 **Common causes:**
 - Missing required fields
 - Invalid field format (e.g., non-UUID where UUID expected)
-- Insufficient credits for credit consumption
 - Invalid amount (negative or too large)
 
 **Example:**
 ```json
 {
-  "error": "Insufficient credits",
-  "message": "User does not have sufficient credits",
-  "details": {
-    "current_balance": 5,
-    "required": 10,
-    "shortfall": 5
-  }
+  "error": "Invalid request",
+  "message": "Missing required parameter: verificationToken"
 }
 ```
 
 **How to handle:**
 ```typescript
 if (error.response?.status === 400) {
-  if (error.response.data.error === 'Insufficient credits') {
+  // Fix request parameters
+  console.error('Invalid request:', error.response.data.message);
+}
+```
+</Accordion>
+
+<Accordion title="402 Payment Required">
+User has no active subscription or insufficient credits.
+
+**Common causes:**
+- User's subscription is cancelled or expired
+- Insufficient credits for credit consumption
+- User needs to add payment method
+
+**Example (Insufficient Credits):**
+```json
+{
+  "error": "Payment required",
+  "message": "User does not have sufficient credits",
+  "current_balance": 5,
+  "required": 10,
+  "shortfall": 5
+}
+```
+
+**Example (No Subscription):**
+```json
+{
+  "error": "NO_SUBSCRIPTION",
+  "message": "You do not have an active subscription to this tool"
+}
+```
+
+**How to handle:**
+```typescript
+if (error.response?.status === 402) {
+  if (error.response.data.error === 'Payment required') {
     // Show user they need to buy more credits
-    showCreditPurchasePrompt(error.response.data.details);
+    showCreditPurchasePrompt(error.response.data);
   } else {
-    // Fix request parameters
-    console.error('Invalid request:', error.response.data.message);
+    // User needs to subscribe
+    redirectToSubscriptionPage();
   }
 }
 ```
@@ -98,28 +128,60 @@ if (error.response?.status === 401) {
 </Accordion>
 
 <Accordion title="403 Forbidden">
-Authentication succeeded but you don't have permission to perform this action.
+Authentication succeeded but access is not allowed.
 
 **Common causes:**
+- **Access revoked** (most critical - user's subscription cancelled, fraud, etc.)
 - Tool is inactive or suspended
 - API key doesn't have required permissions
 - Trying to access another tool's resources
 
-**Example:**
+**Example (Access Revoked):**
 ```json
 {
   "error": "Forbidden",
-  "message": "Tool is inactive"
+  "message": "Access to this tool has been revoked",
+  "reason": "subscription_cancelled",
+  "revoked_at": "2025-12-24T10:30:00Z",
+  "action": "terminate_session"
+}
+```
+
+**Example (Tool Inactive):**
+```json
+{
+  "error": "TOOL_NOT_ACTIVE",
+  "message": "Tool is not currently active"
 }
 ```
 
 **How to handle:**
 ```typescript
 if (error.response?.status === 403) {
-  console.error('Permission denied:', error.response.data.message);
-  // Contact support if tool should be active
+  const data = error.response.data;
+
+  if (data.action === 'terminate_session') {
+    // CRITICAL: Access has been revoked
+    // Immediately terminate user session
+    req.session.destroy();
+    return res.render('access-ended', {
+      reason: data.reason,
+      message: 'Your access to this tool has ended'
+    });
+  }
+
+  // Other permission issues
+  console.error('Permission denied:', data.message);
 }
 ```
+
+<Warning>
+**Critical:** When you receive a 403 with `action: "terminate_session"`, you MUST immediately:
+1. Terminate the user's session
+2. Clear all cached data
+3. Show a clear "access ended" message
+4. Block further access to paid features
+</Warning>
 </Accordion>
 
 <Accordion title="404 Not Found">
@@ -296,6 +358,17 @@ function handleAPIError(error: any) {
     case 401:
       console.error('Authentication failed');
       break;
+    case 402:
+      console.warn('Payment required:', data.message);
+      break;
+    case 403:
+      if (data.action === 'terminate_session') {
+        console.error('Access revoked:', data.reason);
+        terminateSession();
+      } else {
+        console.error('Permission denied:', data.message);
+      }
+      break;
     case 404:
       console.error('Resource not found');
       break;
@@ -363,8 +436,10 @@ Map API errors to user-friendly messages:
 
 ```typescript
 const ERROR_MESSAGES = {
-  'Insufficient credits': 'You don\'t have enough credits. Purchase more to continue.',
-  'Not found': 'Please subscribe to this tool on 1Sub first.',
+  'Payment required': 'You don\'t have enough credits. Purchase more to continue.',
+  'NO_SUBSCRIPTION': 'Please subscribe to this tool on 1Sub first.',
+  'ACCESS_REVOKED': 'Your access to this tool has ended.',
+  'Forbidden': 'Your access has been revoked.',
   'Invalid API key': 'Configuration error. Please contact support.',
   'Rate limit exceeded': 'Too many requests. Please wait a moment and try again.',
   'Invalid or expired code': 'This code has expired. Please click "Launch Tool" again.',
@@ -394,20 +469,30 @@ async function safeConsumeCredits(params: ConsumeCreditsParams) {
       newBalance: result.new_balance,
     };
   } catch (error) {
-    if (error.response?.status === 400) {
+    if (error.response?.status === 402) {
       const data = error.response.data;
-      
-      if (data.error === 'Insufficient credits') {
+
+      if (data.error === 'Payment required') {
         return {
           success: false,
           error: 'insufficient_credits',
-          currentBalance: data.details.current_balance,
-          required: data.details.required,
-          shortfall: data.details.shortfall,
-          message: `You need ${data.details.shortfall} more credits.`,
+          currentBalance: data.current_balance,
+          required: data.required,
+          shortfall: data.shortfall,
+          message: `You need ${data.shortfall} more credits.`,
           purchaseUrl: 'https://1sub.io/buy-credits',
         };
       }
+    }
+
+    if (error.response?.status === 403) {
+      // Access revoked - terminate session immediately
+      return {
+        success: false,
+        error: 'access_revoked',
+        message: 'Your access to this tool has been revoked.',
+        action: 'terminate_session',
+      };
     }
     
     // Other errors

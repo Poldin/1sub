@@ -11,10 +11,22 @@ let supabase: SupabaseClient | null = null;
 
 export function getTestSupabase(): SupabaseClient {
   if (!supabase) {
-    supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      throw new Error(
+        `Missing Supabase environment variables for tests.\n\n` +
+        `Required variables:\n` +
+        `  - NEXT_PUBLIC_SUPABASE_URL\n` +
+        `  - SUPABASE_SERVICE_ROLE_KEY\n\n` +
+        `Please create a .env.test or .env.local file in the root directory.\n` +
+        `You can find these values in your Supabase project settings:\n` +
+        `https://supabase.com/dashboard/project/_/settings/api`
+      );
+    }
+
+    supabase = createClient(supabaseUrl, serviceRoleKey);
   }
   return supabase;
 }

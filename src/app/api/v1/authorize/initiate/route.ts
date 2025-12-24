@@ -15,7 +15,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/infrastructure/database/client';
-import { createAuthorizationCode, generateState } from '@/domains/auth';
+import { createAuthorizationCode, generateState, checkRevocation } from '@/domains/auth';
 import { hasActiveSubscription } from '@/domains/verification';
 import { z } from 'zod';
 
@@ -140,12 +140,36 @@ export async function POST(request: NextRequest) {
           error: 'NO_SUBSCRIPTION',
           message: 'You do not have an active subscription to this tool',
         },
+        { status: 402 } // 402 Payment Required (standardized)
+      );
+    }
+
+    // =========================================================================
+    // 5. Check if Access Has Been Revoked
+    // =========================================================================
+    // CRITICAL: Check revocation BEFORE generating authorization code
+    // This prevents users from launching tools after their access is revoked
+    const revocationCheck = await checkRevocation(user.id, toolId);
+    if (revocationCheck.revoked) {
+      console.info('[Authorize Initiate] Access revoked, blocking authorization', {
+        userId: user.id,
+        toolId,
+        toolName: tool.name,
+        reason: revocationCheck.reason,
+        revokedAt: revocationCheck.revokedAt,
+      });
+
+      return NextResponse.json<ErrorResponse>(
+        {
+          error: 'ACCESS_REVOKED',
+          message: 'Your access to this tool has been revoked',
+        },
         { status: 403 }
       );
     }
 
     // =========================================================================
-    // 5. Get or Validate Redirect URI
+    // 6. Get or Validate Redirect URI
     // =========================================================================
     let redirectUri = body.redirectUri;
 
@@ -175,12 +199,12 @@ export async function POST(request: NextRequest) {
     }
 
     // =========================================================================
-    // 6. Generate State if Not Provided
+    // 7. Generate State if Not Provided
     // =========================================================================
     const state = providedState || generateState();
 
     // =========================================================================
-    // 7. Create Authorization Code
+    // 8. Create Authorization Code
     // =========================================================================
     const authResult = await createAuthorizationCode(
       toolId,
@@ -190,7 +214,7 @@ export async function POST(request: NextRequest) {
     );
 
     // =========================================================================
-    // 8. Return Authorization URL
+    // 9. Return Authorization URL
     // =========================================================================
     return NextResponse.json<InitiateResponse>(
       {
