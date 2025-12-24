@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { useRouter } from 'next/navigation';
 import {
   CheckCircle2,
   XCircle,
@@ -46,12 +46,8 @@ interface DeadLetterItem {
   status: string;
 }
 
-interface WebhookLog {
-  success: boolean;
-  delivery_time_ms: number | null;
-}
-
 export default function WebhookHealthDashboard() {
+  const router = useRouter();
   const [stats, setStats] = useState<WebhookStats | null>(null);
   const [retryQueue, setRetryQueue] = useState<RetryQueueItem[]>([]);
   const [deadLetterQueue, setDeadLetterQueue] = useState<DeadLetterItem[]>([]);
@@ -63,78 +59,31 @@ export default function WebhookHealthDashboard() {
     setError(null);
 
     try {
-      const supabase = createClient();
+      const response = await fetch('/api/admin/webhooks');
 
-      // Fetch webhook stats for last 24 hours
-      const twentyFourHoursAgo = new Date(
-        Date.now() - 24 * 60 * 60 * 1000
-      ).toISOString();
+      if (!response.ok) {
+        if (response.status === 403) {
+          // Non-admin user - redirect to backoffice
+          router.push('/backoffice');
+          return;
+        }
+        if (response.status === 401) {
+          // Not authenticated - redirect to login
+          router.push('/login');
+          return;
+        }
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        const errorMessage = errorData.details 
+          ? `${errorData.error}: ${errorData.details}`
+          : errorData.error || `Failed to fetch webhook data (${response.status})`;
+        console.error('Webhook API error:', { status: response.status, error: errorData });
+        throw new Error(errorMessage);
+      }
 
-      const { data: logs, error: logsError } = await supabase
-        .from('webhook_logs')
-        .select('success, delivery_time_ms')
-        .gte('created_at', twentyFourHoursAgo);
-
-      if (logsError) throw logsError;
-
-      const totalSent = logs?.length || 0;
-      const successful = logs?.filter((l: WebhookLog) => l.success).length || 0;
-      const failed = totalSent - successful;
-      const successRate = totalSent > 0 ? (successful / totalSent) * 100 : 100;
-      const avgDeliveryTime =
-        logs && logs.length > 0
-          ? logs.reduce((sum: number, l: WebhookLog) => sum + (l.delivery_time_ms || 0), 0) /
-            logs.length
-          : 0;
-
-      // Fetch retry queue count
-      const { count: pendingRetries } = await supabase
-        .from('webhook_retry_queue')
-        .select('*', { count: 'exact', head: true })
-        .in('status', ['pending', 'retrying']);
-
-      // Fetch dead letter queue count
-      const { count: deadLetterCount } = await supabase
-        .from('webhook_dead_letter_queue')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'unresolved');
-
-      // Fetch active tools with webhooks
-      const { data: toolsWithWebhooks } = await supabase
-        .from('api_keys')
-        .select('tool_id')
-        .not('metadata->webhook_url', 'is', null);
-
-      setStats({
-        total_sent_24h: totalSent,
-        successful_24h: successful,
-        failed_24h: failed,
-        success_rate_24h: successRate,
-        avg_delivery_time_ms: Math.round(avgDeliveryTime),
-        pending_retries: pendingRetries || 0,
-        dead_letter_count: deadLetterCount || 0,
-        active_tools: toolsWithWebhooks?.length || 0,
-      });
-
-      // Fetch retry queue items
-      const { data: retries } = await supabase
-        .from('webhook_retry_queue')
-        .select('*')
-        .in('status', ['pending', 'retrying'])
-        .order('next_retry_at', { ascending: true })
-        .limit(10);
-
-      setRetryQueue(retries || []);
-
-      // Fetch dead letter queue items
-      const { data: deadLetters } = await supabase
-        .from('webhook_dead_letter_queue')
-        .select('*')
-        .eq('status', 'unresolved')
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      setDeadLetterQueue(deadLetters || []);
+      const data = await response.json();
+      setStats(data.stats);
+      setRetryQueue(data.retryQueue || []);
+      setDeadLetterQueue(data.deadLetterQueue || []);
     } catch (err) {
       console.error('Failed to fetch webhook dashboard data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load data');
