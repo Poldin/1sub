@@ -16,7 +16,9 @@
       "Bash(fi)",
       "Bash(cat:*)",
       "Bash(if [ -f \"src/lib/vendor-management.ts\" ])",
-      "Bash(then git rm src/lib/vendor-management.ts)"
+      "Bash(then git rm src/lib/vendor-management.ts)",
+      "Bash(git grep:*)",
+      "Bash(git rm:*)"
     ],
     "deny": [],
     "ask": []
