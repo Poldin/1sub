@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
-import { addCredits, subtractCredits } from '@/lib/credits-service';
+import { addCredits, subtractCredits } from '@/domains/credits';
 
 /**
  * Create a Supabase client with service role permissions for admin operations

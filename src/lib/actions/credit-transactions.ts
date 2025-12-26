@@ -16,7 +16,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/infrastructure/database/client';
-import { getCurrentBalance as getCurrentBalanceFromService } from '@/lib/credits-service';
+import { getCurrentBalance as getCurrentBalanceFromService } from '@/domains/credits';
 
 export interface CreditTransactionParams {
   userId: string;

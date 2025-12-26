@@ -15,7 +15,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { addCredits } from '@/lib/credits-service';
+import { addCredits } from '@/domains/credits';
 import { createClient } from '@/lib/supabase/server';
 
 interface AddCreditsRequest {

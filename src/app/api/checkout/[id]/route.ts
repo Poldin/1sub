@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { getCurrentBalance } from '@/lib/credits-service';
+import { getCurrentBalance } from '@/domains/credits';
 import { secureLog } from '@/lib/secure-logger';
 
 export async function GET(

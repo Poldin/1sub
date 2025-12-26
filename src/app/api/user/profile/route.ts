@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentBalance } from '@/lib/credits-service';
+import { getCurrentBalance } from '@/domains/credits';
 
 export async function GET() {
   try {
