@@ -21,10 +21,10 @@ Without signature verification, anyone could send fake webhooks to your endpoint
 
 ## Signature Format
 
-Webhooks include an HMAC-SHA256 signature in the `1sub-signature` header:
+Webhooks include an HMAC-SHA256 signature in the `X-1Sub-Signature` header:
 
 ```http
-1sub-signature: t=1700000000,v1=abcdef123456789...
+X-1Sub-Signature: t=1700000000,v1=abcdef123456789...
 ```
 
 **Format breakdown:**
@@ -35,10 +35,10 @@ Webhooks include an HMAC-SHA256 signature in the `1sub-signature` header:
 
 <Steps>
 <Step title="Extract signature components">
-Parse the `1sub-signature` header to get timestamp and signature:
+Parse the `X-1Sub-Signature` header to get timestamp and signature:
 
 ```typescript
-const signature = req.headers['1sub-signature'];
+const signature = req.headers['x-1sub-signature'];
 const parts = signature.split(',');
 const timestamp = parts.find(p => p.startsWith('t='))?.split('=')[1];
 const sig = parts.find(p => p.startsWith('v1='))?.split('=')[1];
@@ -176,7 +176,7 @@ app.post(
   '/webhooks/1sub',
   express.raw({ type: 'application/json' }), // CRITICAL: Get raw body
   (req, res) => {
-    const signature = req.headers['1sub-signature'] as string;
+    const signature = req.headers['x-1sub-signature'] as string;
     const payload = req.body.toString();
     
     // Verify signature
@@ -238,7 +238,7 @@ def verify_webhook_signature(payload: str, signature: str, secret: str) -> bool:
 
 @app.route('/webhooks/1sub', methods=['POST'])
 def webhook_handler():
-    signature = request.headers.get('1sub-signature')
+    signature = request.headers.get('X-1Sub-Signature')
     payload = request.get_data(as_text=True)  # Get raw body
     
     # Verify signature
@@ -320,7 +320,7 @@ func verifyWebhookSignature(payload []byte, signature, secret string) bool {
 }
 
 func webhookHandler(w http.ResponseWriter, r *http.Request) {
-    signature := r.Header.Get("1sub-signature")
+    signature := r.Header.Get("X-1Sub-Signature")
     
     // Read raw body
     payload, err := io.ReadAll(r.Body)
@@ -387,7 +387,7 @@ const signature = generateTestSignature(testPayload, 'your-webhook-secret');
 fetch('http://localhost:3000/webhooks/1sub', {
   method: 'POST',
   headers: {
-    '1sub-signature': signature,
+    'X-1Sub-Signature': signature,
     'Content-Type': 'application/json',
   },
   body: testPayload,

@@ -29,7 +29,7 @@ Integrate your tool with 1Sub to monetize through our credit system and subscrip
 
 <CardGroup cols={3}>
 <Card title="Quick Setup" icon="zap">
-  Simple REST API with email-based or link code authentication. Get integrated in minutes, not days.
+  Simple OAuth 2.0-like authorization flow. Get integrated in minutes, not days.
 </Card>
 
 <Card title="Secure & Reliable" icon="shield-check">
@@ -58,12 +58,12 @@ The integration process follows these simple steps:
   </Warning>
 </Step>
 
-<Step title="Implement authentication">
-  Link user accounts via email-based verification (for SaaS) or link codes (for CLI/desktop apps).
+<Step title="Handle authorization redirects">
+  Set up a callback endpoint to receive authorization codes when users launch your tool.
 </Step>
 
-<Step title="Verify subscriptions">
-  Check if users have active subscriptions before granting access to premium features.
+<Step title="Exchange and verify">
+  Exchange authorization codes for verification tokens, then verify tokens before granting access.
 </Step>
 
 <Step title="Set up webhooks">
@@ -129,9 +129,9 @@ Choose the integration pattern that best fits your tool:
 
 <Accordion title="Technical Knowledge">
   - REST API integration
-  - Email hashing (SHA256) or link code exchange
+  - OAuth 2.0-like authorization flow
   - HMAC signature validation for webhooks
-  - Basic error handling
+  - Session management and token storage
 </Accordion>
 </AccordionGroup>
 

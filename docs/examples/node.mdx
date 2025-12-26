@@ -345,7 +345,7 @@ app.post(
   '/webhooks/1sub',
   express.raw({ type: 'application/json' }), // MUST use raw body
   (req, res) => {
-    const signature = req.headers['1sub-signature'] as string;
+    const signature = req.headers['x-1sub-signature'] as string;
     const payload = req.body.toString();
 
     // Verify signature
@@ -498,7 +498,7 @@ app.post(
   '/webhooks/1sub',
   express.raw({ type: 'application/json' }),
   (req, res) => {
-    const signature = req.headers['1sub-signature'];
+    const signature = req.headers['x-1sub-signature'];
     const payload = req.body.toString();
 
     if (!verifyWebhookSignature(payload, signature, WEBHOOK_SECRET)) {

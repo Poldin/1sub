@@ -369,7 +369,7 @@ Webhooks from 1Sub include an HMAC-SHA256 signature for verification.
 ### Signature Format
 
 ```http
-1sub-signature: t=1700000000,v1=abcdef123456789...
+X-1Sub-Signature: t=1700000000,v1=abcdef123456789...
 ```
 
 - `t`: Unix timestamp when the webhook was sent
@@ -379,7 +379,7 @@ Webhooks from 1Sub include an HMAC-SHA256 signature for verification.
 
 <Steps>
 <Step title="Extract signature components">
-Parse the `1sub-signature` header:
+Parse the `X-1Sub-Signature` header:
 
 ```typescript
 const parts = signature.split(',');
@@ -470,7 +470,7 @@ app.post(
   '/webhooks/1sub',
   express.raw({ type: 'application/json' }), // Get raw body
   (req, res) => {
-    const signature = req.headers['1sub-signature'] as string;
+    const signature = req.headers['x-1sub-signature'] as string;
     const payload = req.body.toString();
     
     if (!verifyWebhookSignature(payload, signature, process.env.ONESUB_WEBHOOK_SECRET)) {
@@ -520,7 +520,7 @@ def verify_webhook_signature(payload, signature, secret):
 
 @app.route('/webhooks/1sub', methods=['POST'])
 def webhook_handler():
-    signature = request.headers.get('1sub-signature')
+    signature = request.headers.get('X-1Sub-Signature')
     payload = request.get_data(as_text=True)
     
     if not verify_webhook_signature(

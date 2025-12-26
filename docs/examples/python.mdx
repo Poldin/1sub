@@ -246,7 +246,7 @@ def use_feature():
 @app.route('/webhooks/1sub', methods=['POST'])
 def webhook_handler():
     """Handle 1Sub webhooks"""
-    signature = request.headers.get('1sub-signature')
+    signature = request.headers.get('X-1Sub-Signature')
     payload = request.get_data(as_text=True)
 
     # Verify signature
@@ -314,7 +314,7 @@ Always verify webhook signatures to prevent spoofing:
 ```python
 # Use raw request body (not parsed JSON)
 payload = request.get_data(as_text=True)
-signature = request.headers.get('1sub-signature')
+signature = request.headers.get('X-1Sub-Signature')
 
 if not verify_webhook_signature(payload, signature):
     return 'Invalid signature', 401

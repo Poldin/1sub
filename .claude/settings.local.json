@@ -18,7 +18,8 @@
       "Bash(if [ -f \"src/lib/vendor-management.ts\" ])",
       "Bash(then git rm src/lib/vendor-management.ts)",
       "Bash(git grep:*)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "WebFetch(domain:supabase.com)"
     ],
     "deny": [],
     "ask": []

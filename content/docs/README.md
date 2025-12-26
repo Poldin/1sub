@@ -43,48 +43,37 @@ Complete technical documentation for integrating your tool with 1Sub.
 
 ### Most Used Resources
 1. **API Endpoints** (all vendor-facing):
-   - `POST /api/v1/verify-user` - Verify JWT tokens (alternative to JWKS)
-   - `POST /api/v1/refresh-token` - Refresh expired access tokens
-   - `POST /api/v1/tools/subscriptions/verify` - Check subscription status
+   - `POST /api/v1/authorize/exchange` - Exchange authorization code for verification token
+   - `POST /api/v1/verify` - Verify access with verification token
    - `POST /api/v1/credits/consume` - Deduct user credits
-   - `POST /api/v1/tools/link/exchange-code` - Link code fallback flow
-   - `GET /.well-known/1sub-jwks.json` - JWKS public keys
 
-2. **Webhook Events** (all 12 types):
-   - `subscription.activated` - New subscription created
+2. **Webhook Events** (all 13 types):
+   - `subscription.created` - New subscription created
+   - `subscription.activated` - Subscription activated
    - `subscription.updated` - Subscription plan changed
    - `subscription.canceled` - Subscription cancelled
    - `purchase.completed` - One-time purchase completed
-   - `user.credit_low` - User credits below threshold
-   - `user.credit_depleted` - User out of credits
-   - `tool.status_changed` - Tool enabled/disabled
    - `entitlement.granted` - User granted access via authorization
    - `entitlement.revoked` - User access revoked
    - `entitlement.changed` - User plan/features changed
-   - `verify.required` - Security event requiring verification
    - `credits.consumed` - Credits consumed by user
+   - `user.credit_low` - User credits below threshold
+   - `user.credit_depleted` - User out of credits
+   - `tool.status_changed` - Tool enabled/disabled
+   - `verify.required` - Security event requiring verification
 
 ### Important Notes
 
-#### Authentication Methods
-1. **JWKS Verification (Recommended)** - Client-side JWT verification using public keys
-   - Faster, no network call
-   - Better for high-volume APIs
-   - Requires JWT library (jose, PyJWT, etc.)
-
-2. **API Verification (Alternative)** - Server-side verification via `/api/v1/verify-user`
-   - Simpler implementation
-   - Good for quick prototypes
-   - Rate limited to 60 requests/minute
-
-See [Authentication Concepts](concepts/authentication.mdx#token-verification-methods) for detailed comparison.
+#### Authentication Flow
+1. **Authorization** - Users click "Launch Tool" on 1Sub → redirected to your callback URL with auth code
+2. **Exchange** - Your server exchanges the code for a verification token via `/api/v1/authorize/exchange`
+3. **Verify** - Ongoing access checks using verification token via `/api/v1/verify`
+4. **Token Rotation** - Tokens are automatically rotated when near expiry (30 day lifetime)
 
 #### Rate Limits
-- `/api/v1/verify-user`: 60 requests/minute per IP
-- `/api/v1/refresh-token`: 30 requests/minute per IP
-- `/api/v1/tools/subscriptions/verify`: 100 requests/minute per API key
+- `/api/v1/authorize/exchange`: 60 requests/minute per API key
+- `/api/v1/verify`: 120 requests/minute per API key
 - `/api/v1/credits/consume`: 100 requests/minute per API key
-- `/api/v1/tools/link/exchange-code`: 30 requests/minute per API key
 
 #### Base URL
 All API endpoints use: `https://1sub.io`
@@ -92,29 +81,29 @@ All API endpoints use: `https://1sub.io`
 ## 📦 What's Documented
 
 ### Complete Coverage
-- ✅ All 5 vendor-facing REST API endpoints
-- ✅ All 12 webhook event types with payloads
+- ✅ All 3 vendor-facing REST API endpoints
+- ✅ All 13 webhook event types with payloads
 - ✅ All monetization models (subscriptions, credits, one-time purchases)
 - ✅ Vendor payout and revenue documentation
-- ✅ Both JWT verification methods (JWKS + API)
-- ✅ Token refresh flow for long-lived sessions
+- ✅ OAuth 2.0-like authorization flow
+- ✅ Verification token rotation for long-lived sessions
 - ✅ Complete request/response examples
 - ✅ All error codes and handling strategies
 - ✅ Rate limits matching implementation
-- ✅ Security best practices
+- ✅ Security best practices (HMAC webhook signing)
 - ✅ Working code examples (Node.js, Python, cURL)
 - ✅ Integration testing guide
 - ✅ Troubleshooting and common issues
 
-### Recent Updates (2025-12-16)
-- ✅ Added comprehensive vendor payout documentation
-- ✅ Added monetization models comparison guide
-- ✅ Documented one-time purchase model
-- ✅ Added `hasLifetimeAccess`, `purchaseDate`, and `purchaseAmount` fields to API reference
-- ✅ Restructured navigation to prioritize business/revenue topics
-- ✅ Removed redundant full-integration-walkthrough (redirected to quickstart)
-- ✅ Moved internal docs (security audit, password protection) out of vendor docs
-- ✅ Simplified navigation structure
+### Recent Updates (2025-12-26)
+- ✅ **BREAKING**: Migrated from email/link-code auth to OAuth 2.0-like authorization flow
+- ✅ Updated all endpoints to match new API structure
+- ✅ Documented `/api/v1/authorize/exchange` and `/api/v1/verify` endpoints
+- ✅ Removed deprecated endpoints (`/tools/subscriptions/verify`, `/tools/link/exchange-code`)
+- ✅ Updated all code examples for new authorization flow
+- ✅ Added verification token rotation documentation
+- ✅ Updated webhook signature header to `X-1Sub-Signature`
+- ✅ Simplified integration flow for better developer experience
 
 ## 🔍 Verification Status
 
