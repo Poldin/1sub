@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { processVendorPayout } from '@/lib/stripe-connect';
+import { processVendorPayout } from '@/domains/payments';
 
 // Initialize Supabase with service role
 function getSupabaseClient() {

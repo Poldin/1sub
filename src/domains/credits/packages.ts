@@ -1,11 +1,11 @@
 /**
- * Shared Credit Package Definitions
- * 
+ * Credit Package Definitions
+ *
  * Defines one-time credit purchase packages used across:
  * - Subscription page
  * - In-checkout dialogs
  * - Any other credit top-up UI
- * 
+ *
  * Keeps pricing and package definitions consistent across the platform.
  */
 
@@ -27,7 +27,7 @@ export const CREDIT_PACKAGES: CreditPackage[] = [
   {
     key: '100',
     credits: 100,
-    price: 10.00,
+    price: 10.0,
     name: 'Starter Pack',
     popular: false,
     description: 'Perfect for trying out new tools',
@@ -35,7 +35,7 @@ export const CREDIT_PACKAGES: CreditPackage[] = [
   {
     key: '500',
     credits: 500,
-    price: 45.00,
+    price: 45.0,
     name: 'Pro Pack',
     popular: true,
     savings: '10% off',
@@ -44,7 +44,7 @@ export const CREDIT_PACKAGES: CreditPackage[] = [
   {
     key: '1000',
     credits: 1000,
-    price: 80.00,
+    price: 80.0,
     name: 'Enterprise Pack',
     popular: false,
     savings: '20% off',
@@ -56,7 +56,7 @@ export const CREDIT_PACKAGES: CreditPackage[] = [
  * Get a specific credit package by key
  */
 export function getCreditPackageByKey(key: string): CreditPackage | undefined {
-  return CREDIT_PACKAGES.find(pkg => pkg.key === key);
+  return CREDIT_PACKAGES.find((pkg) => pkg.key === key);
 }
 
 /**
@@ -73,13 +73,13 @@ export function getPricePerCredit(packageKey: string): number | undefined {
  */
 export function getBestPackageForNeeds(needed: number): CreditPackage {
   // Find the smallest package that covers the need
-  const coveringPackages = CREDIT_PACKAGES.filter(pkg => pkg.credits >= needed);
-  
+  const coveringPackages = CREDIT_PACKAGES.filter((pkg) => pkg.credits >= needed);
+
   if (coveringPackages.length > 0) {
     // Return the smallest one that covers it (best value for exact need)
     return coveringPackages[0];
   }
-  
+
   // If no single package covers it, return the largest one
   return CREDIT_PACKAGES[CREDIT_PACKAGES.length - 1];
 }
@@ -97,16 +97,3 @@ export function formatCredits(amount: number): string {
 export function formatPrice(amount: number): string {
   return `€${amount.toFixed(2)}`;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-

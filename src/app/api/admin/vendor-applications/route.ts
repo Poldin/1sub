@@ -11,7 +11,7 @@ import { createClient } from '@/lib/supabase/server';
 import {
   getAllVendorApplications,
   processVendorApplication,
-} from '@/lib/vendor-management';
+} from '@/domains/vendors';
 
 /**
  * Check if user is admin

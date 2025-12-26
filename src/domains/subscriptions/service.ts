@@ -1,9 +1,11 @@
 /**
- * Subscription Renewal Service
- * 
+ * Subscriptions Domain Service
+ *
+ * CANONICAL SOURCE: All subscription renewal operations MUST use this service.
+ *
  * Handles automatic renewal of active subscriptions.
  * Called by cron job to process subscriptions that are due for renewal.
- * 
+ *
  * Features:
  * - Automatic credit deduction from user balance
  * - Vendor credit addition for subscription renewals
@@ -12,20 +14,8 @@
  * - Comprehensive logging and error handling
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createServiceClient } from '@/infrastructure/database/client';
 import { notifySubscriptionUpdated } from '@/domains/webhooks';
-
-// Initialize Supabase (service role for cron job)
-function getSupabaseClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !supabaseKey) {
-    throw new Error('Supabase environment variables are not configured');
-  }
-
-  return createClient(supabaseUrl, supabaseKey);
-}
 
 interface Subscription {
   id: string;
@@ -50,7 +40,7 @@ interface RenewalResult {
   amountCharged?: number;
 }
 
-interface BatchRenewalResult {
+export interface BatchRenewalResult {
   totalProcessed: number;
   successful: number;
   failed: number;
@@ -90,7 +80,7 @@ function calculateNextBillingDate(currentDate: Date, billingPeriod: string): Dat
  */
 async function processSubscriptionRenewal(
   subscription: Subscription,
-  supabase: ReturnType<typeof getSupabaseClient>
+  supabase: ReturnType<typeof createServiceClient>
 ): Promise<RenewalResult> {
   const {
     id: subscriptionId,
@@ -100,7 +90,7 @@ async function processSubscriptionRenewal(
     period: billingPeriod,
     metadata,
   } = subscription;
-  
+
   // Extract vendor_id from metadata if available
   const vendorId = metadata?.vendor_id as string | undefined;
 
@@ -113,8 +103,6 @@ async function processSubscriptionRenewal(
     });
 
     // Get user's current balance from user_balances table
-    // Note: credit service uses cookies which aren't available in cron jobs
-    // So we'll fetch balance directly from user_balances table
     const { data: balanceRecord } = await supabase
       .from('user_balances')
       .select('balance')
@@ -255,7 +243,7 @@ async function processSubscriptionRenewal(
       .select('balance')
       .eq('user_id', userId)
       .single();
-    
+
     const newBalance = updatedBalanceRecord?.balance ?? currentBalance - creditPrice;
 
     console.log(`[Subscription Renewal] Successfully renewed subscription ${subscriptionId}`, {
@@ -321,12 +309,12 @@ async function processSubscriptionRenewal(
 /**
  * Process subscriptions in batch
  * Fetches subscriptions due for renewal and processes them one by one
- * 
+ *
  * @param limit - Maximum number of subscriptions to process in this batch (default: 100)
  * @returns BatchRenewalResult with statistics and individual results
  */
 export async function processSubscriptionRenewals(limit: number = 100): Promise<BatchRenewalResult> {
-  const supabase = getSupabaseClient();
+  const supabase = createServiceClient();
   const now = new Date().toISOString();
 
   try {
@@ -397,12 +385,12 @@ export async function processSubscriptionRenewals(limit: number = 100): Promise<
 /**
  * Retry failed subscription renewals (up to 3 attempts)
  * Processes subscriptions with status 'failed' and failed_renewal_count < 3
- * 
+ *
  * @param limit - Maximum number of failed subscriptions to retry (default: 50)
  * @returns BatchRenewalResult with statistics and individual results
  */
 export async function retryFailedSubscriptionRenewals(limit: number = 50): Promise<BatchRenewalResult> {
-  const supabase = getSupabaseClient();
+  const supabase = createServiceClient();
   const now = new Date().toISOString();
 
   try {
@@ -470,4 +458,3 @@ export async function retryFailedSubscriptionRenewals(limit: number = 50): Promi
     throw error;
   }
 }
-

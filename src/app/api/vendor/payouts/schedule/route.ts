@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { getVendorCreditBalance, scheduleVendorPayout, getMinimumPayoutThreshold } from '@/lib/stripe-connect';
+import { getVendorCreditBalance, scheduleVendorPayout, getMinimumPayoutThreshold } from '@/domains/payments';
 
 // Initialize Supabase with service role
 function getSupabaseClient() {

@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { updateAccountStatus } from '@/lib/stripe-connect';
+import { updateAccountStatus } from '@/domains/payments';
 import { createClient } from '@supabase/supabase-js';
 
 // Initialize Stripe

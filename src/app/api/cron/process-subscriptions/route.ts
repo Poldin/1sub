@@ -26,7 +26,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { processSubscriptionRenewals, retryFailedSubscriptionRenewals } from '@/lib/server/subscription-renewal';
+import { processSubscriptionRenewals, retryFailedSubscriptionRenewals } from '@/domains/subscriptions';
 import { processWebhookRetries } from '@/domains/webhooks/webhook-retry-service';
 import { sendWebhookFailureAlert } from '@/domains/webhooks/webhook-alerts';
 

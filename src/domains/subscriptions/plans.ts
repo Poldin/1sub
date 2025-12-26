@@ -1,6 +1,6 @@
 /**
  * Platform Subscription Plans
- * 
+ *
  * Defines the recurring subscription plans for the 1sub platform.
  * Users subscribe to these plans to receive monthly credits.
  */
@@ -69,14 +69,14 @@ export function getPlanById(planId: string): PlatformSubscriptionPlan | undefine
 export function getPlanPrice(planId: string, billingPeriod: 'monthly' | 'yearly'): number | undefined {
   const plan = getPlanById(planId);
   if (!plan) return undefined;
-  
+
   return billingPeriod === 'monthly' ? plan.price : plan.yearlyPrice;
 }
 
 export function getMonthlyEquivalent(planId: string, billingPeriod: 'monthly' | 'yearly'): number | undefined {
   const plan = getPlanById(planId);
   if (!plan) return undefined;
-  
+
   return billingPeriod === 'monthly' ? plan.price : plan.yearlyPrice / 12;
 }
 
@@ -86,8 +86,6 @@ export function getMonthlyEquivalent(planId: string, billingPeriod: 'monthly' | 
 export function getStripePriceId(planId: string, billingPeriod: 'monthly' | 'yearly'): string | undefined {
   const plan = getPlanById(planId);
   if (!plan) return undefined;
-  
+
   return billingPeriod === 'monthly' ? plan.stripePriceIdMonthly : plan.stripePriceIdYearly;
 }
-
-

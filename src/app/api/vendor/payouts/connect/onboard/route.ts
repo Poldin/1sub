@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { createConnectAccount, createAccountLink } from '@/lib/stripe-connect';
+import { createConnectAccount, createAccountLink } from '@/domains/payments';
 
 export async function POST(request: NextRequest) {
   try {

@@ -1,10 +1,12 @@
 /**
- * Vendor Management Utilities
- * 
+ * Vendors Domain Service
+ *
+ * CANONICAL SOURCE: All vendor management operations MUST use this service.
+ *
  * Handles vendor application workflow, status management, and vendor operations.
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { createServerClient } from '@/infrastructure/database/client';
 
 export interface VendorApplication {
   id: string;
@@ -43,7 +45,7 @@ export async function createVendorApplication(params: {
   description: string;
 }): Promise<{ success: boolean; error?: string; application?: VendorApplication }> {
   try {
-    const supabase = await createClient();
+    const supabase = await createServerClient();
 
     // Check if user already has an application
     const { data: existing } = await supabase
@@ -73,7 +75,7 @@ export async function createVendorApplication(params: {
       .single();
 
     if (error) {
-      console.error('Error creating vendor application:', error);
+      console.error('[Vendors] Error creating vendor application:', error);
       return {
         success: false,
         error: 'Failed to create application',
@@ -90,7 +92,7 @@ export async function createVendorApplication(params: {
       .eq('id', params.userId);
 
     if (profileError) {
-      console.error('Error updating user profile to vendor:', profileError);
+      console.error('[Vendors] Error updating user profile to vendor:', profileError);
       // Don't fail the whole operation, but log the error
       // The application is created, but is_vendor flag update failed
     }
@@ -100,7 +102,7 @@ export async function createVendorApplication(params: {
       application: data as VendorApplication,
     };
   } catch (error) {
-    console.error('Error in createVendorApplication:', error);
+    console.error('[Vendors] Error in createVendorApplication:', error);
     return {
       success: false,
       error: 'Internal server error',
@@ -115,7 +117,7 @@ export async function getVendorApplicationByUserId(
   userId: string
 ): Promise<VendorApplication | null> {
   try {
-    const supabase = await createClient();
+    const supabase = await createServerClient();
 
     const { data, error } = await supabase
       .from('vendor_applications')
@@ -129,7 +131,7 @@ export async function getVendorApplicationByUserId(
 
     return data as VendorApplication;
   } catch (error) {
-    console.error('Error in getVendorApplicationByUserId:', error);
+    console.error('[Vendors] Error in getVendorApplicationByUserId:', error);
     return null;
   }
 }
@@ -143,7 +145,7 @@ export async function getAllVendorApplications(filters?: {
   offset?: number;
 }): Promise<{ applications: VendorApplicationWithUser[]; total: number }> {
   try {
-    const supabase = await createClient();
+    const supabase = await createServerClient();
 
     let query = supabase
       .from('vendor_applications')
@@ -182,20 +184,20 @@ export async function getAllVendorApplications(filters?: {
     const { data, error, count } = await query;
 
     if (error) {
-      console.error('Error fetching vendor applications:', error);
+      console.error('[Vendors] Error fetching vendor applications:', error);
       return { applications: [], total: 0 };
     }
 
     // Get user emails from auth
     const { data: authUsers } = await supabase.auth.admin.listUsers();
-    
+
     const userEmailMap = new Map(
       authUsers?.users.map(u => [u.id, u.email]) || []
     );
 
     const applicationsWithEmail = (data as VendorApplicationRaw[] | null)?.map((app) => {
       // Handle user_profile which might be an array or a single object
-      const userProfile = Array.isArray(app.user_profile) 
+      const userProfile = Array.isArray(app.user_profile)
         ? app.user_profile[0] || null
         : app.user_profile;
 
@@ -217,7 +219,7 @@ export async function getAllVendorApplications(filters?: {
       total: count || 0,
     };
   } catch (error) {
-    console.error('Error in getAllVendorApplications:', error);
+    console.error('[Vendors] Error in getAllVendorApplications:', error);
     return { applications: [], total: 0 };
   }
 }
@@ -232,7 +234,7 @@ export async function processVendorApplication(params: {
   rejectionReason?: string;
 }): Promise<{ success: boolean; error?: string; message?: string }> {
   try {
-    const supabase = await createClient();
+    const supabase = await createServerClient();
 
     // Get application details first to fetch user email for notifications
     const { data: applicationData, error: fetchError } = await supabase
@@ -267,7 +269,7 @@ export async function processVendorApplication(params: {
     });
 
     if (error) {
-      console.error('Error processing vendor application (RPC):', {
+      console.error('[Vendors] Error processing vendor application (RPC):', {
         error,
         code: error.code,
         message: error.message,
@@ -276,13 +278,13 @@ export async function processVendorApplication(params: {
         applicationId: params.applicationId,
         newStatus: params.newStatus,
       });
-      
+
       // If RPC function doesn't exist or fails, try direct update as fallback
       if (error.code === '42883' || error.message?.includes('does not exist')) {
-        console.warn('RPC function not found, using fallback method');
+        console.warn('[Vendors] RPC function not found, using fallback method');
         return await processVendorApplicationFallback(params);
       }
-      
+
       // Provide more detailed error message
       let errorMessage = 'Failed to process application';
       if (error.message) {
@@ -292,7 +294,7 @@ export async function processVendorApplication(params: {
       } else if (error.hint) {
         errorMessage = error.hint;
       }
-      
+
       return {
         success: false,
         error: errorMessage,
@@ -301,15 +303,15 @@ export async function processVendorApplication(params: {
 
     const result = data?.[0];
     if (!result) {
-      console.error('RPC function returned no result:', { data, applicationId: params.applicationId });
+      console.error('[Vendors] RPC function returned no result:', { data, applicationId: params.applicationId });
       return {
         success: false,
         error: 'No result returned from server',
       };
     }
-    
+
     if (!result.success) {
-      console.error('RPC function returned failure:', { result, applicationId: params.applicationId });
+      console.error('[Vendors] RPC function returned failure:', { result, applicationId: params.applicationId });
       return {
         success: false,
         error: result.message || 'Failed to process application',
@@ -319,13 +321,13 @@ export async function processVendorApplication(params: {
     // Send email notification based on status
     if (params.newStatus === 'approved' || params.newStatus === 'rejected') {
       if (!userEmail) {
-        console.warn('Cannot send email notification: userEmail is missing', {
+        console.warn('[Vendors] Cannot send email notification: userEmail is missing', {
           applicationId: params.applicationId,
           userId: applicationData.user_id,
           status: params.newStatus,
         });
       } else {
-        console.log('Attempting to send email notification', {
+        console.log('[Vendors] Attempting to send email notification', {
           applicationId: params.applicationId,
           userEmail,
           status: params.newStatus,
@@ -333,7 +335,7 @@ export async function processVendorApplication(params: {
 
         try {
           const { sendVendorApprovalEmail, sendVendorRejectionEmail } = await import('@/lib/email-service');
-          
+
           const userProfile = Array.isArray(applicationData.user_profile)
             ? applicationData.user_profile[0]
             : applicationData.user_profile;
@@ -347,15 +349,15 @@ export async function processVendorApplication(params: {
               vendorName,
               companyName,
             });
-            
+
             if (emailResult.success) {
-              console.log('Vendor approval email sent successfully', {
+              console.log('[Vendors] Vendor approval email sent successfully', {
                 applicationId: params.applicationId,
                 userEmail,
                 companyName,
               });
             } else {
-              console.error('Failed to send approval email:', {
+              console.error('[Vendors] Failed to send approval email:', {
                 applicationId: params.applicationId,
                 userEmail,
                 error: emailResult.error,
@@ -369,15 +371,15 @@ export async function processVendorApplication(params: {
               companyName,
               rejectionReason: params.rejectionReason,
             });
-            
+
             if (emailResult.success) {
-              console.log('Vendor rejection email sent successfully', {
+              console.log('[Vendors] Vendor rejection email sent successfully', {
                 applicationId: params.applicationId,
                 userEmail,
                 companyName,
               });
             } else {
-              console.error('Failed to send rejection email:', {
+              console.error('[Vendors] Failed to send rejection email:', {
                 applicationId: params.applicationId,
                 userEmail,
                 error: emailResult.error,
@@ -385,7 +387,7 @@ export async function processVendorApplication(params: {
             }
           }
         } catch (emailError) {
-          console.error('Error sending email notification:', {
+          console.error('[Vendors] Error sending email notification:', {
             applicationId: params.applicationId,
             userEmail,
             status: params.newStatus,
@@ -402,7 +404,7 @@ export async function processVendorApplication(params: {
       message: result.message,
     };
   } catch (error) {
-    console.error('Error in processVendorApplication:', error);
+    console.error('[Vendors] Error in processVendorApplication:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Internal server error',
@@ -420,7 +422,7 @@ async function processVendorApplicationFallback(params: {
   rejectionReason?: string;
 }): Promise<{ success: boolean; error?: string; message?: string }> {
   try {
-    const supabase = await createClient();
+    const supabase = await createServerClient();
 
     // Get application details first (with user profile for email)
     const { data: application, error: fetchError } = await supabase
@@ -460,7 +462,7 @@ async function processVendorApplicationFallback(params: {
       .eq('id', params.applicationId);
 
     if (updateError) {
-      console.error('Error updating vendor application:', updateError);
+      console.error('[Vendors] Error updating vendor application:', updateError);
       return {
         success: false,
         error: 'Failed to update application status',
@@ -478,7 +480,7 @@ async function processVendorApplicationFallback(params: {
         .eq('id', application.user_id);
 
       if (profileError) {
-        console.error('Error updating user profile:', profileError);
+        console.error('[Vendors] Error updating user profile:', profileError);
         // Don't fail the whole operation, just log the error
       }
     }
@@ -486,13 +488,13 @@ async function processVendorApplicationFallback(params: {
     // Send email notification based on status
     if (params.newStatus === 'approved' || params.newStatus === 'rejected') {
       if (!userEmail) {
-        console.warn('Cannot send email notification: userEmail is missing', {
+        console.warn('[Vendors] Cannot send email notification: userEmail is missing', {
           applicationId: params.applicationId,
           userId: application.user_id,
           status: params.newStatus,
         });
       } else {
-        console.log('Attempting to send email notification', {
+        console.log('[Vendors] Attempting to send email notification', {
           applicationId: params.applicationId,
           userEmail,
           status: params.newStatus,
@@ -500,7 +502,7 @@ async function processVendorApplicationFallback(params: {
 
         try {
           const { sendVendorApprovalEmail, sendVendorRejectionEmail } = await import('@/lib/email-service');
-          
+
           const userProfile = Array.isArray(application.user_profile)
             ? application.user_profile[0]
             : application.user_profile;
@@ -514,15 +516,15 @@ async function processVendorApplicationFallback(params: {
               vendorName,
               companyName,
             });
-            
+
             if (emailResult.success) {
-              console.log('Vendor approval email sent successfully', {
+              console.log('[Vendors] Vendor approval email sent successfully', {
                 applicationId: params.applicationId,
                 userEmail,
                 companyName,
               });
             } else {
-              console.error('Failed to send approval email:', {
+              console.error('[Vendors] Failed to send approval email:', {
                 applicationId: params.applicationId,
                 userEmail,
                 error: emailResult.error,
@@ -536,15 +538,15 @@ async function processVendorApplicationFallback(params: {
               companyName,
               rejectionReason: params.rejectionReason,
             });
-            
+
             if (emailResult.success) {
-              console.log('Vendor rejection email sent successfully', {
+              console.log('[Vendors] Vendor rejection email sent successfully', {
                 applicationId: params.applicationId,
                 userEmail,
                 companyName,
               });
             } else {
-              console.error('Failed to send rejection email:', {
+              console.error('[Vendors] Failed to send rejection email:', {
                 applicationId: params.applicationId,
                 userEmail,
                 error: emailResult.error,
@@ -552,7 +554,7 @@ async function processVendorApplicationFallback(params: {
             }
           }
         } catch (emailError) {
-          console.error('Error sending email notification:', {
+          console.error('[Vendors] Error sending email notification:', {
             applicationId: params.applicationId,
             userEmail,
             status: params.newStatus,
@@ -569,7 +571,7 @@ async function processVendorApplicationFallback(params: {
       message: 'Application processed successfully',
     };
   } catch (error) {
-    console.error('Error in processVendorApplicationFallback:', error);
+    console.error('[Vendors] Error in processVendorApplicationFallback:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Internal server error',
@@ -582,7 +584,7 @@ async function processVendorApplicationFallback(params: {
  */
 export async function isUserVendor(userId: string): Promise<boolean> {
   try {
-    const supabase = await createClient();
+    const supabase = await createServerClient();
 
     const { data, error } = await supabase
       .from('user_profiles')
@@ -596,7 +598,7 @@ export async function isUserVendor(userId: string): Promise<boolean> {
 
     return data.is_vendor === true;
   } catch (error) {
-    console.error('Error in isUserVendor:', error);
+    console.error('[Vendors] Error in isUserVendor:', error);
     return false;
   }
 }
@@ -609,7 +611,7 @@ export async function updateApplicationStatus(
   status: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createClient();
+    const supabase = await createServerClient();
 
     const { error } = await supabase
       .from('vendor_applications')
@@ -617,7 +619,7 @@ export async function updateApplicationStatus(
       .eq('id', applicationId);
 
     if (error) {
-      console.error('Error updating application status:', error);
+      console.error('[Vendors] Error updating application status:', error);
       return {
         success: false,
         error: 'Failed to update status',
@@ -626,11 +628,10 @@ export async function updateApplicationStatus(
 
     return { success: true };
   } catch (error) {
-    console.error('Error in updateApplicationStatus:', error);
+    console.error('[Vendors] Error in updateApplicationStatus:', error);
     return {
       success: false,
       error: 'Internal server error',
     };
   }
 }
-

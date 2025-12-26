@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Store vendor application in database
-    const { createVendorApplication } = await import('@/lib/vendor-management');
+    const { createVendorApplication } = await import('@/domains/vendors');
     
     const result = await createVendorApplication({
       userId: authUser.id,

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Menu, CreditCard, Calendar, DollarSign, AlertCircle, Check, Loader2, ExternalLink, Shield, RefreshCw, TrendingUp, TrendingDown, Edit2, X, Save } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { getPlanById } from '@/lib/subscription-plans';
+import { getPlanById } from '@/domains/subscriptions/plans';
 import { getCurrentBalanceClient } from '@/lib/credits';
 import Sidebar from '@/app/backoffice/components/Sidebar';
 import TopUpCredits from '@/app/components/TopUpCredits';

@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createClient } from '@/lib/supabase/server';
-import { getPlanById, getPlanPrice, getStripePriceId } from '@/lib/subscription-plans';
+import { getPlanById, getPlanPrice, getStripePriceId } from '@/domains/subscriptions';
 
 // Initialize Stripe with latest API version
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {

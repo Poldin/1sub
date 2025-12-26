@@ -1,29 +1,17 @@
 /**
- * Stripe Connect Utility Functions
- * 
+ * Payments Domain Service
+ *
  * Handles vendor Stripe Connect account creation, onboarding, and payout processing.
  * One credit = one euro (EUR).
  */
 
 import Stripe from 'stripe';
-import { createClient } from '@supabase/supabase-js';
+import { createServiceClient } from '@/infrastructure/database/client';
 
 // Initialize Stripe
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-12-15.clover',
 });
-
-// Initialize Supabase client with service role
-function getSupabaseClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  
-  if (!supabaseUrl || !supabaseKey) {
-    throw new Error('Supabase environment variables are not configured');
-  }
-  
-  return createClient(supabaseUrl, supabaseKey);
-}
 
 export interface VendorStripeAccount {
   id: string;
@@ -54,7 +42,7 @@ export interface VendorPayout {
  */
 export async function createConnectAccount(vendorId: string, email: string): Promise<{ accountId: string; error?: string }> {
   try {
-    const supabase = getSupabaseClient();
+    const supabase = createServiceClient();
 
     // Check if vendor already has a Stripe account
     const { data: existing } = await supabase
@@ -87,16 +75,16 @@ export async function createConnectAccount(vendorId: string, email: string): Pro
       });
 
     if (insertError) {
-      console.error('Failed to store Stripe account:', insertError);
+      console.error('[Payments] Failed to store Stripe account:', insertError);
       return { accountId: account.id, error: 'Failed to store account information' };
     }
 
     return { accountId: account.id };
   } catch (error) {
-    console.error('Error creating Stripe Connect account:', error);
-    return { 
-      accountId: '', 
-      error: error instanceof Error ? error.message : 'Failed to create Stripe account' 
+    console.error('[Payments] Error creating Stripe Connect account:', error);
+    return {
+      accountId: '',
+      error: error instanceof Error ? error.message : 'Failed to create Stripe account'
     };
   }
 }
@@ -115,10 +103,10 @@ export async function createAccountLink(accountId: string, returnUrl: string, re
 
     return { url: accountLink.url };
   } catch (error) {
-    console.error('Error creating account link:', error);
-    return { 
-      url: '', 
-      error: error instanceof Error ? error.message : 'Failed to create onboarding link' 
+    console.error('[Payments] Error creating account link:', error);
+    return {
+      url: '',
+      error: error instanceof Error ? error.message : 'Failed to create onboarding link'
     };
   }
 }
@@ -131,10 +119,10 @@ export async function getAccountDetails(accountId: string): Promise<{ account: S
     const account = await stripe.accounts.retrieve(accountId);
     return { account };
   } catch (error) {
-    console.error('Error retrieving account:', error);
-    return { 
-      account: null, 
-      error: error instanceof Error ? error.message : 'Failed to retrieve account' 
+    console.error('[Payments] Error retrieving account:', error);
+    return {
+      account: null,
+      error: error instanceof Error ? error.message : 'Failed to retrieve account'
     };
   }
 }
@@ -143,12 +131,12 @@ export async function getAccountDetails(accountId: string): Promise<{ account: S
  * Update vendor Stripe account status in database
  */
 export async function updateAccountStatus(
-  accountId: string, 
+  accountId: string,
   status: 'pending' | 'active' | 'restricted' | 'disabled',
   onboardingCompleted: boolean
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = getSupabaseClient();
+    const supabase = createServiceClient();
 
     const { error } = await supabase
       .from('vendor_stripe_accounts')
@@ -159,16 +147,16 @@ export async function updateAccountStatus(
       .eq('stripe_account_id', accountId);
 
     if (error) {
-      console.error('Failed to update account status:', error);
+      console.error('[Payments] Failed to update account status:', error);
       return { success: false, error: error.message };
     }
 
     return { success: true };
   } catch (error) {
-    console.error('Error updating account status:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to update account status' 
+    console.error('[Payments] Error updating account status:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to update account status'
     };
   }
 }
@@ -178,7 +166,7 @@ export async function updateAccountStatus(
  */
 export async function getVendorCreditBalance(vendorId: string): Promise<{ balance: number; error?: string }> {
   try {
-    const supabase = getSupabaseClient();
+    const supabase = createServiceClient();
 
     // Get all vendor earning transactions
     const { data: transactions, error: txError } = await supabase
@@ -189,7 +177,7 @@ export async function getVendorCreditBalance(vendorId: string): Promise<{ balanc
       .ilike('reason', 'Tool sale:%');
 
     if (txError) {
-      console.error('Failed to fetch transactions:', txError);
+      console.error('[Payments] Failed to fetch transactions:', txError);
       return { balance: 0, error: txError.message };
     }
 
@@ -203,7 +191,7 @@ export async function getVendorCreditBalance(vendorId: string): Promise<{ balanc
       .in('status', ['scheduled', 'processing', 'completed']);
 
     if (payoutError) {
-      console.error('Failed to fetch payouts:', payoutError);
+      console.error('[Payments] Failed to fetch payouts:', payoutError);
       return { balance: 0, error: payoutError.message };
     }
 
@@ -213,10 +201,10 @@ export async function getVendorCreditBalance(vendorId: string): Promise<{ balanc
 
     return { balance: Math.max(0, availableBalance) };
   } catch (error) {
-    console.error('Error calculating credit balance:', error);
-    return { 
-      balance: 0, 
-      error: error instanceof Error ? error.message : 'Failed to calculate balance' 
+    console.error('[Payments] Error calculating credit balance:', error);
+    return {
+      balance: 0,
+      error: error instanceof Error ? error.message : 'Failed to calculate balance'
     };
   }
 }
@@ -230,7 +218,7 @@ export async function scheduleVendorPayout(
   scheduledDate: Date
 ): Promise<{ payoutId: string | null; error?: string }> {
   try {
-    const supabase = getSupabaseClient();
+    const supabase = createServiceClient();
 
     // Verify vendor has sufficient balance
     const { balance, error: balanceError } = await getVendorCreditBalance(vendorId);
@@ -259,16 +247,16 @@ export async function scheduleVendorPayout(
       .single();
 
     if (insertError) {
-      console.error('Failed to create payout:', insertError);
+      console.error('[Payments] Failed to create payout:', insertError);
       return { payoutId: null, error: insertError.message };
     }
 
     return { payoutId: payout.id };
   } catch (error) {
-    console.error('Error scheduling payout:', error);
-    return { 
-      payoutId: null, 
-      error: error instanceof Error ? error.message : 'Failed to schedule payout' 
+    console.error('[Payments] Error scheduling payout:', error);
+    return {
+      payoutId: null,
+      error: error instanceof Error ? error.message : 'Failed to schedule payout'
     };
   }
 }
@@ -278,7 +266,7 @@ export async function scheduleVendorPayout(
  */
 export async function processVendorPayout(payoutId: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = getSupabaseClient();
+    const supabase = createServiceClient();
 
     // Get payout details
     const { data: payout, error: payoutError } = await supabase
@@ -305,7 +293,7 @@ export async function processVendorPayout(payoutId: string): Promise<{ success: 
     if (accountError || !vendorAccount) {
       return { success: false, error: 'Vendor Stripe account not found' };
     }
-    
+
     if (vendorAccount.account_status !== 'active') {
       return { success: false, error: 'Vendor Stripe account is not active' };
     }
@@ -361,8 +349,8 @@ export async function processVendorPayout(payoutId: string): Promise<{ success: 
 
       return { success: true };
     } catch (stripeError) {
-      console.error('Stripe transfer failed:', stripeError);
-      
+      console.error('[Payments] Stripe transfer failed:', stripeError);
+
       // Update payout as failed
       await supabase
         .from('vendor_payouts')
@@ -376,16 +364,16 @@ export async function processVendorPayout(payoutId: string): Promise<{ success: 
         })
         .eq('id', payoutId);
 
-      return { 
-        success: false, 
-        error: stripeError instanceof Error ? stripeError.message : 'Transfer failed' 
+      return {
+        success: false,
+        error: stripeError instanceof Error ? stripeError.message : 'Transfer failed'
       };
     }
   } catch (error) {
-    console.error('Error processing payout:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to process payout' 
+    console.error('[Payments] Error processing payout:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to process payout'
     };
   }
 }
@@ -406,4 +394,3 @@ export function getMinimumPayoutThreshold(): number {
   const envValue = process.env.MIN_PAYOUT_CREDITS;
   return envValue ? parseInt(envValue, 10) : 50;
 }
-

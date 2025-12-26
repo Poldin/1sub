@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { getVendorCreditBalance, getNextPayoutDate, getMinimumPayoutThreshold } from '@/lib/stripe-connect';
+import { getVendorCreditBalance, getNextPayoutDate, getMinimumPayoutThreshold } from '@/domains/payments';
 
 export async function GET(request: NextRequest) {
   try {

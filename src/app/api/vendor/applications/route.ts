@@ -11,7 +11,7 @@ import { createClient } from '@/lib/supabase/server';
 import {
   createVendorApplication,
   getVendorApplicationByUserId,
-} from '@/lib/vendor-management';
+} from '@/domains/vendors';
 
 /**
  * GET - Retrieve user's vendor application

@@ -14,7 +14,9 @@
       "Bash(then git rm src/lib/vendor-auth.ts)",
       "Bash(else echo \"File does not exist or already deleted\")",
       "Bash(fi)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(if [ -f \"src/lib/vendor-management.ts\" ])",
+      "Bash(then git rm src/lib/vendor-management.ts)"
     ],
     "deny": [],
     "ask": []

@@ -18,4 +18,7 @@ export * from './credits';
 export * from './verification';
 export * from './checkout';
 export * from './tools';
+export * from './subscriptions';
+export * from './vendors';
+export * from './payments';
 export * from './webhooks';
