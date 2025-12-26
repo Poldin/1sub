@@ -5,12 +5,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { generateApiKey, storeApiKey } from '@/lib/api-key-security';
+import { createServerClient } from '@/infrastructure/database';
+import { generateApiKey, storeApiKey } from '@/security';
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = await createServerClient();
 
     // Get authenticated user
     const {

@@ -6,9 +6,7 @@
  */
 
 import { getTestSupabase } from './db-helpers';
-import { generateApiKey } from '@/lib/api-keys-client';
-import { hashApiKey } from '@/lib/api-keys-client';
-import { generateWebhookSecret } from '@/security';
+import { generateApiKey, hashApiKey, generateWebhookSecret } from '@/security';
 
 export interface TestVendorTool {
   tool: {

@@ -7,7 +7,7 @@ import {
   sanitizeHtml,
   sanitizeUrl,
   sanitizeForLogging,
-} from '@/lib/sanitization';
+} from '@/security';
 
 describe('Sanitization Utilities', () => {
   describe('HTML Sanitization', () => {

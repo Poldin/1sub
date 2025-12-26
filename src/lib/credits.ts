@@ -1,12 +1,12 @@
 /**
  * Centralized credit calculation utilities (Client-side)
- * 
+ *
  * IMPORTANT: For server-side operations, use src/lib/credits-service.ts instead.
  * This file is for client-side operations only.
- * 
+ *
  * Credits are stored in the credit_transactions table as a ledger.
  * The user's current balance is stored in the user_balances table (source of truth).
- * 
+ *
  * Migration Note:
  * - Use getCurrentBalanceClient() for all balance checks (uses user_balances table)
  * - calculateCreditsFromTransactions() is kept only for validation purposes

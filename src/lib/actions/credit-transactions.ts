@@ -14,8 +14,7 @@
  * - Platform fees: subtract transaction with user_id (user pays fee)
  */
 
-import { createClient } from '@/lib/supabase/server';
-import { createServiceClient } from '@/infrastructure/database/client';
+import { createServerClient, createServiceClient } from '@/infrastructure/database';
 import { getCurrentBalance as getCurrentBalanceFromService } from '@/domains/credits';
 
 export interface CreditTransactionParams {
@@ -110,7 +109,7 @@ export async function createCreditTransaction(
     };
   }
 
-  const supabase = await createClient();
+  const supabase = await createServerClient();
 
   try {
     // Check for existing transaction with same idempotency key
@@ -245,7 +244,7 @@ export async function createDebitTransaction(
     };
   }
 
-  const supabase = await createClient();
+  const supabase = await createServerClient();
 
   try {
     // Check for existing transaction with same idempotency key
@@ -397,7 +396,7 @@ export async function createPlatformFee(
     };
   }
 
-  const supabase = await createClient();
+  const supabase = await createServerClient();
 
   try {
     // Check for existing transactions with same idempotency key
@@ -597,7 +596,7 @@ export async function transferCredits(params: {
     };
   }
 
-  const supabase = await createClient();
+  const supabase = await createServerClient();
 
   try {
     // Check for existing transactions with same idempotency key

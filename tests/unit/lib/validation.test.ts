@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest';
 import {
   isValidUUID,
   apiKeySchema,
-} from '@/lib/validation';
+} from '@/security';
 
 describe('Validation Utilities', () => {
   describe('UUID Validation', () => {

@@ -1,12 +1,12 @@
 /**
  * API Authentication Middleware
- * 
+ *
  * Provides authentication helpers for API routes.
  * Distinguishes between public and protected API endpoints.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createServerClient } from '@/infrastructure/database';
 import type { User } from '@supabase/supabase-js';
 
 /**
@@ -35,7 +35,7 @@ export function isPublicApiRoute(path: string): boolean {
  */
 export async function verifyApiAuth(_request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = await createServerClient();
     const { data: { user }, error } = await supabase.auth.getUser();
 
     if (error || !user) {
@@ -74,7 +74,7 @@ export async function withApiAuth(
  */
 export async function isAdmin(userId: string): Promise<boolean> {
   try {
-    const supabase = await createClient();
+    const supabase = await createServerClient();
     const { data: profile, error } = await supabase
       .from('user_profiles')
       .select('role')

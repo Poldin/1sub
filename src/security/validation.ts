@@ -48,8 +48,9 @@ export const creditAmountSchema = z
 
 /**
  * API key format validation (sk-tool-...)
+ * Must be exactly 32 alphanumeric characters after prefix
  */
-export const apiKeySchema = z.string().regex(/^sk-tool-[a-zA-Z0-9]{10,}$/, {
+export const apiKeySchema = z.string().regex(/^sk-tool-[a-zA-Z0-9]{32}$/, {
   message: 'Invalid API key format',
 });
 

@@ -1,10 +1,10 @@
 /**
  * Analytics Engine
- * 
+ *
  * Core analytics processing for vendor dashboards and reporting.
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { createServerClient } from '@/infrastructure/database';
 
 export interface TimeseriesDataPoint {
   timestamp: string;
@@ -30,7 +30,7 @@ export async function getToolUsageTimeseries(
   interval: 'hour' | 'day' | 'week' | 'month' = 'day'
 ): Promise<TimeseriesDataPoint[]> {
   try {
-    const supabase = await createClient();
+    const supabase = await createServerClient();
 
     // Determine the date truncation based on interval
     const truncFunction = {
@@ -115,7 +115,7 @@ export async function getToolAnalyticsSummary(
   endDate: Date
 ): Promise<AnalyticsSummary> {
   try {
-    const supabase = await createClient();
+    const supabase = await createServerClient();
 
     // Use the RPC function for optimized analytics
     const { data, error } = await supabase.rpc('get_tool_analytics', {
@@ -169,7 +169,7 @@ export async function getUserEngagementMetrics(
   avgUsesPerUser: number;
 }> {
   try {
-    const supabase = await createClient();
+    const supabase = await createServerClient();
 
     // Get unique users in period
     const { data: activeUsersData } = await supabase
@@ -240,7 +240,7 @@ export async function getToolRevenueMetrics(
   avgTransactionValue: number;
 }> {
   try {
-    const supabase = await createClient();
+    const supabase = await createServerClient();
 
     // Get tool owner's credit transactions
     const { data: tool } = await supabase

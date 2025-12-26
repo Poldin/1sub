@@ -4,6 +4,7 @@
  * CANONICAL SOURCE: All API key generation MUST use this module.
  */
 
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 
 const API_KEY_PREFIX = 'sk-tool-';
@@ -11,15 +12,16 @@ const API_KEY_LENGTH = 32;
 const SALT_ROUNDS = 10;
 
 /**
- * Generate a new API key
+ * Generate a new API key using cryptographically secure random
  * Format: sk-tool-{random_alphanumeric}
  */
 export function generateApiKey(): string {
   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const randomBytes = crypto.randomBytes(API_KEY_LENGTH);
   let result = API_KEY_PREFIX;
 
   for (let i = 0; i < API_KEY_LENGTH; i++) {
-    result += characters.charAt(Math.floor(Math.random() * characters.length));
+    result += characters.charAt(randomBytes[i] % characters.length);
   }
 
   return result;

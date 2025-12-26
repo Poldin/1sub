@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { isValidUUID } from '@/lib/validation';
+import { isValidUUID } from '@/security';
 
 describe('SQL Injection Prevention', () => {
   const sqlInjectionPayloads = [

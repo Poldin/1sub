@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { sanitizeHtml, sanitizeUrl } from '@/lib/sanitization';
+import { sanitizeHtml, sanitizeUrl } from '@/security';
 
 describe('XSS Prevention', () => {
   const xssPayloads = [
