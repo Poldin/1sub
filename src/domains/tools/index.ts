@@ -14,6 +14,8 @@ export {
   getToolsByVendor,
   // Statistics
   countPayingUsers,
+  batchCountPayingUsers,
+  isPayingUser,
   countActiveSubscriptions,
   getToolWithStats,
   // User subscriptions
