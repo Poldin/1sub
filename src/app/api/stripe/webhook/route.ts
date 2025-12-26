@@ -28,8 +28,14 @@ interface InvoiceWithSubscription extends Omit<Stripe.Invoice, 'subscription' | 
   payment_intent?: string | Stripe.PaymentIntent | null;
 }
 
+// Validate Stripe configuration
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+if (!stripeSecretKey) {
+  throw new Error('STRIPE_SECRET_KEY environment variable is not configured');
+}
+
 // Initialize Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const stripe = new Stripe(stripeSecretKey);
 
 // Get Supabase service client for webhook
 function getSupabaseClient() {

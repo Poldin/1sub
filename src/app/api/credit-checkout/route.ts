@@ -22,21 +22,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import jwt from 'jsonwebtoken';
 import { withApiAuth } from '@/lib/auth/api-middleware';
 import { checkRevocation } from '@/domains/auth/service';
-
-function getSupabaseClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !supabaseKey) {
-    throw new Error('Supabase environment variables are not configured');
-  }
-
-  return createClient(supabaseUrl, supabaseKey);
-}
+import { createServiceClient } from '@/infrastructure/database/client';
 
 export async function POST(request: NextRequest) {
   // DEPRECATION WARNING: Log usage for migration tracking
@@ -54,7 +43,7 @@ export async function POST(request: NextRequest) {
       try {
         const { userId, toolId } = await req.json();
 
-      const supabase = getSupabaseClient();
+      const supabase = createServiceClient();
 
       // Validate required parameters
       if (!userId || !toolId) {

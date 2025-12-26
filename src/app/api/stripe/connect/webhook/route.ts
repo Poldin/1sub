@@ -7,24 +7,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { updateAccountStatus } from '@/domains/payments';
-import { createClient } from '@supabase/supabase-js';
+import { createServiceClient } from '@/infrastructure/database/client';
+
+// Validate Stripe configuration
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+if (!stripeSecretKey) {
+  throw new Error('STRIPE_SECRET_KEY environment variable is not configured');
+}
 
 // Initialize Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+const stripe = new Stripe(stripeSecretKey, {
   apiVersion: '2025-09-30.clover' as any,
 });
-
-// Initialize Supabase
-function getSupabaseClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  
-  if (!supabaseUrl || !supabaseKey) {
-    throw new Error('Supabase environment variables are not configured');
-  }
-  
-  return createClient(supabaseUrl, supabaseKey);
-}
 
 export async function POST(request: NextRequest) {
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET_CONNECT || process.env.STRIPE_WEBHOOK_SECRET;
@@ -122,7 +116,7 @@ async function handleAccountUpdated(account: Stripe.Account) {
     }
 
     // Get vendor ID and log to audit
-    const supabase = getSupabaseClient();
+    const supabase = createServiceClient();
     const { data: vendorAccount } = await supabase
       .from('vendor_stripe_accounts')
       .select('vendor_id')
