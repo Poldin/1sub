@@ -9,7 +9,12 @@
       "Bash(mkdir:*)",
       "Bash(npm install)",
       "Bash(npx tsc:*)",
-      "Bash(npm test:*)"
+      "Bash(npm test:*)",
+      "Bash(if [ -f \"src/lib/vendor-auth.ts\" ])",
+      "Bash(then git rm src/lib/vendor-auth.ts)",
+      "Bash(else echo \"File does not exist or already deleted\")",
+      "Bash(fi)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

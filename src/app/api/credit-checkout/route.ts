@@ -39,6 +39,16 @@ function getSupabaseClient() {
 }
 
 export async function POST(request: NextRequest) {
+  // DEPRECATION WARNING: Log usage for migration tracking
+  console.warn('[DEPRECATION] Legacy /api/credit-checkout endpoint called', {
+    timestamp: new Date().toISOString(),
+    userAgent: request.headers.get('user-agent'),
+    origin: request.headers.get('origin'),
+    sunsetDate: '2026-06-01',
+    migration: 'Use /api/v1/authorize flow instead',
+    guideUrl: 'https://docs.1sub.io/migrations/credit-checkout-to-v1',
+  });
+
   // Wrap with authentication middleware
   return withApiAuth(request, async (req, authenticatedUser) => {
       try {

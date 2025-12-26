@@ -21,7 +21,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { findToolByApiKey, checkRateLimit, getClientIp } from '@/security';
-import { validateTokenReadOnly, rotateToken } from '@/domains/auth';
+import { validateTokenReadOnly, rotateToken, checkRevocation } from '@/domains/auth';
 import { getEntitlementsWithAuthority, formatEntitlementsForResponse } from '@/domains/verification';
 import { z } from 'zod';
 
@@ -227,6 +227,25 @@ export async function POST(request: NextRequest) {
       validateResult.userId!,
       toolId
     );
+
+    // =========================================================================
+    // 6a. SECURITY: Check for explicit revocation (even on cache hit)
+    // This prevents revoked users from accessing services via cached entitlements
+    // =========================================================================
+    const revocationCheck = await checkRevocation(validateResult.userId!, toolId);
+
+    if (revocationCheck.revoked) {
+      return NextResponse.json<VerifyRevokedResponse>(
+        {
+          valid: false,
+          error: 'ACCESS_REVOKED',
+          reason: revocationCheck.reason || 'Access has been revoked',
+          revokedAt: revocationCheck.revokedAt ? Math.floor(revocationCheck.revokedAt.getTime() / 1000) : undefined,
+          action: 'terminate_session',
+        },
+        { status: 403 }
+      );
+    }
 
     // Check if subscription is still active
     if (entitlementsResult.success && entitlementsResult.entitlements) {

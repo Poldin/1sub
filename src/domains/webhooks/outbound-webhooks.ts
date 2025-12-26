@@ -18,7 +18,7 @@
 import crypto from 'crypto';
 import { createServiceClient } from '@/infrastructure/database/client';
 import { generateWebhookSignature } from '@/security';
-import { invalidateCachedEntitlements } from '@/lib/redis-cache';
+import { invalidateCachedEntitlements } from '@/infrastructure/cache/redis';
 import { enqueueWebhookRetry, isRetryableError } from './webhook-retry-service';
 
 // ============================================================================

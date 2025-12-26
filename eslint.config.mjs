@@ -9,6 +9,33 @@ const eslintConfig = [
       "next-env.d.ts",
     ],
   },
+  {
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@/lib/vendor-auth',
+              message: 'DELETED: Use @/domains/auth instead (canonical source)',
+            },
+            {
+              name: '../lib/vendor-auth',
+              message: 'DELETED: Use @/domains/auth instead (canonical source)',
+            },
+            {
+              name: '../../lib/vendor-auth',
+              message: 'DELETED: Use @/domains/auth instead (canonical source)',
+            },
+            {
+              name: '../../../lib/vendor-auth',
+              message: 'DELETED: Use @/domains/auth instead (canonical source)',
+            },
+          ],
+        },
+      ],
+    },
+  },
 ];
 
 export default eslintConfig;

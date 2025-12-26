@@ -97,6 +97,7 @@ interface RedisClient {
   set: (key: string, value: string, options?: { ex?: number }) => Promise<void>;
   del: (key: string | string[]) => Promise<number>;
   ping: () => Promise<string>;
+  scan: (cursor: string, pattern: string, count?: number) => Promise<{ cursor: string; keys: string[] }>;
 }
 
 let redisClient: RedisClient | null = null;
@@ -163,6 +164,18 @@ async function getRedisClient(): Promise<RedisClient | null> {
           });
           const data = await response.json();
           return data.result;
+        },
+        scan: async (cursor: string, pattern: string, count: number = 100) => {
+          const url = `${baseUrl}/scan/${cursor}/MATCH/${encodeURIComponent(pattern)}/COUNT/${count}`;
+          const response = await fetch(url, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const data = await response.json();
+          // Upstash returns [nextCursor, [keys...]]
+          return {
+            cursor: data.result[0].toString(),
+            keys: data.result[1] || [],
+          };
         },
       };
     } else {
@@ -306,14 +319,31 @@ export async function invalidateAllUserEntitlements(userId: string): Promise<voi
     const redis = await getRedisClient();
 
     if (redis) {
-      console.log(`[RedisCache] Would invalidate pattern ${pattern} - requires SCAN`);
+      // SCAN-based deletion for Redis
+      let cursor = '0';
+      let deletedCount = 0;
+
+      do {
+        const result = await redis.scan(cursor, pattern);
+        cursor = result.cursor;
+
+        if (result.keys.length > 0) {
+          const deleted = await redis.del(result.keys);
+          deletedCount += deleted;
+        }
+      } while (cursor !== '0');
+
+      console.log(`[RedisCache] Invalidated ${deletedCount} keys for pattern ${pattern}`);
     } else {
       // Memory cache - iterate and delete matching
+      let deletedCount = 0;
       for (const key of memoryCache.keys()) {
         if (key.endsWith(`:${userId}`)) {
           memoryCache.delete(key);
+          deletedCount++;
         }
       }
+      console.log(`[RedisCache] Invalidated ${deletedCount} keys from memory cache for pattern ${pattern}`);
     }
   } catch (error) {
     console.error('[RedisCache] Error invalidating user entitlements:', error);
@@ -332,14 +362,31 @@ export async function invalidateAllToolEntitlements(toolId: string): Promise<voi
     const redis = await getRedisClient();
 
     if (redis) {
-      console.log(`[RedisCache] Would invalidate pattern ${pattern} - requires SCAN`);
+      // SCAN-based deletion for Redis
+      let cursor = '0';
+      let deletedCount = 0;
+
+      do {
+        const result = await redis.scan(cursor, pattern);
+        cursor = result.cursor;
+
+        if (result.keys.length > 0) {
+          const deleted = await redis.del(result.keys);
+          deletedCount += deleted;
+        }
+      } while (cursor !== '0');
+
+      console.log(`[RedisCache] Invalidated ${deletedCount} keys for pattern ${pattern}`);
     } else {
       // Memory cache - iterate and delete matching
+      let deletedCount = 0;
       for (const key of memoryCache.keys()) {
         if (key.startsWith(`${CACHE_PREFIX}:${toolId}:`)) {
           memoryCache.delete(key);
+          deletedCount++;
         }
       }
+      console.log(`[RedisCache] Invalidated ${deletedCount} keys from memory cache for pattern ${pattern}`);
     }
   } catch (error) {
     console.error('[RedisCache] Error invalidating tool entitlements:', error);
@@ -463,7 +510,13 @@ export async function getCache<T>(key: string): Promise<T | null> {
     } else {
       const entry = memoryCache.get(key);
       if (entry && entry.expiresAt > now) {
-        return entry.data.entitlements as unknown as T;
+        // Check if data is a CachedEntitlement with .entitlements property
+        const cachedData = entry.data as unknown as CachedEntitlement;
+        if (cachedData && typeof cachedData === 'object' && 'entitlements' in cachedData) {
+          return cachedData.entitlements as unknown as T;
+        }
+        // Otherwise return data directly
+        return entry.data as unknown as T;
       }
     }
 
@@ -489,7 +542,8 @@ export async function setCache<T>(key: string, data: T, ttlSeconds: number = CAC
     if (redis) {
       await redis.set(key, JSON.stringify(entry), { ex: ttlSeconds });
     } else {
-      memoryCache.set(key, { data: { entitlements: data as unknown as Entitlements, cachedAt: now, expiresAt }, expiresAt });
+      // Store generic data directly without assuming entitlements structure
+      memoryCache.set(key, { data: data as unknown as CachedEntitlement, expiresAt });
     }
   } catch (error) {
     console.error('[Cache] Error setting cache:', error);

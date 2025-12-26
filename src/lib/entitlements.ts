@@ -22,7 +22,7 @@ import {
   getCachedEntitlements,
   setCachedEntitlements,
   invalidateCachedEntitlements,
-} from '@/lib/redis-cache';
+} from '@/infrastructure/cache/redis';
 
 // Initialize Supabase client with service role for backend operations
 function getServiceClient() {

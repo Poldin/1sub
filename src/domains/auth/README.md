@@ -1,6 +1,29 @@
 # Auth Domain
 
+⚠️ **CANONICAL SOURCE - This is the ONLY vendor authorization implementation**
+
 Handles vendor authorization flow and access revocation.
+
+## Critical Rules
+
+### DO NOT:
+- ❌ Create duplicate implementations in `src/lib/`
+- ❌ Use JWT tokens for vendor authorization (use verification tokens)
+- ❌ Bypass this service with direct database access
+- ❌ Import from deleted files (ESLint will block)
+
+### DO:
+- ✅ Import from `@/domains/auth`
+- ✅ Use verification tokens (not JWTs)
+- ✅ Follow the OAuth-like flow: initiate → exchange → verify
+
+### Deleted Files (DO NOT RECREATE):
+- `src/lib/vendor-auth.ts` - Duplicate implementation (deleted 2025-12-26)
+
+### Protection:
+- ESLint rule `no-restricted-imports` prevents importing from deleted files
+- Uniqueness test `authorization-flow-uniqueness.test.ts` verifies single path
+- All API routes must import from `@/domains/auth`
 
 ## Canonical Entry Points
 
