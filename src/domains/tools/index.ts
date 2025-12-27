@@ -12,6 +12,9 @@ export {
   getFeaturedTools,
   getToolsByCategory,
   getToolsByVendor,
+  // Tool mutations
+  createTool,
+  updateTool,
   // Statistics
   countPayingUsers,
   batchCountPayingUsers,

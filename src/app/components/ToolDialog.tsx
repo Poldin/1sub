@@ -10,6 +10,7 @@ import { Tool, DEFAULT_UI_METADATA, DEFAULT_ENGAGEMENT_METRICS, hasProducts } fr
 import { PricingCard, MainPriceDisplay, PricingBadges } from './PricingDisplay';
 import { getToolPhase, getPhaseLabel, getPhaseTailwindClasses } from '@/lib/tool-phase';
 import { usePurchasedProducts } from '@/hooks/usePurchasedProducts';
+import CustomPricingModal from '@/components/CustomPricingModal';
 
 // Custom scrollbar styles
 const scrollbarStyles = `
@@ -208,6 +209,9 @@ function ToolDialogComponent(props: ToolDialogProps) {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   // State for share button feedback
   const [isShareCopied, setIsShareCopied] = useState(false);
+  // State for custom pricing modal
+  const [isCustomPricingModalOpen, setIsCustomPricingModalOpen] = useState(false);
+  const [selectedProductId, setSelectedProductId] = useState<string | undefined>();
 
   // Check subscriptions
   const { hasProduct, getProductSubscription } = usePurchasedProducts();
@@ -551,10 +555,10 @@ function ToolDialogComponent(props: ToolDialogProps) {
                           toolMetadata={tool.metadata ?? undefined}
                           // Override CTA text if user already has a subscription
                           ctaText={
-                            isCurrentPlan 
+                            isCurrentPlan
                               ? 'Current Plan'
-                              : hasAnySubscription 
-                                ? 'Change Plan' 
+                              : hasAnySubscription
+                                ? 'Change Plan'
                                 : undefined
                           }
                           onSelect={(productId) => {
@@ -567,6 +571,11 @@ function ToolDialogComponent(props: ToolDialogProps) {
                               props.onToolLaunch(tool.id, productId);
                               // Keep dialog open - checkout opens in new tab
                             }
+                          }}
+                          onContactVendor={(email, productName) => {
+                            // Open custom pricing modal instead of mailto
+                            setSelectedProductId(product.id);
+                            setIsCustomPricingModalOpen(true);
                           }}
                         />
                       </div>
@@ -611,6 +620,18 @@ function ToolDialogComponent(props: ToolDialogProps) {
           </div>
         </div>
       </div>
+
+      {/* Custom Pricing Modal */}
+      <CustomPricingModal
+        isOpen={isCustomPricingModalOpen}
+        onClose={() => {
+          setIsCustomPricingModalOpen(false);
+          setSelectedProductId(undefined);
+        }}
+        toolId={tool.id}
+        toolName={tool.name}
+        productId={selectedProductId}
+      />
     </>
   );
 }

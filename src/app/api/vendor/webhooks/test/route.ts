@@ -42,13 +42,24 @@ export async function POST(request: NextRequest) {
 
     // Validate event type
     const validEventTypes: WebhookEventType[] = [
+      // Subscription lifecycle
+      'subscription.created',
       'subscription.activated',
       'subscription.canceled',
       'subscription.updated',
+      // Purchases
       'purchase.completed',
+      // Access management
+      'entitlement.granted',
+      'entitlement.revoked',
+      'entitlement.changed',
+      // Credits
+      'credits.consumed',
       'user.credit_low',
       'user.credit_depleted',
-      'tool.status_changed'
+      // System
+      'tool.status_changed',
+      'verify.required'
     ];
 
     const selectedEventType: WebhookEventType = validEventTypes.includes(event_type)
@@ -117,6 +128,16 @@ export async function POST(request: NextRequest) {
     let eventData: WebhookPayload['data'];
 
     switch (selectedEventType) {
+      case 'subscription.created':
+        eventData = {
+          oneSubUserId: testUserId,
+          userEmail: 'test@example.com',
+          subscriptionId: `test_sub_${crypto.randomUUID().slice(0, 8)}`,
+          planId: 'test-plan-monthly',
+          status: 'active',
+        };
+        break;
+
       case 'subscription.activated':
         eventData = {
           oneSubUserId: testUserId,
@@ -163,6 +184,53 @@ export async function POST(request: NextRequest) {
         };
         break;
 
+      case 'entitlement.granted':
+        eventData = {
+          oneSubUserId: testUserId,
+          userEmail: 'test@example.com',
+          grantId: `test_grant_${crypto.randomUUID().slice(0, 8)}`,
+          planId: 'test-plan-pro',
+          status: 'active',
+          creditsRemaining: 100,
+        };
+        break;
+
+      case 'entitlement.revoked':
+        eventData = {
+          oneSubUserId: testUserId,
+          userEmail: 'test@example.com',
+          reason: 'subscription_canceled',
+          revokedAt: new Date().toISOString(),
+          status: 'canceled',
+        };
+        break;
+
+      case 'entitlement.changed':
+        eventData = {
+          oneSubUserId: testUserId,
+          userEmail: 'test@example.com',
+          previousState: {
+            planId: 'test-plan-basic',
+            features: ['feature1', 'feature2'],
+          },
+          newState: {
+            planId: 'test-plan-pro',
+            features: ['feature1', 'feature2', 'feature3'],
+          },
+          planId: 'test-plan-pro',
+          creditsRemaining: 200,
+        };
+        break;
+
+      case 'credits.consumed':
+        eventData = {
+          oneSubUserId: testUserId,
+          amount: 5,
+          balanceRemaining: 45,
+          transactionId: `test_txn_${crypto.randomUUID().slice(0, 8)}`,
+        };
+        break;
+
       case 'user.credit_low':
         eventData = {
           oneSubUserId: testUserId,
@@ -185,6 +253,14 @@ export async function POST(request: NextRequest) {
           oneSubUserId: 'system',
           toolId: tool_id,
           toolStatus: true,
+        };
+        break;
+
+      case 'verify.required':
+        eventData = {
+          oneSubUserId: testUserId,
+          userEmail: 'test@example.com',
+          reason: 'security_check',
         };
         break;
 
@@ -221,7 +297,7 @@ export async function POST(request: NextRequest) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          '1sub-signature': signature,
+          'X-1Sub-Signature': signature,
           'User-Agent': '1sub-webhooks/1.0 (test)',
         },
         body: payloadString,

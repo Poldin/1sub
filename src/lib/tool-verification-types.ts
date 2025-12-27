@@ -20,17 +20,23 @@ export type SubscriptionStatus =
 export type PaymentStatus = 'paid' | 'failed' | 'pending';
 
 export type WebhookEventType =
+  // Subscription lifecycle
+  | 'subscription.created'
   | 'subscription.activated'
-  | 'subscription.canceled'
   | 'subscription.updated'
+  | 'subscription.canceled'
+  // Purchases
   | 'purchase.completed'
-  | 'user.credit_low'
-  | 'user.credit_depleted'
-  | 'tool.status_changed'
-  // Vendor integration events
+  // Access management
   | 'entitlement.granted'
   | 'entitlement.revoked'
   | 'entitlement.changed'
+  // Credits
+  | 'credits.consumed'
+  | 'user.credit_low'
+  | 'user.credit_depleted'
+  // System
+  | 'tool.status_changed'
   | 'verify.required';
 
 export interface WebhookPayload {
@@ -55,6 +61,8 @@ export interface WebhookPayload {
     checkoutId?: string;
     amount?: number;
     purchaseType?: string;
+    // Subscription event fields
+    subscriptionId?: string;
     // Entitlement event fields
     grantId?: string;
     reason?: string;
@@ -67,6 +75,9 @@ export interface WebhookPayload {
       planId?: string;
       features?: string[];
     };
+    // Credits event fields
+    transactionId?: string;
+    balanceRemaining?: number;
   };
 }
 

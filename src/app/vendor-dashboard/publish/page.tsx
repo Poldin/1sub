@@ -21,6 +21,7 @@ export default function PublishToolPage() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
   const [isPublishing, setIsPublishing] = useState(false);
+  const [slugPreview, setSlugPreview] = useState('');
 
   // UI Metadata fields
   const [uiMetadata, setUiMetadata] = useState({
@@ -109,6 +110,20 @@ export default function PublishToolPage() {
 
     fetchUserData();
   }, [router]);
+
+  // Generate slug preview when name changes
+  useEffect(() => {
+    if (formData.name) {
+      const preview = formData.name
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      setSlugPreview(preview || 'tool');
+    } else {
+      setSlugPreview('');
+    }
+  }, [formData.name]);
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -574,6 +589,19 @@ export default function PublishToolPage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Slug Preview */}
+                  {slugPreview && (
+                    <div className="mb-6 p-3 bg-[#111111] border border-[#374151] rounded-lg">
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-[#9ca3af]">Tool URL:</span>
+                        <code className="text-[#3ecf8e]">1sub.io/tools/{slugPreview}</code>
+                      </div>
+                      <p className="text-xs text-[#9ca3af] mt-1">
+                        This URL will be automatically generated and may be adjusted if a tool with this name already exists.
+                      </p>
+                    </div>
+                  )}
 
                   {/* Description */}
                   <div className="mb-6">

@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { notifySubscriptionCanceled } from '@/domains/webhooks';
+import { revokeAccess } from '@/domains/auth';
 
 export async function POST(request: NextRequest) {
   try {
@@ -116,6 +117,14 @@ export async function POST(request: NextRequest) {
       toolId: subscription.tool_id,
       cancelledAt: now,
     });
+
+    // CRITICAL: Revoke access immediately to prevent continued access
+    // This ensures tokens are invalidated and /verify will fail
+    await revokeAccess(
+      authUser.id,
+      subscription.tool_id,
+      'subscription_cancelled'
+    );
 
     // Send webhook notification for subscription cancellation (NON-BLOCKING)
     notifySubscriptionCanceled(

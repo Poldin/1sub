@@ -634,13 +634,29 @@ export default function VendorAPIPage() {
                       onChange={(e) => setSelectedTestEventType(e.target.value)}
                       className="flex-1 px-3 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-sm text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e]"
                     >
-                      <option value="subscription.activated">subscription.activated</option>
-                      <option value="subscription.canceled">subscription.canceled</option>
-                      <option value="subscription.updated">subscription.updated</option>
-                      <option value="purchase.completed">purchase.completed</option>
-                      <option value="user.credit_low">user.credit_low</option>
-                      <option value="user.credit_depleted">user.credit_depleted</option>
-                      <option value="tool.status_changed">tool.status_changed</option>
+                      <optgroup label="Subscription Lifecycle">
+                        <option value="subscription.created">subscription.created</option>
+                        <option value="subscription.activated">subscription.activated</option>
+                        <option value="subscription.updated">subscription.updated</option>
+                        <option value="subscription.canceled">subscription.canceled</option>
+                      </optgroup>
+                      <optgroup label="Purchases">
+                        <option value="purchase.completed">purchase.completed</option>
+                      </optgroup>
+                      <optgroup label="Access Management">
+                        <option value="entitlement.granted">entitlement.granted</option>
+                        <option value="entitlement.revoked">entitlement.revoked</option>
+                        <option value="entitlement.changed">entitlement.changed</option>
+                      </optgroup>
+                      <optgroup label="Credits">
+                        <option value="credits.consumed">credits.consumed</option>
+                        <option value="user.credit_low">user.credit_low</option>
+                        <option value="user.credit_depleted">user.credit_depleted</option>
+                      </optgroup>
+                      <optgroup label="System">
+                        <option value="tool.status_changed">tool.status_changed</option>
+                        <option value="verify.required">verify.required</option>
+                      </optgroup>
                     </select>
                     <button
                       onClick={handleSendTestWebhook}

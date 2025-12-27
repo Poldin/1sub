@@ -167,6 +167,79 @@ export async function getToolsByVendor(vendorId: string): Promise<Tool[]> {
 }
 
 // ============================================================================
+// TOOL MUTATIONS
+// ============================================================================
+
+/**
+ * Creates a new tool with automatic slug generation.
+ */
+export async function createTool(params: {
+  name: string;
+  short_description: string;
+  description: string | null;
+  website_url: string;
+  vendor_id: string;
+  icon_url: string | null;
+  cover_image_url: string | null;
+  category: string | null;
+  metadata: Record<string, unknown>;
+  status?: 'draft' | 'pending' | 'active';
+}): Promise<{ success: boolean; tool?: Tool; error?: string }> {
+  const supabase = createServiceClient();
+
+  const { data, error } = await supabase
+    .from('tools')
+    .insert({
+      ...params,
+      status: params.status || 'draft',
+      is_featured: false,
+      // Backward compatibility - keep legacy fields in sync
+      is_active: params.status === 'active',
+      user_profile_id: params.vendor_id,
+      url: params.website_url,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('[Tools] Error creating tool:', error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true, tool: data as Tool };
+}
+
+/**
+ * Updates a tool.
+ */
+export async function updateTool(
+  toolId: string,
+  updates: Partial<Omit<Tool, 'id' | 'created_at' | 'updated_at' | 'vendor_id'>>
+): Promise<{ success: boolean; tool?: Tool; error?: string }> {
+  const supabase = await createServerClient();
+
+  const { data, error } = await supabase
+    .from('tools')
+    .update({
+      ...updates,
+      updated_at: new Date().toISOString(),
+      // Backward compatibility - keep legacy fields in sync
+      ...(updates.website_url && { url: updates.website_url }),
+      ...(updates.status && { is_active: updates.status === 'active' }),
+    })
+    .eq('id', toolId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('[Tools] Error updating tool:', error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true, tool: data as Tool };
+}
+
+// ============================================================================
 // TOOL STATISTICS
 // ============================================================================
 

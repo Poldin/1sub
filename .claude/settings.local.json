@@ -19,7 +19,11 @@
       "Bash(then git rm src/lib/vendor-management.ts)",
       "Bash(git grep:*)",
       "Bash(git rm:*)",
-      "WebFetch(domain:supabase.com)"
+      "WebFetch(domain:supabase.com)",
+      "Bash(where /r \"C:\\\\Users\\\\DISTRICTS\\\\Desktop\\\\1sub-dev\" *.sql)",
+      "Bash(xargs:*)",
+      "Bash(find:*)",
+      "Bash(node scripts/verify-p0-fixes.js:*)"
     ],
     "deny": [],
     "ask": []

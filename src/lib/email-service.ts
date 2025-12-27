@@ -392,3 +392,147 @@ export async function sendFirstToolPurchaseEmail(params: {
   }
 }
 
+/**
+ * Send custom pricing request notification to vendor
+ */
+export async function sendCustomPricingRequest(params: {
+  vendorEmail: string;
+  vendorName: string;
+  toolName: string;
+  userName: string;
+  userEmail: string;
+  userMessage?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    console.log('sendCustomPricingRequest called', {
+      vendorEmail: params.vendorEmail,
+      toolName: params.toolName,
+      userEmail: params.userEmail,
+      hasResendKey: !!process.env.RESEND_API_KEY,
+      fromEmail: FROM_EMAIL,
+    });
+
+    if (!process.env.RESEND_API_KEY) {
+      console.warn('RESEND_API_KEY not configured, skipping email send', {
+        vendorEmail: params.vendorEmail,
+        toolName: params.toolName,
+      });
+      return { success: false, error: 'Email service not configured' };
+    }
+
+    const { vendorEmail, vendorName, toolName, userName, userEmail, userMessage } = params;
+
+    console.log('Sending custom pricing request email via Resend', {
+      from: FROM_EMAIL,
+      to: vendorEmail,
+      toolName,
+    });
+
+    const { data, error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: [vendorEmail],
+      subject: `New Custom Pricing Request for ${toolName}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Custom Pricing Request</title>
+          </head>
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: linear-gradient(135deg, #3ecf8e 0%, #2dd4bf 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+              <h1 style="color: white; margin: 0; font-size: 28px;">💬 New Pricing Request</h1>
+            </div>
+
+            <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
+              <p style="font-size: 16px; margin-top: 0;">Hi ${vendorName},</p>
+
+              <p style="font-size: 16px;">A user has requested custom pricing information for your tool: <strong>${toolName}</strong></p>
+
+              <div style="background: #f3f4f6; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                <h3 style="margin: 0 0 15px 0; color: #374151; font-size: 16px;">User Details</h3>
+                <table style="width: 100%; font-size: 14px;">
+                  <tr>
+                    <td style="color: #6b7280; padding: 5px 0;">Name:</td>
+                    <td style="text-align: right; font-weight: 600;">${userName}</td>
+                  </tr>
+                  <tr>
+                    <td style="color: #6b7280; padding: 5px 0;">Email:</td>
+                    <td style="text-align: right; font-weight: 600;">
+                      <a href="mailto:${userEmail}" style="color: #3ecf8e; text-decoration: none;">${userEmail}</a>
+                    </td>
+                  </tr>
+                </table>
+              </div>
+
+              ${userMessage ? `
+                <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0;">
+                  <p style="font-size: 14px; color: #92400e; margin: 0; font-weight: 600;">Message from User:</p>
+                  <p style="font-size: 14px; color: #78350f; margin: 10px 0 0 0;">${userMessage}</p>
+                </div>
+              ` : ''}
+
+              <p style="font-size: 16px;">You can respond directly to this email or view and manage all custom pricing requests from your vendor dashboard.</p>
+
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${SITE_URL}/vendor-dashboard/custom-pricing"
+                   style="display: inline-block; background: #3ecf8e; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">
+                  View in Dashboard
+                </a>
+              </div>
+
+              <div style="text-align: center; margin: 20px 0;">
+                <a href="mailto:${userEmail}?subject=Custom Pricing for ${toolName}"
+                   style="display: inline-block; background: #374151; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">
+                  Reply to User
+                </a>
+              </div>
+
+              <p style="font-size: 14px; color: #6b7280; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+                Tip: Response time matters! Users who receive timely responses are more likely to convert.
+              </p>
+
+              <p style="font-size: 14px; color: #6b7280; margin-top: 10px;">
+                Best regards,<br>
+                The 1sub Team
+              </p>
+            </div>
+          </body>
+        </html>
+      `,
+    });
+
+    if (error) {
+      console.error('Error sending custom pricing request email via Resend:', {
+        error,
+        errorMessage: error.message,
+        errorName: error.name,
+        vendorEmail,
+        toolName,
+        from: FROM_EMAIL,
+      });
+      return { success: false, error: error.message };
+    }
+
+    console.log('Custom pricing request email sent successfully via Resend:', {
+      emailId: data?.id,
+      vendorEmail,
+      toolName,
+      from: FROM_EMAIL,
+    });
+    return { success: true };
+  } catch (error) {
+    console.error('Unexpected error in sendCustomPricingRequest:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      vendorEmail: params.vendorEmail,
+      toolName: params.toolName,
+    });
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to send email',
+    };
+  }
+}
+

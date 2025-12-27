@@ -12,6 +12,7 @@ import MarkdownEditor from '../../../../components/MarkdownEditor';
 interface Tool {
   id: string;
   name: string;
+  slug?: string;
   description: string;
   url: string;
   is_active: boolean;
@@ -678,6 +679,34 @@ export default function EditToolPage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Slug Display (Read-Only) */}
+                  {tool?.slug && (
+                    <div>
+                      <label className="block text-sm font-medium text-[#d1d5db] mb-2">
+                        Tool URL (SEO-friendly)
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 px-4 py-3 bg-[#1a1a1a] border border-[#374151] rounded-lg text-[#d1d5db] font-mono">
+                          1sub.io/tools/{tool.slug}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(`${window.location.origin}/tools/${tool.slug}`);
+                            alert('Tool URL copied to clipboard!');
+                          }}
+                          className="px-4 py-3 bg-[#374151] hover:bg-[#4b5563] rounded-lg text-white transition-colors flex items-center gap-2"
+                        >
+                          <Copy className="w-4 h-4" />
+                          Copy URL
+                        </button>
+                      </div>
+                      <p className="text-xs text-[#9ca3af] mt-1">
+                        The slug is automatically generated from your tool name and cannot be changed directly.
+                      </p>
+                    </div>
+                  )}
 
                   {/* Description - Full Width Below */}
                   <div>
