@@ -240,24 +240,25 @@ export default function EditProductPage() {
         return;
       }
 
-      // Update product
-      const { error: updateError } = await supabase
-        .from('tool_products')
-        .update({
+      // Update product using API endpoint
+      const response = await fetch(`/api/vendor/products/${productId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           name: formData.name,
           description: formData.description,
           is_active: formData.is_active,
           pricing_model: pricingModel,
           is_custom_plan: pricingModel.custom_plan?.enabled || false,
           contact_email: pricingModel.custom_plan?.enabled ? (pricingModel.custom_plan.contact_email || null) : null,
-        })
-        .eq('id', productId);
+        }),
+      });
 
-      if (updateError) {
-        console.error('Database error:', updateError);
-        alert(`Failed to update product: ${updateError.message}`);
-        setIsUpdating(false);
-        return;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.details || 'Failed to update product');
       }
 
       // Redirect back to products list

@@ -454,33 +454,27 @@ function BackofficeContent() {
         //   return;
         // }
 
-        // Create checkout with products
-        const { data: checkout, error } = await supabase
-          .from('checkouts')
-          .insert({
-            user_id: user.id,
-            vendor_id: toolMetadata?.vendor_id || tool.user_profile_id || null,
-            credit_amount: null, // Will be set when user selects product
-            type: null, // Will be set when user selects product
-            metadata: {
-              tool_id: tool.id,
-              tool_name: tool.name,
-              tool_url: tool.url,
-              products: activeProducts, // Pass products to checkout
-              status: 'pending',
-              selected_pricing: selectedProductId, // Auto-select the chosen product
-            },
-          })
-          .select()
-          .single();
+        // Create checkout using API endpoint
+        const response = await fetch('/api/checkout/create', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            tool_id: tool.id,
+            selected_product_id: selectedProductId,
+          }),
+        });
 
-        if (error) {
-          console.error('Error creating checkout:', error);
-          alert('Failed to initiate checkout');
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error('Error creating checkout:', errorData);
+          alert(errorData.error || 'Failed to initiate checkout');
           return;
         }
 
-        router.push(`/credit_checkout/${checkout.id}`);
+        const result = await response.json();
+        router.push(`/credit_checkout/${result.checkout.id}`);
       } else if (pricingOptions) {
         // Handle tools with pricing_options (old structure)
         // Get all enabled pricing options
@@ -505,33 +499,27 @@ function BackofficeContent() {
         //   return;
         // }
 
-        // Create checkout with pricing_options (user will select on checkout page)
-        const { data: checkout, error } = await supabase
-          .from('checkouts')
-          .insert({
-            user_id: user.id,
-            vendor_id: toolMetadata?.vendor_id || tool.user_profile_id || null,
-            credit_amount: null, // Will be set when user selects pricing
-            type: null, // Will be set when user selects pricing
-            metadata: {
-              tool_id: tool.id,
-              tool_name: tool.name,
-              tool_url: tool.url, // ✅ Use actual tool URL
-              pricing_options: pricingOptions,
-              status: 'pending',
-              selected_pricing: selectedProductId, // Auto-select if provided
-            },
-          })
-          .select()
-          .single();
+        // Create checkout using API endpoint
+        const response = await fetch('/api/checkout/create', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            tool_id: tool.id,
+            selected_product_id: selectedProductId,
+          }),
+        });
 
-        if (error) {
-          console.error('Error creating checkout:', error);
-          alert('Failed to initiate checkout');
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error('Error creating checkout:', errorData);
+          alert(errorData.error || 'Failed to initiate checkout');
           return;
         }
 
-        router.push(`/credit_checkout/${checkout.id}`);
+        const result = await response.json();
+        router.push(`/credit_checkout/${result.checkout.id}`);
       } else {
         // No valid pricing found
         alert('This tool has no valid pricing configured. Please contact the vendor.');

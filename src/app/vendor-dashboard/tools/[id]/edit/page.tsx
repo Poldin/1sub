@@ -433,24 +433,30 @@ export default function EditToolPage() {
         delete updatedMetadata.custom_pricing_email;
       }
 
-      // Update tool with all data
-      const { error: updateError } = await supabase
-        .from('tools')
-        .update({
+      // Update tool using API endpoint
+      const response = await fetch(`/api/vendor/tools/${toolId}/update`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           name: formData.name,
           description: formData.description,
-          url: formData.toolExternalUrl,
-          metadata: updatedMetadata,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', toolId)
-        .eq('user_profile_id', authUser.id);
+          toolExternalUrl: formData.toolExternalUrl,
+          logoUrl: logoUrl,
+          heroImageUrl: heroImageUrl,
+          emoji: uiMetadata.emoji,
+          tags: uiMetadata.tags,
+          category: uiMetadata.category,
+          discountPercentage: uiMetadata.discountPercentage,
+          longDescription: contentMetadata.longDescription,
+          customPricingEmail: customPricingEmail,
+        }),
+      });
 
-      if (updateError) {
-        console.error('Update error:', updateError);
-        alert(`Failed to update tool: ${updateError.message}`);
-        setIsSaving(false);
-        return;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to update tool');
       }
 
       // Update original data to reflect saved state

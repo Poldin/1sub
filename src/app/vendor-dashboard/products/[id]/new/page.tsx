@@ -198,29 +198,29 @@ export default function NewProductPage() {
         return;
       }
 
-      // Create product
-      const { data: productData, error: insertError } = await supabase
-        .from('tool_products')
-        .insert({
+      // Create product using API endpoint
+      const response = await fetch('/api/vendor/products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tool_id: toolId,
           name: formData.name,
           description: formData.description,
-          tool_id: toolId,
-          is_active: true,
           pricing_model: pricingModel,
           is_custom_plan: pricingModel.custom_plan.enabled,
           contact_email: pricingModel.custom_plan.enabled ? pricingModel.custom_plan.contact_email || null : null,
-        })
-        .select()
-        .single();
+        }),
+      });
 
-      if (insertError) {
-        console.error('Database error:', insertError);
-        alert(`Failed to create product: ${insertError.message}`);
-        setIsCreating(false);
-        return;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.details || 'Failed to create product');
       }
 
-      console.log('Product created successfully:', productData);
+      const result = await response.json();
+      console.log('Product created successfully:', result.product);
 
       // Redirect back to products list
       router.push('/vendor-dashboard/products');
