@@ -47,137 +47,31 @@ export async function DELETE(
       );
     }
 
-    // Delete related data first to avoid foreign key issues
-    // Delete in order of dependency
-
-    // Delete API keys
-    const { error: apiKeysError } = await supabase
-      .from('api_keys')
-      .delete()
-      .eq('tool_id', toolId);
-    if (apiKeysError) {
-      console.error('Error deleting api_keys:', apiKeysError);
-      return NextResponse.json(
-        { error: `Failed to delete API keys: ${apiKeysError.message}` },
-        { status: 500 }
-      );
-    }
-
-    // Delete tool user links
-    const { error: toolUserLinksError } = await supabase
-      .from('tool_user_links')
-      .delete()
-      .eq('tool_id', toolId);
-    if (toolUserLinksError) {
-      console.error('Error deleting tool_user_links:', toolUserLinksError);
-      return NextResponse.json(
-        { error: `Failed to delete tool user links: ${toolUserLinksError.message}` },
-        { status: 500 }
-      );
-    }
-
-    // Delete tool link codes
-    const { error: toolLinkCodesError } = await supabase
-      .from('tool_link_codes')
-      .delete()
-      .eq('tool_id', toolId);
-    if (toolLinkCodesError) {
-      console.error('Error deleting tool_link_codes:', toolLinkCodesError);
-      return NextResponse.json(
-        { error: `Failed to delete tool link codes: ${toolLinkCodesError.message}` },
-        { status: 500 }
-      );
-    }
-
-    // Delete usage logs
-    const { error: usageLogsError } = await supabase
-      .from('usage_logs')
-      .delete()
-      .eq('tool_id', toolId);
-    if (usageLogsError) {
-      console.error('Error deleting usage_logs:', usageLogsError);
-      return NextResponse.json(
-        { error: `Failed to delete usage logs: ${usageLogsError.message}` },
-        { status: 500 }
-      );
-    }
-
-    // Delete tool products
-    const { error: toolProductsError } = await supabase
-      .from('tool_products')
-      .delete()
-      .eq('tool_id', toolId);
-    if (toolProductsError) {
-      console.error('Error deleting tool_products:', toolProductsError);
-      return NextResponse.json(
-        { error: `Failed to delete tool products: ${toolProductsError.message}` },
-        { status: 500 }
-      );
-    }
-
-    // Delete tool subscriptions - this is critical
-    // Use service role client to bypass RLS since vendor owns the tool
-    // This allows deletion of subscriptions owned by other users for the vendor's tool
-    let subscriptionsDeleted = 0;
+    // Use service role client to delete the tool
+    // This bypasses RLS and allows CASCADE to automatically delete all related data:
+    // - api_keys, tool_user_links, tool_link_codes, usage_logs
+    // - tool_products, tool_subscriptions, credit_transactions
+    // - custom_pricing_requests, webhook_logs
+    // - authorization_codes, verification_tokens, revocations
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    
-    if (supabaseUrl && supabaseServiceKey) {
-      // Use service role to bypass RLS for subscription deletion
-      const supabaseServiceRole = createServiceRoleClient(supabaseUrl, supabaseServiceKey);
-      
-      const { error: toolSubscriptionsError, count } = await supabaseServiceRole
-        .from('tool_subscriptions')
-        .delete({ count: 'exact' })
-        .eq('tool_id', toolId);
-      
-      if (toolSubscriptionsError) {
-        console.error('Error deleting tool_subscriptions with service role:', toolSubscriptionsError);
-        return NextResponse.json(
-          { 
-            error: `Failed to delete tool subscriptions: ${toolSubscriptionsError.message}`,
-          },
-          { status: 500 }
-        );
-      }
-      subscriptionsDeleted = count || 0;
-      console.log(`Deleted ${subscriptionsDeleted} tool subscriptions using service role`);
-    } else {
-      // Fallback to regular client if service role is not configured
-      console.warn('Service role not configured, using regular client for subscription deletion');
-      const { error: toolSubscriptionsError, count } = await supabase
-        .from('tool_subscriptions')
-        .delete({ count: 'exact' })
-        .eq('tool_id', toolId);
-      
-      if (toolSubscriptionsError) {
-        console.error('Error deleting tool_subscriptions:', toolSubscriptionsError);
-        return NextResponse.json(
-          { 
-            error: `Failed to delete tool subscriptions: ${toolSubscriptionsError.message}`,
-            details: 'This may be due to Row Level Security policies preventing deletion of subscriptions owned by other users.'
-          },
-          { status: 500 }
-        );
-      }
-      subscriptionsDeleted = count || 0;
-    }
 
-    // Delete credit transactions
-    const { error: creditTransactionsError } = await supabase
-      .from('credit_transactions')
-      .delete()
-      .eq('tool_id', toolId);
-    if (creditTransactionsError) {
-      console.error('Error deleting credit_transactions:', creditTransactionsError);
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('Service role credentials not configured');
       return NextResponse.json(
-        { error: `Failed to delete credit transactions: ${creditTransactionsError.message}` },
+        {
+          error: 'Service role not configured',
+          details: 'NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables are required for tool deletion.'
+        },
         { status: 500 }
       );
     }
 
-    // Finally delete the tool itself
-    const { error: toolDeleteError } = await supabase
+    // Create service role client to bypass RLS
+    const supabaseServiceRole = createServiceRoleClient(supabaseUrl, supabaseServiceKey);
+
+    // Delete the tool - CASCADE will handle all related data automatically
+    const { error: toolDeleteError } = await supabaseServiceRole
       .from('tools')
       .delete()
       .eq('id', toolId);
@@ -185,13 +79,15 @@ export async function DELETE(
     if (toolDeleteError) {
       console.error('Error deleting tool:', toolDeleteError);
       return NextResponse.json(
-        { 
+        {
           error: `Failed to delete tool: ${toolDeleteError.message}`,
-          details: 'This may be due to remaining foreign key constraints. Please ensure all related data has been deleted.'
+          details: 'Tool deletion failed. Please contact support if this issue persists.'
         },
         { status: 500 }
       );
     }
+
+    console.log(`Successfully deleted tool ${toolId} and all related data via CASCADE`);
 
     return NextResponse.json({
       success: true,
