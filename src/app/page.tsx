@@ -118,21 +118,30 @@ function HomeContent() {
 
   // Handle tool launch - creates checkout and navigates
   const handleToolLaunch = useCallback(async (toolId: string, selectedProductId?: string) => {
+    console.log('[handleToolLaunch] Starting checkout flow:', { toolId, selectedProductId });
+    
     try {
+      const requestBody = {
+        tool_id: toolId,
+        selected_product_id: selectedProductId,
+      };
+      console.log('[handleToolLaunch] Request body:', requestBody);
+
       // Create checkout session
       const checkoutResponse = await fetch('/api/checkout/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          tool_id: toolId,
-          selected_product_id: selectedProductId,
-        }),
+        body: JSON.stringify(requestBody),
       });
+
+      console.log('[handleToolLaunch] Response status:', checkoutResponse.status);
+      console.log('[handleToolLaunch] Response headers:', Object.fromEntries(checkoutResponse.headers.entries()));
 
       // Handle unauthorized - redirect to login
       if (checkoutResponse.status === 401) {
+        console.log('[handleToolLaunch] Unauthorized - redirecting to login');
         router.push(`/login?redirect=/&tool=${toolId}`);
         return;
       }
@@ -140,17 +149,29 @@ function HomeContent() {
       // Handle other errors
       if (!checkoutResponse.ok) {
         const errorData = await checkoutResponse.json();
+        console.error('[handleToolLaunch] Error response:', errorData);
         alert(errorData.error || 'Failed to create checkout');
         return;
       }
 
-      const { checkout_id } = await checkoutResponse.json();
+      const responseData = await checkoutResponse.json();
+      console.log('[handleToolLaunch] Success response:', responseData);
+
+      const { checkout_id } = responseData;
+
+      if (!checkout_id) {
+        console.error('[handleToolLaunch] No checkout_id in response:', responseData);
+        alert('Failed to create checkout - no checkout ID received');
+        return;
+      }
 
       // Navigate to checkout page
       const checkoutUrl = `/credit_checkout/${checkout_id}`;
+      console.log('[handleToolLaunch] Navigating to:', checkoutUrl);
       router.push(checkoutUrl);
     } catch (error) {
-      console.error('Error launching tool:', error);
+      console.error('[handleToolLaunch] Exception caught:', error);
+      console.error('[handleToolLaunch] Error stack:', (error as Error)?.stack);
       alert('An error occurred. Please try again.');
     }
   }, [router]);

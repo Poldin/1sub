@@ -24,6 +24,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { tool_id, selected_product_id } = body;
 
+    console.log('[checkout/create] Request body:', { tool_id, selected_product_id });
+
     if (!tool_id) {
       return NextResponse.json(
         { error: 'tool_id is required' },
@@ -41,7 +43,19 @@ export async function POST(request: NextRequest) {
       .eq('id', tool_id)
       .single();
 
+    console.log('[checkout/create] Tool query result:', {
+      tool: tool ? {
+        id: tool.id,
+        name: tool.name,
+        user_profile_id: tool.user_profile_id,
+        metadata: tool.metadata,
+        products: tool.products,
+      } : null,
+      error: toolError,
+    });
+
     if (toolError || !tool) {
+      console.error('[checkout/create] Tool not found:', toolError);
       return NextResponse.json(
         { error: 'Tool not found' },
         { status: 404 }
@@ -51,11 +65,30 @@ export async function POST(request: NextRequest) {
     const toolMetadata = tool.metadata as Record<string, unknown>;
     const hasProducts = Array.isArray(tool.products) && tool.products.length > 0;
 
+    console.log('[checkout/create] Tool structure:', {
+      hasProducts,
+      productsCount: tool.products?.length,
+      metadataKeys: toolMetadata ? Object.keys(toolMetadata) : [],
+    });
+
     // Check if tool has products (new structure)
     if (hasProducts && tool.products) {
       const activeProducts = tool.products.filter((p: { is_active?: boolean }) => p.is_active);
       
+      console.log('[checkout/create] Products analysis:', {
+        totalProducts: tool.products.length,
+        activeProducts: activeProducts.length,
+        allProducts: tool.products.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          is_active: p.is_active,
+          is_custom_plan: p.is_custom_plan,
+          pricing_model: p.pricing_model,
+        })),
+      });
+
       if (activeProducts.length === 0) {
+        console.error('[checkout/create] No active products found');
         return NextResponse.json(
           { error: 'This tool has no active products' },
           { status: 400 }
@@ -78,7 +111,14 @@ export async function POST(request: NextRequest) {
 
           // Check if this is a subscription product and user already has an active subscription
           const pm = (selectedProduct as { pricing_model?: { subscription?: { enabled: boolean } } }).pricing_model;
+          console.log('[checkout/create] Selected product pricing model:', pm);
+          
           if (pm?.subscription?.enabled) {
+            console.log('[checkout/create] Checking for existing subscription:', {
+              userId: authUser.id,
+              toolId: tool.id,
+            });
+
             const { data: existingSub, error: existingSubError } = await supabase
               .from('tool_subscriptions')
               .select('id, status')
@@ -87,11 +127,17 @@ export async function POST(request: NextRequest) {
               .in('status', ['active', 'paused'])
               .maybeSingle();
 
+            console.log('[checkout/create] Existing subscription check:', {
+              existingSub,
+              error: existingSubError,
+            });
+
             if (existingSubError && existingSubError.code !== 'PGRST116') {
               // PGRST116 is "not found" which is fine
-              console.error('Error checking for existing subscription:', existingSubError);
+              console.error('[checkout/create] Error checking for existing subscription:', existingSubError);
               // Don't fail, let process route handle it
             } else if (existingSub) {
+              console.warn('[checkout/create] User already has active subscription:', existingSub);
               return NextResponse.json(
                 { 
                   error: 'You already have an active subscription to this tool',
@@ -115,27 +161,37 @@ export async function POST(request: NextRequest) {
       // }
 
       // Create checkout with products
+      const checkoutData = {
+        user_id: authUser.id,
+        vendor_id: toolMetadata?.vendor_id || tool.user_profile_id || null,
+        credit_amount: null, // Will be set when user selects product
+        type: null, // Will be set when user selects product
+        metadata: {
+          tool_id: tool.id,
+          tool_name: tool.name,
+          tool_url: tool.url,
+          products: activeProducts,
+          selected_pricing: selected_product_id || null,
+          status: 'pending',
+        },
+      };
+
+      console.log('[checkout/create] Creating checkout with data:', {
+        ...checkoutData,
+        metadata: {
+          ...checkoutData.metadata,
+          products: checkoutData.metadata.products?.length,
+        },
+      });
+
       const { data: checkout, error } = await supabase
         .from('checkouts')
-        .insert({
-          user_id: authUser.id,
-          vendor_id: toolMetadata?.vendor_id || tool.user_profile_id || null,
-          credit_amount: null, // Will be set when user selects product
-          type: null, // Will be set when user selects product
-          metadata: {
-            tool_id: tool.id,
-            tool_name: tool.name,
-            tool_url: tool.url,
-            products: activeProducts,
-            selected_pricing: selected_product_id || null,
-            status: 'pending',
-          },
-        })
+        .insert(checkoutData)
         .select()
         .single();
 
       if (error) {
-        console.error('Error creating checkout:', error);
+        console.error('[checkout/create] Error creating checkout:', error);
         secureLog.debug('[DEBUG][checkout/create] Failed checkout creation', {
           userId: authUser.id,
           toolId: tool.id,
@@ -145,6 +201,12 @@ export async function POST(request: NextRequest) {
           { status: 500 }
         );
       }
+
+      console.log('[checkout/create] Checkout created successfully:', {
+        checkoutId: checkout.id,
+        userId: checkout.user_id,
+        vendorId: checkout.vendor_id,
+      });
 
       secureLog.debug('[DEBUG][checkout/create] Checkout created', {
         checkoutId: checkout.id,
@@ -214,13 +276,19 @@ export async function POST(request: NextRequest) {
     }
 
     // No valid pricing found
+    console.error('[checkout/create] No valid pricing configured:', {
+      hasProducts,
+      hasPricingOptions: !!pricingOptions,
+      toolMetadata,
+    });
     return NextResponse.json(
       { error: 'This tool has no valid pricing configured' },
       { status: 400 }
     );
 
   } catch (error) {
-    console.error('Error creating checkout:', error);
+    console.error('[checkout/create] Unhandled exception:', error);
+    console.error('[checkout/create] Exception stack:', (error as Error)?.stack);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
