@@ -50,7 +50,7 @@ You earn from all revenue types:
 
 ```
 User Payment:           €100.00
-Stripe Processing Fee:  - €3.20  (2.9% + $0.30)
+Stripe Processing Fee:  - €3.20  (2.9% + €0.30)
 1Sub Platform Fee:      - €15.00  ([15%] of net)
 ────────────────────────────────
 Your Net Revenue:       €81.80
@@ -111,7 +111,7 @@ After payout is initiated, funds typically arrive in your bank account within 2-
 </ResponseField>
 
 <ResponseField name="Minimum Threshold" type="€25 EUR">
-Payouts only process if your balance is at least $25. Smaller amounts roll over to the next payout cycle.
+Payouts only process if your balance is at least €25. Smaller amounts roll over to the next payout cycle.
 </ResponseField>
 
 ### Payout Timeline Example
@@ -150,7 +150,7 @@ Access your earnings dashboard at: **Vendor Dashboard → Revenue**
 Monthly subscriptions are recognized when the user is charged:
 
 ```typescript
-User subscribes to $10/month plan on Dec 1
+User subscribes to €10/month plan on Dec 1
 → You earn €8.5 on Dec 1 (after fees)
 → You earn €8.5 on Jan 1 (renewal)
 → You earn €8.5 on Feb 1 (renewal)
@@ -210,7 +210,7 @@ Export your revenue data:
 
 <Accordion title="Tax Forms">
   Annual tax documentation:
-  - **1099-K** (US vendors earning >$600/year)
+  - **1099-K** (US vendors earning >€600/year)
   - **1099-NEC** (for contractor payments, if applicable)
   - VAT/GST reports (international vendors)
 
@@ -306,12 +306,12 @@ If a chargeback occurs:
 <Accordion title="Lower Than Expected Payout">
   **Possible causes:**
   - Refunds/chargebacks deducted
-  - Didn't meet $25 minimum threshold
+  - Didn't meet €25 minimum threshold
   - Fees higher than expected
 
   **Solution:**
   - Review transaction details for refunds
-  - Check current balance (must be ≥$25)
+  - Check current balance (must be ≥€25)
   - Download CSV export to see fee breakdown
 </Accordion>
 </AccordionGroup>
@@ -336,7 +336,7 @@ Conversion uses Stripe's exchange rate at the time of payout. Rates are competit
 
 <Warning>
 **You are responsible for your own taxes.** 1Sub reports revenue to tax authorities as required by law:
-- **US Vendors:** 1099-K if revenue >$600/year
+- **US Vendors:** 1099-K if revenue >€600/year
 - **International:** Varies by country (consult local tax advisor)
 </Warning>
 
@@ -406,7 +406,7 @@ Download and save your monthly statements and annual tax forms for your records.
 <Check>
 **Quick Reference:**
 - Payouts: Every Monday
-- Minimum: $25 USD
+- Minimum: €25 EUR
 - Processing: 2-5 business days
 - First payout: 14-day hold
 - Revenue share: [XX%] to vendors
