@@ -13,6 +13,7 @@ interface ToolsGridProps {
   tools?: Tool[]; // Optional: allow passing tools directly
   loading?: boolean;
   error?: string | null;
+  onDialogOpen?: () => void; // Callback when tool dialog opens
 }
 
 export default function ToolsGrid({
@@ -21,7 +22,8 @@ export default function ToolsGrid({
   searchTerm = '',
   tools: externalTools,
   loading: externalLoading,
-  error: externalError
+  error: externalError,
+  onDialogOpen
 }: ToolsGridProps) {
   // Use provided tools or fetch internally
   const internalData = useTools();
@@ -46,6 +48,7 @@ export default function ToolsGrid({
   const handleToolClick = (tool: Tool) => {
     setSelectedTool(tool);
     setIsDialogOpen(true);
+    onDialogOpen?.(); // Close sidebar when dialog opens
   };
 
   // Handle dialog close
@@ -59,6 +62,7 @@ export default function ToolsGrid({
     // Always open dialog when clicking Start button
     setSelectedTool(tool);
     setIsDialogOpen(true);
+    onDialogOpen?.(); // Close sidebar when dialog opens
   };
 
   // Loading State

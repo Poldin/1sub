@@ -497,7 +497,7 @@ export default function PublishToolPage() {
                       </p>
                       <button
                         type="button"
-                        onClick={() => router.push('/vendor-dashboard/integration')}
+                        onClick={() => router.push('/docs')}
                         className="flex items-center gap-2 bg-[#3ecf8e] hover:bg-[#2dd4bf] text-white px-4 py-2 rounded-lg font-semibold transition-colors text-sm"
                       >
                         <BookOpen className="w-4 h-4" />
@@ -628,7 +628,7 @@ export default function PublishToolPage() {
                         <HelpCircle className="w-4 h-4 text-[#9ca3af] cursor-help" />
                         <div className="absolute left-0 top-6 w-80 bg-[#111111] border border-[#374151] rounded-lg p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
                           <p className="text-xs text-[#d1d5db] mb-2">
-                            This is where users will be redirected after purchasing credits for your tool. They&apos;ll receive a JWT token in the URL parameter.
+                            This is where users will be redirected after purchasing credits for your tool. They&apos;ll receive an authorization code in the URL parameter (e.g., <code className="text-[#3ecf8e]">?code=AUTH_CODE</code>).
                           </p>
                           <p className="text-xs text-[#9ca3af]">
                             Example: <code className="text-[#3ecf8e]">https://your-tool.com/auth/callback</code>
@@ -654,9 +654,10 @@ export default function PublishToolPage() {
                         </div>
                       </div>
                       <ol className="text-xs text-[#9ca3af] space-y-1 ml-6 list-decimal">
-                        <li>User purchases credits for your tool on 1SUB</li>
-                        <li>User is redirected to this URL with a JWT token: <code className="text-[#3ecf8e]">?token=eyJhbGci...</code></li>
-                        <li>Your tool verifies the token via the 1SUB API</li>
+                        <li>User purchases credits or subscribes to your tool on 1SUB</li>
+                        <li>User is redirected to this URL with an authorization code: <code className="text-[#3ecf8e]">?code=AUTH_CODE</code></li>
+                        <li>Your tool exchanges the code for a verification token via the 1SUB API</li>
+                        <li>Your tool verifies access periodically using the verification token</li>
                         <li>User can now use your tool&apos;s features</li>
                       </ol>
                       <div className="mt-2 pt-2 border-t border-[#374151]">

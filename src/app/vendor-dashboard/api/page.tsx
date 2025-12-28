@@ -816,7 +816,7 @@ export default function VendorAPIPage() {
                   className="w-full px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e]"
                 />
                 <p className="text-xs text-[#9ca3af] mt-1">
-                  Where users are redirected, with a signed JWT token
+                  Where users are redirected with an authorization code
                 </p>
               </div>
 

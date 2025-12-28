@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Menu, Plus, Package, Edit, Trash2, DollarSign } from 'lucide-react';
+import { Menu, Plus, Package, Edit, Trash2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import Sidebar from '../../backoffice/components/Sidebar';
 import Footer from '../../components/Footer';
@@ -363,7 +363,7 @@ export default function ProductsPage() {
                         </p>
 
                         <div className="flex items-center gap-2 mb-4">
-                          <DollarSign className="w-4 h-4 text-[#3ecf8e]" />
+                          <span className="text-xl font-bold text-[#3ecf8e]">€</span>
                           <span className="text-xl font-bold text-[#ededed]">
                             {getPriceDisplay(product.pricing_model)} credits
                           </span>

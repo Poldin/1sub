@@ -296,70 +296,6 @@ function PricingContent() {
       {/* Hero Section */}
       <section className="pt-20 pb-12 px-4">
         <div className="max-w-4xl mx-auto text-center">
-          {/* User Info Section - Only show if logged in */}
-          {isLoggedIn && userInfo && (
-            <div className="mb-8">
-              <div className="text-center mb-6">
-                <h2 className="text-2xl font-bold text-[#ededed] mb-1">{userInfo.fullName}</h2>
-                <p className="text-[#9ca3af] mb-2">{userInfo.email}</p>
-                
-                {/* Current Subscription Status */}
-                {loadingSubscription ? (
-                  <div className="flex items-center justify-center gap-2 mb-3">
-                    <Loader2 className="w-4 h-4 text-[#3ecf8e] animate-spin" />
-                    <span className="text-sm text-[#9ca3af]">Loading subscription...</span>
-                  </div>
-                ) : currentSubscription ? (
-                  <div className="mb-4">
-                    <p className="text-xs text-[#9ca3af] uppercase tracking-wide mb-1">Your Plan</p>
-                    <div className="flex items-center justify-center gap-2 flex-wrap">
-                      <p className="text-xl font-bold text-[#ededed] capitalize">
-                        {currentSubscription.plan_id}
-                      </p>
-                      <span className="text-xs bg-[#3ecf8e]/20 text-[#3ecf8e] px-2 py-1 rounded font-medium uppercase">
-                        {currentSubscription.billing_period === 'yearly' ? 'Annual' : 'Monthly'}
-                      </span>
-                      <button
-                        onClick={handleManageSubscription}
-                        disabled={loadingPortal}
-                        className="inline-flex items-center gap-1.5 text-xs text-[#9ca3af] hover:text-[#3ecf8e] transition-colors"
-                      >
-                        {loadingPortal ? (
-                          <>
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            Opening portal...
-                          </>
-                        ) : (
-                          <>
-                            <ExternalLink className="w-3.5 h-3.5" />
-                            Manage Plan
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-                
-                <p className="text-xs text-[#9ca3af] uppercase tracking-wide mb-1">Your Credits</p>
-                <div className="flex items-center justify-center gap-2">
-                  {creditsLoading ? (
-                    <Loader2 className="w-5 h-5 text-[#3ecf8e] animate-spin" />
-                  ) : (
-                    <p className="text-xl font-bold text-[#3ecf8e]">
-                      {userInfo.credits !== null ? `${userInfo.credits.toFixed(2)} CR` : 'N/A'}
-                    </p>
-                  )}
-                </div>
-              </div>
-              
-              {/* Top Up Credits Component */}
-              <TopUpCredits 
-                className="max-w-2xl mx-auto" 
-                hasSubscription={!!currentSubscription}
-              />
-            </div>
-          )}
-          
           <h1 className="text-4xl sm:text-5xl font-bold mb-4">
             simple, transparent <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf]">pricing</span>
           </h1>
@@ -504,6 +440,75 @@ function PricingContent() {
               );
             })}
           </div>
+
+          {/* User Info Section - Only show if logged in */}
+          {isLoggedIn && userInfo && (
+            <div className="mt-16 mb-16 max-w-6xl mx-auto">
+              <div className="grid md:grid-cols-2 gap-4 items-start">
+                {/* User Info - Left Side */}
+                <div className="text-left pl-6">
+                  <h2 className="text-2xl font-bold text-[#ededed] mb-1">{userInfo.fullName}</h2>
+                  <p className="text-[#9ca3af] mb-4">{userInfo.email}</p>
+                  
+                  {/* Current Subscription Status */}
+                  {loadingSubscription ? (
+                    <div className="flex items-center gap-2 mb-3">
+                      <Loader2 className="w-4 h-4 text-[#3ecf8e] animate-spin" />
+                      <span className="text-sm text-[#9ca3af]">Loading subscription...</span>
+                    </div>
+                  ) : currentSubscription ? (
+                    <div className="mb-4">
+                      <p className="text-xs text-[#9ca3af] uppercase tracking-wide mb-1">Your Plan</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-xl font-bold text-[#ededed] capitalize">
+                          {currentSubscription.plan_id}
+                        </p>
+                        <span className="text-xs bg-[#3ecf8e]/20 text-[#3ecf8e] px-2 py-1 rounded font-medium uppercase">
+                          {currentSubscription.billing_period === 'yearly' ? 'Annual' : 'Monthly'}
+                        </span>
+                        <button
+                          onClick={handleManageSubscription}
+                          disabled={loadingPortal}
+                          className="inline-flex items-center gap-1.5 text-xs text-[#9ca3af] hover:text-[#3ecf8e] transition-colors"
+                        >
+                          {loadingPortal ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              Opening portal...
+                            </>
+                          ) : (
+                            <>
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              Manage Plan
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                  
+                  <p className="text-xs text-[#9ca3af] uppercase tracking-wide mb-1">Your Credits</p>
+                  <div className="flex items-center gap-2">
+                    {creditsLoading ? (
+                      <Loader2 className="w-5 h-5 text-[#3ecf8e] animate-spin" />
+                    ) : (
+                      <p className="text-xl font-bold text-[#3ecf8e]">
+                        {userInfo.credits !== null ? `${userInfo.credits.toFixed(2)} CR` : 'N/A'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Top Up Credits Component - Right Side */}
+                <div className="pr-6">
+                  <TopUpCredits 
+                    className="w-full max-w-md" 
+                    hasSubscription={!!currentSubscription}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Credit System Explanation */}
           <div className="mt-16 max-w-3xl mx-auto bg-[#1f2937] border border-[#374151] rounded-xl p-8 text-center">

@@ -342,6 +342,11 @@ function BackofficeContent() {
     localStorage.setItem('sidebarOpen', String(newState));
   };
 
+  const handleCloseSidebar = () => {
+    setIsMenuOpen(false);
+    localStorage.setItem('sidebarOpen', 'false');
+  };
+
   const handleLaunchTool = async (toolId: string, selectedProductId?: string) => {
     if (!user) return;
 
@@ -703,6 +708,7 @@ function BackofficeContent() {
                     searchTerm={searchTerm}
                     tools={filteredTools}
                     loading={toolsLoading || purchasedLoading}
+                    onDialogOpen={handleCloseSidebar}
                   />
                 )}
               </div>
