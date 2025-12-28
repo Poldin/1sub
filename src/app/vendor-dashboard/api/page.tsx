@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Menu, Key, Copy, RefreshCw, AlertCircle, Webhook, Link as LinkIcon, Eye, EyeOff, Save, Check, Send, CheckCircle2, XCircle } from 'lucide-react';
+import { Menu, Key, Copy, RefreshCw, AlertCircle, Webhook, Link as LinkIcon, Eye, EyeOff, Save, Check } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import Sidebar from '../../backoffice/components/Sidebar';
 import ToolSelector from '../components/ToolSelector';
@@ -47,15 +47,6 @@ export default function VendorAPIPage() {
   const [originalWebhookUrl, setOriginalWebhookUrl] = useState('');
   const [originalWebhookSecret, setOriginalWebhookSecret] = useState('');
   const [originalRedirectUri, setOriginalRedirectUri] = useState('');
-
-  // Test webhook states
-  const [testingWebhook, setTestingWebhook] = useState(false);
-  const [testWebhookResult, setTestWebhookResult] = useState<{
-    success: boolean;
-    message: string;
-    details?: Record<string, unknown>;
-  } | null>(null);
-  const [selectedTestEventType, setSelectedTestEventType] = useState('subscription.activated');
 
   // Auto-hide webhook secret after 5 seconds
   useEffect(() => {
@@ -401,45 +392,6 @@ export default function VendorAPIPage() {
     }
   };
 
-  const handleSendTestWebhook = async () => {
-    if (!selectedToolForConfig || !webhookUrl || !webhookSecret) {
-      showToast('Please configure webhook URL and secret before testing.', 'error');
-      return;
-    }
-
-    setTestingWebhook(true);
-    setTestWebhookResult(null);
-
-    try {
-      const response = await fetch('/api/vendor/webhooks/test', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          tool_id: selectedToolForConfig,
-          event_type: selectedTestEventType,
-        }),
-      });
-
-      const result = await response.json();
-
-      setTestWebhookResult({
-        success: result.success,
-        message: result.success ? result.message : result.error,
-        details: result.details,
-      });
-    } catch (error) {
-      console.error('Error sending test webhook:', error);
-      setTestWebhookResult({
-        success: false,
-        message: 'Failed to send test webhook. Please try again.',
-      });
-    } finally {
-      setTestingWebhook(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex overflow-x-hidden">
       {/* Unified Sidebar */}
@@ -497,7 +449,7 @@ export default function VendorAPIPage() {
               <h2 className="text-lg font-semibold text-[#ededed]">Webhook</h2>
             </div>
             <a
-              href="/docs/webhooks"
+              href="docs/webhooks/overview"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 text-sm text-[#3ecf8e] hover:text-[#2dd4bf] transition-colors"
@@ -616,96 +568,6 @@ export default function VendorAPIPage() {
                   <span className="text-xs text-[#3ecf8e]">Configuration saved successfully!</span>
                 )}
               </div>
-
-              {/* Test Webhook Section */}
-              {webhookUrl && webhookSecret && (
-                <div className="bg-[#111111] border border-[#4b5563] rounded-lg p-4 mt-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Send className="w-4 h-4 text-[#3ecf8e]" />
-                    <h4 className="font-medium text-[#ededed]">Test Webhook</h4>
-                  </div>
-                  <p className="text-xs text-[#9ca3af] mb-3">
-                    Send a test webhook to verify your endpoint is configured correctly.
-                  </p>
-
-                  <div className="flex items-center gap-3 mb-3">
-                    <select
-                      value={selectedTestEventType}
-                      onChange={(e) => setSelectedTestEventType(e.target.value)}
-                      className="flex-1 px-3 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-sm text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e]"
-                    >
-                      <optgroup label="Subscription Lifecycle">
-                        <option value="subscription.created">subscription.created</option>
-                        <option value="subscription.activated">subscription.activated</option>
-                        <option value="subscription.updated">subscription.updated</option>
-                        <option value="subscription.canceled">subscription.canceled</option>
-                      </optgroup>
-                      <optgroup label="Purchases">
-                        <option value="purchase.completed">purchase.completed</option>
-                      </optgroup>
-                      <optgroup label="Access Management">
-                        <option value="entitlement.granted">entitlement.granted</option>
-                        <option value="entitlement.revoked">entitlement.revoked</option>
-                        <option value="entitlement.changed">entitlement.changed</option>
-                      </optgroup>
-                      <optgroup label="Credits">
-                        <option value="credits.consumed">credits.consumed</option>
-                        <option value="user.credit_low">user.credit_low</option>
-                        <option value="user.credit_depleted">user.credit_depleted</option>
-                      </optgroup>
-                      <optgroup label="System">
-                        <option value="tool.status_changed">tool.status_changed</option>
-                        <option value="verify.required">verify.required</option>
-                      </optgroup>
-                    </select>
-                    <button
-                      onClick={handleSendTestWebhook}
-                      disabled={testingWebhook}
-                      className="flex items-center gap-2 px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg hover:bg-[#4b5563] transition-colors text-sm disabled:opacity-50"
-                    >
-                      {testingWebhook ? (
-                        <>
-                          <RefreshCw className="w-4 h-4 animate-spin" />
-                          Sending...
-                        </>
-                      ) : (
-                        <>
-                          <Send className="w-4 h-4" />
-                          Send Test
-                        </>
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Test Result */}
-                  {testWebhookResult && (
-                    <div className={`p-3 rounded-lg ${testWebhookResult.success ? 'bg-green-500/10 border border-green-500/30' : 'bg-red-500/10 border border-red-500/30'}`}>
-                      <div className="flex items-start gap-2">
-                        {testWebhookResult.success ? (
-                          <CheckCircle2 className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
-                        ) : (
-                          <XCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
-                        )}
-                        <div className="flex-1">
-                          <p className={`text-sm font-medium ${testWebhookResult.success ? 'text-green-400' : 'text-red-400'}`}>
-                            {testWebhookResult.message}
-                          </p>
-                          {testWebhookResult.details && (
-                            <details className="mt-2">
-                              <summary className="text-xs text-[#9ca3af] cursor-pointer hover:text-[#ededed]">
-                                View details
-                              </summary>
-                              <pre className="mt-2 p-2 bg-[#0a0a0a] rounded text-xs text-[#9ca3af] overflow-x-auto max-h-48">
-                                {JSON.stringify(testWebhookResult.details, null, 2)}
-                              </pre>
-                            </details>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           ) : (
             <p className="text-[#9ca3af] text-sm">Select a tool to configure webhooks</p>
