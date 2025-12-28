@@ -474,7 +474,7 @@ function BackofficeContent() {
         }
 
         const result = await response.json();
-        router.push(`/credit_checkout/${result.checkout.id}`);
+        router.push(`/credit_checkout/${result.checkout_id}`);
       } else if (pricingOptions) {
         // Handle tools with pricing_options (old structure)
         // Get all enabled pricing options
@@ -519,7 +519,7 @@ function BackofficeContent() {
         }
 
         const result = await response.json();
-        router.push(`/credit_checkout/${result.checkout.id}`);
+        router.push(`/credit_checkout/${result.checkout_id}`);
       } else {
         // No valid pricing found
         alert('This tool has no valid pricing configured. Please contact the vendor.');
