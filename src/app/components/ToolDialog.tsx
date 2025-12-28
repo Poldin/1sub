@@ -519,6 +519,8 @@ function ToolDialogComponent(props: ToolDialogProps) {
 
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {tool.products.map((product) => {
+                    // Capture tool.id in closure to avoid scope issues
+                    const currentToolId = tool.id;
                     const subscription = getProductSubscription(product.id);
                     const hasActiveSub = !!subscription;
                     // Check if user has ANY subscription to this tool (for changing plans)
@@ -568,8 +570,9 @@ function ToolDialogComponent(props: ToolDialogProps) {
                             }
                             // Initiate checkout with selected product (only for non-custom plans)
                             if (props.onToolLaunch && productId && !product.is_custom_plan && !product.pricing_model.custom_plan?.enabled) {
-                              props.onToolLaunch(tool.id, productId);
-                              // Keep dialog open - checkout opens in new tab
+                              console.log('[ToolDialog] Calling onToolLaunch with:', { currentToolId, productId });
+                              props.onToolLaunch(currentToolId, productId);
+                              // Navigation happens in parent
                             }
                           }}
                           onContactVendor={(email, productName) => {

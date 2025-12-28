@@ -142,7 +142,7 @@ function HomeContent() {
       // Handle unauthorized - redirect to login
       if (checkoutResponse.status === 401) {
         console.log('[handleToolLaunch] Unauthorized - redirecting to login');
-        router.push(`/login?redirect=/&tool=${toolId}`);
+        window.location.href = `/login?redirect=/&tool=${toolId}`;
         return;
       }
 
@@ -168,7 +168,9 @@ function HomeContent() {
       // Navigate to checkout page
       const checkoutUrl = `/credit_checkout/${checkout_id}`;
       console.log('[handleToolLaunch] Navigating to:', checkoutUrl);
-      router.push(checkoutUrl);
+      
+      // Use window.location instead of router.push for more reliable navigation
+      window.location.href = checkoutUrl;
     } catch (error) {
       console.error('[handleToolLaunch] Exception caught:', error);
       console.error('[handleToolLaunch] Error stack:', (error as Error)?.stack);

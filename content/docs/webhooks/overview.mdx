@@ -493,10 +493,10 @@ Event-specific data about the subscription change
 
 ## Security
 
-Webhooks include an HMAC signature in the `1sub-signature` header to prove authenticity.
+Webhooks include an HMAC signature in the `x-1sub-signature` header to prove authenticity.
 
 ```http
-1sub-signature: t=1700000000,v1=abcdef123456789...
+x-1sub-signature: t=1700000000,v1=abcdef123456789...
 ```
 
 **Always verify signatures before processing webhooks!**
