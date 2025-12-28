@@ -10,7 +10,7 @@ import PricingExplainer from './components/PricingExplainer';
 import TrustIndicators from './components/TrustIndicators';
 import { useTools } from '@/hooks/useTools';
 import { Tool } from '@/lib/tool-types';
-import { useAuth } from '@/contexts/AuthContext';
+import { createClient } from '@/lib/supabase/client';
 
 // Lazy-load del ToolDialog per ridurre il bundle iniziale
 const ToolDialog = lazy(() => import('./components/ToolDialog'));
@@ -22,12 +22,25 @@ function HomeContent() {
   const [selectedToolId, setSelectedToolId] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [loadingTimeout, setLoadingTimeout] = useState(false);
-  
-  // Get auth state from context
-  const { isLoggedIn } = useAuth();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   
   // Fetch tools from database
   const { tools, loading, error, refetch } = useTools();
+
+  // Check if user is logged in
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        setIsLoggedIn(!!user);
+      } catch (error) {
+        console.error('Error checking auth:', error);
+        setIsLoggedIn(false);
+      }
+    };
+    checkAuth();
+  }, []);
 
   // Add timeout mechanism for slow networks (especially mobile)
   // Reduced timeout to 10 seconds for better mobile UX
@@ -106,20 +119,6 @@ function HomeContent() {
   // Handle tool launch - creates checkout and navigates
   const handleToolLaunch = useCallback(async (toolId: string, selectedProductId?: string) => {
     try {
-      // Check authentication first
-      const profileResponse = await fetch('/api/user/profile');
-      
-      if (profileResponse.status === 401) {
-        // Not authenticated - redirect to login with tool info
-        router.push(`/login?redirect=/&tool=${toolId}`);
-        return;
-      }
-
-      if (!profileResponse.ok) {
-        alert('Failed to verify authentication. Please try again.');
-        return;
-      }
-
       // Create checkout session
       const checkoutResponse = await fetch('/api/checkout/create', {
         method: 'POST',
@@ -132,6 +131,13 @@ function HomeContent() {
         }),
       });
 
+      // Handle unauthorized - redirect to login
+      if (checkoutResponse.status === 401) {
+        router.push(`/login?redirect=/&tool=${toolId}`);
+        return;
+      }
+
+      // Handle other errors
       if (!checkoutResponse.ok) {
         const errorData = await checkoutResponse.json();
         alert(errorData.error || 'Failed to create checkout');
@@ -140,9 +146,9 @@ function HomeContent() {
 
       const { checkout_id } = await checkoutResponse.json();
 
-      // Open checkout page in a new tab
+      // Navigate to checkout page
       const checkoutUrl = `/credit_checkout/${checkout_id}`;
-      window.open(checkoutUrl, '_blank');
+      router.push(checkoutUrl);
     } catch (error) {
       console.error('Error launching tool:', error);
       alert('An error occurred. Please try again.');
@@ -158,7 +164,10 @@ function HomeContent() {
           className="flex items-center justify-center w-full px-6 py-4 text-lg font-bold text-white bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] rounded-full shadow-lg shadow-[#3ecf8e]/30 active:scale-95 transition-transform pointer-events-auto"
         >
           <span className="flex items-center gap-2">
-            {isLoggedIn ? "Welcome back! enter here ->" : "get started now"}
+            {isLoggedIn ? "Enter!" : "get started now"}
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
           </span>
         </a>
       </div>
@@ -197,7 +206,10 @@ function HomeContent() {
               className="group relative inline-flex items-center justify-center px-10 py-5 text-lg sm:text-xl font-bold bg-transparent border-2 border-[#3ecf8e] rounded-full transition-all duration-300 hover:scale-105 animate-pulse-glow active:scale-95"
             >
               <span className="relative z-10 flex items-center gap-3 text-[#3ecf8e]">
-                {isLoggedIn ? "Welcome back! enter here ->" : "join us today!"}
+                {isLoggedIn ? "Enter!" : "join us today!"}
+                <svg className="w-6 h-6 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
               </span>
             </a>
           </div>
