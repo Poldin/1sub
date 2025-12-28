@@ -371,7 +371,7 @@ export default function PublishToolPage() {
         body: JSON.stringify({
           name: formData.name,
           description: formData.description,
-          url: formData.toolExternalUrl || '',
+          toolExternalUrl: formData.toolExternalUrl || '',
           metadata: metadata,
         }),
       });
