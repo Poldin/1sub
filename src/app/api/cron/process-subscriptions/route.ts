@@ -29,6 +29,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { processSubscriptionRenewals, retryFailedSubscriptionRenewals } from '@/domains/subscriptions';
 import { processWebhookRetries } from '@/domains/webhooks/webhook-retry-service';
 import { sendWebhookFailureAlert } from '@/domains/webhooks/webhook-alerts';
+import { processRetryQueue as processStripeWebhookRetries, getWebhookFailureStats } from '@/domains/webhooks/webhook-failure-queue';
+import { processExpiredGracePeriods } from '@/domains/subscriptions/grace-period';
 
 export async function GET(request: NextRequest) {
   return NextResponse.json(
@@ -101,10 +103,10 @@ export async function POST(request: NextRequest) {
       retryResults = await retryFailedSubscriptionRenewals(retryBatchSize);
     }
 
-    // Process webhook retries (Phase 1)
-    console.log('[Cron] Processing webhook retries');
+    // Process outbound webhook retries (to vendors)
+    console.log('[Cron] Processing outbound webhook retries');
     const webhookStats = await processWebhookRetries(100);
-    console.log('[Cron] Webhook retry stats:', webhookStats);
+    console.log('[Cron] Outbound webhook retry stats:', webhookStats);
 
     // Send alerts if webhooks moved to dead letter queue
     if (webhookStats.deadLetter > 0) {
@@ -119,6 +121,19 @@ export async function POST(request: NextRequest) {
         // Don't fail the cron if alert fails
       }
     }
+
+    // Process inbound Stripe webhook retries
+    console.log('[Cron] Processing Stripe webhook retries');
+    const stripeWebhookStats = await processStripeWebhookRetries();
+    console.log('[Cron] Stripe webhook retry stats:', stripeWebhookStats);
+
+    // Get current Stripe webhook failure stats
+    const stripeFailureStats = await getWebhookFailureStats();
+
+    // Process expired grace periods
+    console.log('[Cron] Processing expired grace periods');
+    const gracePeriodStats = await processExpiredGracePeriods();
+    console.log('[Cron] Grace period stats:', gracePeriodStats);
 
     const endTime = Date.now();
     const duration = endTime - startTime;
@@ -139,21 +154,39 @@ export async function POST(request: NextRequest) {
         failed: retryResults.failed,
         paused: retryResults.paused,
       } : null,
-      webhook_retries: {
+      outbound_webhook_retries: {
         processed: webhookStats.processed,
         succeeded: webhookStats.succeeded,
         failed: webhookStats.failed,
         deadLetter: webhookStats.deadLetter,
+      },
+      stripe_webhook_retries: {
+        processed: stripeWebhookStats.processed,
+        succeeded: stripeWebhookStats.succeeded,
+        failed: stripeWebhookStats.failed,
+        deadLetter: stripeWebhookStats.deadLetter,
+      },
+      stripe_webhook_queue_stats: {
+        pending: stripeFailureStats.pending,
+        succeeded: stripeFailureStats.succeeded,
+        deadLetter: stripeFailureStats.deadLetter,
+        total: stripeFailureStats.total,
+      },
+      grace_periods: {
+        processed: gracePeriodStats.processed,
+        revoked: gracePeriodStats.revoked,
+        errors: gracePeriodStats.errors,
       },
       totals: {
         subscriptions_processed: renewalResults.totalProcessed + (retryResults?.totalProcessed || 0),
         successful_renewals: renewalResults.successful + (retryResults?.successful || 0),
         failed_renewals: renewalResults.failed + (retryResults?.failed || 0),
         paused_subscriptions: renewalResults.paused + (retryResults?.paused || 0),
+        grace_periods_expired: gracePeriodStats.revoked,
       }
     };
 
-    console.log('[Cron] Processing complete (subscriptions + webhooks)', response);
+    console.log('[Cron] Processing complete (subscriptions + webhooks + stripe webhooks + grace periods)', response);
 
     return NextResponse.json(response);
 

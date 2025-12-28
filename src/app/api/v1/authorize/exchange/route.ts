@@ -212,12 +212,36 @@ export async function POST(request: NextRequest) {
 
     if (!entitlementsResult.success || !entitlementsResult.entitlements) {
       console.error('[Exchange] Failed to get entitlements:', entitlementsResult.error);
-      // Still return success but with empty entitlements
+      return NextResponse.json<ExchangeErrorResponse>(
+        {
+          valid: false,
+          error: 'NO_SUBSCRIPTION',
+          message: 'No active subscription found for this tool',
+        },
+        { status: 402 } // 402 Payment Required
+      );
     }
 
-    const entitlements = entitlementsResult.entitlements
-      ? formatEntitlementsForResponse(entitlementsResult.entitlements)
-      : { planId: null, creditsRemaining: null, features: [], limits: {} };
+    // CRITICAL SECURITY CHECK: Verify subscription is active
+    // Prevents exchange from succeeding when subscription is cancelled/inactive
+    if (!entitlementsResult.entitlements.active) {
+      console.warn('[Exchange] Subscription not active:', {
+        userId: exchangeResult.userId,
+        toolId,
+        status: entitlementsResult.entitlements.status,
+      });
+
+      return NextResponse.json<ExchangeErrorResponse>(
+        {
+          valid: false,
+          error: 'SUBSCRIPTION_INACTIVE',
+          message: `Subscription is ${entitlementsResult.entitlements.status}. Please activate your subscription.`,
+        },
+        { status: 402 } // 402 Payment Required
+      );
+    }
+
+    const entitlements = formatEntitlementsForResponse(entitlementsResult.entitlements);
 
     // =========================================================================
     // 7. Send entitlement.granted Webhook (NON-BLOCKING)

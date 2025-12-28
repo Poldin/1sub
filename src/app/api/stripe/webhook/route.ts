@@ -21,6 +21,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { addCredits } from '@/domains/credits';
 import { createServiceClient } from '@/infrastructure/database/client';
+import { queueWebhookFailure } from '@/domains/webhooks/webhook-failure-queue';
 
 // Extended Invoice type to include expandable properties
 interface InvoiceWithSubscription extends Omit<Stripe.Invoice, 'subscription' | 'payment_intent'> {
@@ -76,8 +77,41 @@ export async function POST(request: NextRequest) {
       id: event.id,
     });
 
-    // Handle different event types
-    switch (event.type) {
+    // Process the webhook event
+    try {
+      // Handle different event types
+      await processWebhookEvent(event);
+    } catch (processingError) {
+      // Queue for retry instead of dropping the event
+      console.error('[Stripe Webhook] Processing failed, queueing for retry:', processingError);
+
+      await queueWebhookFailure(
+        event,
+        processingError instanceof Error ? processingError : new Error('Unknown processing error')
+      );
+
+      // Still return 200 to acknowledge receipt (retry queue will handle it)
+      return NextResponse.json({
+        received: true,
+        queued: true,
+        error: 'Processing failed, queued for retry'
+      });
+    }
+
+    // Always return 200 to acknowledge receipt
+    return NextResponse.json({ received: true });
+
+  } catch (error) {
+    console.error('[Stripe Webhook] Error processing webhook:', error);
+    // Still return 200 to prevent Stripe from retrying
+    // Log error for manual review
+    return NextResponse.json({ received: true, error: 'Processing error logged' });
+  }
+}
+
+// Separate function to process webhook events
+async function processWebhookEvent(event: Stripe.Event): Promise<void> {
+  switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
         await handleCheckoutSessionCompleted(session);
@@ -162,6 +196,36 @@ export async function POST(request: NextRequest) {
         break;
       }
 
+      case 'charge.dispute.created': {
+        const dispute = event.data.object as Stripe.Dispute;
+        await handleDisputeCreated(dispute);
+        break;
+      }
+
+      case 'charge.dispute.updated': {
+        const dispute = event.data.object as Stripe.Dispute;
+        await handleDisputeUpdated(dispute);
+        break;
+      }
+
+      case 'charge.dispute.closed': {
+        const dispute = event.data.object as Stripe.Dispute;
+        await handleDisputeClosed(dispute);
+        break;
+      }
+
+      case 'charge.dispute.funds_withdrawn': {
+        const dispute = event.data.object as Stripe.Dispute;
+        await handleDisputeFundsWithdrawn(dispute);
+        break;
+      }
+
+      case 'charge.dispute.funds_reinstated': {
+        const dispute = event.data.object as Stripe.Dispute;
+        await handleDisputeFundsReinstated(dispute);
+        break;
+      }
+
       case 'customer.updated': {
         const customer = event.data.object as Stripe.Customer;
         await handleCustomerUpdated(customer);
@@ -177,16 +241,6 @@ export async function POST(request: NextRequest) {
       default:
         console.log('[Stripe Webhook] Unhandled event type:', event.type);
     }
-
-    // Always return 200 to acknowledge receipt
-    return NextResponse.json({ received: true });
-
-  } catch (error) {
-    console.error('[Stripe Webhook] Error processing webhook:', error);
-    // Still return 200 to prevent Stripe from retrying
-    // Log error for manual review
-    return NextResponse.json({ received: true, error: 'Processing error logged' });
-  }
 }
 
 async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
@@ -1037,13 +1091,19 @@ async function handleInvoicePaymentFailed(invoice: InvoiceWithSubscription) {
       return;
     }
 
-    // Update subscription status to past_due
+    // Calculate grace period expiry (7 days from now)
+    const now = new Date();
+    const gracePeriodEndsAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    // Update subscription status to past_due with grace period info
     await supabase
       .from('platform_subscriptions')
-      .update({ 
+      .update({
         status: 'past_due',
         metadata: {
-          last_payment_failure: new Date().toISOString(),
+          last_payment_failure: now.toISOString(),
+          grace_period_ends_at: gracePeriodEndsAt.toISOString(),
+          grace_period_days: 7,
           invoice_id: invoice.id,
           attempt_count: invoice.attempt_count,
         },
@@ -1068,7 +1128,7 @@ async function handleInvoicePaymentFailed(invoice: InvoiceWithSubscription) {
       },
     });
 
-    // Log to audit
+    // Log to audit with grace period information
     await supabase
       .from('audit_logs')
       .insert({
@@ -1080,6 +1140,8 @@ async function handleInvoicePaymentFailed(invoice: InvoiceWithSubscription) {
           invoice_id: invoice.id,
           amount_due: invoice.amount_due / 100,
           attempt_count: invoice.attempt_count,
+          grace_period_ends_at: gracePeriodEndsAt.toISOString(),
+          grace_period_days: 7,
         },
       });
 
@@ -1452,6 +1514,391 @@ async function handleCustomerDeleted(customer: Stripe.Customer) {
 
   } catch (error) {
     console.error('[Stripe Webhook] Error handling customer deleted:', error);
+  }
+}
+
+async function handleDisputeCreated(dispute: Stripe.Dispute) {
+  try {
+    console.log('[Stripe Webhook] Dispute created:', {
+      disputeId: dispute.id,
+      chargeId: dispute.charge,
+      amount: dispute.amount / 100,
+      reason: dispute.reason,
+      status: dispute.status,
+    });
+
+    const supabase = getSupabaseClient();
+
+    // Find the user associated with this charge
+    const { data: transaction } = await supabase
+      .from('platform_transactions')
+      .select('user_id, subscription_id, credits_amount')
+      .eq('stripe_id', typeof dispute.charge === 'string' ? dispute.charge : dispute.charge.id)
+      .single();
+
+    if (!transaction) {
+      console.error('[Stripe Webhook] No transaction found for disputed charge:', dispute.charge);
+      return;
+    }
+
+    // Mark user account as disputed (freeze further purchases)
+    await supabase
+      .from('user_profiles')
+      .update({
+        metadata: {
+          dispute_status: 'under_review',
+          dispute_id: dispute.id,
+          dispute_reason: dispute.reason,
+          dispute_created_at: new Date().toISOString(),
+        },
+      })
+      .eq('id', transaction.user_id);
+
+    // If there's an associated subscription, mark it as disputed
+    if (transaction.subscription_id) {
+      await supabase
+        .from('platform_subscriptions')
+        .update({
+          status: 'disputed',
+          metadata: {
+            dispute_id: dispute.id,
+            dispute_reason: dispute.reason,
+            dispute_created_at: new Date().toISOString(),
+          },
+        })
+        .eq('id', transaction.subscription_id);
+    }
+
+    // Log dispute to audit
+    await supabase
+      .from('audit_logs')
+      .insert({
+        user_id: transaction.user_id,
+        action: 'payment_dispute_created',
+        resource_type: 'platform_transactions',
+        resource_id: dispute.charge as string,
+        metadata: {
+          dispute_id: dispute.id,
+          amount: dispute.amount / 100,
+          reason: dispute.reason,
+          status: dispute.status,
+          evidence_due_by: dispute.evidence_details?.due_by,
+        },
+      });
+
+    console.log('[Stripe Webhook] Dispute created and account frozen:', {
+      userId: transaction.user_id,
+      disputeId: dispute.id,
+    });
+
+  } catch (error) {
+    console.error('[Stripe Webhook] Error handling dispute created:', error);
+    throw error;
+  }
+}
+
+async function handleDisputeUpdated(dispute: Stripe.Dispute) {
+  try {
+    console.log('[Stripe Webhook] Dispute updated:', {
+      disputeId: dispute.id,
+      status: dispute.status,
+    });
+
+    const supabase = getSupabaseClient();
+
+    // Find the user associated with this dispute
+    const { data: transaction } = await supabase
+      .from('platform_transactions')
+      .select('user_id')
+      .eq('stripe_id', typeof dispute.charge === 'string' ? dispute.charge : dispute.charge.id)
+      .single();
+
+    if (!transaction) {
+      console.error('[Stripe Webhook] No transaction found for disputed charge');
+      return;
+    }
+
+    // Update user metadata with dispute status
+    await supabase
+      .from('user_profiles')
+      .update({
+        metadata: {
+          dispute_status: dispute.status,
+          dispute_updated_at: new Date().toISOString(),
+        },
+      })
+      .eq('id', transaction.user_id);
+
+    // Log update to audit
+    await supabase
+      .from('audit_logs')
+      .insert({
+        user_id: transaction.user_id,
+        action: 'payment_dispute_updated',
+        resource_type: 'platform_transactions',
+        resource_id: dispute.charge as string,
+        metadata: {
+          dispute_id: dispute.id,
+          status: dispute.status,
+        },
+      });
+
+  } catch (error) {
+    console.error('[Stripe Webhook] Error handling dispute updated:', error);
+  }
+}
+
+async function handleDisputeClosed(dispute: Stripe.Dispute) {
+  try {
+    console.log('[Stripe Webhook] Dispute closed:', {
+      disputeId: dispute.id,
+      status: dispute.status,
+      outcome: dispute.status,
+    });
+
+    const supabase = getSupabaseClient();
+
+    // Find the user associated with this dispute
+    const { data: transaction } = await supabase
+      .from('platform_transactions')
+      .select('user_id, subscription_id')
+      .eq('stripe_id', typeof dispute.charge === 'string' ? dispute.charge : dispute.charge.id)
+      .single();
+
+    if (!transaction) {
+      console.error('[Stripe Webhook] No transaction found for disputed charge');
+      return;
+    }
+
+    // If dispute was won (status: won), unfreeze account
+    // If dispute was lost (status: lost), funds were already withdrawn
+    if (dispute.status === 'won') {
+      await supabase
+        .from('user_profiles')
+        .update({
+          metadata: {
+            dispute_status: 'resolved_won',
+            dispute_closed_at: new Date().toISOString(),
+          },
+        })
+        .eq('id', transaction.user_id);
+
+      // Restore subscription if it was disputed
+      if (transaction.subscription_id) {
+        await supabase
+          .from('platform_subscriptions')
+          .update({
+            status: 'active',
+            metadata: {
+              dispute_resolved: 'won',
+              dispute_closed_at: new Date().toISOString(),
+            },
+          })
+          .eq('id', transaction.subscription_id);
+      }
+    } else {
+      // Dispute lost - account remains frozen
+      await supabase
+        .from('user_profiles')
+        .update({
+          metadata: {
+            dispute_status: 'resolved_lost',
+            dispute_closed_at: new Date().toISOString(),
+          },
+        })
+        .eq('id', transaction.user_id);
+    }
+
+    // Log to audit
+    await supabase
+      .from('audit_logs')
+      .insert({
+        user_id: transaction.user_id,
+        action: 'payment_dispute_closed',
+        resource_type: 'platform_transactions',
+        resource_id: dispute.charge as string,
+        metadata: {
+          dispute_id: dispute.id,
+          status: dispute.status,
+          outcome: dispute.status === 'won' ? 'merchant_won' : 'customer_won',
+        },
+      });
+
+    console.log('[Stripe Webhook] Dispute closed:', {
+      userId: transaction.user_id,
+      outcome: dispute.status,
+    });
+
+  } catch (error) {
+    console.error('[Stripe Webhook] Error handling dispute closed:', error);
+  }
+}
+
+async function handleDisputeFundsWithdrawn(dispute: Stripe.Dispute) {
+  try {
+    console.log('[Stripe Webhook] Dispute funds withdrawn:', {
+      disputeId: dispute.id,
+      amount: dispute.amount / 100,
+    });
+
+    const supabase = getSupabaseClient();
+
+    // Find the user and transaction associated with this dispute
+    const { data: transaction } = await supabase
+      .from('platform_transactions')
+      .select('user_id, subscription_id, credits_amount')
+      .eq('stripe_id', typeof dispute.charge === 'string' ? dispute.charge : dispute.charge.id)
+      .single();
+
+    if (!transaction) {
+      console.error('[Stripe Webhook] No transaction found for disputed charge');
+      return;
+    }
+
+    // CRITICAL: Revoke access and cancel subscription
+    if (transaction.subscription_id) {
+      await supabase
+        .from('platform_subscriptions')
+        .update({
+          status: 'cancelled',
+          cancelled_at: new Date().toISOString(),
+          metadata: {
+            cancellation_reason: 'dispute_funds_withdrawn',
+            dispute_id: dispute.id,
+          },
+        })
+        .eq('id', transaction.subscription_id);
+
+      console.log('[Stripe Webhook] Subscription cancelled due to dispute:', {
+        subscriptionId: transaction.subscription_id,
+      });
+    }
+
+    // Deduct credits if they were granted (Note: Admin handles actual refund processing)
+    // This is just marking the transaction as disputed
+    await supabase
+      .from('platform_transactions')
+      .update({
+        status: 'disputed',
+        metadata: {
+          dispute_id: dispute.id,
+          funds_withdrawn_at: new Date().toISOString(),
+          original_amount: dispute.amount,
+        },
+      })
+      .eq('stripe_id', typeof dispute.charge === 'string' ? dispute.charge : dispute.charge.id);
+
+    // Mark user account as suspended due to dispute
+    await supabase
+      .from('user_profiles')
+      .update({
+        metadata: {
+          dispute_status: 'funds_withdrawn',
+          account_suspended: true,
+          suspended_reason: 'chargeback',
+          suspended_at: new Date().toISOString(),
+        },
+      })
+      .eq('id', transaction.user_id);
+
+    // Log to audit (CRITICAL EVENT)
+    await supabase
+      .from('audit_logs')
+      .insert({
+        user_id: transaction.user_id,
+        action: 'payment_dispute_funds_withdrawn',
+        resource_type: 'platform_transactions',
+        resource_id: dispute.charge as string,
+        metadata: {
+          dispute_id: dispute.id,
+          amount_withdrawn: dispute.amount / 100,
+          credits_revoked: transaction.credits_amount,
+          subscription_cancelled: !!transaction.subscription_id,
+          severity: 'critical',
+        },
+      });
+
+    console.log('[Stripe Webhook] CRITICAL: Funds withdrawn, access revoked:', {
+      userId: transaction.user_id,
+      amount: dispute.amount / 100,
+      creditsRevoked: transaction.credits_amount,
+    });
+
+  } catch (error) {
+    console.error('[Stripe Webhook] Error handling dispute funds withdrawn:', error);
+    throw error;
+  }
+}
+
+async function handleDisputeFundsReinstated(dispute: Stripe.Dispute) {
+  try {
+    console.log('[Stripe Webhook] Dispute funds reinstated:', {
+      disputeId: dispute.id,
+      amount: dispute.amount / 100,
+    });
+
+    const supabase = getSupabaseClient();
+
+    // Find the user associated with this dispute
+    const { data: transaction } = await supabase
+      .from('platform_transactions')
+      .select('user_id, subscription_id')
+      .eq('stripe_id', typeof dispute.charge === 'string' ? dispute.charge : dispute.charge.id)
+      .single();
+
+    if (!transaction) {
+      console.error('[Stripe Webhook] No transaction found for disputed charge');
+      return;
+    }
+
+    // Restore transaction status
+    await supabase
+      .from('platform_transactions')
+      .update({
+        status: 'succeeded',
+        metadata: {
+          dispute_resolved: 'won',
+          funds_reinstated_at: new Date().toISOString(),
+        },
+      })
+      .eq('stripe_id', typeof dispute.charge === 'string' ? dispute.charge : dispute.charge.id);
+
+    // Unfreeze user account
+    await supabase
+      .from('user_profiles')
+      .update({
+        metadata: {
+          dispute_status: 'resolved_funds_reinstated',
+          account_suspended: false,
+          reinstated_at: new Date().toISOString(),
+        },
+      })
+      .eq('id', transaction.user_id);
+
+    // Note: Admin should manually review whether to restore subscription/credits
+    // as they may have already been replaced or the dispute may indicate fraud
+
+    // Log to audit
+    await supabase
+      .from('audit_logs')
+      .insert({
+        user_id: transaction.user_id,
+        action: 'payment_dispute_funds_reinstated',
+        resource_type: 'platform_transactions',
+        resource_id: dispute.charge as string,
+        metadata: {
+          dispute_id: dispute.id,
+          amount_reinstated: dispute.amount / 100,
+          note: 'Manual review required for service restoration',
+        },
+      });
+
+    console.log('[Stripe Webhook] Funds reinstated, account unfrozen (manual review required):', {
+      userId: transaction.user_id,
+    });
+
+  } catch (error) {
+    console.error('[Stripe Webhook] Error handling dispute funds reinstated:', error);
   }
 }
 
