@@ -404,7 +404,15 @@ export default function PublishToolPage() {
           name: formData.name,
           description: formData.description,
           toolExternalUrl: formData.toolExternalUrl || '',
-          metadata: metadata,
+          heroImageUrl: publicUrl,  // Add at top level for backend
+          logoUrl: logoUrl || undefined,  // Add at top level for backend
+          emoji: uiMetadata.emoji || undefined,
+          tags: uiMetadata.tags.length > 0 ? uiMetadata.tags : undefined,
+          category: uiMetadata.category || undefined,
+          discountPercentage: uiMetadata.discountPercentage > 0 ? uiMetadata.discountPercentage : undefined,
+          longDescription: contentMetadata.longDescription || undefined,
+          customPricingEmail: formData.customPricingEmail || undefined,
+          metadata: metadata,  // Keep for backward compatibility
         }),
       });
 

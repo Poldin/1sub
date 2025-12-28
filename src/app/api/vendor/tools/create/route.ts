@@ -101,6 +101,8 @@ export async function POST(request: NextRequest) {
       vendor_id: user.id,
       ui: {
         emoji,
+        hero_image_url: heroImageUrl,  // Add image URLs to metadata
+        logo_url: logoUrl,  // Add logo URL to metadata
         tags,
         discount_percentage: discountPercentage,
       },
