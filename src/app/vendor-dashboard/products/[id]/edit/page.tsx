@@ -147,22 +147,20 @@ export default function EditProductPage() {
     }
 
     try {
-      const supabase = createClient();
-      const { error } = await supabase
-        .from('tool_products')
-        .delete()
-        .eq('id', productId);
+      // Use the API endpoint which properly handles deletion with service role
+      const response = await fetch(`/api/vendor/products/${productId}`, {
+        method: 'DELETE',
+      });
 
-      if (error) {
-        console.error('Error deleting product:', error);
-        alert('Failed to delete product');
-        return;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.details || 'Failed to delete product');
       }
 
       router.push('/vendor-dashboard/products');
     } catch (error) {
       console.error('Error deleting product:', error);
-      alert('Failed to delete product');
+      alert(error instanceof Error ? error.message : 'Failed to delete product');
     }
   };
 

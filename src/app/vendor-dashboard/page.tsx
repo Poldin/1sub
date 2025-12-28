@@ -138,18 +138,16 @@ export default function VendorDashboard() {
     setDeleteError(null);
 
     try {
-      const supabase = createClient();
       const toolId = toolPendingDeletion.id;
 
-      // Delete related data first to avoid foreign key issues
-      await supabase.from('tool_products').delete().eq('tool_id', toolId);
-      await supabase.from('tool_subscriptions').delete().eq('tool_id', toolId);
-      await supabase.from('credit_transactions').delete().eq('tool_id', toolId);
+      // Use the API endpoint which properly handles deletion with service role
+      const response = await fetch(`/api/vendor/tools/${toolId}`, {
+        method: 'DELETE',
+      });
 
-      const { error: toolDeleteError } = await supabase.from('tools').delete().eq('id', toolId);
-
-      if (toolDeleteError) {
-        throw toolDeleteError;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.details || 'Failed to delete tool');
       }
 
       const updatedTools = tools.filter((tool) => tool.id !== toolId);
@@ -165,7 +163,7 @@ export default function VendorDashboard() {
       setToolRefreshToken((prev) => prev + 1);
     } catch (error) {
       console.error('Error deleting tool:', error);
-      setDeleteError('Failed to delete tool. Please try again.');
+      setDeleteError(error instanceof Error ? error.message : 'Failed to delete tool. Please try again.');
     } finally {
       setIsDeletingTool(false);
     }

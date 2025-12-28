@@ -101,8 +101,8 @@ export default function Sidebar({ isOpen, onClose, userId, userRole = 'user', ha
 
     fetchCredits();
 
-    // Refresh credits every 30 seconds
-    const interval = setInterval(fetchCredits, 30000);
+    // Refresh credits every 15 seconds for better UX (reduced from 30s per audit recommendation)
+    const interval = setInterval(fetchCredits, 15000);
 
     return () => clearInterval(interval);
   }, [userId]);
