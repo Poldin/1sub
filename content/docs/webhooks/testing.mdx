@@ -125,7 +125,7 @@ console.log('Payload:', testPayload);
 
 ```bash
 curl -X POST 'http://localhost:3000/webhooks/1sub' \
-  -H 'X-1Sub-Signature: t=1700000000,v1=your-computed-signature' \
+  -H 'x-1sub-signature: t=1700000000,v1=your-computed-signature' \
   -H 'Content-Type: application/json' \
   -d '{
     "id": "evt_test_001",
@@ -193,7 +193,7 @@ describe('Webhook Handler', () => {
       
       const response = await request(app)
         .post('/webhooks/1sub')
-        .set('X-1Sub-Signature', signature)
+        .set('x-1sub-signature', signature)
         .set('Content-Type', 'application/json')
         .send(body);
       
@@ -206,7 +206,7 @@ describe('Webhook Handler', () => {
       
       const response = await request(app)
         .post('/webhooks/1sub')
-        .set('X-1Sub-Signature', 't=123,v1=invalid')
+        .set('x-1sub-signature', 't=123,v1=invalid')
         .set('Content-Type', 'application/json')
         .send(payload);
       
@@ -223,7 +223,7 @@ describe('Webhook Handler', () => {
       
       const response = await request(app)
         .post('/webhooks/1sub')
-        .set('X-1Sub-Signature', `t=${oldTimestamp},v1=${sig}`)
+        .set('x-1sub-signature', `t=${oldTimestamp},v1=${sig}`)
         .set('Content-Type', 'application/json')
         .send(payload);
       
@@ -252,7 +252,7 @@ describe('Webhook Handler', () => {
       
       const response = await request(app)
         .post('/webhooks/1sub')
-        .set('X-1Sub-Signature', signature)
+        .set('x-1sub-signature', signature)
         .send(body);
       
       expect(response.status).toBe(200);
@@ -283,7 +283,7 @@ describe('Webhook Handler', () => {
       
       const response = await request(app)
         .post('/webhooks/1sub')
-        .set('X-1Sub-Signature', signature)
+        .set('x-1sub-signature', signature)
         .send(body);
       
       expect(response.status).toBe(200);
@@ -314,13 +314,13 @@ describe('Webhook Handler', () => {
       // First call
       await request(app)
         .post('/webhooks/1sub')
-        .set('X-1Sub-Signature', signature)
+        .set('x-1sub-signature', signature)
         .send(body);
       
       // Second call (duplicate)
       const response = await request(app)
         .post('/webhooks/1sub')
-        .set('X-1Sub-Signature', signature)
+        .set('x-1sub-signature', signature)
         .send(body);
       
       expect(response.status).toBe(200);

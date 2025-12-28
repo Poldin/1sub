@@ -102,7 +102,7 @@ All API endpoints use: `https://1sub.io`
 - ✅ Removed deprecated endpoints (`/tools/subscriptions/verify`, `/tools/link/exchange-code`)
 - ✅ Updated all code examples for new authorization flow
 - ✅ Added verification token rotation documentation
-- ✅ Updated webhook signature header to `X-1Sub-Signature`
+- ✅ Updated webhook signature header to `x-1sub-signature`
 - ✅ Simplified integration flow for better developer experience
 
 ## 🔍 Verification Status
