@@ -1,308 +1,332 @@
-# Automated Testing Suite
+# API Integration Tests
 
-This directory contains all automated tests for the 1sub platform.
-
-## Directory Structure
-
-```
-tests/
-├── unit/                   # Unit tests (fast, isolated)
-│   └── lib/               # Library function tests
-├── integration/           # Integration tests (API, database)
-│   ├── api/              # API endpoint tests
-│   └── database/         # Database integrity tests
-├── e2e/                  # End-to-end tests (full user flows)
-│   └── user/             # User flow tests
-├── security/             # Security vulnerability tests
-├── performance/          # Load and performance tests
-├── helpers/              # Test utilities and helpers
-├── fixtures/             # Test data
-└── mocks/                # Mock implementations
-```
-
-## Quick Start
-
-### 1. Install Dependencies
-
-```bash
-npm install
-```
-
-### 2. Set Up Environment
-
-Create `.env.test`:
-
-```bash
-NEXT_PUBLIC_SUPABASE_URL=your_test_supabase_url
-SUPABASE_SERVICE_ROLE_KEY=your_test_service_role_key
-JWT_SECRET=test_secret_min_32_characters
-STRIPE_SECRET_KEY=sk_test_your_stripe_test_key
-TEST_API_URL=http://localhost:3000
-```
-
-### 3. Run Tests
-
-```bash
-# Run all tests
-npm run test:all
-
-# Run specific suites
-npm run test:unit
-npm run test:e2e
-npm run test:security
-```
-
-## Test Types
-
-### Unit Tests (`tests/unit/`)
-- Test individual functions in isolation
-- Fast execution (< 100ms per test)
-- Mock external dependencies
-- **Run before every commit**
-
-Example:
-```typescript
-import { describe, it, expect } from 'vitest';
-
-describe('My Function', () => {
-  it('should return correct value', () => {
-    expect(myFunction('input')).toBe('output');
-  });
-});
-```
-
-### Integration Tests (`tests/integration/`)
-- Test API endpoints
-- Test database operations
-- Test service integrations
-- **Run before every push**
-
-Example:
-```typescript
-import request from 'supertest';
-
-describe('API Endpoint', () => {
-  it('should return 200', async () => {
-    await request('http://localhost:3000')
-      .get('/api/endpoint')
-      .expect(200);
-  });
-});
-```
-
-### E2E Tests (`tests/e2e/`)
-- Test complete user journeys
-- Run in real browsers
-- Test UI interactions
-- **Run before every deployment**
-
-Example:
-```typescript
-import { test, expect } from '@playwright/test';
-
-test('user can login', async ({ page }) => {
-  await page.goto('/login');
-  await page.fill('input[name="email"]', 'test@example.com');
-  await page.click('button[type="submit"]');
-  await expect(page).toHaveURL('/dashboard');
-});
-```
-
-### Security Tests (`tests/security/`)
-- Test for SQL injection
-- Test for XSS vulnerabilities
-- Test authentication/authorization
-- **Run on every PR**
-
-### Performance Tests (`tests/performance/`)
-- Load testing
-- Lighthouse audits
-- API response time testing
-- **Run before major releases**
-
-## Writing Tests
-
-### Best Practices
-
-1. **Descriptive Names**: Use clear test names
-   ```typescript
-   it('should reject invalid email format') // ✅ Good
-   it('test email') // ❌ Bad
-   ```
-
-2. **Arrange-Act-Assert**: Structure your tests
-   ```typescript
-   it('should add credits', async () => {
-     // Arrange
-     const userId = 'test-user-id';
-     const amount = 50;
-
-     // Act
-     const result = await addCredits(userId, amount);
-
-     // Assert
-     expect(result.success).toBe(true);
-     expect(result.newBalance).toBe(50);
-   });
-   ```
-
-3. **Isolation**: Each test should be independent
-   ```typescript
-   beforeEach(async () => {
-     await setupTestData();
-   });
-
-   afterEach(async () => {
-     await cleanupTestData();
-   });
-   ```
-
-4. **Mock External Services**: Don't call real APIs
-   ```typescript
-   vi.mock('stripe', () => ({
-     checkout: {
-       sessions: {
-         create: vi.fn(() => ({ id: 'session_123' }))
-       }
-     }
-   }));
-   ```
+Comprehensive integration tests for the 1sub API endpoints, focusing on vendor product and tool management.
 
 ## Test Coverage
 
-### Current Coverage Requirements
+### Vendor Products API (`tests/integration/api/vendor-products.api.test.ts`)
+- ✅ Product creation (POST /api/vendor/products)
+  - Valid vendor authentication
+  - Custom pricing products
+  - Unauthorized access prevention
+  - Missing required fields validation
+  - Non-existent tool handling
+  - Regular user rejection
+- ✅ Product updates (PATCH /api/vendor/products/[id])
+  - Full and partial updates
+  - Pricing model updates
+  - Authorization checks
+  - Ownership verification
+- ✅ Product deletion (DELETE /api/vendor/products/[id])
+  - Successful deletion with verification
+  - Authorization checks
+  - Ownership verification
 
-| Metric | Threshold |
-|--------|-----------|
-| Statements | 70% |
-| Branches | 70% |
-| Functions | 70% |
-| Lines | 70% |
+### Vendor Tools API (`tests/integration/api/vendor-tools.api.test.ts`)
+- ✅ Tool updates (PATCH /api/vendor/tools/[id]/update)
+  - Basic information updates
+  - Metadata updates (emoji, tags, discounts)
+  - Partial updates
+  - Image updates
+  - Authorization and ownership checks
+- ✅ Tool deletion (DELETE /api/vendor/tools/[id])
+  - Successful deletion
+  - Cascade deletion verification
+  - Authorization and ownership checks
 
-### Critical Paths (100% Coverage Required)
+## Prerequisites
 
-- `src/lib/credits.ts` - Credit system
-- `src/lib/validation.ts` - Input validation
-- `src/lib/sanitization.ts` - XSS prevention
-- `src/app/api/stripe/webhook/route.ts` - Payment processing
+### 1. Environment Variables
 
-### Check Coverage
+Create a `.env.test` file in the project root with the following variables:
 
 ```bash
-npm run test:coverage
-open coverage/index.html
+# Supabase Configuration
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+
+# API Configuration
+TEST_API_URL=http://localhost:3000
 ```
 
-## CI/CD Integration
+**⚠️ Important:**
+- Use a **test/staging database**, NOT your production database
+- The service role key has full database access and bypasses RLS
+- Never commit these credentials to version control
 
-Tests run automatically in GitHub Actions:
+### 2. Test Database Setup
 
-- **On Push**: Unit + Integration tests
-- **On PR**: All tests including E2E
-- **On Deploy**: Full test suite + Performance tests
+The tests use the service role key to:
+- Create test users and vendors
+- Set up test tools and products
+- Clean up after tests complete
 
-See `.github/workflows/test.yml` for configuration.
+Make sure your test database has:
+- All necessary tables created (tools, tool_products, user_profiles, etc.)
+- RLS policies configured
+- Proper foreign key constraints with CASCADE
 
-## Debugging
+## Running Tests
 
-### Debug Unit Tests
-
+### Run All Tests
 ```bash
-# Watch mode
+npm test
+```
+
+### Run Specific Test Suites
+```bash
+# Run only integration tests
+npm run test:integration
+
+# Run only vendor-related integration tests
+npm run test:integration:vendor
+
+# Run unit tests
+npm run test:unit
+
+# Run security tests
+npm run test:security
+
+# Run E2E tests
+npm run test:e2e
+```
+
+### Run Specific Test Files
+```bash
+# Run vendor products tests
+npx vitest run tests/integration/api/vendor-products.api.test.ts
+
+# Run vendor tools tests
+npx vitest run tests/integration/api/vendor-tools.api.test.ts
+```
+
+### Watch Mode (for development)
+```bash
 npm run test:watch
-
-# Debug specific file
-npx vitest run tests/unit/lib/validation.test.ts --reporter=verbose
 ```
 
-### Debug E2E Tests
+## Test Structure
 
+```
+tests/
+├── integration/
+│   ├── api/
+│   │   ├── vendor-products.api.test.ts  # Product CRUD tests
+│   │   ├── vendor-tools.api.test.ts     # Tool update/delete tests
+│   │   ├── checkout.api.test.ts
+│   │   └── ...
+│   ├── database/
+│   └── vendor/
+├── helpers/
+│   ├── db-helpers.ts                    # Database helper functions
+│   └── vendor-integration-helpers.ts
+├── unit/
+├── security/
+└── e2e/
+```
+
+## Helper Functions
+
+The test helpers (`tests/helpers/db-helpers.ts`) provide utilities for:
+
+### User Management
+- `createTestUser()` - Create a test user
+- `createTestVendor()` - Create a test vendor
+- `cleanupTestUser(userId)` - Delete test user and related data
+
+### Tool Management
+- `createTestTool(vendorId, name?)` - Create a test tool
+- `createTestProduct(toolId, productData?)` - Create a test product
+
+### Database Access
+- `getTestSupabase()` - Get service role Supabase client
+- `getBalance(userId)` - Get user credit balance
+- `addTestCredits(userId, amount)` - Add credits to user
+
+## Writing New Tests
+
+### Example Test Structure
+
+```typescript
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import {
+  createTestVendor,
+  createTestTool,
+  cleanupTestUser,
+  getTestSupabase,
+} from '../../helpers/db-helpers';
+
+describe('My API Endpoint', () => {
+  let testVendorId: string;
+  let testVendorAuth: { access_token: string };
+
+  beforeAll(async () => {
+    const vendor = await createTestVendor();
+    testVendorId = vendor.id;
+
+    const supabase = getTestSupabase();
+    const { data } = await supabase.auth.signInWithPassword({
+      email: vendor.email!,
+      password: 'TestPassword123!',
+    });
+    testVendorAuth = data.session!;
+  });
+
+  afterAll(async () => {
+    await cleanupTestUser(testVendorId);
+  });
+
+  it('should do something', async () => {
+    const response = await fetch(`${process.env.TEST_API_URL}/api/my-endpoint`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${testVendorAuth.access_token}`,
+      },
+      body: JSON.stringify({ /* data */ }),
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.success).toBe(true);
+  });
+});
+```
+
+## Test Best Practices
+
+1. **Isolation**: Each test should be independent and not rely on others
+2. **Cleanup**: Always clean up test data in `afterAll` hooks
+3. **Authentication**: Test both authenticated and unauthenticated scenarios
+4. **Authorization**: Test ownership verification (vendor can only access their own resources)
+5. **Edge Cases**: Test invalid inputs, missing fields, non-existent resources
+6. **Cascades**: Verify cascade deletes work correctly
+7. **Idempotency**: Tests should be repeatable and produce consistent results
+
+## Common Test Scenarios
+
+### Testing Authorization
+```typescript
+it('should reject access by different vendor', async () => {
+  const otherVendor = await createTestVendor();
+  const { data } = await supabase.auth.signInWithPassword({
+    email: otherVendor.email!,
+    password: 'TestPassword123!',
+  });
+
+  const response = await fetch(url, {
+    headers: { 'Authorization': `Bearer ${data.session!.access_token}` }
+  });
+
+  expect(response.status).toBe(403);
+});
+```
+
+### Testing Validation
+```typescript
+it('should reject request with missing required fields', async () => {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ /* incomplete data */ }),
+  });
+
+  expect(response.status).toBe(400);
+  const data = await response.json();
+  expect(data.error).toContain('required');
+});
+```
+
+### Testing Cascade Deletes
+```typescript
+it('should cascade delete related records', async () => {
+  // Create parent resource
+  const parent = await createParentResource();
+
+  // Create child resource
+  const child = await createChildResource(parent.id);
+
+  // Delete parent
+  await deleteParent(parent.id);
+
+  // Verify child was deleted
+  const supabase = getTestSupabase();
+  const { data } = await supabase
+    .from('children')
+    .select('*')
+    .eq('id', child.id)
+    .maybeSingle();
+
+  expect(data).toBeNull();
+});
+```
+
+## Debugging Failed Tests
+
+### Enable Verbose Logging
 ```bash
-# Run with visible browser
-npm run test:e2e:headed
+# Set log level
+export VITEST_LOG_LEVEL=verbose
+npm test
+```
 
-# Open Playwright UI
-npm run test:e2e:ui
+### Run Single Test
+```bash
+npx vitest run tests/integration/api/vendor-products.api.test.ts -t "should create a product"
+```
 
-# Debug mode with inspector
-npx playwright test --debug
+### Check Database State
+Use the Supabase dashboard or SQL editor to inspect test data:
+```sql
+SELECT * FROM tools WHERE name LIKE 'Test%';
+SELECT * FROM tool_products WHERE name LIKE 'Test%';
 ```
 
 ### Common Issues
 
-**Tests timing out:**
-```typescript
-// Increase timeout for slow tests
-it('slow test', async () => {
-  // ... test code
-}, { timeout: 30000 }); // 30 seconds
+1. **"Missing Supabase environment variables"**
+   - Solution: Create `.env.test` file with required variables
+
+2. **"Unauthorized" errors in tests**
+   - Solution: Check if user/vendor was created successfully
+   - Verify auth token is being passed correctly
+
+3. **"Foreign key violation" errors**
+   - Solution: Ensure parent resources are created before children
+   - Check cleanup order in `afterAll` hooks
+
+4. **Tests hanging or timing out**
+   - Solution: Ensure all async operations use `await`
+   - Check for missing cleanup in `afterAll` hooks
+
+## CI/CD Integration
+
+Add to your CI pipeline:
+
+```yaml
+# .github/workflows/test.yml
+- name: Run Integration Tests
+  env:
+    NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
+    SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.TEST_SERVICE_ROLE_KEY }}
+    TEST_API_URL: http://localhost:3000
+  run: |
+    npm run dev &
+    sleep 5
+    npm run test:integration
 ```
-
-**Database connection errors:**
-- Check `.env.test` has correct Supabase credentials
-- Verify test database is accessible
-- Ensure migrations are applied
-
-**Port conflicts:**
-- Make sure port 3000 is available
-- Kill any running dev servers: `lsof -ti:3000 | xargs kill`
-
-## Performance Benchmarks
-
-### Target Response Times
-
-| Test Type | Target |
-|-----------|--------|
-| Unit Test | < 100ms |
-| Integration Test | < 1s |
-| E2E Test | < 5s |
-| API Endpoint (p95) | < 500ms |
-
-### Load Testing
-
-```bash
-npm run test:load
-```
-
-Expected results:
-- Throughput: > 100 req/s
-- P95 Latency: < 500ms
-- Error Rate: 0%
 
 ## Contributing
 
-### Adding New Tests
-
-1. Create test file in appropriate directory
-2. Follow naming convention: `*.test.ts` or `*.e2e.test.ts`
-3. Add descriptive test cases
-4. Run tests locally: `npm run test`
-5. Ensure coverage doesn't decrease
-
-### Test Naming Convention
-
-```
-[what-being-tested].[test-type].ts
-
-Examples:
-- validation.test.ts (unit test)
-- credit-purchase.e2e.test.ts (E2E test)
-- stripe-webhook.integration.test.ts (integration test)
-```
+When adding new API endpoints:
+1. Create tests for all CRUD operations
+2. Test authorization and authentication
+3. Test edge cases and error scenarios
+4. Update this README with new test coverage
+5. Ensure tests pass before submitting PR
 
 ## Resources
 
-- **Vitest Docs**: https://vitest.dev
-- **Playwright Docs**: https://playwright.dev
-- **Testing Library**: https://testing-library.com
-- **Supertest**: https://github.com/ladjs/supertest
-
-## Getting Help
-
-- Check `TESTING_GUIDE.md` for detailed setup instructions
-- Review example tests in each directory
-- See `AUTOMATED_TESTING_PLAN.md` for comprehensive documentation
-
----
-
-**Remember**: Good tests are your safety net. Write them! 🧪✅
+- [Vitest Documentation](https://vitest.dev/)
+- [Supabase Testing Guide](https://supabase.com/docs/guides/getting-started/testing)
+- [Testing Best Practices](https://kentcdodds.com/blog/common-mistakes-with-react-testing-library)

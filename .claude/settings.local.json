@@ -23,7 +23,11 @@
       "Bash(where /r \"C:\\\\Users\\\\DISTRICTS\\\\Desktop\\\\1sub-dev\" *.sql)",
       "Bash(xargs:*)",
       "Bash(find:*)",
-      "Bash(node scripts/verify-p0-fixes.js:*)"
+      "Bash(node scripts/verify-p0-fixes.js:*)",
+      "Bash(grep:*)",
+      "Bash(move:*)",
+      "Bash(move \"content\\\\docs\\\\internal\\\\checkout-flows.mdx\" \"documentation\\\\internal\\\\checkout-flows.mdx\")",
+      "Bash(move \"content\\\\docs\\\\internal\\\\deployment.mdx\" \"documentation\\\\internal\\\\deployment.mdx\")"
     ],
     "deny": [],
     "ask": []

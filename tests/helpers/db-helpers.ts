@@ -70,13 +70,13 @@ export async function createTestVendor() {
   return user;
 }
 
-export async function createTestTool(vendorId: string) {
+export async function createTestTool(vendorId: string, name?: string) {
   const supabase = getTestSupabase();
 
   const { data: tool, error } = await supabase
     .from('tools')
     .insert({
-      name: 'Test Tool',
+      name: name || 'Test Tool',
       description: 'Test tool for automated testing',
       url: 'https://test-tool.example.com',
       category: 'AI',
@@ -89,6 +89,45 @@ export async function createTestTool(vendorId: string) {
   if (error) throw error;
 
   return tool;
+}
+
+export async function createTestProduct(toolId: string, productData?: Partial<{
+  name: string;
+  description: string;
+  pricing_model: any;
+  is_active: boolean;
+  is_custom_plan: boolean;
+  contact_email: string;
+}>) {
+  const supabase = getTestSupabase();
+
+  const defaultData = {
+    name: 'Test Product',
+    description: 'Test product for automated testing',
+    pricing_model: {
+      one_time: {
+        enabled: true,
+        price: 10,
+      },
+    },
+    is_active: true,
+    is_custom_plan: false,
+    contact_email: null,
+  };
+
+  const { data: product, error } = await supabase
+    .from('tool_products')
+    .insert({
+      tool_id: toolId,
+      ...defaultData,
+      ...productData,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return product;
 }
 
 export async function cleanupTestUser(userId: string) {

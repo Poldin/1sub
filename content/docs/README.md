@@ -118,20 +118,20 @@ All documentation has been verified against the codebase implementation:
 
 ## 🛠️ Development
 
-This documentation is built with [Mintlify](https://mintlify.com) and configured via `docs.json`.
+This documentation is hosted on Mintlify cloud at https://1sub-6e656888.mintlify.dev and configured via `docs.json`.
 
-### Local Development
-```bash
-# Install Mintlify CLI
-npm i -g mintlify
+### Making Changes
 
-# Start local server
-cd docs
-mintlify dev
-```
+To update the documentation:
+1. Edit files in `content/docs/`
+2. Commit and push to the main branch
+3. Changes will be automatically deployed to Mintlify
 
 ### Documentation Standards
 See [.cursor/rules/docs.mdc](.cursor/rules/docs.mdc) for writing guidelines and Mintlify component usage.
+
+### Internal Documentation
+Internal architecture and implementation docs are located in `documentation/internal/` and are NOT published to the public docs site.
 
 ## 📞 Support
 

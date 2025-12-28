@@ -59,21 +59,21 @@ Authorization: Bearer sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx
 
 <CodeGroup>
 ```bash cURL
-curl -X POST 'https://1sub.io/api/v1/tools/subscriptions/verify' \
+curl -X POST 'https://1sub.io/api/v1/verify' \
   -H 'Authorization: Bearer sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx' \
   -H 'Content-Type: application/json' \
-  -d '{"oneSubUserId": "uuid-abc-123"}'
+  -d '{"verificationToken": "vt_xxxxxxxxxxxxxxxxxxxxxxxx"}'
 ```
 
 ```javascript Node.js (fetch)
-const response = await fetch('https://1sub.io/api/v1/tools/subscriptions/verify', {
+const response = await fetch('https://1sub.io/api/v1/verify', {
   method: 'POST',
   headers: {
     'Authorization': `Bearer ${process.env.ONESUB_API_KEY}`,
     'Content-Type': 'application/json',
   },
   body: JSON.stringify({
-    oneSubUserId: 'uuid-abc-123'
+    verificationToken: 'vt_xxxxxxxxxxxxxxxxxxxxxxxx'
   })
 });
 ```
@@ -82,8 +82,8 @@ const response = await fetch('https://1sub.io/api/v1/tools/subscriptions/verify'
 import axios from 'axios';
 
 const response = await axios.post(
-  'https://1sub.io/api/v1/tools/subscriptions/verify',
-  { oneSubUserId: 'uuid-abc-123' },
+  'https://1sub.io/api/v1/verify',
+  { verificationToken: 'vt_xxxxxxxxxxxxxxxxxxxxxxxx' },
   {
     headers: {
       'Authorization': `Bearer ${process.env.ONESUB_API_KEY}`,
@@ -98,8 +98,8 @@ import os
 import requests
 
 response = requests.post(
-    'https://1sub.io/api/v1/tools/subscriptions/verify',
-    json={'oneSubUserId': 'uuid-abc-123'},
+    'https://1sub.io/api/v1/verify',
+    json={'verificationToken': 'vt_xxxxxxxxxxxxxxxxxxxxxxxx'},
     headers={
         'Authorization': f'Bearer {os.environ["ONESUB_API_KEY"]}',
         'Content-Type': 'application/json'
@@ -275,16 +275,16 @@ Verify your authentication setup works:
 
 ```bash
 # Test authentication
-curl -X POST 'https://1sub.io/api/v1/tools/subscriptions/verify' \
+curl -X POST 'https://1sub.io/api/v1/verify' \
   -H 'Authorization: Bearer YOUR_API_KEY' \
   -H 'Content-Type: application/json' \
-  -d '{"oneSubUserId": "test-user-id"}'
+  -d '{"verificationToken": "vt_test_token"}'
 
-# Expected response (404 is OK - just testing auth):
-# {"error": "Not found", "message": "No subscription found"}
+# Expected response if auth works but token is invalid:
+# {"valid": false, "error": "INVALID_TOKEN", "reason": "Token verification failed"}
 
 # If auth fails, you'll get:
-# {"error": "Unauthorized", "message": "Invalid API key"}
+# {"valid": false, "error": "UNAUTHORIZED", "reason": "Invalid API key"}
 ```
 
 
