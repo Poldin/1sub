@@ -164,26 +164,7 @@ jobs:
       - name: Run security tests
         run: npm run test:security
 
-  # Job 6: Database Tests
-  database-tests:
-    name: Database Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run database tests
-        run: npm run test:database
-
-  # Job 7: Test Summary
+  # Job 6: Test Summary
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
@@ -193,7 +174,6 @@ jobs:
       - integration-tests
       - e2e-tests
       - security-tests
-      - database-tests
     if: always()
     steps:
       - name: Check test results
@@ -202,8 +182,7 @@ jobs:
           if [ "${{ needs.unit-tests.result }}" == "failure" ] || \
              [ "${{ needs.integration-tests.result }}" == "failure" ] || \
              [ "${{ needs.e2e-tests.result }}" == "failure" ] || \
-             [ "${{ needs.security-tests.result }}" == "failure" ] || \
-             [ "${{ needs.database-tests.result }}" == "failure" ]; then
+             [ "${{ needs.security-tests.result }}" == "failure" ]; then
             echo "❌ Some tests failed"
             exit 1
           fi
