@@ -8,6 +8,26 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/infrastructure/database';
 import { generateApiKey, storeApiKey } from '@/security';
 import { createTool } from '@/domains/tools';
+import { STORAGE_BUCKET } from '@/lib/storage-validation';
+
+/**
+ * Validates that a URL is from our Supabase storage
+ */
+function validateStorageUrl(url: string | null | undefined): boolean {
+  if (!url) return true; // Optional fields
+
+  try {
+    const urlObj = new URL(url);
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+    if (!supabaseUrl) return false;
+
+    const supabaseDomain = new URL(supabaseUrl).hostname;
+    return urlObj.hostname === supabaseDomain || urlObj.hostname.endsWith('.supabase.co');
+  } catch {
+    return false;
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -57,6 +77,21 @@ export async function POST(request: NextRequest) {
     if (!name || !description || !toolExternalUrl) {
       return NextResponse.json(
         { error: 'Name, description, and tool URL are required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate image URLs are from our storage
+    if (heroImageUrl && !validateStorageUrl(heroImageUrl)) {
+      return NextResponse.json(
+        { error: 'Invalid hero image URL. Must be from authorized storage.' },
+        { status: 400 }
+      );
+    }
+
+    if (logoUrl && !validateStorageUrl(logoUrl)) {
+      return NextResponse.json(
+        { error: 'Invalid logo URL. Must be from authorized storage.' },
         { status: 400 }
       );
     }

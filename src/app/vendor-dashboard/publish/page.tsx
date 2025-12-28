@@ -272,23 +272,40 @@ export default function PublishToolPage() {
       const fileName = `${authUser.id}-${Date.now()}.${fileExt}`;
       const filePath = `tool-images/${fileName}`;
 
+      const storageBucket = process.env.NEXT_PUBLIC_STORAGE_BUCKET || 'allfile';
+
       const { error: uploadError } = await supabase.storage
-        .from('allfile')
+        .from(storageBucket)
         .upload(filePath, imageFile, {
-          cacheControl: '3600',
+          cacheControl: '31536000', // 1 year cache for better performance
           upsert: false
         });
 
       if (uploadError) {
         console.error('Upload error:', uploadError);
-        alert('Failed to upload image: ' + uploadError.message);
+
+        // Provide user-friendly error messages
+        let errorMessage = 'Failed to upload hero image. ';
+        if (uploadError.message.includes('already exists')) {
+          errorMessage += 'A file with this name already exists. Please try again.';
+        } else if (uploadError.message.includes('quota')) {
+          errorMessage += 'Storage quota exceeded. Please contact support.';
+        } else if (uploadError.message.includes('size')) {
+          errorMessage += 'File size exceeds the maximum allowed (10MB).';
+        } else if (uploadError.message.includes('type') || uploadError.message.includes('format')) {
+          errorMessage += 'Invalid file type. Please upload a valid image (JPEG, PNG, WebP, or GIF).';
+        } else {
+          errorMessage += 'Please try again or contact support if the issue persists.';
+        }
+
+        alert(errorMessage);
         setIsPublishing(false);
         return;
       }
 
       // Get public URL for hero image
       const { data: { publicUrl } } = supabase.storage
-        .from('allfile')
+        .from(storageBucket)
         .getPublicUrl(filePath);
 
       let logoUrl = uiMetadata.logoUrl;
@@ -300,21 +317,36 @@ export default function PublishToolPage() {
         const logoFilePath = `tool-logos/${logoFileName}`;
 
         const { error: logoUploadError } = await supabase.storage
-          .from('allfile')
+          .from(storageBucket)
           .upload(logoFilePath, uiMetadata.logoFile, {
-            cacheControl: '3600',
+            cacheControl: '31536000', // 1 year cache for better performance
             upsert: false
           });
 
         if (logoUploadError) {
           console.error('Logo upload error:', logoUploadError);
-          alert('Failed to upload logo: ' + logoUploadError.message);
+
+          // Provide user-friendly error messages
+          let errorMessage = 'Failed to upload logo. ';
+          if (logoUploadError.message.includes('already exists')) {
+            errorMessage += 'A file with this name already exists. Please try again.';
+          } else if (logoUploadError.message.includes('quota')) {
+            errorMessage += 'Storage quota exceeded. Please contact support.';
+          } else if (logoUploadError.message.includes('size')) {
+            errorMessage += 'File size exceeds the maximum allowed (2MB for logos).';
+          } else if (logoUploadError.message.includes('type') || logoUploadError.message.includes('format')) {
+            errorMessage += 'Invalid file type. Please upload a valid image (JPEG, PNG, WebP, or GIF).';
+          } else {
+            errorMessage += 'Please try again or contact support if the issue persists.';
+          }
+
+          alert(errorMessage);
           setIsPublishing(false);
           return;
         }
 
         const { data: { publicUrl: logoPublicUrl } } = supabase.storage
-          .from('allfile')
+          .from(storageBucket)
           .getPublicUrl(logoFilePath);
 
         logoUrl = logoPublicUrl;
