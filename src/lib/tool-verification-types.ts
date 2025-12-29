@@ -21,7 +21,6 @@ export type PaymentStatus = 'paid' | 'failed' | 'pending';
 
 export type WebhookEventType =
   // Subscription lifecycle
-  | 'subscription.created'
   | 'subscription.activated'
   | 'subscription.updated'
   | 'subscription.canceled'
@@ -63,6 +62,8 @@ export interface WebhookPayload {
     purchaseType?: string;
     // Subscription event fields
     subscriptionId?: string;
+    cancellationReason?: string;
+    effectiveDate?: string;
     // Entitlement event fields
     grantId?: string;
     reason?: string;

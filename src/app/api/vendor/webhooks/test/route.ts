@@ -43,10 +43,9 @@ export async function POST(request: NextRequest) {
     // Validate event type
     const validEventTypes: WebhookEventType[] = [
       // Subscription lifecycle
-      'subscription.created',
       'subscription.activated',
-      'subscription.canceled',
       'subscription.updated',
+      'subscription.canceled',
       // Purchases
       'purchase.completed',
       // Access management
@@ -124,20 +123,11 @@ export async function POST(request: NextRequest) {
     const testUserId = crypto.randomUUID();
     const now = Math.floor(Date.now() / 1000);
     const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    const cancelEffectiveDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(); // 2 weeks from now
 
     let eventData: WebhookPayload['data'];
 
     switch (selectedEventType) {
-      case 'subscription.created':
-        eventData = {
-          oneSubUserId: testUserId,
-          userEmail: 'test@example.com',
-          subscriptionId: `test_sub_${crypto.randomUUID().slice(0, 8)}`,
-          planId: 'test-plan-monthly',
-          status: 'active',
-        };
-        break;
-
       case 'subscription.activated':
         eventData = {
           oneSubUserId: testUserId,
@@ -157,6 +147,8 @@ export async function POST(request: NextRequest) {
           planId: 'test-plan-monthly',
           status: 'canceled',
           currentPeriodEnd: periodEnd,
+          effectiveDate: cancelEffectiveDate,
+          cancellationReason: 'user_requested',
           quantity: 1,
         };
         break;

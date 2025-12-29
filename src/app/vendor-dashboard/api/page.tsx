@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Menu, Key, Copy, RefreshCw, AlertCircle, Webhook, Link as LinkIcon, Eye, EyeOff, Save, Check } from 'lucide-react';
+import { Menu, Key, Copy, RefreshCw, AlertCircle, Webhook, Link as LinkIcon, Eye, EyeOff, Save, Check, Send } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import Sidebar from '../../backoffice/components/Sidebar';
 import ToolSelector from '../components/ToolSelector';
@@ -47,6 +47,161 @@ export default function VendorAPIPage() {
   const [originalWebhookUrl, setOriginalWebhookUrl] = useState('');
   const [originalWebhookSecret, setOriginalWebhookSecret] = useState('');
   const [originalRedirectUri, setOriginalRedirectUri] = useState('');
+
+  // Webhook test states
+  const [testEventType, setTestEventType] = useState('subscription.activated');
+  const [testingWebhook, setTestingWebhook] = useState(false);
+  const [testResult, setTestResult] = useState<{
+    success: boolean;
+    message?: string;
+    details?: {
+      responseStatus?: number;
+      responseTime?: string;
+      responseBody?: string;
+      webhookUrl?: string;
+      payloadSent?: Record<string, unknown>;
+    };
+  } | null>(null);
+
+  // Generate preview payload based on selected event type
+  const generatePreviewPayload = (eventType: string) => {
+    const testUserId = 'test-user-123';
+    const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    const cancelEffectiveDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+
+    const basePayload = {
+      id: 'evt_preview_123',
+      type: eventType,
+      created: Math.floor(Date.now() / 1000),
+      data: {} as Record<string, unknown>
+    };
+
+    switch (eventType) {
+      case 'subscription.activated':
+        basePayload.data = {
+          oneSubUserId: testUserId,
+          userEmail: 'test@example.com',
+          planId: 'test-plan-monthly',
+          status: 'active',
+          currentPeriodEnd: periodEnd,
+          quantity: 1,
+          creditsRemaining: 100,
+        };
+        break;
+      case 'subscription.canceled':
+        basePayload.data = {
+          oneSubUserId: testUserId,
+          userEmail: 'test@example.com',
+          planId: 'test-plan-monthly',
+          status: 'canceled',
+          currentPeriodEnd: periodEnd,
+          effectiveDate: cancelEffectiveDate,
+          cancellationReason: 'user_requested',
+          quantity: 1,
+        };
+        break;
+      case 'subscription.updated':
+        basePayload.data = {
+          oneSubUserId: testUserId,
+          userEmail: 'test@example.com',
+          planId: 'test-plan-yearly',
+          status: 'active',
+          currentPeriodEnd: periodEnd,
+          quantity: 1,
+          creditsRemaining: 200,
+        };
+        break;
+      case 'purchase.completed':
+        basePayload.data = {
+          oneSubUserId: testUserId,
+          userEmail: 'test@example.com',
+          checkoutId: 'test_checkout_123',
+          amount: 50,
+          creditsRemaining: 150,
+          purchaseType: 'credits',
+        };
+        break;
+      case 'entitlement.granted':
+        basePayload.data = {
+          oneSubUserId: testUserId,
+          userEmail: 'test@example.com',
+          grantId: 'test_grant_123',
+          planId: 'test-plan-pro',
+          status: 'active',
+          creditsRemaining: 100,
+        };
+        break;
+      case 'entitlement.revoked':
+        basePayload.data = {
+          oneSubUserId: testUserId,
+          userEmail: 'test@example.com',
+          reason: 'subscription_canceled',
+          revokedAt: new Date().toISOString(),
+          status: 'canceled',
+        };
+        break;
+      case 'entitlement.changed':
+        basePayload.data = {
+          oneSubUserId: testUserId,
+          userEmail: 'test@example.com',
+          previousState: {
+            planId: 'test-plan-basic',
+            features: ['feature1', 'feature2'],
+          },
+          newState: {
+            planId: 'test-plan-pro',
+            features: ['feature1', 'feature2', 'feature3'],
+          },
+          planId: 'test-plan-pro',
+          creditsRemaining: 200,
+        };
+        break;
+      case 'credits.consumed':
+        basePayload.data = {
+          oneSubUserId: testUserId,
+          amount: 5,
+          balanceRemaining: 45,
+          transactionId: 'test_txn_123',
+        };
+        break;
+      case 'user.credit_low':
+        basePayload.data = {
+          oneSubUserId: testUserId,
+          userEmail: 'test@example.com',
+          creditBalance: 8,
+          threshold: 10,
+        };
+        break;
+      case 'user.credit_depleted':
+        basePayload.data = {
+          oneSubUserId: testUserId,
+          userEmail: 'test@example.com',
+          creditBalance: 0,
+        };
+        break;
+      case 'tool.status_changed':
+        basePayload.data = {
+          oneSubUserId: 'system',
+          toolId: selectedToolForConfig || 'tool-123',
+          toolStatus: true,
+        };
+        break;
+      case 'verify.required':
+        basePayload.data = {
+          oneSubUserId: testUserId,
+          userEmail: 'test@example.com',
+          reason: 'security_check',
+        };
+        break;
+      default:
+        basePayload.data = {
+          oneSubUserId: testUserId,
+          userEmail: 'test@example.com',
+        };
+    }
+
+    return basePayload;
+  };
 
   // Auto-hide webhook secret after 5 seconds
   useEffect(() => {
@@ -392,6 +547,55 @@ export default function VendorAPIPage() {
     }
   };
 
+  const handleTestWebhook = async () => {
+    if (!selectedToolForConfig) return;
+    
+    // Validate configuration
+    if (!webhookUrl) {
+      showToast('Please configure a webhook URL first', 'error');
+      return;
+    }
+    
+    if (!webhookSecret) {
+      showToast('Please generate a webhook secret first', 'error');
+      return;
+    }
+    
+    setTestingWebhook(true);
+    setTestResult(null);
+    
+    try {
+      const response = await fetch('/api/vendor/webhooks/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tool_id: selectedToolForConfig,
+          event_type: testEventType,
+        }),
+      });
+      
+      const result = await response.json();
+      setTestResult(result);
+      
+      if (result.success) {
+        showToast('Test webhook sent successfully!', 'success');
+      } else {
+        showToast(result.error || 'Test webhook failed', 'error');
+      }
+    } catch (error) {
+      console.error('Error testing webhook:', error);
+      setTestResult({
+        success: false,
+        message: 'Failed to send test webhook',
+      });
+      showToast('Failed to send test webhook', 'error');
+    } finally {
+      setTestingWebhook(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex overflow-x-hidden">
       {/* Unified Sidebar */}
@@ -564,10 +768,172 @@ export default function VendorAPIPage() {
                   )}
                 </button>
                 
-                {configSaved && (
-                  <span className="text-xs text-[#3ecf8e]">Configuration saved successfully!</span>
-                )}
+              {configSaved && (
+                <span className="text-xs text-[#3ecf8e]">Configuration saved successfully!</span>
+              )}
               </div>
+
+              {/* Test Webhook */}
+              {webhookUrl && webhookSecret && (
+                <div className="pt-6 mt-6 border-t border-[#374151]">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Send className="w-4 h-4 text-[#3ecf8e]" />
+                    <h3 className="text-sm font-medium text-[#ededed]">Test Webhook</h3>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={testEventType}
+                        onChange={(e) => {
+                          setTestEventType(e.target.value);
+                          setTestResult(null);
+                        }}
+                        className="w-fit px-3 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] text-sm focus:outline-none focus:ring-2 focus:ring-[#3ecf8e]"
+                      >
+                        <optgroup label="Subscription Lifecycle">
+                          <option value="subscription.activated">subscription.activated</option>
+                          <option value="subscription.updated">subscription.updated</option>
+                          <option value="subscription.canceled">subscription.canceled</option>
+                        </optgroup>
+                        <optgroup label="Purchases">
+                          <option value="purchase.completed">purchase.completed</option>
+                        </optgroup>
+                        <optgroup label="Entitlements">
+                          <option value="entitlement.granted">entitlement.granted</option>
+                          <option value="entitlement.revoked">entitlement.revoked</option>
+                          <option value="entitlement.changed">entitlement.changed</option>
+                        </optgroup>
+                        <optgroup label="Credits">
+                          <option value="credits.consumed">credits.consumed</option>
+                          <option value="user.credit_low">user.credit_low</option>
+                          <option value="user.credit_depleted">user.credit_depleted</option>
+                        </optgroup>
+                        <optgroup label="System">
+                          <option value="tool.status_changed">tool.status_changed</option>
+                          <option value="verify.required">verify.required</option>
+                        </optgroup>
+                      </select>
+
+                      <button
+                        onClick={handleTestWebhook}
+                        disabled={testingWebhook}
+                        className="flex items-center gap-1.5 bg-[#3ecf8e] hover:bg-[#2dd4bf] text-[#0a0a0a] px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {testingWebhook ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            Sending...
+                          </>
+                        ) : (
+                          <>
+                            <Send className="w-3.5 h-3.5" />
+                            Send Test
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Payload Preview */}
+                    <div className="mt-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs text-[#9ca3af]">Payload preview:</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(JSON.stringify(generatePreviewPayload(testEventType), null, 2));
+                            showToast('Payload copied to clipboard!');
+                          }}
+                          className="p-1 text-[#9ca3af] hover:text-[#ededed] transition-colors"
+                          title="Copy payload"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <pre className="text-xs bg-[#0a0a0a] p-2 rounded overflow-x-auto border border-[#4b5563] max-h-40">
+                        {JSON.stringify(generatePreviewPayload(testEventType), null, 2)}
+                      </pre>
+                    </div>
+
+                    {/* Test Results */}
+                    {testResult && (
+                      <div className={`p-3 rounded-lg border ${
+                        testResult.success 
+                          ? 'bg-green-500/10 border-green-500/30' 
+                          : 'bg-red-500/10 border-red-500/30'
+                      }`}>
+                        <div className="flex items-start gap-2">
+                          {testResult.success ? (
+                            <Check className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-medium ${
+                              testResult.success ? 'text-green-400' : 'text-red-400'
+                            }`}>
+                              {testResult.message || (testResult.success ? 'Test successful' : 'Test failed')}
+                            </p>
+                            
+                            {testResult.details && (
+                              <div className="mt-2 space-y-1 text-xs text-[#d1d5db]">
+                                {testResult.details.responseStatus && (
+                                  <p>Status: <span className="font-mono">{testResult.details.responseStatus}</span></p>
+                                )}
+                                {testResult.details.responseTime && (
+                                  <p>Response time: <span className="font-mono">{testResult.details.responseTime}</span></p>
+                                )}
+                                {testResult.details.payloadSent && (
+                                  <div className="mt-2">
+                                    <div className="flex items-center justify-between mb-1">
+                                      <p className="text-xs text-[#9ca3af]">Payload sent:</p>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(JSON.stringify(testResult.details!.payloadSent, null, 2));
+                                          showToast('Payload copied to clipboard!');
+                                        }}
+                                        className="p-1 text-[#9ca3af] hover:text-[#ededed] transition-colors"
+                                        title="Copy payload"
+                                      >
+                                        <Copy className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                    <pre className="text-xs bg-[#0a0a0a] p-2 rounded overflow-x-auto">
+                                      {JSON.stringify(testResult.details.payloadSent, null, 2)}
+                                    </pre>
+                                  </div>
+                                )}
+                                {testResult.details.responseBody && (
+                                  <div className="mt-2">
+                                    <div className="flex items-center justify-between mb-1">
+                                      <p className="text-xs text-[#9ca3af]">Response:</p>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(testResult.details!.responseBody || '');
+                                          showToast('Response copied to clipboard!');
+                                        }}
+                                        className="p-1 text-[#9ca3af] hover:text-[#ededed] transition-colors"
+                                        title="Copy response"
+                                      >
+                                        <Copy className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                    <pre className="text-xs bg-[#0a0a0a] p-2 rounded overflow-x-auto">
+                                      {testResult.details.responseBody}
+                                    </pre>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <p className="text-[#9ca3af] text-sm">Select a tool to configure webhooks</p>
