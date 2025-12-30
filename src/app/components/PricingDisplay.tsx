@@ -1,6 +1,8 @@
 'use client';
 
 import { PricingOptions, ProductPricingModel } from '@/lib/tool-types';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 // ============================================================================
 // PRICING BADGE COMPONENT
@@ -238,11 +240,25 @@ export function PricingCard({
         {name}
       </h4>
       
-      {/* Description */}
+      {/* Description - Markdown support */}
       {description && (
-        <p className="text-sm text-[#9ca3af] mb-4">
-          {description}
-        </p>
+        <div className="text-sm text-[#9ca3af] mb-4 prose-sm prose-invert prose-p:my-1 prose-ul:my-1 prose-li:my-0">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              p: ({children}) => <p className="text-[#9ca3af] my-1">{children}</p>,
+              strong: ({children}) => <strong className="text-[#ededed] font-semibold">{children}</strong>,
+              em: ({children}) => <em className="text-[#9ca3af]">{children}</em>,
+              ul: ({children}) => <ul className="list-disc list-inside my-1 space-y-0.5">{children}</ul>,
+              ol: ({children}) => <ol className="list-decimal list-inside my-1 space-y-0.5">{children}</ol>,
+              li: ({children}) => <li className="text-[#9ca3af]">{children}</li>,
+              a: ({href, children}) => <a href={href} className="text-[#3ecf8e] hover:underline" target="_blank" rel="noopener noreferrer">{children}</a>,
+              code: ({children}) => <code className="text-[#3ecf8e] bg-[#374151] px-1 rounded text-xs">{children}</code>,
+            }}
+          >
+            {description}
+          </ReactMarkdown>
+        </div>
       )}
 
       {/* Pricing Information */}

@@ -1,7 +1,7 @@
 'use client';
 
 import { memo, useMemo, useState } from 'react';
-import { X, Star, Users, ExternalLink, Check, ChevronDown, ChevronUp, Share2, CheckCircle } from 'lucide-react';
+import { X, Star, Users, ExternalLink, Check, ChevronDown, ChevronUp, Share2, CheckCircle, Sparkles } from 'lucide-react';
 import Image from 'next/image';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -212,9 +212,45 @@ function ToolDialogComponent(props: ToolDialogProps) {
   // State for custom pricing modal
   const [isCustomPricingModalOpen, setIsCustomPricingModalOpen] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<string | undefined>();
+  // State for Magic Login
+  const [magicLoginLoading, setMagicLoginLoading] = useState(false);
 
   // Check subscriptions
-  const { hasProduct, getProductSubscription } = usePurchasedProducts();
+  const { hasProduct, getProductSubscription, hasTool } = usePurchasedProducts();
+  
+  // Check if user has any active subscription to this tool
+  const hasActiveSubscription = hasTool(tool.id);
+
+  // Handle Magic Login
+  const handleMagicLogin = async () => {
+    if (magicLoginLoading) return;
+    
+    setMagicLoginLoading(true);
+    try {
+      const response = await fetch('/api/v1/magiclogin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          toolId: tool.id,
+        }),
+      });
+      
+      const result = await response.json();
+      
+      if (result.success && result.magicLoginUrl) {
+        // Open Magic Login URL in new tab
+        window.open(result.magicLoginUrl, '_blank', 'noopener,noreferrer');
+      } else {
+        console.warn('Magic Login not available:', result.message);
+      }
+    } catch (error) {
+      console.error('Magic Login error:', error);
+    } finally {
+      setMagicLoginLoading(false);
+    }
+  };
 
   // Determine which image to show - MEMOIZED
   const imageUrl = useMemo(() => uiMeta.hero_image_url || tool.url, [uiMeta.hero_image_url, tool.url]);
@@ -397,6 +433,105 @@ function ToolDialogComponent(props: ToolDialogProps) {
               </div>
             </div>
 
+            {/* Products Section - Full Width Above Image */}
+            {hasProducts(tool) && tool.products.length > 0 && (
+              <div className="px-2 sm:px-6 md:px-8 pb-6">
+                {/* Magic Login Button - Show if user has active subscription */}
+                {hasActiveSubscription && (
+                  <button
+                    onClick={handleMagicLogin}
+                    disabled={magicLoginLoading}
+                    className="mb-4 px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 bg-gradient-to-r from-[#f97316] to-[#ea580c] text-white hover:from-[#ea580c] hover:to-[#c2410c] disabled:opacity-50 shadow-lg shadow-orange-500/20"
+                  >
+                    {magicLoginLoading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        Sign in with Magic Login
+                      </>
+                    )}
+                  </button>
+                )}
+
+                <h3 className="text-xl sm:text-2xl font-bold text-[#ededed] mb-4">
+                  {tool.products.length > 1 ? 'Available Plans' : 'Pricing'}
+                </h3>
+
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                  {tool.products.map((product) => {
+                    // Capture tool.id in closure to avoid scope issues
+                    const currentToolId = tool.id;
+                    const subscription = getProductSubscription(product.id);
+                    const hasActiveSub = !!subscription;
+                    // Check if user has ANY subscription to this tool (for changing plans)
+                    const toolSubs = tool.products
+                      .map(p => getProductSubscription(p.id))
+                      .filter(Boolean);
+                    const hasAnySubscription = toolSubs.length > 0;
+                    const isCurrentPlan = hasActiveSub;
+                    
+                    return (
+                      <div key={product.id} className="relative">
+                        {/* Subscription Badge */}
+                        {hasActiveSub && (
+                          <div className={`absolute -top-2 -right-2 z-10 px-3 py-1 rounded-full shadow-lg flex items-center gap-1 ${
+                            subscription.status === 'cancelled'
+                              ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white animate-pulse'
+                              : 'bg-gradient-to-r from-[#f97316] to-[#ea580c] text-white shadow-orange-500/30'
+                          }`}>
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            <span className="text-xs font-bold">
+                              {subscription.status === 'cancelled' ? 'Ending' : 'Active'}
+                            </span>
+                          </div>
+                        )}
+                        <PricingCard
+                          id={product.id}
+                          name={product.name}
+                          description={product.description ?? undefined}
+                          pricingModel={product.pricing_model}
+                          features={product.features}
+                          isPreferred={product.is_preferred}
+                          isCustomPlan={product.is_custom_plan}
+                          contactEmail={product.contact_email}
+                          toolMetadata={tool.metadata ?? undefined}
+                          // Override CTA text if user already has a subscription
+                          ctaText={
+                            isCurrentPlan
+                              ? 'Current Plan'
+                              : hasAnySubscription
+                                ? 'Change Plan'
+                                : undefined
+                          }
+                          onSelect={(productId) => {
+                            // Don't allow re-purchase of current plan
+                            if (isCurrentPlan) {
+                              return;
+                            }
+                            // Initiate checkout with selected product (only for non-custom plans)
+                            if (props.onToolLaunch && productId && !product.is_custom_plan && !product.pricing_model.custom_plan?.enabled) {
+                              console.log('[ToolDialog] Calling onToolLaunch with:', { currentToolId, productId });
+                              props.onToolLaunch(currentToolId, productId);
+                              // Navigation happens in parent
+                            }
+                          }}
+                          onContactVendor={(email, productName) => {
+                            // Open custom pricing modal instead of mailto
+                            setSelectedProductId(product.id);
+                            setIsCustomPricingModalOpen(true);
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Hero Image */}
             <div className="px-2 sm:px-6 md:px-8 mb-6">
               <div className="w-full h-64 sm:h-80 overflow-hidden bg-[#111111] relative rounded-lg">
@@ -509,84 +644,6 @@ function ToolDialogComponent(props: ToolDialogProps) {
                 )}
               </div>
             </div>
-
-            {/* Products Section */}
-            {hasProducts(tool) && tool.products.length > 0 && (
-              <div className="px-2 sm:px-6 md:px-8 pb-8">
-                <h3 className="text-xl sm:text-2xl font-bold text-[#ededed] mb-4">
-                  {tool.products.length > 1 ? 'Available Plans' : 'Pricing'}
-                </h3>
-
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {tool.products.map((product) => {
-                    // Capture tool.id in closure to avoid scope issues
-                    const currentToolId = tool.id;
-                    const subscription = getProductSubscription(product.id);
-                    const hasActiveSub = !!subscription;
-                    // Check if user has ANY subscription to this tool (for changing plans)
-                    const toolSubs = tool.products
-                      .map(p => getProductSubscription(p.id))
-                      .filter(Boolean);
-                    const hasAnySubscription = toolSubs.length > 0;
-                    const isCurrentPlan = hasActiveSub;
-                    
-                    return (
-                      <div key={product.id} className="relative">
-                        {/* Subscription Badge */}
-                        {hasActiveSub && (
-                          <div className={`absolute -top-2 -right-2 z-10 px-3 py-1 rounded-full shadow-lg flex items-center gap-1 ${
-                            subscription.status === 'cancelled'
-                              ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white animate-pulse'
-                              : 'bg-gradient-to-r from-blue-500 to-purple-600 text-white'
-                          }`}>
-                            <CheckCircle className="w-3.5 h-3.5" />
-                            <span className="text-xs font-bold">
-                              {subscription.status === 'cancelled' ? 'Ending' : 'Active'}
-                            </span>
-                          </div>
-                        )}
-                        <PricingCard
-                          id={product.id}
-                          name={product.name}
-                          description={product.description ?? undefined}
-                          pricingModel={product.pricing_model}
-                          features={product.features}
-                          isPreferred={product.is_preferred}
-                          isCustomPlan={product.is_custom_plan}
-                          contactEmail={product.contact_email}
-                          toolMetadata={tool.metadata ?? undefined}
-                          // Override CTA text if user already has a subscription
-                          ctaText={
-                            isCurrentPlan
-                              ? 'Current Plan'
-                              : hasAnySubscription
-                                ? 'Change Plan'
-                                : undefined
-                          }
-                          onSelect={(productId) => {
-                            // Don't allow re-purchase of current plan
-                            if (isCurrentPlan) {
-                              return;
-                            }
-                            // Initiate checkout with selected product (only for non-custom plans)
-                            if (props.onToolLaunch && productId && !product.is_custom_plan && !product.pricing_model.custom_plan?.enabled) {
-                              console.log('[ToolDialog] Calling onToolLaunch with:', { currentToolId, productId });
-                              props.onToolLaunch(currentToolId, productId);
-                              // Navigation happens in parent
-                            }
-                          }}
-                          onContactVendor={(email, productName) => {
-                            // Open custom pricing modal instead of mailto
-                            setSelectedProductId(product.id);
-                            setIsCustomPricingModalOpen(true);
-                          }}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
             {/* Legacy Pricing Options Section - Show when tool has pricing_options but no products */}
             {!hasProducts(tool) && tool.metadata?.pricing_options && (

@@ -2,7 +2,7 @@
 
 import { useState, memo } from 'react';
 import Image from 'next/image';
-import { Star, Users, ExternalLink, CheckCircle } from 'lucide-react';
+import { Star, Users, ExternalLink, Sparkles, Info } from 'lucide-react';
 import { Tool, ToolProduct, DEFAULT_UI_METADATA, DEFAULT_ENGAGEMENT_METRICS, hasProducts } from '@/lib/tool-types';
 import { PricingSection } from './PricingDisplay';
 import { getToolPhase, getPhaseLabel, getPhaseTailwindClasses } from '@/lib/tool-phase';
@@ -276,6 +276,7 @@ function ToolCardComponent(props: ToolCardProps) {
 
   const [heroImageError, setHeroImageError] = useState(false);
   const [logoImageError, setLogoImageError] = useState(false);
+  const [magicLoginLoading, setMagicLoginLoading] = useState(false);
 
   const canShowHeroImage = hasHeroImage && !heroImageError;
   const canShowLogoImage = hasLogoImage && !logoImageError;
@@ -292,10 +293,12 @@ function ToolCardComponent(props: ToolCardProps) {
   const phaseLabel = getPhaseLabel(calculatedPhase);
   const phaseClasses = getPhaseTailwindClasses(calculatedPhase);
 
-  // Border styling based on calculated phase and highlight
+  // Border styling based on subscription, highlight, or calculated phase
   let borderClasses = 'border';
   if (isHighlighted) {
     borderClasses += ' border-[#3ecf8e] shadow-lg shadow-[#3ecf8e]/50 animate-pulse';
+  } else if (hasSubscription) {
+    borderClasses += ' border-[#f97316] shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40';
   } else {
     borderClasses += ' ' + phaseClasses.border + ' ' + phaseClasses.hover;
   }
@@ -305,6 +308,45 @@ function ToolCardComponent(props: ToolCardProps) {
   const handleCardClick = () => {
     if (onViewClick) {
       onViewClick();
+    }
+  };
+
+  const handleMagicLogin = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (magicLoginLoading) return;
+    
+    setMagicLoginLoading(true);
+    try {
+      const response = await fetch('/api/v1/magiclogin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          toolId: tool.id,
+        }),
+      });
+      
+      const result = await response.json();
+      
+      if (result.success && result.magicLoginUrl) {
+        // Open Magic Login URL in new tab
+        window.open(result.magicLoginUrl, '_blank', 'noopener,noreferrer');
+      } else {
+        // If Magic Login not configured, fall back to popup
+        console.warn('Magic Login not available:', result.message);
+        if (onViewClick) {
+          onViewClick();
+        }
+      }
+    } catch (error) {
+      console.error('Magic Login error:', error);
+      // Fall back to popup on error
+      if (onViewClick) {
+        onViewClick();
+      }
+    } finally {
+      setMagicLoginLoading(false);
     }
   };
 
@@ -388,18 +430,6 @@ function ToolCardComponent(props: ToolCardProps) {
           <div className="absolute inset-0 bg-gradient-to-t from-[#1f2937]/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
         </div>
         {/* Subscription Badge */}
-        {hasSubscription && toolSubs[0] && (
-          <div className={`absolute top-3 left-3 px-3 py-1.5 rounded-lg shadow-lg flex items-center gap-1.5 ${
-            toolSubs[0].status === 'cancelled' 
-              ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white animate-pulse'
-              : 'bg-gradient-to-r from-blue-500 to-purple-600 text-white'
-          }`}>
-            <CheckCircle className="w-4 h-4" />
-            <span className="text-sm font-bold">
-              {toolSubs[0].status === 'cancelled' ? 'Ending Soon' : 'Active'}
-            </span>
-          </div>
-        )}
         {/* Discount Badge */}
         {(uiMeta.discount_percentage ?? 0) > 0 && (
           <div className="absolute top-3 right-3 bg-gradient-to-r from-red-500 to-red-600 text-white px-3 py-1.5 rounded-lg shadow-lg animate-pulse-glow">
@@ -458,20 +488,50 @@ function ToolCardComponent(props: ToolCardProps) {
             </div>
           </div>
 
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onLaunchClick();
-            }}
-            className={`w-full px-3 py-2 rounded-md text-sm font-bold transition-all flex items-center justify-center gap-2 group-hover:gap-3 ${
-              hasSubscription
-                ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700'
-                : 'bg-[#3ecf8e] text-black hover:bg-[#2dd4bf]'
-            }`}
-          >
-            {hasSubscription ? 'view' : (mode === 'dashboard' ? 'launch' : 'start')}
-            <ExternalLink className="w-4 h-4" />
-          </button>
+          {hasSubscription ? (
+            <div className="flex items-center gap-2">
+              {/* Main CTA: Magic Login */}
+              <button
+                onClick={handleMagicLogin}
+                disabled={magicLoginLoading}
+                className="flex-1 px-3 py-2 rounded-md text-sm font-bold transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-[#f97316] to-[#ea580c] text-white hover:from-[#ea580c] hover:to-[#c2410c] disabled:opacity-50 shadow-lg shadow-orange-500/20"
+              >
+                {magicLoginLoading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    loading...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    Magic Login
+                  </>
+                )}
+              </button>
+              {/* Info button: opens popup */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onViewClick) onViewClick();
+                }}
+                className="p-2 rounded-md bg-[#374151] text-[#9ca3af] hover:bg-[#4b5563] hover:text-[#ededed] transition-all"
+                title="View details"
+              >
+                <Info className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onLaunchClick();
+              }}
+              className="w-full px-3 py-2 rounded-md text-sm font-bold transition-all flex items-center justify-center gap-2 group-hover:gap-3 bg-[#3ecf8e] text-black hover:bg-[#2dd4bf]"
+            >
+              {mode === 'dashboard' ? 'launch' : 'start'}
+              <ExternalLink className="w-4 h-4" />
+            </button>
+          )}
         </div>
       )}
     </div>

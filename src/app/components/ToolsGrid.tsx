@@ -103,12 +103,12 @@ export default function ToolsGrid({
 
   return (
     <>
-      <div className="flex flex-wrap gap-4 sm:gap-6">
+      <div className="flex flex-wrap gap-4 sm:gap-6 justify-center">
         {filteredTools.map((tool) => (
           <div
             key={tool.id}
             id={`tool-${tool.id}`}
-            className="w-80 sm:w-[22rem]"
+            className="w-full sm:w-[22rem]"
           >
             <ToolCard
               tool={tool}
