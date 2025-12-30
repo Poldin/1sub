@@ -45,7 +45,15 @@ Users never create accounts on your site. 1Sub handles identity and payment.
 When a user subscribes, cancels, or updates, 1Sub sends you a webhook:
 
 ```typescript
+import crypto from 'crypto';
+
 app.post('/webhooks/1sub', express.json(), (req, res) => {
+  // 1. Verify webhook signature
+  const signature = req.headers['1sub-signature'] as string;
+  if (!verifyWebhookSignature(req.body, signature)) {
+    return res.status(401).send('Invalid signature');
+  }
+
   const event = req.body;
 
   switch (event.type) {
@@ -58,20 +66,40 @@ app.post('/webhooks/1sub', express.json(), (req, res) => {
         active: true
       });
       break;
-      
+
     case 'subscription.canceled':
       // Subscription ended - revoke access
       db.users.update(event.data.oneSubUserId, { active: false });
-      sessions.invalidate(event.data.oneSubUserId);
+      sessions.invalidateAll(event.data.oneSubUserId);
+      break;
+
+    case 'security.force_logout':
+      // CRITICAL: Immediately terminate all sessions
+      sessions.invalidateAll(event.data.oneSubUserId);
       break;
   }
 
   res.status(200).send('OK');
 });
+
+function verifyWebhookSignature(payload: any, signature: string): boolean {
+  const parts = signature.split(',');
+  const timestamp = parts.find(p => p.startsWith('t='))?.split('=')[1];
+  const sig = parts.find(p => p.startsWith('v1='))?.split('=')[1];
+
+  if (!timestamp || !sig) return false;
+
+  const expected = crypto
+    .createHmac('sha256', process.env.WEBHOOK_SECRET!)
+    .update(`${timestamp}.${JSON.stringify(payload)}`)
+    .digest('hex');
+
+  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sig));
+}
 ```
 
 <Info>
-Configure your Webhook URL in the [Vendor Dashboard](/vendor-dashboard/api).
+Configure your Webhook URL and get your Webhook Secret in the [Vendor Dashboard](/vendor-dashboard/api).
 </Info>
 
 ---
@@ -83,34 +111,69 @@ When users click "Launch Magic Login", they're redirected to your Magic Login UR
 ```typescript
 import crypto from 'crypto';
 
+const MAGIC_LOGIN_SECRET = process.env.MAGIC_LOGIN_SECRET!;
+const MAGIC_LOGIN_TTL_SECONDS = 300; // 5 minutes
+
+// Track used nonces to prevent replay attacks
+const usedNonces = new Map<string, number>();
+
+// Cleanup old nonces every minute
+setInterval(() => {
+  const cutoff = Date.now() - (MAGIC_LOGIN_TTL_SECONDS + 60) * 1000;
+  for (const [nonce, timestamp] of usedNonces.entries()) {
+    if (timestamp < cutoff) usedNonces.delete(nonce);
+  }
+}, 60000);
+
 app.get('/auth/magic', async (req, res) => {
-  const { user, ts, sig } = req.query;
-  
-  // 1. Verify link hasn't expired (60 seconds)
-  if (Date.now() / 1000 - Number(ts) > 60) {
+  const { user, ts, nonce, sig } = req.query;
+
+  // 1. Verify link hasn't expired (5 minutes)
+  const now = Math.floor(Date.now() / 1000);
+  const timestamp = parseInt(ts as string);
+
+  if (now - timestamp > MAGIC_LOGIN_TTL_SECONDS) {
     return res.status(401).send('Link expired');
   }
-  
-  // 2. Verify signature (LOCAL - no API call!)
+
+  // 2. Check for future timestamps (clock skew attack)
+  if (timestamp - now > 30) {
+    return res.status(401).send('Invalid timestamp');
+  }
+
+  // 3. Check nonce hasn't been used (replay protection)
+  if (usedNonces.has(nonce as string)) {
+    return res.status(401).send('Link already used');
+  }
+
+  // 4. Verify signature using timing-safe comparison
   const expected = crypto
-    .createHmac('sha256', process.env.MAGIC_LOGIN_SECRET)
-    .update(`${user}${ts}`)
+    .createHmac('sha256', MAGIC_LOGIN_SECRET)
+    .update(`${user}${ts}${nonce}`)
     .digest('hex');
-    
-  if (sig !== expected) {
+
+  const sigBuffer = Buffer.from(sig as string);
+  const expectedBuffer = Buffer.from(expected);
+
+  if (sigBuffer.length !== expectedBuffer.length ||
+      !crypto.timingSafeEqual(sigBuffer, expectedBuffer)) {
     return res.status(401).send('Invalid signature');
   }
-  
-  // 3. Look up user (you already have their data from webhooks!)
-  const userData = await db.users.findByOneSubId(user);
+
+  // 5. Mark nonce as used
+  usedNonces.set(nonce as string, Date.now());
+
+  // 6. Look up user (you already have their data from webhooks!)
+  const userData = await db.users.findByOneSubId(user as string);
   if (!userData?.active) {
     return res.status(403).send('No active subscription');
   }
-  
-  // 4. Create session - they're in!
+
+  // 7. Create session (max 24 hours recommended)
   req.session.userId = user;
   req.session.plan = userData.plan;
-  
+  req.session.expiresAt = Date.now() + 24 * 60 * 60 * 1000;
+
   res.redirect('/dashboard');
 });
 ```
@@ -121,17 +184,61 @@ Configure your Magic Login URL and generate a Magic Login Secret in the [Vendor 
 
 ---
 
-## That's It! 🎉
+## That's It!
 
-**~30 lines of code** for complete subscription management:
+**~50 lines of code** for complete subscription management:
 
 | What | How |
 |------|-----|
 | User subscribes | Webhook → store in your DB |
 | User launches tool | Magic Login → verify signature → create session |
 | User cancels | Webhook → revoke access |
+| Security event | Webhook → terminate sessions |
 
 **Zero API calls** for authentication. Everything is verified locally.
+
+---
+
+## URL Parameters
+
+When 1Sub redirects to your Magic Login URL, it includes these query parameters:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `user` | string | The 1Sub User ID (`oneSubUserId`) |
+| `ts` | number | Unix timestamp when the link was generated |
+| `nonce` | string | Unique random value for replay protection |
+| `sig` | string | HMAC-SHA256 signature |
+
+**Signature Format:**
+```
+signature = HMAC-SHA256(user + ts + nonce, magic_login_secret)
+```
+
+---
+
+## Security Requirements
+
+Your Magic Login endpoint MUST implement:
+
+1. **Timestamp Validation** - Links expire after 5 minutes
+2. **Nonce Tracking** - Each link can only be used once (prevents replay attacks)
+3. **Timing-Safe Comparison** - Use `crypto.timingSafeEqual()` to prevent timing attacks
+4. **Clock Skew Tolerance** - Allow 30 seconds of clock drift
+
+---
+
+## Critical Webhooks
+
+These webhooks require immediate action:
+
+| Event | `require_reverification` | Action |
+|-------|-------------------------|--------|
+| `subscription.canceled` | Yes | Mark user inactive, end sessions |
+| `entitlement.revoked` | Yes | Remove access immediately |
+| `security.force_logout` | Yes | Terminate ALL sessions immediately |
+
+When you receive a webhook with `require_reverification: true`, you **MUST** terminate the user's sessions immediately.
 
 ---
 
@@ -149,12 +256,20 @@ Extremely rare. But if a user launches before their webhook arrives, they won't 
 
 Only if your tool uses credits (`/api/v1/credits/consume`). Authentication is fully local via Magic Login.
 
+**How long should sessions last?**
+
+We recommend **24 hours maximum**. Users can always click "Launch Magic Login" again.
+
+**What is `security.force_logout`?**
+
+This is 1Sub's central kill-switch. When received, you MUST immediately terminate all sessions for that user. This is sent for fraud detection, account compromise, or admin actions.
+
 ---
 
 ## Ready to Integrate?
 
 - **Time to integrate:** 30-60 minutes
-- **Lines of code:** ~30
+- **Lines of code:** ~50
 - **API calls needed:** Zero (for auth)
 
 Get started in the [Vendor Dashboard](/vendor-dashboard/api).

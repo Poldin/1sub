@@ -23,6 +23,17 @@ Detailed reference for all webhook events sent by 1Sub.
 - **`entitlement.changed`** - User's plan or features changed
 - **`verify.required`** - Immediate verification required (security event)
 - **`credits.consumed`** - Credits consumed by a user
+- **`security.force_logout`** - Central kill-switch: terminate all user sessions immediately
+
+## Critical Events (require_reverification)
+
+Some events include a `require_reverification: true` flag. When you receive these, you **MUST** immediately terminate the user's sessions:
+
+| Event | Action Required |
+|-------|-----------------|
+| `subscription.canceled` | Mark user inactive, end all sessions |
+| `entitlement.revoked` | Remove access immediately |
+| `security.force_logout` | Terminate ALL sessions immediately |
 
 ## Event Structure
 
@@ -33,11 +44,16 @@ All webhook events follow this structure:
   "id": "evt_abc123def456",
   "type": "subscription.activated",
   "created": 1700000000,
+  "require_reverification": false,
   "data": {
     // Event-specific data
   }
 }
 ```
+
+<ResponseField name="require_reverification" type="boolean">
+When `true`, you MUST immediately terminate the user's sessions. This flag is set for security-critical events like cancellations, revocations, and force logouts.
+</ResponseField>
 
 ## subscription.activated
 
@@ -1406,6 +1422,135 @@ case 'credits.consumed':
 - **Billing & Reporting**: Generate usage reports for customers
 - **Rate Limiting**: Implement custom rate limiting based on credit consumption
 - **Fraud Detection**: Monitor unusual consumption patterns
+
+---
+
+## security.force_logout
+
+Sent when 1Sub requires immediate termination of all user sessions. This is the **central kill-switch** for Magic Login.
+
+<Warning>
+**CRITICAL**: When you receive this event, you MUST immediately terminate ALL sessions for this user. This is a security-critical event with `require_reverification: true`.
+</Warning>
+
+### When Sent
+
+- Fraud detected on user account
+- Administrator manually triggers logout
+- User changes password
+- Account compromise detected
+- User requests logout from all devices
+
+### Payload
+
+<ResponseField name="id" type="string" required>
+Unique event ID
+</ResponseField>
+
+<ResponseField name="type" type="string" required>
+Always `"security.force_logout"`
+</ResponseField>
+
+<ResponseField name="created" type="number" required>
+Unix timestamp
+</ResponseField>
+
+<ResponseField name="require_reverification" type="boolean" required>
+Always `true` for this event
+</ResponseField>
+
+<ResponseField name="data" type="object" required>
+Event data
+
+<Expandable title="Data Fields">
+  <ResponseField name="oneSubUserId" type="string (UUID)" required>
+  The 1Sub user ID whose sessions must be terminated
+  </ResponseField>
+
+  <ResponseField name="userEmail" type="string">
+  The user's email address
+  </ResponseField>
+
+  <ResponseField name="securityReason" type="string" required>
+  Reason for force logout: `"fraud_detected"`, `"admin_action"`, `"password_changed"`, `"account_compromised"`, `"user_request"`
+  </ResponseField>
+
+  <ResponseField name="affectedSessions" type="string" required>
+  Which sessions to terminate: `"all"` or `"magic_login_only"`
+  </ResponseField>
+
+  <ResponseField name="forceLogoutId" type="string (UUID)" required>
+  Unique identifier for this force logout event
+  </ResponseField>
+
+  <ResponseField name="revokedAt" type="string (ISO 8601)" required>
+  When the force logout was triggered
+  </ResponseField>
+</Expandable>
+</ResponseField>
+
+### Example Payload
+
+```json
+{
+  "id": "evt_force_logout_001",
+  "type": "security.force_logout",
+  "created": 1700000000,
+  "require_reverification": true,
+  "data": {
+    "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000",
+    "userEmail": "user@example.com",
+    "securityReason": "fraud_detected",
+    "affectedSessions": "all",
+    "forceLogoutId": "fl_abc123def456",
+    "revokedAt": "2025-11-15T10:30:00Z"
+  }
+}
+```
+
+### How to Handle
+
+```typescript
+case 'security.force_logout':
+  const { oneSubUserId, userEmail, securityReason, forceLogoutId } = event.data;
+
+  // CRITICAL: Immediately terminate ALL sessions for this user
+  await sessionStore.deleteAllForUser(oneSubUserId);
+
+  // Clear any cached user data
+  await userCache.delete(oneSubUserId);
+
+  // Log the security event for audit
+  logger.warn('Force logout executed', {
+    userId: oneSubUserId,
+    email: userEmail,
+    reason: securityReason,
+    forceLogoutId,
+    timestamp: new Date().toISOString()
+  });
+
+  // Optional: Alert security team for critical reasons
+  if (securityReason === 'fraud_detected' || securityReason === 'account_compromised') {
+    await alertSecurityTeam({
+      type: 'force_logout',
+      userId: oneSubUserId,
+      email: userEmail,
+      reason: securityReason
+    });
+  }
+
+  break;
+```
+
+### Security Reasons
+
+| Reason | Description | Severity |
+|--------|-------------|----------|
+| `fraud_detected` | Suspicious activity detected | Critical |
+| `admin_action` | Administrator manually triggered logout | Medium |
+| `password_changed` | User changed their password | Low |
+| `account_compromised` | Account security breach detected | Critical |
+| `user_request` | User requested logout from all devices | Low |
 
 ---
 

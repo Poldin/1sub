@@ -1,11 +1,25 @@
 ---
 title: "API Authentication"
-description: "How to authenticate API requests to 1Sub"
+description: "How to authenticate Credits API requests to 1Sub"
 ---
 
 # API Authentication
 
-All API requests to 1Sub require authentication using your tool's API key.
+<Note>
+**Important:** API key authentication is only needed for the Credits API. Magic Login authentication uses your Magic Login Secret for local signature verification - no API calls required.
+</Note>
+
+## When You Need an API Key
+
+| Feature | Authentication Method |
+|---------|----------------------|
+| Magic Login | Magic Login Secret (local verification) |
+| Webhooks | Webhook Secret (signature verification) |
+| Credits API | API Key (Bearer token) |
+
+If your tool doesn't use credits, you don't need an API key at all.
+
+---
 
 ## API Key Format
 
@@ -30,8 +44,8 @@ API keys are shown **only once** when you publish your tool. Save them securely 
 </Step>
 
 <Step title="Save your API key">
-  After publishing, you'll receive your API key. **Copy it immediately** — you won't see it again.
-  
+  After publishing, you'll receive your API key. **Copy it immediately** - you won't see it again.
+
 ```
 Your API Key: sk-tool-abc123def456ghi789jkl012mno345pqr678stu901vwx234yz
 ```
@@ -39,7 +53,7 @@ Your API Key: sk-tool-abc123def456ghi789jkl012mno345pqr678stu901vwx234yz
 
 <Step title="Store securely">
   Add it to your environment variables:
-  
+
 ```bash
 # .env
 ONESUB_API_KEY=sk-tool-abc123def456ghi789jkl012mno345pqr678stu901vwx234yz
@@ -55,42 +69,35 @@ Include your API key in the `Authorization` header using Bearer authentication:
 Authorization: Bearer sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-### Examples
+### Example: Consume Credits
 
 <CodeGroup>
 ```bash cURL
-curl -X POST 'https://1sub.io/api/v1/verify' \
+curl -X POST 'https://1sub.io/api/v1/credits/consume' \
   -H 'Authorization: Bearer sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx' \
   -H 'Content-Type: application/json' \
-  -d '{"verificationToken": "vt_xxxxxxxxxxxxxxxxxxxxxxxx"}'
+  -d '{
+    "user_id": "550e8400-e29b-41d4-a716-446655440000",
+    "amount": 10,
+    "reason": "Generated 1 AI image",
+    "idempotency_key": "img-gen-12345-1702345678"
+  }'
 ```
 
-```javascript Node.js (fetch)
-const response = await fetch('https://1sub.io/api/v1/verify', {
+```javascript Node.js
+const response = await fetch('https://1sub.io/api/v1/credits/consume', {
   method: 'POST',
   headers: {
     'Authorization': `Bearer ${process.env.ONESUB_API_KEY}`,
     'Content-Type': 'application/json',
   },
   body: JSON.stringify({
-    verificationToken: 'vt_xxxxxxxxxxxxxxxxxxxxxxxx'
+    user_id: oneSubUserId,
+    amount: 10,
+    reason: 'Generated 1 AI image',
+    idempotency_key: `img-gen-${userId}-${Date.now()}`
   })
 });
-```
-
-```javascript Node.js (axios)
-import axios from 'axios';
-
-const response = await axios.post(
-  'https://1sub.io/api/v1/verify',
-  { verificationToken: 'vt_xxxxxxxxxxxxxxxxxxxxxxxx' },
-  {
-    headers: {
-      'Authorization': `Bearer ${process.env.ONESUB_API_KEY}`,
-      'Content-Type': 'application/json'
-    }
-  }
-);
 ```
 
 ```python Python
@@ -98,8 +105,13 @@ import os
 import requests
 
 response = requests.post(
-    'https://1sub.io/api/v1/verify',
-    json={'verificationToken': 'vt_xxxxxxxxxxxxxxxxxxxxxxxx'},
+    'https://1sub.io/api/v1/credits/consume',
+    json={
+        'user_id': onesub_user_id,
+        'amount': 10,
+        'reason': 'Generated 1 AI image',
+        'idempotency_key': f'img-gen-{user_id}-{int(time.time())}'
+    },
     headers={
         'Authorization': f'Bearer {os.environ["ONESUB_API_KEY"]}',
         'Content-Type': 'application/json'
@@ -146,36 +158,38 @@ Returned when auth succeeds but you don't have permission:
 
 **Common causes:**
 - Tool is suspended or deactivated
-- API key doesn't have required permissions
+- User's access has been revoked
 - Trying to access another tool's resources
+
+---
 
 ## Security Best Practices
 
 <AccordionGroup>
 <Accordion title="Store API keys securely">
 **Never:**
-- ❌ Hardcode in source code
-- ❌ Commit to version control
-- ❌ Expose in client-side code
-- ❌ Include in logs or error messages
-- ❌ Share via insecure channels (email, Slack, etc.)
+- Hardcode in source code
+- Commit to version control
+- Expose in client-side code
+- Include in logs or error messages
+- Share via insecure channels (email, Slack, etc.)
 
 **Always:**
-- ✅ Store in environment variables
-- ✅ Use secrets management (AWS Secrets Manager, etc.)
-- ✅ Restrict access to production keys
-- ✅ Use different keys for dev/staging/production
-- ✅ Rotate keys if compromised
+- Store in environment variables
+- Use secrets management (AWS Secrets Manager, etc.)
+- Restrict access to production keys
+- Use different keys for dev/staging/production
+- Rotate keys if compromised
 </Accordion>
 
 <Accordion title="Use HTTPS only">
 All API requests **must** use HTTPS. HTTP requests will be rejected.
 
 ```bash
-# ✅ Good
+# Good
 https://1sub.io/api/v1/...
 
-# ❌ Bad - will fail
+# Bad - will fail
 http://1sub.io/api/v1/...
 ```
 </Accordion>
@@ -197,20 +211,21 @@ Set up alerts for unusual API usage patterns to detect compromised keys early.
 API keys should **never** be used in client-side code (web, mobile):
 
 ```javascript
-// ❌ Bad - exposed to users
+// Bad - exposed to users
 const apiKey = 'sk-tool-abc123...'; // In frontend code!
-fetch('/api/verify', {
+fetch('/api/credits', {
   headers: { Authorization: `Bearer ${apiKey}` }
 });
 ```
 
 ```javascript
-// ✅ Good - server-side only
+// Good - server-side only
 // Server endpoint that uses API key
-app.post('/api/verify-subscription', async (req, res) => {
+app.post('/api/consume-credits', async (req, res) => {
   // API key is in server environment
-  const result = await verifySubscription(
+  const result = await consumeCredits(
     req.body.userId,
+    req.body.amount,
     process.env.ONESUB_API_KEY
   );
   res.json(result);
@@ -218,6 +233,8 @@ app.post('/api/verify-subscription', async (req, res) => {
 ```
 </Accordion>
 </AccordionGroup>
+
+---
 
 ## Key Management
 
@@ -227,14 +244,14 @@ If you need to regenerate your API key:
 
 <Steps>
 <Step title="Generate new key">
-  Go to vendor dashboard → Your Tool → Settings → Regenerate API Key
+  Go to vendor dashboard -> Your Tool -> Settings -> Regenerate API Key
 </Step>
 
 <Step title="Update your services">
   Both old and new keys will work for 24 hours during the transition period.
-  
+
   Update all services to use the new key:
-  
+
 ```bash
 # Update environment variable
 ONESUB_API_KEY=sk-tool-NEW_KEY_HERE
@@ -250,51 +267,33 @@ ONESUB_API_KEY=sk-tool-NEW_KEY_HERE
 Plan your key rotation during low-traffic periods to minimize disruption.
 </Warning>
 
-### Multiple Environments
+---
 
-Use separate API keys for different environments:
+## Three Secrets, Three Purposes
 
-```bash
-# .env.development
-ONESUB_API_KEY=sk-tool-dev-abc123...
+Don't confuse the different secrets in 1Sub:
 
-# .env.staging
-ONESUB_API_KEY=sk-tool-staging-def456...
+| Secret | Purpose | Used For |
+|--------|---------|----------|
+| **API Key** (`sk-tool-xxx`) | Bearer authentication | Credits API calls |
+| **Webhook Secret** | Signature verification | Verifying webhook payloads |
+| **Magic Login Secret** (`mlsec_xxx`) | Signature verification | Verifying Magic Login URLs |
 
-# .env.production
-ONESUB_API_KEY=sk-tool-prod-ghi789...
-```
-
-<Tip>
-Request separate API keys for each environment from 1Sub support if needed.
-</Tip>
-
-## Testing Authentication
-
-Verify your authentication setup works:
+Each serves a different purpose and should be stored separately in your environment:
 
 ```bash
-# Test authentication
-curl -X POST 'https://1sub.io/api/v1/verify' \
-  -H 'Authorization: Bearer YOUR_API_KEY' \
-  -H 'Content-Type: application/json' \
-  -d '{"verificationToken": "vt_test_token"}'
-
-# Expected response if auth works but token is invalid:
-# {"valid": false, "error": "INVALID_TOKEN", "reason": "Token verification failed"}
-
-# If auth fails, you'll get:
-# {"valid": false, "error": "UNAUTHORIZED", "reason": "Invalid API key"}
+# .env
+ONESUB_API_KEY=sk-tool-xxx        # For Credits API
+WEBHOOK_SECRET=whsec_xxx          # For webhook verification
+MAGIC_LOGIN_SECRET=mlsec_xxx      # For Magic Login verification
 ```
 
+<CardGroup cols={2}>
+<Card title="Credits API Reference" icon="coins" href="/docs/api/reference">
+  Full Credits API documentation
+</Card>
 
-
-
-
-
-
-
-
-
-
-
+<Card title="Magic Login" icon="sparkles" href="/docs/api/magic-login">
+  Zero-API-call authentication
+</Card>
+</CardGroup>

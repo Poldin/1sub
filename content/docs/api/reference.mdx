@@ -1,311 +1,15 @@
 ---
 title: "API Reference"
-description: "Complete reference for all 1Sub API endpoints"
+description: "Complete reference for 1Sub Credits API"
 ---
 
 # API Reference
 
-Complete documentation for all 1Sub vendor API endpoints.
+The 1Sub API is only needed for **credit consumption**. Authentication uses Magic Login (zero API calls).
 
 <Note>
-All endpoints require Bearer authentication with your tool's API key unless otherwise specified.
+If your tool doesn't use credits, you don't need to make any API calls. User authentication and subscription management are handled via Magic Login and webhooks.
 </Note>
-
-
-## Exchange Authorization Code
-
-Exchange an authorization code for a verification token and user entitlements.
-
-<ParamField header="Authorization" type="string" required>
-Bearer token with your tool API key (format: `Bearer sk-tool-xxxxx`)
-</ParamField>
-
-<ParamField body="code" type="string" required>
-The authorization code received from the callback redirect
-</ParamField>
-
-<ParamField body="redirectUri" type="string">
-Optional redirect URI used in the authorization flow (must match registered callback)
-</ParamField>
-
-**Endpoint:** `POST /api/v1/authorize/exchange`
-
-**Rate Limit:** 60 requests per minute
-
-<RequestExample>
-```bash cURL
-curl -X POST 'https://1sub.io/api/v1/authorize/exchange' \
-  -H 'Authorization: Bearer sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx' \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "code": "ac_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-    "redirectUri": "https://yourapp.com/auth/1sub/callback"
-  }'
-```
-
-```javascript Node.js
-const response = await fetch('https://1sub.io/api/v1/authorize/exchange', {
-  method: 'POST',
-  headers: {
-    'Authorization': `Bearer ${process.env.ONESUB_API_KEY}`,
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    code: 'ac_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
-    redirectUri: 'https://yourapp.com/auth/1sub/callback'
-  })
-});
-
-const result = await response.json();
-```
-
-```python Python
-import requests
-
-response = requests.post(
-    'https://1sub.io/api/v1/authorize/exchange',
-    json={
-        'code': 'ac_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
-        'redirectUri': 'https://yourapp.com/auth/1sub/callback'
-    },
-    headers={
-        'Authorization': f'Bearer {os.environ["ONESUB_API_KEY"]}',
-        'Content-Type': 'application/json'
-    }
-)
-
-result = response.json()
-```
-</RequestExample>
-
-<ResponseExample>
-```json 200 OK - Success
-{
-  "valid": true,
-  "grantId": "grant_xxxxx",
-  "onesubUserId": "550e8400-e29b-41d4-a716-446655440000",
-  "entitlements": {
-    "planId": "monthly",
-    "creditsRemaining": 1200,
-    "features": ["pro", "api_access"],
-    "limits": {
-      "api_calls_per_day": 10000
-    }
-  },
-  "verificationToken": "vt_xxxxxxxxxxxxxxxxxxxxxxxx",
-  "expiresAt": 1703000400
-}
-```
-
-```json 400 Bad Request - Invalid Code
-{
-  "valid": false,
-  "error": "INVALID_CODE",
-  "message": "Authorization code is invalid or expired"
-}
-```
-
-```json 401 Unauthorized
-{
-  "valid": false,
-  "error": "UNAUTHORIZED",
-  "message": "Invalid API key"
-}
-```
-
-```json 403 Forbidden - Access Revoked
-{
-  "valid": false,
-  "error": "ACCESS_REVOKED",
-  "message": "User's access has been revoked"
-}
-```
-</ResponseExample>
-
-### Response Fields
-
-<ResponseField name="valid" type="boolean" required>
-Whether the authorization was successful
-</ResponseField>
-
-<ResponseField name="grantId" type="string" required>
-Unique identifier for this authorization grant
-</ResponseField>
-
-<ResponseField name="onesubUserId" type="string (UUID)" required>
-The 1Sub user ID. Store this for future API calls.
-</ResponseField>
-
-<ResponseField name="entitlements" type="object" required>
-User's subscription details and entitlements
-</ResponseField>
-
-<ResponseField name="entitlements.planId" type="string | null">
-Plan identifier (e.g., `"monthly"`, `"annual"`, `"pro"`)
-</ResponseField>
-
-<ResponseField name="entitlements.creditsRemaining" type="number | null">
-Credits remaining if subscription includes credits
-</ResponseField>
-
-<ResponseField name="entitlements.features" type="string[]">
-Array of enabled feature flags for this user
-</ResponseField>
-
-<ResponseField name="entitlements.limits" type="Record<string, number>">
-Usage limits configured for this subscription
-</ResponseField>
-
-<ResponseField name="verificationToken" type="string" required>
-Token for periodic verification. Store this securely in the user's session.
-</ResponseField>
-
-<ResponseField name="expiresAt" type="number" required>
-Unix timestamp when the verification token expires (typically 24 hours)
-</ResponseField>
-
-<Warning>
-Store the `verificationToken` securely. You'll need it for periodic verification calls.
-</Warning>
-
----
-
-## Verify Token
-
-Verify a user's access token and get updated entitlements. Call this every 5 minutes to ensure access is still valid.
-
-<ParamField header="Authorization" type="string" required>
-Bearer token with your tool API key (format: `Bearer sk-tool-xxxxx`)
-</ParamField>
-
-<ParamField body="verificationToken" type="string" required>
-The verification token from the exchange or previous verify call
-</ParamField>
-
-**Endpoint:** `POST /api/v1/verify`
-
-**Rate Limit:** 120 requests per minute
-
-<RequestExample>
-```bash cURL
-curl -X POST 'https://1sub.io/api/v1/verify' \
-  -H 'Authorization: Bearer sk-tool-xxxxxxxxxxxxxxxxxxxxxxxx' \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "verificationToken": "vt_xxxxxxxxxxxxxxxxxxxxxxxx"
-  }'
-```
-
-```javascript Node.js
-const response = await fetch('https://1sub.io/api/v1/verify', {
-  method: 'POST',
-  headers: {
-    'Authorization': `Bearer ${process.env.ONESUB_API_KEY}`,
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    verificationToken: currentToken
-  })
-});
-
-const result = await response.json();
-```
-
-```python Python
-import requests
-
-response = requests.post(
-    'https://1sub.io/api/v1/verify',
-    json={'verificationToken': current_token},
-    headers={
-        'Authorization': f'Bearer {os.environ["ONESUB_API_KEY"]}',
-        'Content-Type': 'application/json'
-    }
-)
-
-result = response.json()
-```
-</RequestExample>
-
-<ResponseExample>
-```json 200 OK - Valid Access
-{
-  "valid": true,
-  "onesubUserId": "550e8400-e29b-41d4-a716-446655440000",
-  "entitlements": {
-    "planId": "monthly",
-    "creditsRemaining": 1150,
-    "features": ["pro", "api_access"],
-    "limits": {
-      "api_calls_per_day": 10000
-    }
-  },
-  "verificationToken": "vt_NEW_xxxxxxxxxxxxxxxxxxxxxxxx",
-  "cacheUntil": 1703000700,
-  "nextVerificationBefore": 1703001000
-}
-```
-
-```json 403 Forbidden - Access Revoked
-{
-  "valid": false,
-  "error": "ACCESS_REVOKED",
-  "reason": "Subscription canceled",
-  "action": "terminate_session"
-}
-```
-
-```json 401 Unauthorized - Token Expired
-{
-  "valid": false,
-  "error": "TOKEN_EXPIRED",
-  "reason": "Verification token has expired",
-  "action": "reauthenticate"
-}
-```
-</ResponseExample>
-
-### Response Fields
-
-<ResponseField name="valid" type="boolean" required>
-Whether the user's access is still valid
-</ResponseField>
-
-<ResponseField name="onesubUserId" type="string (UUID)">
-The 1Sub user ID (only present when `valid: true`)
-</ResponseField>
-
-<ResponseField name="entitlements" type="object">
-Updated user entitlements (only present when `valid: true`)
-</ResponseField>
-
-<ResponseField name="verificationToken" type="string">
-NEW verification token for the next call. Always update your stored token! (only present when `valid: true`)
-</ResponseField>
-
-<ResponseField name="cacheUntil" type="number">
-Unix timestamp - you can cache entitlements until this time (only present when `valid: true`)
-</ResponseField>
-
-<ResponseField name="nextVerificationBefore" type="number">
-Unix timestamp - verify again before this time (only present when `valid: true`)
-</ResponseField>
-
-<ResponseField name="error" type="string">
-Error code (only present when `valid: false`)
-</ResponseField>
-
-<ResponseField name="reason" type="string">
-Human-readable reason for failure (only present when `valid: false`)
-</ResponseField>
-
-<ResponseField name="action" type="string">
-Recommended action: `terminate_session` or `reauthenticate` (only present when `valid: false`)
-</ResponseField>
-
-<Warning>
-**Critical:** The `verificationToken` changes on every successful verify call (token rolling). Always store the new token for subsequent requests!
-</Warning>
 
 ---
 
@@ -314,11 +18,11 @@ Recommended action: `terminate_session` or `reauthenticate` (only present when `
 Deduct credits from a user's balance for tool usage.
 
 <ParamField header="Authorization" type="string" required>
-Bearer token with your tool API key
+Bearer token with your tool API key (format: `Bearer sk-tool-xxxxx`)
 </ParamField>
 
 <ParamField body="user_id" type="string (UUID)" required>
-The 1Sub user ID whose credits to consume
+The 1Sub user ID (`oneSubUserId`) - received via webhook or extracted from Magic Login
 </ParamField>
 
 <ParamField body="amount" type="number" required>
@@ -435,15 +139,6 @@ print(f"New balance: {result['new_balance']}")
   "message": "This request has already been processed"
 }
 ```
-
-```json 200 OK - Idempotent Request
-{
-  "success": true,
-  "message": "Idempotent request already processed",
-  "transaction_id": "txn-abc123def456",
-  "new_balance": 90
-}
-```
 </ResponseExample>
 
 ### Response Fields
@@ -466,6 +161,24 @@ Store the `transaction_id` for auditing and support purposes.
 
 ---
 
+## Idempotency
+
+The `idempotency_key` parameter prevents duplicate charges. If you send the same key twice within 24 hours, the second request returns the original result without consuming additional credits.
+
+**Best practices:**
+- Use meaningful, unique keys: `{action}-{user_id}-{timestamp}`
+- Store keys alongside your records
+- Retry failed requests with the same key
+
+```typescript
+// Good idempotency keys
+const key1 = `image-gen-${userId}-${Date.now()}`;
+const key2 = `analysis-${documentId}-${userId}`;
+const key3 = `chat-${sessionId}-${messageCount}`;
+```
+
+---
+
 ## Error Handling
 
 All endpoints return standard error responses:
@@ -478,23 +191,23 @@ All endpoints return standard error responses:
 }
 ```
 
-### Common Error Codes
+### Error Codes
 
 | Status | Error | Meaning | Action |
 |--------|-------|---------|--------|
 | 400 | Bad Request | Invalid parameters | Check request body |
-| 401 | Unauthorized | Invalid/missing API key or token expired | Verify API key or reauthenticate |
-| 402 | Payment Required | No active subscription or insufficient credits | User needs to subscribe or add credits |
-| 403 | Forbidden | Access revoked or tool inactive | Terminate user session immediately |
-| 404 | Not Found | Resource doesn't exist | Verify user/subscription exists |
-| 409 | Conflict | Duplicate/conflicting request | Check idempotency key or existing links |
-| 422 | Unprocessable Entity | Validation failed | Fix validation errors |
-| 429 | Rate Limit Exceeded | Too many requests | Implement backoff, respect `Retry-After` |
-| 500 | Internal Server Error | Server error | Retry with exponential backoff |
+| 401 | Unauthorized | Invalid/missing API key | Verify API key |
+| 402 | Payment Required | Insufficient credits | User needs to add credits |
+| 403 | Forbidden | Access revoked or tool inactive | Terminate user session |
+| 409 | Conflict | Duplicate request (idempotent) | Use returned result |
+| 429 | Rate Limit Exceeded | Too many requests | Implement backoff |
+| 500 | Internal Server Error | Server error | Retry with backoff |
 
 <Warning>
 Always implement proper error handling and retry logic, especially for 429 and 500 errors.
 </Warning>
+
+---
 
 ## Rate Limit Headers
 
@@ -510,96 +223,54 @@ Use these headers to track your usage and avoid hitting rate limits.
 
 ---
 
-## Handling Revocation
+## Getting User ID
 
-When a user's access is revoked (subscription cancelled, payment failed, fraud, etc.), 1Sub enforces this across all endpoints:
+The `user_id` parameter is the 1Sub user ID (`oneSubUserId`). You get this from:
 
-### Revocation Flow
-
-1. **Webhook Notification** (immediate)
-   - You receive an `entitlement.revoked` webhook
-   - Invalidate any cached user data
-   - Update your database to mark access as ended
-
-2. **API Enforcement** (on next request)
-   - Next `/verify` call returns: `{ valid: false, action: "terminate_session" }`
-   - `/credits/consume` returns: `403 Forbidden` with revocation reason
-   - User can no longer access your tool
-
-### Implementation Guide
+1. **Magic Login URL** - Passed as the `user` query parameter when users click "Launch Magic Login"
+2. **Webhooks** - Included in the `oneSubUserId` field of webhook payloads
 
 ```typescript
-// 1. Handle the webhook (proactive notification)
-app.post('/webhooks/1sub', (req, res) => {
-  const event = req.body;
-
-  if (event.type === 'entitlement.revoked') {
-    const { onesubUserId, toolId, reason } = event.data;
-
-    // Invalidate cached data
-    cache.delete(`user:${onesubUserId}`);
-
-    // Mark in database
-    await db.users.update(onesubUserId, { accessRevoked: true });
-
-    console.log(`Access revoked for ${onesubUserId}: ${reason}`);
-  }
-
-  res.status(200).send('OK');
+// From Magic Login
+app.get('/auth/magic', (req, res) => {
+  const oneSubUserId = req.query.user;
+  // Store this for credit consumption
 });
 
-// 2. Check on every request (enforcement guarantee)
-app.use(async (req, res, next) => {
-  const verificationToken = req.session.verificationToken;
-
-  const response = await fetch('https://1sub.io/api/v1/verify', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.ONESUB_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ verificationToken })
-  });
-
-  const result = await response.json();
-
-  if (!result.valid) {
-    // Access revoked or token expired
-    req.session.destroy();
-    return res.status(403).render('access-ended', {
-      reason: result.reason,
-      action: result.action // 'terminate_session' or 'reauthenticate'
-    });
-  }
-
-  // Update session with new token (token rolling)
-  req.session.verificationToken = result.verificationToken;
-  next();
+// From webhooks
+app.post('/webhooks/1sub', (req, res) => {
+  const { oneSubUserId } = req.body.data;
+  // Store this for credit consumption
 });
 ```
 
-### Best Practices
+---
+
+## Handling Revocation
+
+When you receive a `403 Forbidden` with `action: "terminate_session"`, the user's access has been revoked. You should:
+
+1. **Terminate their session** immediately
+2. **Stop consuming credits** for this user
+3. **Clear cached data**
+4. **Show an "access ended" message**
+
+This happens when:
+- User cancels subscription
+- Payment fails
+- Admin revokes access
+- You receive a `security.force_logout` webhook
 
 <Warning>
-**Critical:** When you receive `valid: false` with `action: "terminate_session"`, you MUST:
-1. Terminate the user's session immediately
-2. Clear any cached data
-3. Show a clear "Your access has ended" message
-4. Do NOT allow further access to paid features
+**Critical:** When you receive a 403 with revocation, do NOT retry the request. Terminate the user's session immediately.
 </Warning>
 
-<Tip>
-**Performance:** Cache the verification result for up to `cacheUntil` seconds, but always check the webhook first for immediate revocation notifications.
-</Tip>
+<CardGroup cols={2}>
+<Card title="Webhook Events" icon="webhook" href="/docs/webhooks/events">
+  Handle subscription and security events
+</Card>
 
-### Revocation Reasons
-
-| Reason | Description | User Action |
-|--------|-------------|-------------|
-| `subscription_cancelled` | User cancelled their subscription | Resubscribe on 1Sub |
-| `payment_failed` | Payment method failed | Update payment method |
-| `bundle_changed` | Tool removed from user's bundle | Add tool back to bundle |
-| `manual` | Admin manually revoked access | Contact support |
-| `fraud` | Detected fraudulent activity | Contact support |
-| `tool_deactivated` | Tool is no longer active | Tool unavailable |
-
+<Card title="Magic Login" icon="sparkles" href="/docs/api/magic-login">
+  Zero-API-call authentication
+</Card>
+</CardGroup>
