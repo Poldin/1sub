@@ -5,19 +5,16 @@ description: "Integrate 1Sub in under an hour - simpler than building your own p
 
 # Vendor Integration
 
-1Sub handles subscriptions and payments for you. When a user clicks "Launch Tool" on 1Sub, we tell you whether access is allowed. You just need to receive that signal and create a session.
+1Sub handles subscriptions and payments for you. When a user clicks "Launch Magic Login" on 1Sub, they arrive at your app already signed in. Zero passwords, zero friction.
 
 ---
 
 ## What you need to get started
 
-Just one thing:
+Two endpoints:
 
-1. <a href="#step-1-add-the-webhook-endpoint" className="inline-block px-2 py-1 bg-[#3ecf8e]/20 text-[#3ecf8e] rounded text-sm font-medium hover:bg-[#3ecf8e]/30 transition-colors">**webhook endpoint**</a> - automatically stop access when payment stops
-
-**Optional but strongly recommended:**
-
-- <a href="#step-2-add-the-callback-endpoint-optional" className="inline-block px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-sm font-medium hover:bg-blue-500/30 transition-colors">**callback endpoint**</a> - automatically receive users after they click "Launch Tool"
+1. <a href="#step-1-webhook-endpoint" className="inline-block px-2 py-1 bg-[#3ecf8e]/20 text-[#3ecf8e] rounded text-sm font-medium hover:bg-[#3ecf8e]/30 transition-colors">**Webhook endpoint**</a> - receive user data and subscription updates
+2. <a href="#step-2-magic-login-endpoint" className="inline-block px-2 py-1 bg-purple-500/20 text-purple-400 rounded text-sm font-medium hover:bg-purple-500/30 transition-colors">**Magic Login endpoint**</a> - authenticate users with zero API calls
 
 That's it. This replaces:
 - User signup and login
@@ -33,7 +30,7 @@ That's it. This replaces:
 From the user's perspective:
 
 1. User subscribes to your tool on 1Sub
-2. User clicks "Launch Tool"
+2. User clicks "Launch Magic Login"
 3. Your app opens with the user already signed in
 4. They use your tool - no account creation needed
 
@@ -43,54 +40,98 @@ Users never create accounts on your site. 1Sub handles identity and payment.
 
 ## Step-by-Step Integration
 
-### Step 1: Add the Webhook Endpoint
+### Step 1: Webhook Endpoint
 
-When a user cancels, 1Sub notifies you immediately so you can end their session:
+When a user subscribes, cancels, or updates, 1Sub sends you a webhook:
 
 ```typescript
 app.post('/webhooks/1sub', express.json(), (req, res) => {
   const event = req.body;
 
-  if (event.type === 'subscription.canceled') {
-    // Invalidate this user's session
-    sessionStore.destroy(event.data.oneSubUserId);
+  switch (event.type) {
+    case 'subscription.activated':
+      // New subscriber! Store their data
+      db.users.upsert({
+        oneSubUserId: event.data.oneSubUserId,
+        email: event.data.userEmail,
+        plan: event.data.planId,
+        active: true
+      });
+      break;
+      
+    case 'subscription.canceled':
+      // Subscription ended - revoke access
+      db.users.update(event.data.oneSubUserId, { active: false });
+      sessions.invalidate(event.data.oneSubUserId);
+      break;
   }
 
   res.status(200).send('OK');
 });
 ```
 
+<Info>
+Configure your Webhook URL in the [Vendor Dashboard](/vendor-dashboard/api).
+</Info>
+
 ---
 
-### Step 2: Add the Callback Endpoint (Optional)
+### Step 2: Magic Login Endpoint
 
-When users click "Launch Tool", they're redirected to your app with a `code`. Exchange it for user info:
+When users click "Launch Magic Login", they're redirected to your Magic Login URL with a signed token. **No API calls needed** - verify the signature locally:
 
 ```typescript
-app.get('/auth/callback', async (req, res) => {
-  const { code } = req.query;
+import crypto from 'crypto';
 
-  const { data } = await fetch('https://1sub.io/api/v1/authorize/exchange', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.ONESUB_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ code }),
-  }).then(r => r.json());
-
-  // Create your session
-  req.session.userId = data.onesubUserId;
-  req.session.token = data.verificationToken;
-  req.session.plan = data.entitlements;
-
+app.get('/auth/magic', async (req, res) => {
+  const { user, ts, sig } = req.query;
+  
+  // 1. Verify link hasn't expired (60 seconds)
+  if (Date.now() / 1000 - Number(ts) > 60) {
+    return res.status(401).send('Link expired');
+  }
+  
+  // 2. Verify signature (LOCAL - no API call!)
+  const expected = crypto
+    .createHmac('sha256', process.env.MAGIC_LOGIN_SECRET)
+    .update(`${user}${ts}`)
+    .digest('hex');
+    
+  if (sig !== expected) {
+    return res.status(401).send('Invalid signature');
+  }
+  
+  // 3. Look up user (you already have their data from webhooks!)
+  const userData = await db.users.findByOneSubId(user);
+  if (!userData?.active) {
+    return res.status(403).send('No active subscription');
+  }
+  
+  // 4. Create session - they're in!
+  req.session.userId = user;
+  req.session.plan = userData.plan;
+  
   res.redirect('/dashboard');
 });
 ```
 
-You get back the user's ID, their plan details, and a token for checking access later.
+<Info>
+Configure your Magic Login URL and generate a Magic Login Secret in the [Vendor Dashboard](/vendor-dashboard/api).
+</Info>
 
-That's the complete integration.
+---
+
+## That's It! 🎉
+
+**~30 lines of code** for complete subscription management:
+
+| What | How |
+|------|-----|
+| User subscribes | Webhook → store in your DB |
+| User launches tool | Magic Login → verify signature → create session |
+| User cancels | Webhook → revoke access |
+
+**Zero API calls** for authentication. Everything is verified locally.
 
 ---
 
@@ -98,25 +139,29 @@ That's the complete integration.
 
 **What happens if a user cancels?**
 
-You get a webhook immediately so you can end their session right away.
+You get a `subscription.canceled` webhook immediately. Invalidate their session and they lose access.
 
-**What if 1Sub is temporarily unavailable?**
+**What if the webhook arrives late?**
 
-Keep the session active and retry the webhook or verification when the service is back online.
+Extremely rare. But if a user launches before their webhook arrives, they won't be in your database yet. Just show a "try again in a few seconds" message.
+
+**Do I need to call any 1Sub API?**
+
+Only if your tool uses credits (`/api/v1/credits/consume`). Authentication is fully local via Magic Login.
 
 ---
 
 ## Ready to Integrate?
 
 - **Time to integrate:** 30-60 minutes
-- **Lines of code:** ~40
-- **Complexity:** If you can add a webhook, you can integrate 1Sub
+- **Lines of code:** ~30
+- **API calls needed:** Zero (for auth)
 
-Get your API key from the [vendor dashboard](https://1sub.io/vendor/dashboard) and you're ready to go.
+Get started in the [Vendor Dashboard](/vendor-dashboard/api).
 
 <CardGroup cols={2}>
-<Card title="API Reference" icon="code" href="/docs/api/reference">
-  Full endpoint documentation
+<Card title="Magic Login" icon="sparkles" href="/docs/api/magic-login">
+  Full Magic Login documentation
 </Card>
 
 <Card title="Webhook Events" icon="webhook" href="/docs/webhooks/events">

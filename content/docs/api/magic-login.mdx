@@ -1,0 +1,437 @@
+---
+title: "Magic Login"
+description: "Passwordless authentication for your users - zero API calls required"
+---
+
+# Magic Login
+
+Magic Login enables seamless, passwordless authentication. When users click "Launch Magic Login" on 1Sub, they arrive at your app already signed in - no passwords, no friction.
+
+<Info>
+**Zero API calls required!** You verify the signature locally using your Magic Login Secret.
+</Info>
+
+---
+
+## How It Works
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  1. User clicks "Launch Magic Login" on 1Sub                    │
+│                    │                                            │
+│                    ▼                                            │
+│  2. 1Sub redirects to your Magic Login URL:                     │
+│     https://yourapp.com/magic?user=xxx&ts=123&sig=HMAC          │
+│                    │                                            │
+│                    ▼                                            │
+│  3. Your server verifies signature (LOCAL - no API call!)       │
+│                    │                                            │
+│                    ▼                                            │
+│  4. Look up user in your DB (you have data from webhooks)       │
+│                    │                                            │
+│                    ▼                                            │
+│  5. Create session → User is in! 🎉                             │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Setup
+
+### Step 1: Configure in Dashboard
+
+In your [Vendor Dashboard](/vendor-dashboard/api):
+
+1. Set your **Magic Login URL** (e.g., `https://yourapp.com/auth/magic`)
+2. Generate a **Magic Login Secret** (click "Generate")
+3. Save the configuration
+4. Copy the secret to your server's environment variables
+
+### Step 2: Handle Webhooks (Required)
+
+Magic Login assumes you've already integrated webhooks to receive user data:
+
+```typescript
+// When user subscribes, you receive their data
+app.post('/webhooks/1sub', (req, res) => {
+  const event = req.body;
+  
+  if (event.type === 'subscription.activated') {
+    // Store user data
+    await db.users.create({
+      oneSubUserId: event.data.oneSubUserId,
+      email: event.data.userEmail,
+      plan: event.data.planId,
+      active: true
+    });
+  }
+  
+  if (event.type === 'subscription.canceled') {
+    await db.users.update(event.data.oneSubUserId, { active: false });
+  }
+  
+  res.status(200).send('OK');
+});
+```
+
+### Step 3: Implement Magic Login Endpoint
+
+```typescript
+import crypto from 'crypto';
+
+app.get('/auth/magic', async (req, res) => {
+  const { user, ts, sig } = req.query;
+  
+  // 1. Verify timestamp (link expires in 60 seconds)
+  const now = Math.floor(Date.now() / 1000);
+  if (now - parseInt(ts as string) > 60) {
+    return res.status(401).send('Link expired');
+  }
+  
+  // 2. Verify signature (LOCAL - no API call!)
+  const expectedSig = crypto
+    .createHmac('sha256', process.env.MAGIC_LOGIN_SECRET!)
+    .update(`${user}${ts}`)
+    .digest('hex');
+    
+  if (sig !== expectedSig) {
+    return res.status(401).send('Invalid signature');
+  }
+  
+  // 3. Look up user in YOUR database (populated via webhooks)
+  const userData = await db.users.findByOneSubId(user as string);
+  
+  if (!userData || !userData.active) {
+    return res.status(403).send('No active subscription');
+  }
+  
+  // 4. Create session
+  req.session.userId = user;
+  req.session.email = userData.email;
+  req.session.plan = userData.plan;
+  
+  res.redirect('/dashboard');
+});
+```
+
+That's it! **~20 lines of code** for passwordless authentication.
+
+---
+
+## URL Parameters
+
+When 1Sub redirects to your Magic Login URL, it includes these query parameters:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `user` | string | The 1Sub User ID (`oneSubUserId`) |
+| `ts` | number | Unix timestamp when the link was generated |
+| `sig` | string | HMAC-SHA256 signature for verification |
+
+### Example URL
+
+```
+https://yourapp.com/auth/magic?user=550e8400-e29b-41d4-a716-446655440000&ts=1703001234&sig=a1b2c3d4e5f6...
+```
+
+---
+
+## Signature Verification
+
+The signature is generated using HMAC-SHA256:
+
+```
+signature = HMAC-SHA256(user + ts, magic_login_secret)
+```
+
+### Verification Examples
+
+<CodeGroup>
+
+```typescript Node.js
+import crypto from 'crypto';
+
+function verifyMagicLogin(user: string, ts: string, sig: string): boolean {
+  // Check timestamp (60 second expiry)
+  const now = Math.floor(Date.now() / 1000);
+  if (now - parseInt(ts) > 60) {
+    return false;
+  }
+  
+  // Verify signature
+  const expected = crypto
+    .createHmac('sha256', process.env.MAGIC_LOGIN_SECRET!)
+    .update(`${user}${ts}`)
+    .digest('hex');
+    
+  return crypto.timingSafeEqual(
+    Buffer.from(sig),
+    Buffer.from(expected)
+  );
+}
+```
+
+```python Python
+import hmac
+import hashlib
+import time
+import os
+
+def verify_magic_login(user: str, ts: str, sig: str) -> bool:
+    # Check timestamp (60 second expiry)
+    now = int(time.time())
+    if now - int(ts) > 60:
+        return False
+    
+    # Verify signature
+    secret = os.environ['MAGIC_LOGIN_SECRET']
+    expected = hmac.new(
+        secret.encode(),
+        f'{user}{ts}'.encode(),
+        hashlib.sha256
+    ).hexdigest()
+    
+    return hmac.compare_digest(sig, expected)
+```
+
+```go Go
+import (
+    "crypto/hmac"
+    "crypto/sha256"
+    "encoding/hex"
+    "os"
+    "strconv"
+    "time"
+)
+
+func VerifyMagicLogin(user, ts, sig string) bool {
+    // Check timestamp (60 second expiry)
+    tsInt, _ := strconv.ParseInt(ts, 10, 64)
+    if time.Now().Unix()-tsInt > 60 {
+        return false
+    }
+    
+    // Verify signature
+    secret := os.Getenv("MAGIC_LOGIN_SECRET")
+    mac := hmac.New(sha256.New, []byte(secret))
+    mac.Write([]byte(user + ts))
+    expected := hex.EncodeToString(mac.Sum(nil))
+    
+    return hmac.Equal([]byte(sig), []byte(expected))
+}
+```
+
+```php PHP
+function verifyMagicLogin(string $user, string $ts, string $sig): bool {
+    // Check timestamp (60 second expiry)
+    if (time() - intval($ts) > 60) {
+        return false;
+    }
+    
+    // Verify signature
+    $secret = getenv('MAGIC_LOGIN_SECRET');
+    $expected = hash_hmac('sha256', $user . $ts, $secret);
+    
+    return hash_equals($expected, $sig);
+}
+```
+
+</CodeGroup>
+
+<Warning>
+**Security:** Always use timing-safe comparison (`crypto.timingSafeEqual`, `hmac.compare_digest`, etc.) to prevent timing attacks.
+</Warning>
+
+---
+
+## Security Best Practices
+
+<AccordionGroup>
+
+<Accordion title="Store secret securely">
+- ✅ Use environment variables
+- ✅ Use secrets management (AWS Secrets Manager, etc.)
+- ❌ Never hardcode in source code
+- ❌ Never commit to version control
+</Accordion>
+
+<Accordion title="Always verify timestamp">
+Links expire after 60 seconds. Always check the timestamp before validating the signature to prevent replay attacks.
+
+```typescript
+const MAX_AGE_SECONDS = 60;
+const now = Math.floor(Date.now() / 1000);
+
+if (now - parseInt(ts) > MAX_AGE_SECONDS) {
+  throw new Error('Link expired');
+}
+```
+</Accordion>
+
+<Accordion title="Use timing-safe comparison">
+Regular string comparison (`===`) is vulnerable to timing attacks. Always use:
+
+- **Node.js:** `crypto.timingSafeEqual()`
+- **Python:** `hmac.compare_digest()`
+- **Go:** `hmac.Equal()`
+- **PHP:** `hash_equals()`
+</Accordion>
+
+<Accordion title="HTTPS only">
+Magic Login URLs should only be served over HTTPS to prevent man-in-the-middle attacks.
+</Accordion>
+
+</AccordionGroup>
+
+---
+
+## Complete Example
+
+Here's a full Express.js implementation:
+
+```typescript
+import express from 'express';
+import crypto from 'crypto';
+import session from 'express-session';
+
+const app = express();
+
+// Session setup
+app.use(session({
+  secret: process.env.SESSION_SECRET!,
+  resave: false,
+  saveUninitialized: false,
+}));
+
+// Webhook handler - receive user data
+app.post('/webhooks/1sub', express.json(), async (req, res) => {
+  const event = req.body;
+  
+  switch (event.type) {
+    case 'subscription.activated':
+      await db.users.upsert({
+        oneSubUserId: event.data.oneSubUserId,
+        email: event.data.userEmail,
+        plan: event.data.planId,
+        active: true,
+      });
+      break;
+      
+    case 'subscription.canceled':
+    case 'entitlement.revoked':
+      await db.users.update(event.data.oneSubUserId, { active: false });
+      // Also invalidate any active sessions
+      await sessions.invalidateByUserId(event.data.oneSubUserId);
+      break;
+  }
+  
+  res.status(200).send('OK');
+});
+
+// Magic Login handler - authenticate users
+app.get('/auth/magic', async (req, res) => {
+  const { user, ts, sig } = req.query as Record<string, string>;
+  
+  // Validate required parameters
+  if (!user || !ts || !sig) {
+    return res.status(400).send('Missing parameters');
+  }
+  
+  // Verify timestamp
+  const now = Math.floor(Date.now() / 1000);
+  if (now - parseInt(ts) > 60) {
+    return res.status(401).send('Link expired. Please try again from 1Sub.');
+  }
+  
+  // Verify signature
+  const expected = crypto
+    .createHmac('sha256', process.env.MAGIC_LOGIN_SECRET!)
+    .update(`${user}${ts}`)
+    .digest('hex');
+    
+  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
+    return res.status(401).send('Invalid signature');
+  }
+  
+  // Look up user
+  const userData = await db.users.findByOneSubId(user);
+  
+  if (!userData) {
+    return res.status(404).send('User not found. Please subscribe first.');
+  }
+  
+  if (!userData.active) {
+    return res.status(403).send('Subscription inactive. Please renew on 1Sub.');
+  }
+  
+  // Create session
+  req.session.userId = user;
+  req.session.email = userData.email;
+  req.session.plan = userData.plan;
+  
+  // Redirect to app
+  res.redirect('/dashboard');
+});
+
+app.listen(3000);
+```
+
+---
+
+## FAQ
+
+<AccordionGroup>
+
+<Accordion title="What if the user doesn't exist in my database?">
+This shouldn't happen if you've integrated webhooks correctly. When a user subscribes, you receive `subscription.activated` with their data.
+
+If it does happen (rare race condition), you can either:
+1. Show an error and ask them to try again in a few seconds
+2. Create the user on-the-fly (less recommended as you won't have their email)
+</Accordion>
+
+<Accordion title="Can I use the same secret for webhooks and Magic Login?">
+We recommend using separate secrets for better security isolation. If one is compromised, the other remains secure.
+</Accordion>
+
+<Accordion title="How do I handle session expiry?">
+This is up to you. Common approaches:
+- **Short sessions (hours):** User re-launches from 1Sub
+- **Long sessions (days):** Check webhook events for `subscription.canceled`
+- **Hybrid:** Short sessions + refresh on Magic Login
+</Accordion>
+
+<Accordion title="Do I need to call any 1Sub API?">
+**No!** That's the beauty of Magic Login. Everything is verified locally using your secret. Zero API calls needed.
+
+The only API calls are:
+- **Credits consumption** (if your tool uses credits)
+- **Optional:** `/api/v1/verify` for extra validation (not required)
+</Accordion>
+
+</AccordionGroup>
+
+---
+
+## Migration from Code Exchange
+
+If you were using the code exchange flow, migration is simple:
+
+| Old Flow | Magic Login |
+|----------|-------------|
+| Receive `code` parameter | Receive `user`, `ts`, `sig` parameters |
+| Call `/api/v1/authorize/exchange` | Verify signature locally |
+| Get user data from API response | Get user data from your DB (via webhooks) |
+
+The user experience is identical - they still click "Launch Magic Login" and arrive authenticated.
+
+<CardGroup cols={2}>
+<Card title="Webhook Events" icon="webhook" href="/docs/webhooks/events">
+  All webhook event types
+</Card>
+
+<Card title="API Reference" icon="code" href="/docs/api/reference">
+  Full API documentation
+</Card>
+</CardGroup>
+

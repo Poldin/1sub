@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Menu, Key, Copy, RefreshCw, AlertCircle, Webhook, Link as LinkIcon, Eye, EyeOff, Save, Check, Send } from 'lucide-react';
+import { Menu, Key, Copy, RefreshCw, AlertCircle, Webhook, Eye, EyeOff, Save, Check, Send, Sparkles } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import Sidebar from '../../backoffice/components/Sidebar';
 import ToolSelector from '../components/ToolSelector';
@@ -30,6 +30,7 @@ export default function VendorAPIPage() {
   
   // States for unified Sidebar
   const [userId, setUserId] = useState<string>('');
+  const [userEmail, setUserEmail] = useState<string>('');
   const [userRole, setUserRole] = useState<string>('user');
   const [hasTools, setHasTools] = useState(false);
   const [isVendor, setIsVendor] = useState(false);
@@ -39,14 +40,19 @@ export default function VendorAPIPage() {
   const [webhookUrl, setWebhookUrl] = useState('');
   const [webhookSecret, setWebhookSecret] = useState('');
   const [showWebhookSecret, setShowWebhookSecret] = useState(false);
-  const [redirectUri, setRedirectUri] = useState('');
   const [savingConfig, setSavingConfig] = useState(false);
   const [configSaved, setConfigSaved] = useState(false);
+  
+  // Magic Login configuration states
+  const [magicLoginUrl, setMagicLoginUrl] = useState('');
+  const [magicLoginSecret, setMagicLoginSecret] = useState('');
+  const [showMagicLoginSecret, setShowMagicLoginSecret] = useState(false);
   
   // Original values for comparison
   const [originalWebhookUrl, setOriginalWebhookUrl] = useState('');
   const [originalWebhookSecret, setOriginalWebhookSecret] = useState('');
-  const [originalRedirectUri, setOriginalRedirectUri] = useState('');
+  const [originalMagicLoginUrl, setOriginalMagicLoginUrl] = useState('');
+  const [originalMagicLoginSecret, setOriginalMagicLoginSecret] = useState('');
 
   // Webhook test states
   const [testEventType, setTestEventType] = useState('subscription.activated');
@@ -63,9 +69,19 @@ export default function VendorAPIPage() {
     };
   } | null>(null);
 
+  // Magic Login test states
+  const [testingMagicLogin, setTestingMagicLogin] = useState(false);
+  const [magicLoginTestResult, setMagicLoginTestResult] = useState<{
+    success: boolean;
+    message?: string;
+    magicLoginUrl?: string;
+    error?: string;
+  } | null>(null);
+
   // Generate preview payload based on selected event type
   const generatePreviewPayload = (eventType: string) => {
-    const testUserId = 'test-user-123';
+    const testUserId = userId || 'test-user-123';
+    const testUserEmail = userEmail || 'test@example.com';
     const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     const cancelEffectiveDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -80,7 +96,7 @@ export default function VendorAPIPage() {
       case 'subscription.activated':
         basePayload.data = {
           oneSubUserId: testUserId,
-          userEmail: 'test@example.com',
+          userEmail: testUserEmail,
           planId: 'test-plan-monthly',
           status: 'active',
           currentPeriodEnd: periodEnd,
@@ -91,7 +107,7 @@ export default function VendorAPIPage() {
       case 'subscription.canceled':
         basePayload.data = {
           oneSubUserId: testUserId,
-          userEmail: 'test@example.com',
+          userEmail: testUserEmail,
           planId: 'test-plan-monthly',
           status: 'canceled',
           currentPeriodEnd: periodEnd,
@@ -103,7 +119,7 @@ export default function VendorAPIPage() {
       case 'subscription.updated':
         basePayload.data = {
           oneSubUserId: testUserId,
-          userEmail: 'test@example.com',
+          userEmail: testUserEmail,
           planId: 'test-plan-yearly',
           status: 'active',
           currentPeriodEnd: periodEnd,
@@ -114,7 +130,7 @@ export default function VendorAPIPage() {
       case 'purchase.completed':
         basePayload.data = {
           oneSubUserId: testUserId,
-          userEmail: 'test@example.com',
+          userEmail: testUserEmail,
           checkoutId: 'test_checkout_123',
           amount: 50,
           creditsRemaining: 150,
@@ -124,7 +140,7 @@ export default function VendorAPIPage() {
       case 'entitlement.granted':
         basePayload.data = {
           oneSubUserId: testUserId,
-          userEmail: 'test@example.com',
+          userEmail: testUserEmail,
           grantId: 'test_grant_123',
           planId: 'test-plan-pro',
           status: 'active',
@@ -134,7 +150,7 @@ export default function VendorAPIPage() {
       case 'entitlement.revoked':
         basePayload.data = {
           oneSubUserId: testUserId,
-          userEmail: 'test@example.com',
+          userEmail: testUserEmail,
           reason: 'subscription_canceled',
           revokedAt: new Date().toISOString(),
           status: 'canceled',
@@ -143,7 +159,7 @@ export default function VendorAPIPage() {
       case 'entitlement.changed':
         basePayload.data = {
           oneSubUserId: testUserId,
-          userEmail: 'test@example.com',
+          userEmail: testUserEmail,
           previousState: {
             planId: 'test-plan-basic',
             features: ['feature1', 'feature2'],
@@ -167,7 +183,7 @@ export default function VendorAPIPage() {
       case 'user.credit_low':
         basePayload.data = {
           oneSubUserId: testUserId,
-          userEmail: 'test@example.com',
+          userEmail: testUserEmail,
           creditBalance: 8,
           threshold: 10,
         };
@@ -175,7 +191,7 @@ export default function VendorAPIPage() {
       case 'user.credit_depleted':
         basePayload.data = {
           oneSubUserId: testUserId,
-          userEmail: 'test@example.com',
+          userEmail: testUserEmail,
           creditBalance: 0,
         };
         break;
@@ -189,14 +205,14 @@ export default function VendorAPIPage() {
       case 'verify.required':
         basePayload.data = {
           oneSubUserId: testUserId,
-          userEmail: 'test@example.com',
+          userEmail: testUserEmail,
           reason: 'security_check',
         };
         break;
       default:
         basePayload.data = {
           oneSubUserId: testUserId,
-          userEmail: 'test@example.com',
+          userEmail: testUserEmail,
         };
     }
 
@@ -219,6 +235,23 @@ export default function VendorAPIPage() {
       }
     };
   }, [showWebhookSecret]);
+
+  // Auto-hide magic login secret after 5 seconds
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    
+    if (showMagicLoginSecret) {
+      timeoutId = setTimeout(() => {
+        setShowMagicLoginSecret(false);
+      }, 5000); // 5 seconds
+    }
+    
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [showMagicLoginSecret]);
 
   // UI notification states
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -268,6 +301,7 @@ export default function VendorAPIPage() {
         }
         
         setUserId(user.id);
+        setUserEmail(user.email || '');
         
         // Fetch user profile data
         const { data: profileData } = await supabase
@@ -449,9 +483,20 @@ export default function VendorAPIPage() {
     return 'whsec_' + Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
   };
 
+  const generateMagicLoginSecretValue = () => {
+    const array = new Uint8Array(32);
+    crypto.getRandomValues(array);
+    return 'mlsec_' + Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+  };
+
   const handleGenerateWebhookSecret = () => {
     const newSecret = generateWebhookSecret();
     setWebhookSecret(newSecret);
+  };
+
+  const handleGenerateMagicLoginSecret = () => {
+    const newSecret = generateMagicLoginSecretValue();
+    setMagicLoginSecret(newSecret);
   };
 
   const handleSelectToolForConfig = async (toolId: string) => {
@@ -471,26 +516,31 @@ export default function VendorAPIPage() {
         const metadata = apiKeyData.metadata as Record<string, unknown>;
         const webhook = (metadata.webhook_url as string) || '';
         const secret = (metadata.webhook_secret as string) || '';
-        const redirect = (metadata.redirect_uri as string) || '';
+        const mlUrl = (metadata.magic_login_url as string) || '';
+        const mlSecret = (metadata.magic_login_secret as string) || '';
         
         setWebhookUrl(webhook);
         setWebhookSecret(secret);
-        setRedirectUri(redirect);
+        setMagicLoginUrl(mlUrl);
+        setMagicLoginSecret(mlSecret);
         
         // Store original values for comparison
         setOriginalWebhookUrl(webhook);
         setOriginalWebhookSecret(secret);
-        setOriginalRedirectUri(redirect);
+        setOriginalMagicLoginUrl(mlUrl);
+        setOriginalMagicLoginSecret(mlSecret);
       } else {
         // Clear form
         setWebhookUrl('');
         setWebhookSecret('');
-        setRedirectUri('');
+        setMagicLoginUrl('');
+        setMagicLoginSecret('');
         
         // Clear original values
         setOriginalWebhookUrl('');
         setOriginalWebhookSecret('');
-        setOriginalRedirectUri('');
+        setOriginalMagicLoginUrl('');
+        setOriginalMagicLoginSecret('');
       }
     } catch (error) {
       console.error('Error loading configuration:', error);
@@ -520,7 +570,8 @@ export default function VendorAPIPage() {
       const metadata = (apiKeyData?.metadata as Record<string, unknown>) || {};
       metadata.webhook_url = webhookUrl || null;
       metadata.webhook_secret = webhookSecret || null;
-      metadata.redirect_uri = redirectUri || null;
+      metadata.magic_login_url = magicLoginUrl || null;
+      metadata.magic_login_secret = magicLoginSecret || null;
       
       // Update metadata
       const { error: updateError } = await supabase
@@ -535,7 +586,8 @@ export default function VendorAPIPage() {
       // Update original values after successful save
       setOriginalWebhookUrl(webhookUrl);
       setOriginalWebhookSecret(webhookSecret);
-      setOriginalRedirectUri(redirectUri);
+      setOriginalMagicLoginUrl(magicLoginUrl);
+      setOriginalMagicLoginSecret(magicLoginSecret);
       
       setConfigSaved(true);
       setTimeout(() => setConfigSaved(false), 3000);
@@ -596,6 +648,62 @@ export default function VendorAPIPage() {
     }
   };
 
+  const handleTestMagicLogin = async () => {
+    if (!selectedToolForConfig) return;
+    
+    // Validate configuration
+    if (!magicLoginUrl) {
+      showToast('Please configure a Magic Login URL first', 'error');
+      return;
+    }
+    
+    if (!magicLoginSecret) {
+      showToast('Please generate a Magic Login Secret first', 'error');
+      return;
+    }
+    
+    setTestingMagicLogin(true);
+    setMagicLoginTestResult(null);
+    
+    try {
+      const response = await fetch('/api/v1/magiclogin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          toolId: selectedToolForConfig,
+          test: true, // Skip subscription check for vendor testing
+        }),
+      });
+      
+      const result = await response.json();
+      
+      if (result.success && result.magicLoginUrl) {
+        // Open directly in new tab
+        window.open(result.magicLoginUrl, '_blank');
+        showToast('Magic Login opened in new tab!', 'success');
+      } else {
+        setMagicLoginTestResult({
+          success: false,
+          message: result.message || 'Failed to generate Magic Login URL',
+          error: result.error,
+        });
+        showToast(result.message || 'Test failed', 'error');
+      }
+    } catch (error) {
+      console.error('Error testing Magic Login:', error);
+      setMagicLoginTestResult({
+        success: false,
+        message: 'Failed to generate Magic Login URL',
+        error: 'Network error',
+      });
+      showToast('Failed to test Magic Login', 'error');
+    } finally {
+      setTestingMagicLogin(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex overflow-x-hidden">
       {/* Unified Sidebar */}
@@ -653,7 +761,7 @@ export default function VendorAPIPage() {
               <h2 className="text-lg font-semibold text-[#ededed]">Webhook</h2>
             </div>
             <a
-              href="docs/webhooks/overview"
+              href="/docs/webhooks/overview"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 text-sm text-[#3ecf8e] hover:text-[#2dd4bf] transition-colors"
@@ -746,7 +854,8 @@ export default function VendorAPIPage() {
                     savingConfig || 
                     (webhookUrl === originalWebhookUrl && 
                      webhookSecret === originalWebhookSecret && 
-                     redirectUri === originalRedirectUri)
+                     magicLoginUrl === originalMagicLoginUrl &&
+                     magicLoginSecret === originalMagicLoginSecret)
                   }
                   className="flex items-center gap-1.5 bg-[#3ecf8e] hover:bg-[#2dd4bf] text-[#0a0a0a] px-4 py-1.5 rounded text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -940,7 +1049,196 @@ export default function VendorAPIPage() {
           )}
         </div>
 
-        {/* 2. API Key Section */}
+        {/* 2. Magic Login Section */}
+        <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151] mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-[#3ecf8e]" />
+              <h2 className="text-lg font-semibold text-[#ededed]">Magic Login</h2>
+            </div>
+            <a
+              href="/docs/api/magic-login"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-sm text-[#3ecf8e] hover:text-[#2dd4bf] transition-colors"
+            >
+              <span>View docs</span>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
+          </div>
+          
+          <p className="text-sm text-[#9ca3af] mb-4">
+            Enable passwordless authentication. Users click &quot;launch Magic login&quot; on 1Sub and arrive at your app already signed in.
+          </p>
+
+          {selectedToolForConfig ? (
+            <div className="space-y-4">
+              {/* Magic Login URL */}
+              <div>
+                <label className="block text-sm font-medium text-[#ededed] mb-2">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-[#3ecf8e]" />
+                    Magic Login URL
+                  </div>
+                </label>
+                <input
+                  type="url"
+                  value={magicLoginUrl}
+                  onChange={(e) => setMagicLoginUrl(e.target.value)}
+                  placeholder="https://yourtool.com/auth/magic"
+                  className="w-full px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e]"
+                />
+                <p className="text-xs text-[#9ca3af] mt-1">
+                  Where users are redirected with a signed login URL (e.g., /auth/magic or /1sub/login)
+                </p>
+              </div>
+
+              {/* Magic Login Secret */}
+              <div>
+                <label className="block text-sm font-medium text-[#ededed] mb-2">
+                  <div className="flex items-center gap-2">
+                    <Key className="w-4 h-4 text-[#3ecf8e]" />
+                    Magic Login Secret
+                  </div>
+                </label>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 relative">
+                    <input
+                      type={showMagicLoginSecret ? 'text' : 'password'}
+                      value={magicLoginSecret}
+                      onChange={(e) => setMagicLoginSecret(e.target.value)}
+                      placeholder="mlsec_••••••••"
+                      className="w-full px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] font-mono text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowMagicLoginSecret(!showMagicLoginSecret)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9ca3af] hover:text-[#ededed]"
+                    >
+                      {showMagicLoginSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleGenerateMagicLoginSecret}
+                    className="px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg hover:bg-[#4b5563] transition-colors text-sm whitespace-nowrap"
+                  >
+                    Generate
+                  </button>
+                  {magicLoginSecret && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(magicLoginSecret);
+                        showToast('Magic Login secret copied to clipboard!');
+                      }}
+                      className="p-2 bg-[#374151] border border-[#4b5563] rounded-lg hover:bg-[#4b5563] transition-colors"
+                      title="Copy secret"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-[#9ca3af] mt-1">
+                  Used to verify Magic Login signatures (HMAC-SHA256). Store this securely in your tool.
+                </p>
+              </div>
+
+              {/* Save Button for Magic Login */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleSaveConfiguration}
+                  disabled={
+                    savingConfig || 
+                    (webhookUrl === originalWebhookUrl && 
+                     webhookSecret === originalWebhookSecret && 
+                     magicLoginUrl === originalMagicLoginUrl &&
+                     magicLoginSecret === originalMagicLoginSecret)
+                  }
+                  className="flex items-center gap-1.5 bg-[#3ecf8e] hover:bg-[#2dd4bf] text-[#0a0a0a] px-4 py-1.5 rounded text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {savingConfig ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      Saving...
+                    </>
+                  ) : configSaved ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      Saved!
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-3.5 h-3.5" />
+                      Save
+                    </>
+                  )}
+                </button>
+                
+                {configSaved && (
+                  <span className="text-xs text-[#3ecf8e]">Configuration saved successfully!</span>
+                )}
+              </div>
+
+              {/* Test Magic Login */}
+              {magicLoginUrl && magicLoginSecret && (
+                <div className="pt-6 mt-6 border-t border-[#374151]">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Sparkles className="w-4 h-4 text-[#3ecf8e]" />
+                    <h3 className="text-sm font-medium text-[#ededed]">Test Magic Login</h3>
+                  </div>
+
+                  <p className="text-xs text-[#9ca3af] mb-3">
+                    Test your Magic Login integration. This will open a new tab with a signed URL using your current user ({userEmail || 'you'}).
+                  </p>
+
+                  <button
+                    onClick={handleTestMagicLogin}
+                    disabled={testingMagicLogin}
+                    className="flex items-center gap-1.5 bg-[#3ecf8e] hover:bg-[#2dd4bf] text-[#0a0a0a] px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {testingMagicLogin ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        Opening...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5" />
+                        launch Magic login
+                      </>
+                    )}
+                  </button>
+
+                  {/* Error Result */}
+                  {magicLoginTestResult && !magicLoginTestResult.success && (
+                    <div className="mt-4 p-3 rounded-lg border bg-red-500/10 border-red-500/30">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-red-400">
+                            {magicLoginTestResult.message}
+                          </p>
+                          {magicLoginTestResult.error && (
+                            <p className="text-xs text-red-400 mt-1">
+                              Error: {magicLoginTestResult.error}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-[#9ca3af] text-sm">Select a tool to configure Magic Login</p>
+          )}
+        </div>
+
+        {/* 3. API Key Section */}
         <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151] mb-8">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-semibold text-[#ededed]">API Key</h2>
@@ -1019,72 +1317,6 @@ export default function VendorAPIPage() {
                 </div>
               );
             })()
-          )}
-        </div>
-
-        {/* 3. Callback Endpoint Section */}
-        <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151] mb-8">
-          <div className="flex items-center gap-2 mb-4">
-            <LinkIcon className="w-5 h-5 text-[#3ecf8e]" />
-            <h2 className="text-lg font-semibold text-[#ededed]">Callback Endpoint</h2>
-          </div>
-
-          {selectedToolForConfig ? (
-            <div className="space-y-4">
-              {/* Redirect URI */}
-              <div>
-                <label className="block text-sm font-medium text-[#ededed] mb-2">
-                  Redirect URI
-                </label>
-                <input
-                  type="url"
-                  value={redirectUri}
-                  onChange={(e) => setRedirectUri(e.target.value)}
-                  placeholder="https://yourtool.com/auth/callback"
-                  className="w-full px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg text-[#ededed] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e]"
-                />
-                <p className="text-xs text-[#9ca3af] mt-1">
-                  Where users are redirected with an authorization code
-                </p>
-              </div>
-
-              {/* Save Button for Redirect URI */}
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleSaveConfiguration}
-                  disabled={
-                    savingConfig || 
-                    (webhookUrl === originalWebhookUrl && 
-                     webhookSecret === originalWebhookSecret && 
-                     redirectUri === originalRedirectUri)
-                  }
-                  className="flex items-center gap-1.5 bg-[#3ecf8e] hover:bg-[#2dd4bf] text-[#0a0a0a] px-4 py-1.5 rounded text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {savingConfig ? (
-                    <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      Saving...
-                    </>
-                  ) : configSaved ? (
-                    <>
-                      <Check className="w-3.5 h-3.5" />
-                      Saved!
-                    </>
-                  ) : (
-                    <>
-                      <Save className="w-3.5 h-3.5" />
-                      Save
-                    </>
-                  )}
-                </button>
-                
-                {configSaved && (
-                  <span className="text-xs text-[#3ecf8e]">Configuration saved successfully!</span>
-                )}
-              </div>
-            </div>
-          ) : (
-            <p className="text-[#9ca3af] text-sm">Select a tool to configure callback endpoint</p>
           )}
         </div>
 
