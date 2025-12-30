@@ -148,3 +148,24 @@ export {
   sanitizeForLogging,
   secureLog,
 } from './audit-logger';
+
+// ============================================================================
+// MAGIC LOGIN
+// ============================================================================
+
+export {
+  // Configuration
+  MAGIC_LOGIN_CONFIG,
+  // Types
+  type MagicLoginSignatureData,
+  type MagicLoginValidationResult,
+  type MagicLoginUrlValidationResult,
+  // Generation
+  generateNonce,
+  generateMagicLoginSignature,
+  generateSignedMagicLoginParams,
+  generateMagicLoginSecret,
+  // Validation
+  validateMagicLoginSignature,
+  validateMagicLoginUrl,
+} from './magic-login';

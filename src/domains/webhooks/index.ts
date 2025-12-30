@@ -31,6 +31,9 @@ export {
   notifyUserCreditDepleted,
   notifyToolStatusChanged,
   notifyVerifyRequired,
+  // Security - Central Kill-Switch
+  notifyForceLogout,
+  notifyForceLogoutAllTools,
   // Low-level functions
   sendWebhook,
   getToolWebhookConfig,
@@ -40,4 +43,5 @@ export {
   type WebhookPayload,
   type WebhookDeliveryResult,
   type WebhookConfig,
+  type ForceLogoutReason,
 } from './outbound-webhooks';

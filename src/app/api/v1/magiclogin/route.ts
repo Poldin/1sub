@@ -4,16 +4,14 @@
  * Generates a signed Magic Login URL for seamless user authentication.
  * Called internally by 1Sub UI when a user clicks "Launch Magic Login".
  *
- * This endpoint:
- * 1. Authenticates the user via Supabase session
- * 2. Validates the user has an active subscription for the tool
- * 3. Checks the user's access hasn't been revoked
- * 4. Generates a signed URL with HMAC signature using the vendor's API key
- * 5. Redirects the user to the vendor's Magic Login URL
+ * SECURITY FEATURES:
+ * - Server-side timestamp validation (5-minute TTL)
+ * - Nonce-based replay protection (single-use URLs)
+ * - URL validation (HTTPS required, no private IPs)
+ * - Rate limiting per user and per tool
+ * - Subscription and revocation checks
  *
- * The vendor can verify the signature locally without any API call to 1Sub.
- *
- * URL Format: {magic_login_url}?user={oneSubUserId}&ts={timestamp}&sig={hmac_sha256}
+ * URL Format: {magic_login_url}?user={oneSubUserId}&ts={timestamp}&nonce={nonce}&sig={hmac_sha256}
  *
  * Auth: User session (Supabase)
  */
@@ -23,8 +21,31 @@ import { createServerClient } from '@/infrastructure/database/client';
 import { createServiceClient } from '@/infrastructure/database/client';
 import { hasActiveSubscription } from '@/domains/verification';
 import { checkRevocation } from '@/domains/auth';
+import {
+  checkRateLimit,
+  getClientIp,
+  MAGIC_LOGIN_CONFIG,
+  generateSignedMagicLoginParams,
+  validateMagicLoginUrl,
+} from '@/security';
 import { z } from 'zod';
-import crypto from 'crypto';
+
+// ============================================================================
+// RATE LIMIT CONFIG
+// ============================================================================
+
+const RATE_LIMITS = {
+  /** Per-user rate limit: 10 requests per minute */
+  PER_USER: {
+    limit: MAGIC_LOGIN_CONFIG.RATE_LIMIT_PER_USER,
+    windowMs: 60000,
+  },
+  /** Per-tool rate limit: 100 requests per minute */
+  PER_TOOL: {
+    limit: MAGIC_LOGIN_CONFIG.RATE_LIMIT_PER_TOOL,
+    windowMs: 60000,
+  },
+} as const;
 
 // ============================================================================
 // REQUEST VALIDATION
@@ -57,25 +78,12 @@ interface MagicLoginErrorResponse {
 type MagicLoginResponse = MagicLoginSuccessResponse | MagicLoginErrorResponse;
 
 // ============================================================================
-// CONSTANTS
-// ============================================================================
-
-const MAGIC_LOGIN_TTL_SECONDS = 60; // Link expires in 60 seconds
-
-// ============================================================================
-// HELPER: Generate HMAC Signature
-// ============================================================================
-
-function generateSignature(userId: string, timestamp: number, apiKey: string): string {
-  const data = `${userId}${timestamp}`;
-  return crypto.createHmac('sha256', apiKey).update(data).digest('hex');
-}
-
-// ============================================================================
 // HANDLER
 // ============================================================================
 
 export async function POST(request: NextRequest) {
+  const clientIp = getClientIp(request);
+
   try {
     // =========================================================================
     // 1. Authenticate User via Supabase Session
@@ -98,7 +106,33 @@ export async function POST(request: NextRequest) {
     }
 
     // =========================================================================
-    // 2. Parse and Validate Request
+    // 2. Rate Limiting - Per User
+    // =========================================================================
+    const userRateLimitResult = checkRateLimit(
+      `magiclogin:user:${user.id}`,
+      RATE_LIMITS.PER_USER
+    );
+
+    if (!userRateLimitResult.success) {
+      return NextResponse.json<MagicLoginErrorResponse>(
+        {
+          success: false,
+          error: 'RATE_LIMITED',
+          message: 'Too many Magic Login requests. Please wait before trying again.',
+        },
+        {
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': RATE_LIMITS.PER_USER.limit.toString(),
+            'X-RateLimit-Remaining': '0',
+            'Retry-After': userRateLimitResult.retryAfter?.toString() || '60',
+          },
+        }
+      );
+    }
+
+    // =========================================================================
+    // 3. Parse and Validate Request
     // =========================================================================
     let body: MagicLoginRequest;
     try {
@@ -131,7 +165,31 @@ export async function POST(request: NextRequest) {
     const { toolId, test: isTestMode } = body;
 
     // =========================================================================
-    // 3. Verify Tool Exists and is Active
+    // 4. Rate Limiting - Per Tool
+    // =========================================================================
+    const toolRateLimitResult = checkRateLimit(
+      `magiclogin:tool:${toolId}`,
+      RATE_LIMITS.PER_TOOL
+    );
+
+    if (!toolRateLimitResult.success) {
+      return NextResponse.json<MagicLoginErrorResponse>(
+        {
+          success: false,
+          error: 'RATE_LIMITED',
+          message: 'This tool is receiving too many Magic Login requests. Please try again later.',
+        },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': toolRateLimitResult.retryAfter?.toString() || '60',
+          },
+        }
+      );
+    }
+
+    // =========================================================================
+    // 5. Verify Tool Exists and is Active
     // =========================================================================
     const serviceClient = createServiceClient();
     const { data: tool, error: toolError } = await serviceClient
@@ -163,24 +221,22 @@ export async function POST(request: NextRequest) {
     }
 
     // =========================================================================
-    // 3.5. Check if Test Mode - Vendor can test without subscription
+    // 6. Check if Test Mode - Vendor can test without subscription
     // =========================================================================
     let skipSubscriptionCheck = false;
-    
+
     if (isTestMode) {
-      // In tools table, vendor_id is directly the user_id of the vendor
-      // So we just check if the current user IS the vendor for this tool
+      // Verify the current user IS the vendor for this tool
       const isVendorForTool = tool.vendor_id === user.id;
-      
-      console.log('[MagicLogin] Test mode - User:', user.id, 'Tool vendor:', tool.vendor_id, 'Match:', isVendorForTool);
-      
+
       if (isVendorForTool) {
         skipSubscriptionCheck = true;
       }
+      // If not the vendor, silently continue with normal subscription check
     }
 
     // =========================================================================
-    // 4. Check User Has Active Subscription (skipped in test mode for vendors)
+    // 7. Check User Has Active Subscription (skipped in test mode for vendors)
     // =========================================================================
     if (!skipSubscriptionCheck) {
       const hasSubscription = await hasActiveSubscription(user.id, toolId);
@@ -197,7 +253,7 @@ export async function POST(request: NextRequest) {
       }
 
       // =========================================================================
-      // 5. Check Access Not Revoked
+      // 8. Check Access Not Revoked
       // =========================================================================
       const revocationCheck = await checkRevocation(user.id, toolId);
 
@@ -214,7 +270,7 @@ export async function POST(request: NextRequest) {
     }
 
     // =========================================================================
-    // 6. Get Tool's API Key and Magic Login URL
+    // 9. Get Tool's API Key Metadata (Magic Login URL and Secret)
     // =========================================================================
     const { data: apiKeyData, error: apiKeyError } = await serviceClient
       .from('api_keys')
@@ -228,7 +284,7 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: 'API_KEY_NOT_FOUND',
-          message: 'Tool API key not configured',
+          message: 'Tool configuration not found',
         },
         { status: 500 }
       );
@@ -236,6 +292,7 @@ export async function POST(request: NextRequest) {
 
     const metadata = (apiKeyData.metadata as Record<string, unknown>) || {};
     const magicLoginUrl = metadata.magic_login_url as string | undefined;
+    const magicLoginSecret = metadata.magic_login_secret as string | undefined;
 
     if (!magicLoginUrl) {
       return NextResponse.json<MagicLoginErrorResponse>(
@@ -248,55 +305,74 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // =========================================================================
-    // 7. Get Magic Login Secret for Signing
-    // Each tool has a dedicated magic_login_secret for signing Magic Login URLs.
-    // This is separate from webhook_secret for better security isolation.
-    // =========================================================================
-    const magicLoginSecret = metadata.magic_login_secret as string | undefined;
-
     if (!magicLoginSecret) {
       return NextResponse.json<MagicLoginErrorResponse>(
         {
           success: false,
           error: 'MAGIC_LOGIN_SECRET_NOT_CONFIGURED',
-          message: 'Magic Login Secret must be configured. Generate one in the vendor dashboard.',
+          message: 'Magic Login Secret not configured for this tool',
         },
         { status: 400 }
       );
     }
 
-    const signingSecret = magicLoginSecret;
+    // =========================================================================
+    // 10. Validate Magic Login URL (HTTPS, no private IPs)
+    // =========================================================================
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    const urlValidation = validateMagicLoginUrl(magicLoginUrl, isDevelopment);
+
+    if (!urlValidation.valid) {
+      return NextResponse.json<MagicLoginErrorResponse>(
+        {
+          success: false,
+          error: 'INVALID_MAGIC_LOGIN_URL',
+          message: urlValidation.error || 'Invalid Magic Login URL configuration',
+        },
+        { status: 400 }
+      );
+    }
 
     // =========================================================================
-    // 8. Generate Signed URL
+    // 11. Generate Signed URL with Nonce (Replay Protection)
     // =========================================================================
-    const timestamp = Math.floor(Date.now() / 1000);
-    const signature = generateSignature(user.id, timestamp, signingSecret);
+    const { timestamp, nonce, signature } = generateSignedMagicLoginParams(
+      user.id,
+      magicLoginSecret
+    );
 
-    // Build the Magic Login URL
-    const url = new URL(magicLoginUrl);
+    // Build the Magic Login URL with all parameters
+    const url = new URL(urlValidation.normalizedUrl!);
     url.searchParams.set('user', user.id);
     url.searchParams.set('ts', timestamp.toString());
+    url.searchParams.set('nonce', nonce);
     url.searchParams.set('sig', signature);
 
     const finalUrl = url.toString();
 
     // =========================================================================
-    // 9. Return Success Response
+    // 12. Return Success Response
     // =========================================================================
     return NextResponse.json<MagicLoginSuccessResponse>(
       {
         success: true,
         magicLoginUrl: finalUrl,
         oneSubUserId: user.id,
-        expiresIn: MAGIC_LOGIN_TTL_SECONDS,
+        expiresIn: MAGIC_LOGIN_CONFIG.TTL_SECONDS,
       },
-      { status: 200 }
+      {
+        status: 200,
+        headers: {
+          'X-RateLimit-Limit': RATE_LIMITS.PER_USER.limit.toString(),
+          'X-RateLimit-Remaining': userRateLimitResult.remaining.toString(),
+        },
+      }
     );
 
   } catch (error) {
-    console.error('[MagicLogin] Unexpected error:', error);
+    // Log error securely without exposing details
+    console.error('[MagicLogin] Internal error:', error instanceof Error ? error.message : 'Unknown error');
+
     return NextResponse.json<MagicLoginErrorResponse>(
       {
         success: false,
@@ -307,4 +383,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

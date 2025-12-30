@@ -43,7 +43,16 @@ export type WebhookEventType =
   | 'user.credit_depleted'
   // System
   | 'tool.status_changed'
-  | 'verify.required';
+  | 'verify.required'
+  // Security (Central Kill-Switch)
+  | 'security.force_logout';
+
+// Events that require vendor to re-verify user's entitlements
+const REVERIFICATION_REQUIRED_EVENTS: WebhookEventType[] = [
+  'subscription.canceled',
+  'entitlement.revoked',
+  'security.force_logout',
+];
 
 // ============================================================================
 // UNIFIED PAYLOAD STRUCTURE (matches documentation)
@@ -53,6 +62,11 @@ export interface WebhookPayload {
   id: string;                    // UUID for deduplication
   type: WebhookEventType;        // Event type
   created: number;               // Unix timestamp
+  /**
+   * When true, vendor MUST re-verify the user's entitlements immediately.
+   * Set for security-critical events (canceled, revoked, force_logout).
+   */
+  require_reverification?: boolean;
   data: {
     oneSubUserId: string;        // Always present (or 'system')
     userEmail?: string;          // User email when available
@@ -260,6 +274,10 @@ async function sendToolWebhookInternal(
     id: crypto.randomUUID(),
     type: eventType,
     created: Math.floor(Date.now() / 1000),
+    // Set require_reverification for security-critical events
+    ...(REVERIFICATION_REQUIRED_EVENTS.includes(eventType) && {
+      require_reverification: true,
+    }),
     data: eventData,
   };
 
@@ -645,4 +663,87 @@ export async function notifyVerifyRequired(
   }).catch(err => {
     console.error('[Webhook] verify.required failed:', err);
   });
+}
+
+// ============================================================================
+// SECURITY: FORCE LOGOUT (Central Kill-Switch)
+// ============================================================================
+
+export type ForceLogoutReason =
+  | 'fraud_detected'
+  | 'admin_action'
+  | 'password_changed'
+  | 'account_compromised'
+  | 'user_request';
+
+/**
+ * Force logout a user from a specific tool
+ *
+ * This is the CENTRAL KILL-SWITCH for Magic Login sessions.
+ * When received, vendors MUST:
+ * 1. Immediately terminate all active sessions for this user
+ * 2. Require the user to re-authenticate via Magic Login
+ *
+ * This webhook has require_reverification: true set automatically.
+ *
+ * @param toolId - The tool to force logout from
+ * @param oneSubUserId - The user to force logout
+ * @param reason - Why the force logout is happening
+ * @param affectedSessions - Which sessions to terminate ('all' or 'magic_login_only')
+ */
+export async function notifyForceLogout(
+  toolId: string,
+  oneSubUserId: string,
+  reason: ForceLogoutReason,
+  affectedSessions: 'all' | 'magic_login_only' = 'all'
+): Promise<void> {
+  // Invalidate cache FIRST for immediate effect
+  await invalidateCachedEntitlements(toolId, oneSubUserId);
+
+  const userEmail = await getUserEmail(oneSubUserId);
+
+  sendToolWebhookInternal(toolId, 'security.force_logout', {
+    oneSubUserId,
+    userEmail,
+    securityReason: reason,
+    affectedSessions,
+    forceLogoutId: crypto.randomUUID(),
+    revokedAt: new Date().toISOString(),
+  }).catch(err => {
+    console.error('[Webhook] security.force_logout failed:', err);
+  });
+}
+
+/**
+ * Force logout a user from ALL their tools
+ *
+ * Used for account-wide security events like:
+ * - Account compromise detected
+ * - Password changed
+ * - User requested logout from all devices
+ */
+export async function notifyForceLogoutAllTools(
+  oneSubUserId: string,
+  reason: ForceLogoutReason
+): Promise<void> {
+  const supabase = createServiceClient();
+
+  // Get all tools the user has subscriptions to
+  const { data: subscriptions, error } = await supabase
+    .from('subscriptions')
+    .select('tool_id')
+    .eq('user_id', oneSubUserId)
+    .in('status', ['active', 'trialing', 'past_due']);
+
+  if (error || !subscriptions) {
+    console.error('[Webhook] Failed to get user subscriptions for force logout:', error);
+    return;
+  }
+
+  // Send force logout to each tool
+  const toolIds = [...new Set(subscriptions.map(s => s.tool_id))];
+
+  for (const toolId of toolIds) {
+    await notifyForceLogout(toolId, oneSubUserId, reason, 'all');
+  }
 }

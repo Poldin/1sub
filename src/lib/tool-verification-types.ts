@@ -36,12 +36,25 @@ export type WebhookEventType =
   | 'user.credit_depleted'
   // System
   | 'tool.status_changed'
-  | 'verify.required';
+  | 'verify.required'
+  // Security (Central Kill-Switch)
+  | 'security.force_logout';
 
 export interface WebhookPayload {
   id: string;
   type: WebhookEventType;
   created: number;
+  /**
+   * When true, vendor MUST re-verify the user's entitlements immediately.
+   * This flag is set for security-critical events like:
+   * - subscription.canceled
+   * - entitlement.revoked
+   * - security.force_logout
+   *
+   * Vendors using Magic Login MUST call /api/v1/verify within 5 minutes
+   * of receiving a webhook with this flag set to true.
+   */
+  require_reverification?: boolean;
   data: {
     oneSubUserId: string;
     userEmail?: string; // Email of the user (for user-specific events)
@@ -79,6 +92,10 @@ export interface WebhookPayload {
     // Credits event fields
     transactionId?: string;
     balanceRemaining?: number;
+    // Security event fields (for security.force_logout)
+    securityReason?: 'fraud_detected' | 'admin_action' | 'password_changed' | 'account_compromised' | 'user_request';
+    affectedSessions?: 'all' | 'magic_login_only';
+    forceLogoutId?: string;
   };
 }
 
