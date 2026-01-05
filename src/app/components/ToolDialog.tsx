@@ -327,9 +327,9 @@ function ToolDialogComponent(props: ToolDialogProps) {
                       <h2 className="text-2xl sm:text-3xl font-bold text-[#ededed]">
                         {tool.name}
                       </h2>
-                      {tool.vendor && (
+                      {tool.vendor_name && (
                         <p className="text-xs text-[#9ca3af] mt-0.5">
-                          by {tool.vendor.full_name}
+                          by {tool.vendor_name}
                         </p>
                       )}
                     </div>

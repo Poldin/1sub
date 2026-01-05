@@ -20,10 +20,7 @@ interface ToolData {
       gradient?: string;
     };
   } | null;
-  vendor?: {
-    id: string;
-    full_name: string;
-  };
+  vendor_name?: string | null;
 }
 
 function RegisterForm() {
@@ -285,8 +282,8 @@ function RegisterForm() {
                 )}
               </div>
               <h1 className="text-2xl font-bold text-[#ededed] mb-1">{toolData.name}</h1>
-              {toolData.vendor && (
-                <p className="text-sm text-[#9ca3af]">by {toolData.vendor.full_name}</p>
+              {toolData.vendor_name && (
+                <p className="text-sm text-[#9ca3af]">by {toolData.vendor_name}</p>
               )}
               <div className="mt-4 flex items-center justify-center gap-2 text-xs text-[#6b7280]">
                 <span>powered by</span>

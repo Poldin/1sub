@@ -14,6 +14,7 @@ import { getToolPhase, getPhaseLabel, getPhaseTailwindClasses } from '@/lib/tool
 import { usePurchasedProducts } from '@/hooks/usePurchasedProducts';
 import { useAuth } from '@/contexts/AuthContext';
 import CustomPricingModal from '@/components/CustomPricingModal';
+import Header from '@/app/components/Header';
 import Footer from '@/app/components/Footer';
 
 const formatAdoptions = (num: number): string => {
@@ -222,7 +223,8 @@ export default function ToolShowcasePage() {
   
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed]">
-      <main className="max-w-5xl mx-auto px-4 py-8">
+      <Header showPricing={false} showCta={false} />
+      <main className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-8">
         {/* Tool Header */}
         <div className="mb-8">
           <div className="flex items-start gap-4 mb-4">
@@ -245,9 +247,9 @@ export default function ToolShowcasePage() {
             <div className="flex-1 min-w-0">
               <div className="flex items-start gap-2">
                 <div className="flex-1 min-w-0">
-                  <h1 className="text-3xl font-bold text-[#ededed]">{tool.name}</h1>
-                  {tool.vendor && (
-                    <p className="text-sm text-[#9ca3af] mt-1">by {tool.vendor.full_name}</p>
+                  <h1 className="text-2xl sm:text-3xl font-bold text-[#ededed]">{tool.name}</h1>
+                  {tool.vendor_name && (
+                    <p className="text-sm text-[#9ca3af]">by {tool.vendor_name}</p>
                   )}
                 </div>
                 {uiMeta.verified && (
@@ -260,6 +262,13 @@ export default function ToolShowcasePage() {
               </div>
             </div>
           </div>
+          
+          {/* Short description */}
+          {tool.description && (
+            <p className="text-sm sm:text-base text-[#9ca3af]">
+              {tool.description}
+            </p>
+          )}
           
           {/* Stats and Meta */}
           <div className="flex flex-wrap items-center gap-4 mb-4">

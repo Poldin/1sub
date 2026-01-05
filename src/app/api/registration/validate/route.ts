@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch the tool with products and vendor info
+    // Fetch the tool with products (vendor_name is denormalized in tools table)
     const { data: tool, error: toolError } = await supabase
       .from('tools')
       .select(`
@@ -76,10 +76,7 @@ export async function GET(request: NextRequest) {
         url,
         is_active,
         metadata,
-        vendor:user_profiles!tools_user_profile_id_fkey(
-          id,
-          full_name
-        ),
+        vendor_name,
         products:tool_products(*)
       `)
       .eq('id', matchedToolId)
@@ -102,7 +99,7 @@ export async function GET(request: NextRequest) {
         name: tool.name,
         description: tool.description,
         metadata: tool.metadata,
-        vendor: tool.vendor,
+        vendor_name: tool.vendor_name,
         products: tool.products,
       },
     });

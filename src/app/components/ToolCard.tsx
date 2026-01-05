@@ -386,9 +386,9 @@ function ToolCardComponent(props: ToolCardProps) {
               <h3 className="font-bold text-base text-[#ededed] group-hover:text-[#3ecf8e] transition-colors line-clamp-1">
                 {tool.name}
               </h3>
-              {tool.vendor && (
+                {tool.vendor_name && (
                 <p className="text-xs text-[#9ca3af] mt-0.5">
-                  by {tool.vendor.full_name}
+                  by {tool.vendor_name}
                 </p>
               )}
             </div>

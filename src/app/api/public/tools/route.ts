@@ -14,16 +14,12 @@ export async function GET() {
   try {
     const supabase = await createClient();
 
-    // Fetch all active tools with their products and vendor info
+    // Fetch all active tools with their products (vendor_name is denormalized in tools table)
     const { data: toolsData, error: fetchError } = await supabase
       .from('tools')
       .select(`
         *,
-        products:tool_products(*),
-        vendor:user_profiles!tools_user_profile_id_fkey(
-          id,
-          full_name
-        )
+        products:tool_products(*)
       `)
       .eq('is_active', true)
       .order('created_at', { ascending: false });
