@@ -20,6 +20,7 @@ export const PUBLIC_API_ROUTES = [
   '/api/cron/process-subscriptions', // Uses cron secret authentication
   '/api/auth/verify-otp',
   '/api/public', // Public endpoints (e.g., /api/public/tools for home page)
+  '/api/registration', // Public endpoint for co-branded registration token validation
 ];
 
 /**
