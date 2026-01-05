@@ -285,6 +285,12 @@ function ToolCardComponent(props: ToolCardProps) {
   const { hasTool, getToolSubscriptions } = usePurchasedProducts();
   const hasSubscription = hasTool(tool.id);
   const toolSubs = hasSubscription ? getToolSubscriptions(tool.id) : [];
+  
+  // Check if Magic Login is configured for this tool
+  const hasMagicLogin = tool.has_magic_login === true;
+  
+  // Show Magic Login button only if user has subscription AND Magic Login is configured
+  const showMagicLogin = hasSubscription && hasMagicLogin;
 
   // Dynamic phase calculation based on paying user count and revenue
   const payingUserCount = tool.metadata?.paying_user_count ?? 0;
@@ -488,7 +494,7 @@ function ToolCardComponent(props: ToolCardProps) {
             </div>
           </div>
 
-          {hasSubscription ? (
+          {showMagicLogin ? (
             <div className="flex items-center gap-2">
               {/* Main CTA: Magic Login */}
               <button

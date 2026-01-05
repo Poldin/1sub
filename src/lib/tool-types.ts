@@ -173,6 +173,9 @@ export interface Tool {
   active_users?: number | null;
   avg_rating?: number | null;
 
+  // Magic Login availability (from api_keys table)
+  has_magic_login?: boolean;
+
   // Related data (when joined)
   products?: ToolProduct[];
   vendor?: {

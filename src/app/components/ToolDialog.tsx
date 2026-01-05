@@ -220,6 +220,12 @@ function ToolDialogComponent(props: ToolDialogProps) {
   
   // Check if user has any active subscription to this tool
   const hasActiveSubscription = hasTool(tool.id);
+  
+  // Check if Magic Login is configured for this tool
+  const hasMagicLogin = tool.has_magic_login === true;
+  
+  // Show Magic Login button only if user has subscription AND Magic Login is configured
+  const showMagicLogin = hasActiveSubscription && hasMagicLogin;
 
   // Handle Magic Login
   const handleMagicLogin = async () => {
@@ -436,8 +442,8 @@ function ToolDialogComponent(props: ToolDialogProps) {
             {/* Products Section - Full Width Above Image */}
             {hasProducts(tool) && tool.products.length > 0 && (
               <div className="px-2 sm:px-6 md:px-8 pb-6">
-                {/* Magic Login Button - Show if user has active subscription */}
-                {hasActiveSubscription && (
+                {/* Magic Login Button - Show if user has active subscription AND Magic Login is configured */}
+                {showMagicLogin && (
                   <button
                     onClick={handleMagicLogin}
                     disabled={magicLoginLoading}

@@ -36,15 +36,37 @@ export async function GET() {
       );
     }
 
-    // Enrich tools with paying user counts for dynamic phase calculation
+    // Enrich tools with paying user counts and magic login availability
     if (toolsData && toolsData.length > 0) {
       try {
         const toolIds = toolsData.map((t: any) => t.id);
+        
+        // Fetch paying user counts
         const payingUserCounts = await batchCountPayingUsers(toolIds);
 
-        // Add paying user count to each tool's metadata
+        // Fetch magic login configuration from api_keys table
+        const { data: apiKeysData } = await supabase
+          .from('api_keys')
+          .select('tool_id, metadata')
+          .in('tool_id', toolIds)
+          .eq('is_active', true);
+
+        // Create a map of tool_id -> has_magic_login
+        const magicLoginMap = new Map<string, boolean>();
+        if (apiKeysData) {
+          for (const apiKey of apiKeysData) {
+            const metadata = apiKey.metadata as Record<string, unknown> | null;
+            const magicLoginUrl = metadata?.magic_login_url as string | null | undefined;
+            // Check if magic_login_url is configured (non-empty string)
+            const hasMagicLogin = typeof magicLoginUrl === 'string' && magicLoginUrl.trim().length > 0;
+            magicLoginMap.set(apiKey.tool_id, hasMagicLogin);
+          }
+        }
+
+        // Add paying user count and magic login flag to each tool
         const enrichedTools = toolsData.map((tool: any) => ({
           ...tool,
+          has_magic_login: magicLoginMap.get(tool.id) ?? false,
           metadata: {
             ...tool.metadata,
             paying_user_count: payingUserCounts.get(tool.id) ?? 0
@@ -53,8 +75,8 @@ export async function GET() {
 
         return NextResponse.json({ tools: enrichedTools });
       } catch (countError) {
-        console.error('Error counting paying users, returning tools without counts:', countError);
-        // Return tools without counts on error (will default to Alpha phase)
+        console.error('Error enriching tools, returning tools without enrichment:', countError);
+        // Return tools without enrichment on error
         return NextResponse.json({ tools: toolsData });
       }
     }
