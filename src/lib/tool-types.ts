@@ -163,6 +163,7 @@ export interface ToolProduct {
 export interface Tool {
   id: string;
   name: string;
+  slug: string;
   description: string | null;
   url: string;
   is_active: boolean | null;

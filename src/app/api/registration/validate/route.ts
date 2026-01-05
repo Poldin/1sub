@@ -70,6 +70,7 @@ export async function GET(request: NextRequest) {
       .from('tools')
       .select(`
         id,
+        slug,
         name,
         description,
         url,
@@ -97,6 +98,7 @@ export async function GET(request: NextRequest) {
       success: true,
       tool: {
         id: tool.id,
+        slug: tool.slug,
         name: tool.name,
         description: tool.description,
         metadata: tool.metadata,

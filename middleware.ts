@@ -46,7 +46,7 @@ export async function middleware(request: NextRequest) {
   const publicPaths = ['/', '/login', '/register', '/waitlist', '/forgot-password', '/reset-password', '/vendors', '/pricing'];
 
   // Check if the current path is public
-  const isPublicPath = publicPaths.includes(path) || path.startsWith('/docs');
+  const isPublicPath = publicPaths.includes(path) || path.startsWith('/docs') || path.startsWith('/tool/');
 
   // If user is not logged in and trying to access a protected route
   if (!user && !isPublicPath) {

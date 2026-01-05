@@ -10,6 +10,7 @@ import { getPasswordRequirementStates, validatePassword } from '@/lib/auth/passw
 
 interface ToolData {
   id: string;
+  slug: string;
   name: string;
   description: string | null;
   metadata: {
@@ -90,7 +91,7 @@ function RegisterForm() {
         if (user) {
           // Determine redirect based on context
           if (toolData) {
-            router.push(`/tool/${toolData.id}`);
+            router.push(`/tool/${toolData.slug}`);
           } else if (redirectUrl) {
             router.push(redirectUrl);
           } else {
@@ -144,7 +145,7 @@ function RegisterForm() {
       // Auto-login: redirect to tool page or specified URL after verification
       setTimeout(() => {
         if (toolData) {
-          router.push(`/tool/${toolData.id}`);
+          router.push(`/tool/${toolData.slug}`);
         } else if (redirectUrl) {
           router.push(redirectUrl);
         } else {
@@ -424,7 +425,7 @@ function RegisterForm() {
                 <div className="text-[#9ca3af]">
                   already have an account?{' '}
                   <Link 
-                    href={isCoBranded ? `/login?redirect=/tool/${toolData.id}` : "/login"}
+                    href={isCoBranded ? `/login?redirect=/tool/${toolData.slug}` : "/login"}
                     className="text-[#3ecf8e] hover:text-[#2dd4bf] transition-colors font-medium"
                   >
                     sign in

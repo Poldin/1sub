@@ -151,6 +151,7 @@ function ToolDialogComponent(props: ToolDialogProps) {
     tool = {
       id: String(id),
       name,
+      slug: String(id), // Use id as slug for legacy props
       description,
       url: imageUrl || '',
       is_active: true,

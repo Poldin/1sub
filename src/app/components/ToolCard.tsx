@@ -171,6 +171,7 @@ function legacyToTool(props: LegacyToolCardProps): Tool {
   return {
     id: String(id),
     name,
+    slug: String(id), // Use id as slug for legacy props
     description,
     url: imageUrl || '',
     is_active: true,

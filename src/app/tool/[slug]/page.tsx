@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Star, Users, Share2, Check, ChevronDown, ChevronUp, Sparkles, CheckCircle, ArrowLeft } from 'lucide-react';
+import { Star, Users, Share2, Check, ChevronDown, ChevronUp, Sparkles, CheckCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -14,6 +14,7 @@ import { getToolPhase, getPhaseLabel, getPhaseTailwindClasses } from '@/lib/tool
 import { usePurchasedProducts } from '@/hooks/usePurchasedProducts';
 import { useAuth } from '@/contexts/AuthContext';
 import CustomPricingModal from '@/components/CustomPricingModal';
+import Footer from '@/app/components/Footer';
 
 const formatAdoptions = (num: number): string => {
   if (num >= 1000000) {
@@ -28,7 +29,7 @@ const formatAdoptions = (num: number): string => {
 export default function ToolShowcasePage() {
   const params = useParams();
   const router = useRouter();
-  const toolId = params.toolId as string;
+  const slug = params.slug as string;
   
   const { isLoggedIn } = useAuth();
   const [tool, setTool] = useState<Tool | null>(null);
@@ -48,7 +49,7 @@ export default function ToolShowcasePage() {
   // Check subscriptions
   const { getProductSubscription, hasTool } = usePurchasedProducts();
   
-  // Fetch tool data
+  // Fetch tool data by slug
   useEffect(() => {
     async function fetchTool() {
       try {
@@ -56,7 +57,7 @@ export default function ToolShowcasePage() {
         if (!response.ok) throw new Error('Failed to fetch tools');
         
         const data = await response.json();
-        const foundTool = data.tools?.find((t: Tool) => t.id === toolId);
+        const foundTool = data.tools?.find((t: Tool) => t.slug === slug);
         
         if (!foundTool) {
           setError('Tool not found');
@@ -72,10 +73,10 @@ export default function ToolShowcasePage() {
       }
     }
     
-    if (toolId) {
+    if (slug) {
       fetchTool();
     }
-  }, [toolId]);
+  }, [slug]);
   
   // Check if user has any active subscription to this tool
   const hasActiveSubscription = tool ? hasTool(tool.id) : false;
@@ -122,7 +123,7 @@ export default function ToolShowcasePage() {
     
     if (!isLoggedIn) {
       // Redirect to register with return URL
-      router.push(`/register?redirect=/tool/${tool.id}`);
+      router.push(`/register?redirect=/tool/${tool.slug}`);
       return;
     }
     
@@ -150,7 +151,7 @@ export default function ToolShowcasePage() {
   const handleShare = async () => {
     if (!tool) return;
     
-    const shareUrl = `${window.location.origin}/tool/${tool.id}`;
+    const shareUrl = `${window.location.origin}/tool/${tool.slug}`;
     const shareData = {
       title: tool.name,
       text: tool.description || undefined,
@@ -221,33 +222,6 @@ export default function ToolShowcasePage() {
   
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ededed]">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-[#0a0a0a]/90 backdrop-blur-md border-b border-[#1f2937]">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 text-[#9ca3af] hover:text-[#ededed] transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-            <span className="text-xl font-bold text-[#3ecf8e]">1sub<span className="text-[#9ca3af] font-normal">.io</span></span>
-          </Link>
-          
-          {!isLoggedIn && (
-            <div className="flex items-center gap-3">
-              <Link
-                href={`/login?redirect=/tool/${tool.id}`}
-                className="text-[#9ca3af] hover:text-[#ededed] transition-colors text-sm"
-              >
-                Sign in
-              </Link>
-              <Link
-                href={`/register?redirect=/tool/${tool.id}`}
-                className="bg-[#3ecf8e] text-black px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[#2dd4bf] transition-colors"
-              >
-                Get Started
-              </Link>
-            </div>
-          )}
-        </div>
-      </header>
-      
       <main className="max-w-5xl mx-auto px-4 py-8">
         {/* Tool Header */}
         <div className="mb-8">
@@ -554,11 +528,7 @@ export default function ToolShowcasePage() {
       </main>
       
       {/* Footer */}
-      <footer className="border-t border-[#1f2937] py-8 mt-16">
-        <div className="max-w-5xl mx-auto px-4 text-center text-[#9ca3af] text-sm">
-          <p>Powered by <Link href="/" className="text-[#3ecf8e] hover:underline">1sub.io</Link></p>
-        </div>
-      </footer>
+      <Footer />
       
       {/* Custom Pricing Modal */}
       <CustomPricingModal
