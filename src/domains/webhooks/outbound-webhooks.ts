@@ -26,6 +26,8 @@ import { enqueueWebhookRetry, isRetryableError } from './webhook-retry-service';
 // ============================================================================
 
 export type WebhookEventType =
+  // User lifecycle
+  | 'user.registered'           // User registered via co-branded registration
   // Subscription lifecycle
   | 'subscription.created'
   | 'subscription.activated'
@@ -356,6 +358,26 @@ async function getUserEmail(userId: string): Promise<string | undefined> {
 // ============================================================================
 // PUBLIC API - Event Senders (NON-BLOCKING)
 // ============================================================================
+
+/**
+ * Notify tool of user registration via co-branded registration page
+ * Sent when a user registers through /register?token=XXX
+ */
+export async function notifyUserRegistered(
+  toolId: string,
+  oneSubUserId: string,
+  userEmail: string,
+  fullName: string
+): Promise<void> {
+  sendToolWebhookInternal(toolId, 'user.registered', {
+    oneSubUserId,
+    userEmail,
+    fullName,
+    registeredAt: new Date().toISOString(),
+  }).catch(err => {
+    console.error('[Webhook] user.registered failed:', err);
+  });
+}
 
 /**
  * Notify tool of subscription creation

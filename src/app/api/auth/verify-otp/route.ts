@@ -1,10 +1,11 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { notifyUserRegistered } from '@/domains/webhooks';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, token, fullName } = body;
+    const { email, token, fullName, toolId, registrationToken } = body;
 
     if (!email || !token || !fullName) {
       return NextResponse.json(
@@ -52,6 +53,26 @@ export async function POST(request: NextRequest) {
         { error: 'Failed to create user profile' },
         { status: 500 }
       );
+    }
+
+    // If this is a co-branded registration (has toolId), send webhook to vendor
+    if (toolId && registrationToken) {
+      // Validate that the registration token matches the tool
+      const { data: apiKeyData } = await supabase
+        .from('api_keys')
+        .select('tool_id, metadata')
+        .eq('tool_id', toolId)
+        .eq('is_active', true)
+        .single();
+
+      if (apiKeyData) {
+        const metadata = apiKeyData.metadata as Record<string, unknown> | null;
+        if (metadata?.registration_token === registrationToken) {
+          // Send user.registered webhook (non-blocking)
+          notifyUserRegistered(toolId, data.user.id, email, fullName);
+          console.log(`[Auth] Sent user.registered webhook for tool ${toolId}`);
+        }
+      }
     }
 
     return NextResponse.json({

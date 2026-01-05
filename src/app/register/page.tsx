@@ -2,15 +2,39 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { getPasswordRequirementStates, validatePassword } from '@/lib/auth/password';
 
+interface ToolData {
+  id: string;
+  name: string;
+  description: string | null;
+  metadata: {
+    ui?: {
+      logo_url?: string;
+      emoji?: string;
+      gradient?: string;
+    };
+  } | null;
+  vendor?: {
+    id: string;
+    full_name: string;
+  };
+}
+
 function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectUrl = searchParams.get('redirect');
+  const registrationToken = searchParams.get('token');
+  
+  // Tool data for co-branded registration
+  const [toolData, setToolData] = useState<ToolData | null>(null);
+  const [tokenValidating, setTokenValidating] = useState(!!registrationToken);
+  const [tokenError, setTokenError] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
     email: '',
@@ -27,6 +51,35 @@ function RegisterForm() {
   const [otpError, setOtpError] = useState('');
   const [verifyingOtp, setVerifyingOtp] = useState(false);
 
+  // Validate registration token if present
+  useEffect(() => {
+    if (!registrationToken) {
+      setTokenValidating(false);
+      return;
+    }
+
+    async function validateToken() {
+      try {
+        const response = await fetch(`/api/registration/validate?token=${registrationToken}`);
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          setTokenError(data.error || 'Invalid registration token');
+          return;
+        }
+
+        setToolData(data.tool);
+      } catch (err) {
+        console.error('Token validation error:', err);
+        setTokenError('Failed to validate registration token');
+      } finally {
+        setTokenValidating(false);
+      }
+    }
+
+    validateToken();
+  }, [registrationToken]);
+
   // Check if user is already logged in
   useEffect(() => {
     const checkUser = async () => {
@@ -35,8 +88,10 @@ function RegisterForm() {
         const { data: { user } } = await supabase.auth.getUser();
         
         if (user) {
-          // If user is already logged in and there's a redirect, go there
-          if (redirectUrl) {
+          // Determine redirect based on context
+          if (toolData) {
+            router.push(`/tool/${toolData.id}`);
+          } else if (redirectUrl) {
             router.push(redirectUrl);
           } else {
             router.push('/backoffice');
@@ -50,8 +105,11 @@ function RegisterForm() {
       }
     };
 
-    checkUser();
-  }, [router, redirectUrl]);
+    // Wait for token validation before checking user
+    if (!tokenValidating) {
+      checkUser();
+    }
+  }, [router, redirectUrl, toolData, tokenValidating]);
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,6 +117,7 @@ function RegisterForm() {
     setVerifyingOtp(true);
 
     try {
+      // Include tool context for webhook notification
       const response = await fetch('/api/auth/verify-otp', {
         method: 'POST',
         headers: {
@@ -68,6 +127,9 @@ function RegisterForm() {
           email: formData.email,
           token: otp,
           fullName: formData.fullName,
+          // Pass tool context for co-branded registration webhook
+          toolId: toolData?.id,
+          registrationToken: registrationToken,
         }),
       });
 
@@ -79,14 +141,16 @@ function RegisterForm() {
       }
 
       setSuccess(true);
-      // Redirect to specified URL or login after verification
+      // Auto-login: redirect to tool page or specified URL after verification
       setTimeout(() => {
-        if (redirectUrl) {
+        if (toolData) {
+          router.push(`/tool/${toolData.id}`);
+        } else if (redirectUrl) {
           router.push(redirectUrl);
         } else {
-          router.push('/login');
+          router.push('/backoffice');
         }
-      }, 2000);
+      }, 1500);
     } catch (err) {
       setOtpError('An unexpected error occurred. Please try again.');
       console.error('OTP verification error:', err);
@@ -156,71 +220,138 @@ function RegisterForm() {
 
   const passwordStates = getPasswordRequirementStates(formData.password);
 
-  // Show loading state while checking authentication
-  if (checking) {
+  // Extract tool UI metadata
+  const uiMeta = toolData?.metadata?.ui;
+  const logoUrl = uiMeta?.logo_url;
+  const emoji = uiMeta?.emoji || '🔧';
+  const gradient = uiMeta?.gradient || 'from-blue-500 to-purple-600';
+
+  // Show loading state while checking authentication or validating token
+  if (checking || tokenValidating) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex items-center justify-center px-4">
         <div className="text-center">
           <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#3ecf8e] border-r-transparent"></div>
-          <p className="mt-4 text-[#9ca3af]">checking authentication...</p>
+          <p className="mt-4 text-[#9ca3af]">
+            {tokenValidating ? 'validating...' : 'checking authentication...'}
+          </p>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex justify-center px-4 py-12">
-      {/* Background pattern */}
-      
-      <div className="relative w-full max-w-md h-fit">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <Link href="/" className="inline-block">
-            <h1 className="text-3xl font-bold text-[#3ecf8e]">
-              1sub<span className="text-[#9ca3af] font-normal">.io</span>
-            </h1>
+  // Show error if token is invalid
+  if (registrationToken && tokenError) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex items-center justify-center px-4">
+        <div className="text-center max-w-md">
+          <div className="text-red-400 text-6xl mb-4">⚠️</div>
+          <h1 className="text-2xl font-bold mb-4">Invalid Registration Link</h1>
+          <p className="text-[#9ca3af] mb-6">{tokenError}</p>
+          <Link 
+            href="/register" 
+            className="inline-block bg-[#3ecf8e] text-black px-6 py-3 rounded-lg font-semibold hover:bg-[#2dd4bf] transition-colors"
+          >
+            Register with 1Sub
           </Link>
         </div>
+      </div>
+    );
+  }
+
+  // Co-branded mode: show tool branding
+  const isCoBranded = !!toolData;
+
+  return (
+    <div className="min-h-screen bg-[#0a0a0a] text-[#ededed] flex justify-center px-4 py-12">
+      <div className="relative w-full max-w-md h-fit">
+        {/* Header - Co-branded or 1Sub */}
+        <div className="text-center mb-8">
+          {isCoBranded ? (
+            <>
+              {/* Tool Logo */}
+              <div className={`mx-auto w-20 h-20 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center overflow-hidden shadow-lg relative mb-4`}>
+                {logoUrl ? (
+                  <Image
+                    src={logoUrl}
+                    alt={toolData.name}
+                    fill
+                    className="object-cover"
+                    sizes="80px"
+                  />
+                ) : (
+                  <div className="text-4xl">{emoji}</div>
+                )}
+              </div>
+              <h1 className="text-2xl font-bold text-[#ededed] mb-1">{toolData.name}</h1>
+              {toolData.vendor && (
+                <p className="text-sm text-[#9ca3af]">by {toolData.vendor.full_name}</p>
+              )}
+              <div className="mt-4 flex items-center justify-center gap-2 text-xs text-[#6b7280]">
+                <span>powered by</span>
+                <span className="text-[#3ecf8e] font-semibold">1sub.io</span>
+              </div>
+            </>
+          ) : (
+            <Link href="/" className="inline-block">
+              <h1 className="text-3xl font-bold text-[#3ecf8e]">
+                1sub<span className="text-[#9ca3af] font-normal">.io</span>
+              </h1>
+            </Link>
+          )}
+        </div>
+
+        {/* Co-branded explanation */}
+        {isCoBranded && !showOtpForm && (
+          <div className="mb-6 bg-[#1f2937]/50 border border-[#374151] rounded-lg p-4 text-sm text-[#9ca3af]">
+            <p>
+              Create your account to access <span className="text-[#ededed] font-medium">{toolData.name}</span>. 
+              Your account will be managed securely by 1Sub.
+            </p>
+          </div>
+        )}
 
         {/* Register Form */}
         <div className="bg-[#111111] rounded-2xl p-8 shadow-2xl border border-[#374151]">
           {!showOtpForm ? (
             <>
-              <h2 className="text-2xl font-bold mb-6 text-center">create account</h2>
+              <h2 className="text-2xl font-bold mb-6 text-center">
+                {isCoBranded ? 'create your account' : 'create account'}
+              </h2>
               
               <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label htmlFor="fullName" className="block text-sm font-medium text-[#d1d5db] mb-2">
-                full name
-              </label>
-              <input
-                type="text"
-                id="fullName"
-                name="fullName"
-                value={formData.fullName}
-                onChange={handleInputChange}
-                className="w-full px-4 py-3 bg-[#1f2937] border border-[#374151] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
-                placeholder="John Doe"
-                maxLength={50}
-                required
-              />
-            </div>
+                <div>
+                  <label htmlFor="fullName" className="block text-sm font-medium text-[#d1d5db] mb-2">
+                    full name
+                  </label>
+                  <input
+                    type="text"
+                    id="fullName"
+                    name="fullName"
+                    value={formData.fullName}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 bg-[#1f2937] border border-[#374151] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
+                    placeholder="John Doe"
+                    maxLength={50}
+                    required
+                  />
+                </div>
 
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-[#d1d5db] mb-2">
-                email address
-              </label>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                className="w-full px-4 py-3 bg-[#1f2937] border border-[#374151] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
-                placeholder="your@email.com"
-                required
-              />
-            </div>
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-[#d1d5db] mb-2">
+                    email address
+                  </label>
+                  <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 bg-[#1f2937] border border-[#374151] rounded-lg text-[#ededed] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
+                    placeholder="your@email.com"
+                    required
+                  />
+                </div>
 
                 <div>
                   <label htmlFor="password" className="block text-sm font-medium text-[#d1d5db] mb-2">
@@ -293,7 +424,7 @@ function RegisterForm() {
                 <div className="text-[#9ca3af]">
                   already have an account?{' '}
                   <Link 
-                    href="/login" 
+                    href={isCoBranded ? `/login?redirect=/tool/${toolData.id}` : "/login"}
                     className="text-[#3ecf8e] hover:text-[#2dd4bf] transition-colors font-medium"
                   >
                     sign in
@@ -313,7 +444,7 @@ function RegisterForm() {
 
               {success && (
                 <div className="mb-6 text-green-400 text-sm bg-green-400/10 border border-green-400/20 rounded-lg p-3">
-                  Email verified successfully! Redirecting to login...
+                  Email verified successfully! {isCoBranded ? `Redirecting to ${toolData.name}...` : 'Signing you in...'}
                 </div>
               )}
 
@@ -369,11 +500,13 @@ function RegisterForm() {
 
         {/* Footer */}
         <div className="text-center mt-8 text-[#9ca3af] text-sm space-y-2">
-          <div>
-            <Link href="/" className="hover:text-[#d1d5db] transition-colors">
-              ← back to home
-            </Link>
-          </div>
+          {!isCoBranded && (
+            <div>
+              <Link href="/" className="hover:text-[#d1d5db] transition-colors">
+                ← back to home
+              </Link>
+            </div>
+          )}
           <div className="flex justify-center space-x-4 text-xs">
             <Link href="/privacy" className="hover:text-[#d1d5db] transition-colors">
               Privacy

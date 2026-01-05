@@ -48,11 +48,16 @@ export default function VendorAPIPage() {
   const [magicLoginSecret, setMagicLoginSecret] = useState('');
   const [showMagicLoginSecret, setShowMagicLoginSecret] = useState(false);
   
+  // Registration token for co-branded registration
+  const [registrationToken, setRegistrationToken] = useState('');
+  const [registrationUrlCopied, setRegistrationUrlCopied] = useState(false);
+  
   // Original values for comparison
   const [originalWebhookUrl, setOriginalWebhookUrl] = useState('');
   const [originalWebhookSecret, setOriginalWebhookSecret] = useState('');
   const [originalMagicLoginUrl, setOriginalMagicLoginUrl] = useState('');
   const [originalMagicLoginSecret, setOriginalMagicLoginSecret] = useState('');
+  const [originalRegistrationToken, setOriginalRegistrationToken] = useState('');
 
   // Webhook test states
   const [testEventType, setTestEventType] = useState('subscription.activated');
@@ -518,29 +523,34 @@ export default function VendorAPIPage() {
         const secret = (metadata.webhook_secret as string) || '';
         const mlUrl = (metadata.magic_login_url as string) || '';
         const mlSecret = (metadata.magic_login_secret as string) || '';
+        const regToken = (metadata.registration_token as string) || '';
         
         setWebhookUrl(webhook);
         setWebhookSecret(secret);
         setMagicLoginUrl(mlUrl);
         setMagicLoginSecret(mlSecret);
+        setRegistrationToken(regToken);
         
         // Store original values for comparison
         setOriginalWebhookUrl(webhook);
         setOriginalWebhookSecret(secret);
         setOriginalMagicLoginUrl(mlUrl);
         setOriginalMagicLoginSecret(mlSecret);
+        setOriginalRegistrationToken(regToken);
       } else {
         // Clear form
         setWebhookUrl('');
         setWebhookSecret('');
         setMagicLoginUrl('');
         setMagicLoginSecret('');
+        setRegistrationToken('');
         
         // Clear original values
         setOriginalWebhookUrl('');
         setOriginalWebhookSecret('');
         setOriginalMagicLoginUrl('');
         setOriginalMagicLoginSecret('');
+        setOriginalRegistrationToken('');
       }
     } catch (error) {
       console.error('Error loading configuration:', error);
@@ -572,6 +582,7 @@ export default function VendorAPIPage() {
       metadata.webhook_secret = webhookSecret || null;
       metadata.magic_login_url = magicLoginUrl || null;
       metadata.magic_login_secret = magicLoginSecret || null;
+      metadata.registration_token = registrationToken || null;
       
       // Update metadata
       const { error: updateError } = await supabase
@@ -588,6 +599,7 @@ export default function VendorAPIPage() {
       setOriginalWebhookSecret(webhookSecret);
       setOriginalMagicLoginUrl(magicLoginUrl);
       setOriginalMagicLoginSecret(magicLoginSecret);
+      setOriginalRegistrationToken(registrationToken);
       
       setConfigSaved(true);
       setTimeout(() => setConfigSaved(false), 3000);
@@ -1238,7 +1250,133 @@ export default function VendorAPIPage() {
           )}
         </div>
 
-        {/* 3. API Key Section */}
+        {/* 3. Co-branded Registration Section */}
+        <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151] mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-[#3ecf8e]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+              <h2 className="text-lg font-semibold text-[#ededed]">Co-branded Registration</h2>
+            </div>
+          </div>
+
+          <p className="text-sm text-[#9ca3af] mb-4">
+            Let users register through a branded 1Sub page. When they sign up, you&apos;ll receive a <code className="text-[#3ecf8e] bg-[#0a0a0a] px-1 py-0.5 rounded">user.registered</code> webhook with their details.
+          </p>
+
+          {selectedToolForConfig ? (
+            <div className="space-y-4">
+              {/* Registration Token */}
+              <div>
+                <label className="block text-sm font-medium text-[#ededed] mb-2">
+                  <div className="flex items-center gap-2">
+                    <Key className="w-4 h-4 text-[#3ecf8e]" />
+                    Registration Token
+                  </div>
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={registrationToken}
+                    readOnly
+                    placeholder="Click 'Generate' to create a token"
+                    className="flex-1 px-4 py-2 bg-[#0a0a0a] border border-[#4b5563] rounded-lg text-[#ededed] placeholder-[#6b7280] font-mono text-sm"
+                  />
+                  <button
+                    onClick={() => {
+                      const newToken = crypto.randomUUID();
+                      setRegistrationToken(newToken);
+                    }}
+                    className="px-4 py-2 bg-[#374151] border border-[#4b5563] rounded-lg hover:bg-[#4b5563] transition-colors text-sm text-[#ededed]"
+                  >
+                    {registrationToken ? 'Regenerate' : 'Generate'}
+                  </button>
+                </div>
+                <p className="text-xs text-[#9ca3af] mt-1">
+                  This token identifies your tool in the registration URL. Regenerating will invalidate existing registration links.
+                </p>
+              </div>
+
+              {/* Registration URL - Show only if webhook is configured and token exists */}
+              {webhookSecret && registrationToken && (
+                <div className="bg-[#0a0a0a] border border-[#374151] rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-medium text-[#ededed]">Registration URL</label>
+                    <button
+                      onClick={() => {
+                        const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/register?token=${registrationToken}`;
+                        navigator.clipboard.writeText(url);
+                        setRegistrationUrlCopied(true);
+                        setTimeout(() => setRegistrationUrlCopied(false), 2000);
+                        showToast('Registration URL copied!');
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-[#374151] hover:bg-[#4b5563] text-[#ededed] rounded text-sm transition-colors"
+                    >
+                      {registrationUrlCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      {registrationUrlCopied ? 'Copied!' : 'Copy URL'}
+                    </button>
+                  </div>
+                  <code className="block text-sm text-[#3ecf8e] break-all">
+                    {typeof window !== 'undefined' ? window.location.origin : 'https://1sub.io'}/register?token={registrationToken}
+                  </code>
+                  <p className="text-xs text-[#9ca3af] mt-2">
+                    Share this URL with your users. They&apos;ll see your branding and register through 1Sub.
+                  </p>
+                </div>
+              )}
+
+              {/* Warning if webhook not configured */}
+              {!webhookSecret && registrationToken && (
+                <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 flex items-start gap-2">
+                  <AlertCircle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-yellow-400 font-medium">Webhook not configured</p>
+                    <p className="text-xs text-[#9ca3af] mt-1">
+                      You need to configure a Webhook URL and Secret above to receive <code className="text-[#3ecf8e]">user.registered</code> events.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Save Button */}
+              {registrationToken !== originalRegistrationToken && (
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleSaveConfiguration}
+                    disabled={savingConfig}
+                    className="flex items-center gap-2 px-4 py-2 bg-[#3ecf8e] text-black rounded-lg hover:bg-[#2dd4bf] disabled:opacity-50 transition-colors font-medium"
+                  >
+                    {savingConfig ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        Save Token
+                      </>
+                    )}
+                  </button>
+                  {configSaved && (
+                    <span className="text-sm text-[#3ecf8e] flex items-center gap-1">
+                      <Check className="w-4 h-4" />
+                      Saved!
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-[#9ca3af] text-sm">Select a tool to configure co-branded registration</p>
+          )}
+        </div>
+
+        {/* 4. API Key Section */}
         <div className="bg-[#1f2937] rounded-lg p-6 border border-[#374151] mb-8">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-semibold text-[#ededed]">API Key</h2>

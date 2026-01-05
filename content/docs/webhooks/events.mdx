@@ -11,18 +11,28 @@ Detailed reference for all webhook events sent by 1Sub.
 
 1Sub sends webhooks for the following events:
 
+### User Lifecycle
+- **`user.registered`** - User registered via co-branded registration page
+
+### Subscription Lifecycle
 - **`subscription.activated`** - New subscription created or reactivated
 - **`subscription.updated`** - Subscription details changed (renewal, plan change, etc.)
 - **`subscription.canceled`** - Subscription canceled or expired
 - **`purchase.completed`** - One-time purchase completed
+
+### Credit Events
 - **`user.credit_low`** - User's credit balance is running low
 - **`user.credit_depleted`** - User's credit balance reached zero
-- **`tool.status_changed`** - Your tool's status changed on 1Sub platform
+- **`credits.consumed`** - Credits consumed by a user
+
+### Access Management
 - **`entitlement.granted`** - User granted access via authorization flow
 - **`entitlement.revoked`** - User's access revoked
 - **`entitlement.changed`** - User's plan or features changed
+
+### System Events
+- **`tool.status_changed`** - Your tool's status changed on 1Sub platform
 - **`verify.required`** - Immediate verification required (security event)
-- **`credits.consumed`** - Credits consumed by a user
 - **`security.force_logout`** - Central kill-switch: terminate all user sessions immediately
 
 ## Critical Events (require_reverification)
@@ -54,6 +64,114 @@ All webhook events follow this structure:
 <ResponseField name="require_reverification" type="boolean">
 When `true`, you MUST immediately terminate the user's sessions. This flag is set for security-critical events like cancellations, revocations, and force logouts.
 </ResponseField>
+
+## user.registered
+
+Sent when a user registers through your co-branded registration page.
+
+### When Sent
+
+- User completes registration via `/register?token=YOUR_TOKEN`
+- Email is verified with OTP code
+- User profile is created in 1Sub
+
+<Info>
+This event requires you to configure a **Registration Token** in your Vendor Dashboard. The token is used to generate a branded registration URL that you share with users.
+</Info>
+
+### Payload
+
+<ResponseField name="id" type="string" required>
+Unique event ID (format: `evt_xxxxx`)
+</ResponseField>
+
+<ResponseField name="type" type="string" required>
+Always `"user.registered"`
+</ResponseField>
+
+<ResponseField name="created" type="number" required>
+Unix timestamp when event was created
+</ResponseField>
+
+<ResponseField name="data" type="object" required>
+Event data
+
+<Expandable title="Data Fields">
+  <ResponseField name="oneSubUserId" type="string (UUID)" required>
+  The newly created 1Sub user ID
+  </ResponseField>
+  
+  <ResponseField name="userEmail" type="string" required>
+  The user's email address
+  </ResponseField>
+  
+  <ResponseField name="fullName" type="string" required>
+  The user's full name as entered during registration
+  </ResponseField>
+  
+  <ResponseField name="registeredAt" type="string (ISO 8601)" required>
+  When the user completed registration
+  </ResponseField>
+</Expandable>
+</ResponseField>
+
+### Example Payload
+
+```json
+{
+  "id": "evt_user_registered_001",
+  "type": "user.registered",
+  "created": 1700000000,
+  "data": {
+    "oneSubUserId": "550e8400-e29b-41d4-a716-446655440000",
+    "userEmail": "newuser@example.com",
+    "fullName": "John Doe",
+    "registeredAt": "2025-01-05T10:30:00Z"
+  }
+}
+```
+
+### How to Handle
+
+```typescript
+case 'user.registered':
+  const { oneSubUserId, userEmail, fullName, registeredAt } = event.data;
+  
+  // Create user in your database
+  await createUser({
+    externalId: oneSubUserId,  // Store 1Sub user ID for future reference
+    email: userEmail,
+    name: fullName,
+    createdAt: registeredAt,
+    source: '1sub_registration'
+  });
+  
+  // Send welcome email from your tool
+  await sendWelcomeEmail(userEmail, fullName);
+  
+  // Log for analytics
+  logger.info('New user registered via 1Sub', {
+    userId: oneSubUserId,
+    email: userEmail,
+    name: fullName
+  });
+  
+  break;
+```
+
+### Setting Up Co-branded Registration
+
+1. Go to **Vendor Dashboard → API & Webhooks**
+2. Configure your **Webhook URL** and **Webhook Secret**
+3. Generate a **Registration Token** in the "Co-branded Registration" section
+4. Copy the Registration URL and share it with your users
+5. Users who register will appear in your webhook as `user.registered` events
+
+<Tip>
+The user will be redirected to your tool's showcase page (`/tool/YOUR_TOOL_ID`) after registration, where they can purchase a subscription.
+</Tip>
+
+---
 
 ## subscription.activated
 

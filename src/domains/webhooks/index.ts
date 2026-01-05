@@ -17,7 +17,9 @@ export {
 
 // Outbound Webhooks (UNIFIED - replaces both tool-webhooks and vendor-webhooks)
 export {
-  // Event senders
+  // Event senders - User lifecycle
+  notifyUserRegistered,
+  // Event senders - Subscription lifecycle
   notifySubscriptionCreated,
   notifySubscriptionActivated,
   notifySubscriptionCanceled,

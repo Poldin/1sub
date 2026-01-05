@@ -33,17 +33,11 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
     const basePath = slug.length === 0 ? 'index' : slug.join('/')
     fileName = slug.length === 0 ? 'index.mdx' : `${slug[slug.length - 1]}.mdx`
     
-    // Try content/docs first, then docs as fallback
-    let filePath = join(process.cwd(), 'content/docs', `${basePath}.mdx`)
-    try {
-      rawMarkdown = await readFile(filePath, 'utf-8')
-    } catch {
-      // Fallback to docs/ directory
-      filePath = join(process.cwd(), 'docs', `${basePath}.mdx`)
-      rawMarkdown = await readFile(filePath, 'utf-8')
-    }
-  } catch (error) {
-    console.error('Failed to read markdown file:', error)
+    // Read from content/docs (single source of truth - docs/ folder was removed)
+    const filePath = join(process.cwd(), 'content/docs', `${basePath}.mdx`)
+    rawMarkdown = await readFile(filePath, 'utf-8')
+  } catch {
+    // File not found - this is expected for some pages, no need to log
     rawMarkdown = '# Content not available\n\nFailed to load raw markdown content.'
   }
   

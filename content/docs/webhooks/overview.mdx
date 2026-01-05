@@ -75,7 +75,40 @@ res.json({ received: true });
 
 ## Webhook Events
 
-1Sub sends webhooks for subscription lifecycle, purchases, credit status, entitlements, credit consumption, and system events:
+1Sub sends webhooks for user registration, subscription lifecycle, purchases, credit status, entitlements, credit consumption, and system events:
+
+### User Lifecycle Events
+
+<AccordionGroup>
+<Accordion title="user.registered">
+Sent when a user registers through your co-branded registration page.
+
+**When it's sent:**
+- User completes registration via `/register?token=YOUR_TOKEN`
+- Email is verified with OTP code
+
+**Use cases:**
+- Create user in your database
+- Send welcome email
+- Prepare user account before subscription
+
+```json
+{
+  "type": "user.registered",
+  "data": {
+    "oneSubUserId": "uuid-abc-123",
+    "userEmail": "user@example.com",
+    "fullName": "John Doe",
+    "registeredAt": "2025-01-05T10:30:00Z"
+  }
+}
+```
+
+<Tip>
+Set up co-branded registration in your Vendor Dashboard → API & Webhooks → "Co-branded Registration" section.
+</Tip>
+</Accordion>
+</AccordionGroup>
 
 ### Subscription Lifecycle Events
 
@@ -458,7 +491,7 @@ Unique event identifier (format: `evt_xxxxx`)
 </ResponseField>
 
 <ResponseField name="type" type="string" required>
-Event type: `subscription.activated`, `subscription.updated`, `subscription.canceled`, `purchase.completed`, `user.credit_low`, `user.credit_depleted`, `tool.status_changed`, `entitlement.granted`, `entitlement.revoked`, `entitlement.changed`, `verify.required`, or `credits.consumed` (note: `credits.consumed` uses `event` field instead)
+Event type: `user.registered`, `subscription.activated`, `subscription.updated`, `subscription.canceled`, `purchase.completed`, `user.credit_low`, `user.credit_depleted`, `tool.status_changed`, `entitlement.granted`, `entitlement.revoked`, `entitlement.changed`, `verify.required`, or `credits.consumed` (note: `credits.consumed` uses `event` field instead)
 </ResponseField>
 
 <ResponseField name="created" type="number" required>
