@@ -4,8 +4,8 @@
  * Validates a registration token and returns the associated tool data.
  * Used by the /register page when rendering in co-branded mode.
  * 
- * The registration_token is stored in api_keys.metadata and is separate
- * from the webhook_secret for security reasons (token is public, secret is not).
+ * The registration_token is stored in the public `registration_tokens` table
+ * which has RLS policies allowing public read access for validation.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -34,36 +34,22 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createClient();
 
-    // Find the api_key with this registration token
-    const { data: apiKeyData, error: apiKeyError } = await supabase
-      .from('api_keys')
-      .select('tool_id, metadata')
-      .eq('is_active', true);
+    // Find the registration token in the public table
+    const { data: tokenData, error: tokenError } = await supabase
+      .from('registration_tokens')
+      .select('tool_id')
+      .eq('token', token)
+      .eq('is_active', true)
+      .single();
 
-    if (apiKeyError) {
-      console.error('Error fetching api_keys:', apiKeyError);
-      return NextResponse.json(
-        { error: 'Internal server error' },
-        { status: 500 }
-      );
-    }
-
-    // Find the matching tool by registration token
-    let matchedToolId: string | null = null;
-    for (const apiKey of apiKeyData || []) {
-      const metadata = apiKey.metadata as Record<string, unknown> | null;
-      if (metadata?.registration_token === token) {
-        matchedToolId = apiKey.tool_id;
-        break;
-      }
-    }
-
-    if (!matchedToolId) {
+    if (tokenError || !tokenData) {
       return NextResponse.json(
         { error: 'Invalid or expired registration token' },
         { status: 404 }
       );
     }
+
+    const matchedToolId = tokenData.tool_id;
 
     // Fetch the tool with products (vendor_name is denormalized in tools table)
     const { data: tool, error: toolError } = await supabase

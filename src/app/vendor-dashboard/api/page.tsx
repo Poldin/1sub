@@ -511,6 +511,8 @@ export default function VendorAPIPage() {
     // Load existing configuration
     try {
       const supabase = createClient();
+      
+      // Load api_keys metadata
       const { data: apiKeyData, error } = await supabase
         .from('api_keys')
         .select('metadata')
@@ -523,35 +525,43 @@ export default function VendorAPIPage() {
         const secret = (metadata.webhook_secret as string) || '';
         const mlUrl = (metadata.magic_login_url as string) || '';
         const mlSecret = (metadata.magic_login_secret as string) || '';
-        const regToken = (metadata.registration_token as string) || '';
         
         setWebhookUrl(webhook);
         setWebhookSecret(secret);
         setMagicLoginUrl(mlUrl);
         setMagicLoginSecret(mlSecret);
-        setRegistrationToken(regToken);
         
         // Store original values for comparison
         setOriginalWebhookUrl(webhook);
         setOriginalWebhookSecret(secret);
         setOriginalMagicLoginUrl(mlUrl);
         setOriginalMagicLoginSecret(mlSecret);
-        setOriginalRegistrationToken(regToken);
       } else {
         // Clear form
         setWebhookUrl('');
         setWebhookSecret('');
         setMagicLoginUrl('');
         setMagicLoginSecret('');
-        setRegistrationToken('');
         
         // Clear original values
         setOriginalWebhookUrl('');
         setOriginalWebhookSecret('');
         setOriginalMagicLoginUrl('');
         setOriginalMagicLoginSecret('');
-        setOriginalRegistrationToken('');
       }
+      
+      // Load registration token from dedicated table
+      const { data: regTokenData } = await supabase
+        .from('registration_tokens')
+        .select('token')
+        .eq('tool_id', toolId)
+        .eq('is_active', true)
+        .single();
+      
+      const regToken = regTokenData?.token || '';
+      setRegistrationToken(regToken);
+      setOriginalRegistrationToken(regToken);
+      
     } catch (error) {
       console.error('Error loading configuration:', error);
     }
@@ -582,9 +592,8 @@ export default function VendorAPIPage() {
       metadata.webhook_secret = webhookSecret || null;
       metadata.magic_login_url = magicLoginUrl || null;
       metadata.magic_login_secret = magicLoginSecret || null;
-      metadata.registration_token = registrationToken || null;
       
-      // Update metadata
+      // Update api_keys metadata (without registration_token)
       const { error: updateError } = await supabase
         .from('api_keys')
         .update({ metadata })
@@ -592,6 +601,36 @@ export default function VendorAPIPage() {
       
       if (updateError) {
         throw new Error('Failed to save configuration');
+      }
+      
+      // Handle registration token separately in dedicated table
+      if (registrationToken !== originalRegistrationToken) {
+        if (registrationToken) {
+          // First, deactivate any existing tokens for this tool
+          await supabase
+            .from('registration_tokens')
+            .update({ is_active: false })
+            .eq('tool_id', selectedToolForConfig);
+          
+          // Then insert the new token
+          const { error: tokenError } = await supabase
+            .from('registration_tokens')
+            .insert({ 
+              tool_id: selectedToolForConfig, 
+              token: registrationToken,
+              is_active: true 
+            });
+          
+          if (tokenError) {
+            console.error('Error saving registration token:', tokenError);
+          }
+        } else {
+          // Deactivate the token if cleared
+          await supabase
+            .from('registration_tokens')
+            .update({ is_active: false })
+            .eq('tool_id', selectedToolForConfig);
+        }
       }
       
       // Update original values after successful save
