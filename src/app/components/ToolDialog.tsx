@@ -215,6 +215,7 @@ function ToolDialogComponent(props: ToolDialogProps) {
   const [selectedProductId, setSelectedProductId] = useState<string | undefined>();
   // State for Magic Login
   const [magicLoginLoading, setMagicLoginLoading] = useState(false);
+  const [showLoginRequiredDialog, setShowLoginRequiredDialog] = useState(false);
 
   // Check subscriptions
   const { hasProduct, getProductSubscription, hasTool } = usePurchasedProducts();
@@ -225,8 +226,8 @@ function ToolDialogComponent(props: ToolDialogProps) {
   // Check if Magic Login is configured for this tool
   const hasMagicLogin = tool.has_magic_login === true;
   
-  // Show Magic Login button only if user has subscription AND Magic Login is configured
-  const showMagicLogin = hasActiveSubscription && hasMagicLogin;
+  // Show Magic Login button if Magic Login is configured (no subscription check required)
+  const showMagicLogin = hasMagicLogin;
 
   // Handle Magic Login
   const handleMagicLogin = async () => {
@@ -243,6 +244,12 @@ function ToolDialogComponent(props: ToolDialogProps) {
           toolId: tool.id,
         }),
       });
+      
+      // Check if user is not authenticated
+      if (response.status === 401) {
+        setShowLoginRequiredDialog(true);
+        return;
+      }
       
       const result = await response.json();
       
@@ -448,7 +455,7 @@ function ToolDialogComponent(props: ToolDialogProps) {
             {/* Products Section - Full Width Above Image */}
             {hasProducts(tool) && tool.products.length > 0 && (
               <div className="px-2 sm:px-6 md:px-8 pb-6">
-                {/* Magic Login Button - Show if user has active subscription AND Magic Login is configured */}
+                {/* Magic Login Button - Show if Magic Login is configured */}
                 {showMagicLogin && (
                   <button
                     onClick={handleMagicLogin}
@@ -704,6 +711,64 @@ function ToolDialogComponent(props: ToolDialogProps) {
         toolName={tool.name}
         productId={selectedProductId}
       />
+
+      {/* Login Required Dialog */}
+      {showLoginRequiredDialog && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          onClick={() => setShowLoginRequiredDialog(false)}
+        >
+          <div
+            className="relative w-full max-w-md bg-[#1f2937] rounded-lg shadow-2xl border border-[#374151] p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button
+              onClick={() => setShowLoginRequiredDialog(false)}
+              className="absolute top-4 right-4 p-2 bg-[#374151] hover:bg-[#4b5563] rounded-lg transition-colors"
+              aria-label="Close dialog"
+            >
+              <X className="w-5 h-5 text-[#ededed]" />
+            </button>
+
+            {/* Icon */}
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 bg-gradient-to-br from-[#f97316] to-[#ea580c] rounded-full flex items-center justify-center">
+                <Sparkles className="w-8 h-8 text-white" />
+              </div>
+            </div>
+
+            {/* Title */}
+            <h3 className="text-2xl font-bold text-[#ededed] text-center mb-3">
+              Login Required
+            </h3>
+
+            {/* Message */}
+            <p className="text-[#9ca3af] text-center mb-6 leading-relaxed">
+              To use Magic Login and access <span className="text-[#ededed] font-semibold">{tool.name}</span>, you need to be signed in to your 1Sub account first.
+            </p>
+
+            {/* CTA Button */}
+            <a
+              href={`/login?redirect=${encodeURIComponent(`/tool/${tool.slug}`)}`}
+              className="block w-full bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] text-black px-6 py-3 rounded-lg font-bold hover:opacity-90 transition-opacity text-center"
+            >
+              Sign in to 1Sub
+            </a>
+
+            {/* Optional: Sign up link */}
+            <p className="text-center text-sm text-[#9ca3af] mt-4">
+              Don't have an account?{' '}
+              <a
+                href={`/signup?redirect=${encodeURIComponent(`/tool/${tool.slug}`)}`}
+                className="text-[#3ecf8e] hover:underline font-medium"
+              >
+                Sign up
+              </a>
+            </p>
+          </div>
+        </div>
+      )}
     </>
   );
 }

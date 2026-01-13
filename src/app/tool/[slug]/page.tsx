@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Header from '@/app/components/Header';
 import Footer from '@/app/components/Footer';
 import ToolClientContent from './ClientContent';
+import ReviewsSection from './ReviewsSection';
 import { Tool } from '@/lib/tool-types';
 
 // Fetch tool data server-side
@@ -244,33 +245,31 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
       {/* Header */}
       <Header showPricing={false} showCta={false} />
       
-      {/* Breadcrumbs for UX */}
-      <nav aria-label="Breadcrumb" className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-4">
-        <ol className="flex items-center space-x-2 text-sm text-[#9ca3af]">
-          <li>
-            <Link href="/" className="hover:text-[#3ecf8e] transition-colors">
-              Home
-            </Link>
-          </li>
-          <li>
-            <span aria-hidden="true">/</span>
-          </li>
-          <li>
-            <Link href="/#tools" className="hover:text-[#3ecf8e] transition-colors">
-              Tools
-            </Link>
-          </li>
-          <li>
-            <span aria-hidden="true">/</span>
-          </li>
-          <li className="text-[#ededed] font-medium" aria-current="page">
-            {tool.name}
-          </li>
-        </ol>
-      </nav>
+      {/* Back Button */}
+      <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-4">
+        <Link 
+          href="/search"
+          className="inline-flex items-center gap-2 text-[#9ca3af] hover:text-[#3ecf8e] transition-colors group"
+          aria-label="Go back to search"
+        >
+          <svg 
+            className="w-5 h-5 transition-transform group-hover:-translate-x-1" 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          <span className="text-sm font-medium">Back</span>
+        </Link>
+      </div>
       
       {/* Client-side interactive content */}
       <ToolClientContent tool={tool} />
+      
+      {/* Reviews Section */}
+      <ReviewsSection tool={tool} />
       
       {/* Footer */}
       <Footer />

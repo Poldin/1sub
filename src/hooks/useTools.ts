@@ -3,6 +3,16 @@
 import useSWR from 'swr';
 import { Tool } from '@/lib/tool-types';
 
+interface UseToolsOptions {
+  /**
+   * Filter tools by is_seo field
+   * - undefined: no filter (default)
+   * - true: only SEO tools
+   * - false: only non-SEO tools
+   */
+  filterBySeo?: boolean;
+}
+
 interface UseToolsReturn {
   tools: Tool[];
   loading: boolean;
@@ -16,13 +26,19 @@ interface UseToolsReturn {
  * Uses server-side API to avoid RLS and auth token issues on mobile devices
  * Optimized with timeout for slow networks
  */
-async function fetchTools(): Promise<Tool[]> {
+async function fetchTools(isSeoFilter?: boolean): Promise<Tool[]> {
   try {
     // Create abort controller for timeout handling
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-    const response = await fetch('/api/public/tools', {
+    // Build URL with query parameters
+    const url = new URL('/api/public/tools', window.location.origin);
+    if (isSeoFilter !== undefined) {
+      url.searchParams.set('is_seo', String(isSeoFilter));
+    }
+
+    const response = await fetch(url.toString(), {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -65,11 +81,20 @@ async function fetchTools(): Promise<Tool[]> {
  * Provides tools data with loading and error states
  * Automatically caches and revalidates data
  * Can be reused across components for consistent data fetching
+ * 
+ * @param options - Optional configuration for filtering tools
  */
-export function useTools(): UseToolsReturn {
+export function useTools(options?: UseToolsOptions): UseToolsReturn {
+  const isSeoFilter = options?.filterBySeo;
+  
+  // Create a unique cache key based on the filter
+  const cacheKey = isSeoFilter !== undefined 
+    ? `tools-list-seo-${isSeoFilter}` 
+    : 'tools-list';
+  
   const { data, error, isLoading, mutate } = useSWR<Tool[]>(
-    'tools-list',
-    fetchTools,
+    cacheKey,
+    () => fetchTools(isSeoFilter),
     {
       // Cache for 5 minutes to reduce network requests on mobile
       dedupingInterval: 300000,

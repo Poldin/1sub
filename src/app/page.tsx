@@ -24,8 +24,8 @@ function HomeContent() {
   const [loadingTimeout, setLoadingTimeout] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   
-  // Fetch tools from database
-  const { tools, loading, error, refetch } = useTools();
+  // Fetch tools from database (only non-SEO tools)
+  const { tools, loading, error, refetch } = useTools({ filterBySeo: false });
 
   // Check if user is logged in
   useEffect(() => {

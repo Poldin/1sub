@@ -138,7 +138,7 @@ export function MainPriceDisplay({ pricingOptions, isFromProducts = false }: Mai
     <div className="flex items-baseline gap-1.5">
       <span className="text-2xl font-bold text-[#ededed]">{mainPrice}</span>
       <span className="text-sm text-[#9ca3af]">
-        <span className="text-[#3ecf8e]">CR</span> {mainPriceLabel}
+        {mainPriceLabel}
       </span>
     </div>
   );
@@ -186,6 +186,7 @@ interface PricingCardProps {
   onSelect?: (productId?: string) => void;
   onContactVendor?: (email: string, productName: string) => void;
   ctaText?: string; // Custom CTA text (e.g., "Change Plan", "Current Plan")
+  hideCta?: boolean; // Hide CTA buttons (for public tool pages)
 }
 
 export function PricingCard({ 
@@ -200,7 +201,8 @@ export function PricingCard({
   toolMetadata,
   onSelect,
   onContactVendor,
-  ctaText
+  ctaText,
+  hideCta = false
 }: PricingCardProps) {
   const isCustom = isCustomPlan || pricingModel.custom_plan?.enabled;
   const emailToUse = contactEmail || pricingModel.custom_plan?.contact_email || toolMetadata?.custom_pricing_email;
@@ -288,31 +290,33 @@ export function PricingCard({
       )}
 
       {/* CTA Button */}
-      {isCustom ? (
-        <button 
-          onClick={handleContactClick}
-          className="w-full bg-[#3ecf8e] text-black px-4 py-2 rounded-md font-bold hover:bg-[#2dd4bf] transition-all flex items-center justify-center gap-2 group mt-4"
-        >
-          Contact for Quote
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-          </svg>
-        </button>
-      ) : onSelect && (
-        <button 
-          onClick={() => onSelect(id)}
-          className={`w-full px-4 py-2 rounded-md font-bold transition-all flex items-center justify-center gap-2 group mt-4 ${
-            ctaText === 'Current Plan'
-              ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
-              : 'bg-[#3ecf8e] text-black hover:bg-[#2dd4bf]'
-          }`}
-          disabled={ctaText === 'Current Plan'}
-        >
-          {ctaText || 'Select Plan'}
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
+      {!hideCta && (
+        isCustom ? (
+          <button 
+            onClick={handleContactClick}
+            className="w-full bg-[#3ecf8e] text-black px-4 py-2 rounded-md font-bold hover:bg-[#2dd4bf] transition-all flex items-center justify-center gap-2 group mt-4"
+          >
+            Contact for Quote
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+          </button>
+        ) : onSelect && (
+          <button 
+            onClick={() => onSelect(id)}
+            className={`w-full px-4 py-2 rounded-md font-bold transition-all flex items-center justify-center gap-2 group mt-4 ${
+              ctaText === 'Current Plan'
+                ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                : 'bg-[#3ecf8e] text-black hover:bg-[#2dd4bf]'
+            }`}
+            disabled={ctaText === 'Current Plan'}
+          >
+            {ctaText || 'Select Plan'}
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        )
       )}
     </div>
   );

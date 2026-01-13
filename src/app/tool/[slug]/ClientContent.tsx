@@ -1,18 +1,14 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { Star, Users, Share2, Check, ChevronDown, ChevronUp, Sparkles, CheckCircle } from 'lucide-react';
+import { Star, Users, Share2, Check, ChevronDown, ChevronUp, Sparkles, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { Tool, DEFAULT_UI_METADATA, DEFAULT_ENGAGEMENT_METRICS, hasProducts } from '@/lib/tool-types';
 import { PricingCard } from '@/app/components/PricingDisplay';
 import { getToolPhase, getPhaseLabel, getPhaseTailwindClasses } from '@/lib/tool-phase';
-import { usePurchasedProducts } from '@/hooks/usePurchasedProducts';
-import { useAuth } from '@/contexts/AuthContext';
-import CustomPricingModal from '@/components/CustomPricingModal';
 
 const formatAdoptions = (num: number): string => {
   if (num >= 1000000) {
@@ -29,30 +25,27 @@ interface ClientContentProps {
 }
 
 export default function ToolClientContent({ tool }: ClientContentProps) {
-  const router = useRouter();
-  const { isLoggedIn } = useAuth();
-  
   // State for description expansion
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   // State for share button feedback
   const [isShareCopied, setIsShareCopied] = useState(false);
-  // State for custom pricing modal
-  const [isCustomPricingModalOpen, setIsCustomPricingModalOpen] = useState(false);
-  const [selectedProductId, setSelectedProductId] = useState<string | undefined>();
   // State for Magic Login
   const [magicLoginLoading, setMagicLoginLoading] = useState(false);
-  
-  // Check subscriptions
-  const { getProductSubscription, hasTool } = usePurchasedProducts();
-  
-  // Check if user has any active subscription to this tool
-  const hasActiveSubscription = hasTool(tool.id);
+  const [showLoginRequiredDialog, setShowLoginRequiredDialog] = useState(false);
   
   // Check if Magic Login is configured for this tool
   const hasMagicLogin = tool.has_magic_login === true;
   
-  // Show Magic Login button only if user has subscription AND Magic Login is configured
-  const showMagicLogin = hasActiveSubscription && hasMagicLogin;
+  // Show Magic Login button if Magic Login is configured (public page, no auth check)
+  const showMagicLogin = hasMagicLogin;
+  
+  // Debug log
+  console.log('[ClientContent] Tool data:', {
+    id: tool.id,
+    name: tool.name,
+    has_magic_login: tool.has_magic_login,
+    showMagicLogin,
+  });
   
   // Handle Magic Login
   const handleMagicLogin = async () => {
@@ -70,6 +63,12 @@ export default function ToolClientContent({ tool }: ClientContentProps) {
         }),
       });
       
+      // Check if user is not authenticated
+      if (response.status === 401) {
+        setShowLoginRequiredDialog(true);
+        return;
+      }
+      
       const result = await response.json();
       
       if (result.success && result.magicLoginUrl) {
@@ -81,34 +80,6 @@ export default function ToolClientContent({ tool }: ClientContentProps) {
       console.error('Magic Login error:', error);
     } finally {
       setMagicLoginLoading(false);
-    }
-  };
-  
-  // Handle checkout
-  const handleCheckout = async (productId?: string) => {
-    if (!isLoggedIn) {
-      // Redirect to register with return URL
-      router.push(`/register?redirect=/tool/${tool.slug}`);
-      return;
-    }
-    
-    try {
-      const response = await fetch('/api/checkout/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tool_id: tool.id,
-          product_id: productId,
-        }),
-      });
-      
-      const data = await response.json();
-      
-      if (data.checkout_id) {
-        router.push(`/credit_checkout/${data.checkout_id}`);
-      }
-    } catch (err) {
-      console.error('Checkout error:', err);
     }
   };
   
@@ -207,18 +178,54 @@ export default function ToolClientContent({ tool }: ClientContentProps) {
           </p>
         )}
         
-        {/* Stats and Meta */}
+        {/* Magic Login Button */}
+        {showMagicLogin && (
+          <button
+            onClick={handleMagicLogin}
+            disabled={magicLoginLoading}
+            className="mb-4 px-6 py-3 rounded-lg text-base font-bold transition-all flex items-center gap-2 bg-gradient-to-r from-[#f97316] to-[#ea580c] text-white hover:from-[#ea580c] hover:to-[#c2410c] disabled:opacity-50"
+            aria-label="Sign in with Magic Login"
+          >
+            {magicLoginLoading ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" aria-hidden="true" />
+                Loading...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-5 h-5" aria-hidden="true" />
+                Sign in with Magic Login
+              </>
+            )}
+          </button>
+        )}
+        
+        {/* Stats and Meta - 3 KPIs: Reviews (count + average), Unique Magic Login Users, Total Magic Logins */}
         <div className="flex flex-wrap items-center gap-4 mb-4">
+          {/* Review Average and Count */}
           <div className="flex items-center gap-1.5">
             <Star className="w-5 h-5 text-[#3ecf8e] fill-[#3ecf8e]" aria-hidden="true" />
-            <span className="text-[#ededed] font-bold text-lg" aria-label={`Rating: ${(tool.avg_rating ?? engagement.rating ?? 4.5).toFixed(1)} stars`}>
-              {(tool.avg_rating ?? engagement.rating ?? 4.5).toFixed(1)}
+            <span className="text-[#ededed] font-bold text-lg">
+              {(tool as any).review_average ? (tool as any).review_average.toFixed(1) : '0.0'}
+            </span>
+            <span className="text-[#9ca3af] font-medium text-base">
+              ({(tool as any).review_count || 0} {(tool as any).review_count === 1 ? 'review' : 'reviews'})
             </span>
           </div>
+
+          {/* Unique Magic Login Users */}
           <div className="flex items-center gap-1.5">
             <Users className="w-5 h-5 text-[#9ca3af]" aria-hidden="true" />
-            <span className="text-[#9ca3af] font-medium text-lg" aria-label={`${formatAdoptions(tool.active_users ?? engagement.adoption_count ?? 0)} active users`}>
-              {formatAdoptions(tool.active_users ?? engagement.adoption_count ?? 0)}
+            <span className="text-[#9ca3af] font-medium text-lg" aria-label={`${formatAdoptions((tool as any).magic_login_users || 0)} unique users`}>
+              {formatAdoptions((tool as any).magic_login_users || 0)} {(tool as any).magic_login_users === 1 ? 'user' : 'users'}
+            </span>
+          </div>
+
+          {/* Total Magic Login Count - always shown */}
+          <div className="flex items-center gap-1.5">
+            <Sparkles className="w-5 h-5 text-[#f97316]" aria-hidden="true" />
+            <span className="text-[#9ca3af] font-medium text-lg" aria-label={`${formatAdoptions((tool as any).magic_login_count || 0)} magic logins`}>
+              {formatAdoptions((tool as any).magic_login_count || 0)} {(tool as any).magic_login_count === 1 ? 'launch' : 'launches'}
             </span>
           </div>
           {/* Share Button */}
@@ -236,10 +243,10 @@ export default function ToolClientContent({ tool }: ClientContentProps) {
               <Share2 className="w-5 h-5" aria-hidden="true" />
             )}
           </button>
-          {/* Phase Badge */}
-          <span className={`px-3 py-1 rounded-lg text-xs font-bold uppercase shadow-lg ${phaseClasses.badge}`}>
+          {/* Phase Badge - Hidden */}
+          {/* <span className={`px-3 py-1 rounded-lg text-xs font-bold uppercase shadow-lg ${phaseClasses.badge}`}>
             {phaseLabel}
-          </span>
+          </span> */}
           {/* Discount Badge */}
           {(uiMeta.discount_percentage ?? 0) > 0 && (
             <span className="bg-red-500 text-white px-3 py-1 rounded-lg text-xs font-bold">
@@ -263,60 +270,22 @@ export default function ToolClientContent({ tool }: ClientContentProps) {
         )}
       </div>
       
-      {/* Magic Login Button */}
-      {showMagicLogin && (
-        <button
-          onClick={handleMagicLogin}
-          disabled={magicLoginLoading}
-          className="mb-6 px-6 py-3 rounded-lg text-base font-bold transition-all flex items-center gap-2 bg-gradient-to-r from-[#f97316] to-[#ea580c] text-white hover:from-[#ea580c] hover:to-[#c2410c] disabled:opacity-50 shadow-lg shadow-orange-500/20"
-          aria-label="Sign in with Magic Login"
-        >
-          {magicLoginLoading ? (
-            <>
-              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" aria-hidden="true" />
-              Loading...
-            </>
-          ) : (
-            <>
-              <Sparkles className="w-5 h-5" aria-hidden="true" />
-              Sign in with Magic Login
-            </>
-          )}
-        </button>
-      )}
-      
       {/* Products Section */}
       {hasProducts(tool) && tool.products.length > 0 && (
         <div className="mb-8">
-          <h2 className="text-2xl font-bold text-[#ededed] mb-4">
-            {tool.products.length > 1 ? 'Select your plan' : 'Pricing'}
-          </h2>
+          <div className="text-center mb-8 sm:mb-12">
+            <h2 className="text-2xl sm:text-3xl font-bold text-[#ededed] mb-3">
+              Pricing plans
+            </h2>
+            <p className="text-[#9ca3af] text-sm sm:text-base">
+              Choose the plan that fits your needs
+            </p>
+          </div>
           
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {tool.products.map((product) => {
-              const subscription = getProductSubscription(product.id);
-              const hasActiveSub = !!subscription;
-              const toolSubs = tool.products
-                .map(p => getProductSubscription(p.id))
-                .filter(Boolean);
-              const hasAnySubscription = toolSubs.length > 0;
-              const isCurrentPlan = hasActiveSub;
-              
               return (
                 <div key={product.id} className="relative">
-                  {/* Subscription Badge */}
-                  {hasActiveSub && (
-                    <div className={`absolute -top-2 -right-2 z-10 px-3 py-1 rounded-full shadow-lg flex items-center gap-1 ${
-                      subscription.status === 'cancelled'
-                        ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white animate-pulse'
-                        : 'bg-gradient-to-r from-[#f97316] to-[#ea580c] text-white shadow-orange-500/30'
-                    }`}>
-                      <CheckCircle className="w-3.5 h-3.5" aria-hidden="true" />
-                      <span className="text-xs font-bold">
-                        {subscription.status === 'cancelled' ? 'Ending' : 'Active'}
-                      </span>
-                    </div>
-                  )}
                   <PricingCard
                     id={product.id}
                     name={product.name}
@@ -327,23 +296,7 @@ export default function ToolClientContent({ tool }: ClientContentProps) {
                     isCustomPlan={product.is_custom_plan}
                     contactEmail={product.contact_email}
                     toolMetadata={tool.metadata ?? undefined}
-                    ctaText={
-                      isCurrentPlan
-                        ? 'Current Plan'
-                        : hasAnySubscription
-                          ? 'Change Plan'
-                          : undefined
-                    }
-                    onSelect={(productId) => {
-                      if (isCurrentPlan) return;
-                      if (productId && !product.is_custom_plan && !product.pricing_model.custom_plan?.enabled) {
-                        handleCheckout(productId);
-                      }
-                    }}
-                    onContactVendor={() => {
-                      setSelectedProductId(product.id);
-                      setIsCustomPricingModalOpen(true);
-                    }}
+                    hideCta={true}
                   />
                 </div>
               );
@@ -453,18 +406,64 @@ export default function ToolClientContent({ tool }: ClientContentProps) {
           )}
         </div>
       </div>
-      
-      {/* Custom Pricing Modal */}
-      <CustomPricingModal
-        isOpen={isCustomPricingModalOpen}
-        onClose={() => {
-          setIsCustomPricingModalOpen(false);
-          setSelectedProductId(undefined);
-        }}
-        toolId={tool.id}
-        toolName={tool.name}
-        productId={selectedProductId}
-      />
+
+      {/* Login Required Dialog */}
+      {showLoginRequiredDialog && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          onClick={() => setShowLoginRequiredDialog(false)}
+        >
+          <div
+            className="relative w-full max-w-md bg-[#1f2937] rounded-lg shadow-2xl border border-[#374151] p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button
+              onClick={() => setShowLoginRequiredDialog(false)}
+              className="absolute top-4 right-4 p-2 bg-[#374151] hover:bg-[#4b5563] rounded-lg transition-colors"
+              aria-label="Close dialog"
+            >
+              <X className="w-5 h-5 text-[#ededed]" />
+            </button>
+
+            {/* Icon */}
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 bg-gradient-to-br from-[#f97316] to-[#ea580c] rounded-full flex items-center justify-center">
+                <Sparkles className="w-8 h-8 text-white" />
+              </div>
+            </div>
+
+            {/* Title */}
+            <h3 className="text-2xl font-bold text-[#ededed] text-center mb-3">
+              Login Required
+            </h3>
+
+            {/* Message */}
+            <p className="text-[#9ca3af] text-center mb-6 leading-relaxed">
+              To use Magic Login and access <span className="text-[#ededed] font-semibold">{tool.name}</span>, you need to be signed in to your 1Sub account first.
+            </p>
+
+            {/* CTA Button */}
+            <a
+              href={`/login?redirect=${encodeURIComponent(`/tool/${tool.slug}`)}`}
+              className="block w-full bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] text-black px-6 py-3 rounded-lg font-bold hover:opacity-90 transition-opacity text-center"
+            >
+              Sign in to 1Sub
+            </a>
+
+            {/* Optional: Sign up link */}
+            <p className="text-center text-sm text-[#9ca3af] mt-4">
+              Don't have an account?{' '}
+              <a
+                href={`/signup?redirect=${encodeURIComponent(`/tool/${tool.slug}`)}`}
+                className="text-[#3ecf8e] hover:underline font-medium"
+              >
+                Sign up
+              </a>
+            </p>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

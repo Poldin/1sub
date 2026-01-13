@@ -31,7 +31,7 @@ function BackofficeContent() {
 
   // Get user's purchased tools and active subscriptions
   const { subscriptions, hasTool, loading: purchasedLoading } = usePurchasedProducts();
-  const { tools: allTools, loading: toolsLoading } = useTools();
+  const { tools: allTools, loading: toolsLoading } = useTools({ filterBySeo: false });
 
   // Initialize sidebar state based on screen size
   useEffect(() => {

@@ -259,12 +259,11 @@ export async function countPayingUsers(toolId: string): Promise<number> {
     console.error('[Tools] Error fetching subscription users:', subError);
   }
 
-  // Get one-time purchase users
+  // Get one-time purchase users (status is in metadata)
   const { data: purchaseUsers, error: purchaseError } = await supabase
     .from('checkouts')
     .select('user_id, metadata')
-    .eq('type', 'tool_purchase')
-    .eq('status', 'completed');
+    .eq('type', 'tool_purchase');
 
   if (purchaseError) {
     console.error('[Tools] Error fetching purchase users:', purchaseError);

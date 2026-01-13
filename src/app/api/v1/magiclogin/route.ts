@@ -9,18 +9,17 @@
  * - Nonce-based replay protection (single-use URLs)
  * - URL validation (HTTPS required, no private IPs)
  * - Rate limiting per user and per tool
- * - Subscription and revocation checks
  *
  * URL Format: {magic_login_url}?user={oneSubUserId}&ts={timestamp}&nonce={nonce}&sig={hmac_sha256}
  *
  * Auth: User session (Supabase)
+ *
+ * NOTE: No subscription checks - all authenticated users can use Magic Login.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/infrastructure/database/client';
 import { createServiceClient } from '@/infrastructure/database/client';
-import { hasActiveSubscription } from '@/domains/verification';
-import { checkRevocation } from '@/domains/auth';
 import {
   checkRateLimit,
   getClientIp,
@@ -53,7 +52,6 @@ const RATE_LIMITS = {
 
 const magicLoginRequestSchema = z.object({
   toolId: z.string().uuid('Invalid tool ID format'),
-  test: z.boolean().optional(), // For vendor testing - skips subscription check
 });
 
 type MagicLoginRequest = z.infer<typeof magicLoginRequestSchema>;
@@ -162,7 +160,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { toolId, test: isTestMode } = body;
+    const { toolId } = body;
 
     // =========================================================================
     // 4. Rate Limiting - Per Tool
@@ -221,56 +219,13 @@ export async function POST(request: NextRequest) {
     }
 
     // =========================================================================
-    // 6. Check if Test Mode - Vendor can test without subscription
+    // 6. Subscription Check - DISABLED
     // =========================================================================
-    let skipSubscriptionCheck = false;
-
-    if (isTestMode) {
-      // Verify the current user IS the vendor for this tool
-      const isVendorForTool = tool.vendor_id === user.id;
-
-      if (isVendorForTool) {
-        skipSubscriptionCheck = true;
-      }
-      // If not the vendor, silently continue with normal subscription check
-    }
+    // NOTE: Subscription and revocation checks are disabled for Magic Login.
+    // All authenticated users can use Magic Login regardless of subscription status.
 
     // =========================================================================
-    // 7. Check User Has Active Subscription (skipped in test mode for vendors)
-    // =========================================================================
-    if (!skipSubscriptionCheck) {
-      const hasSubscription = await hasActiveSubscription(user.id, toolId);
-
-      if (!hasSubscription) {
-        return NextResponse.json<MagicLoginErrorResponse>(
-          {
-            success: false,
-            error: 'NO_SUBSCRIPTION',
-            message: 'No active subscription for this tool',
-          },
-          { status: 402 }
-        );
-      }
-
-      // =========================================================================
-      // 8. Check Access Not Revoked
-      // =========================================================================
-      const revocationCheck = await checkRevocation(user.id, toolId);
-
-      if (revocationCheck.revoked) {
-        return NextResponse.json<MagicLoginErrorResponse>(
-          {
-            success: false,
-            error: 'ACCESS_REVOKED',
-            message: revocationCheck.reason || 'Access has been revoked',
-          },
-          { status: 403 }
-        );
-      }
-    }
-
-    // =========================================================================
-    // 9. Get Tool's API Key Metadata (Magic Login URL and Secret)
+    // 7. Get Tool's API Key Metadata (Magic Login URL and Secret)
     // =========================================================================
     const { data: apiKeyData, error: apiKeyError } = await serviceClient
       .from('api_keys')
@@ -317,7 +272,7 @@ export async function POST(request: NextRequest) {
     }
 
     // =========================================================================
-    // 10. Validate Magic Login URL (HTTPS, no private IPs)
+    // 8. Validate Magic Login URL (HTTPS, no private IPs)
     // =========================================================================
     const isDevelopment = process.env.NODE_ENV === 'development';
     const urlValidation = validateMagicLoginUrl(magicLoginUrl, isDevelopment);
@@ -334,7 +289,7 @@ export async function POST(request: NextRequest) {
     }
 
     // =========================================================================
-    // 11. Generate Signed URL with Nonce (Replay Protection)
+    // 9. Generate Signed URL with Nonce (Replay Protection)
     // =========================================================================
     const { timestamp, nonce, signature } = generateSignedMagicLoginParams(
       user.id,
@@ -351,7 +306,26 @@ export async function POST(request: NextRequest) {
     const finalUrl = url.toString();
 
     // =========================================================================
-    // 12. Return Success Response
+    // 9.5. Log Magic Link Usage
+    // =========================================================================
+    try {
+      await serviceClient.from('magic_link_usage').insert({
+        user_id: user.id,
+        tool_id: toolId,
+        metadata: {
+          ip_address: clientIp,
+          user_agent: request.headers.get('user-agent') || undefined,
+          timestamp: new Date().toISOString(),
+          nonce: nonce,
+        },
+      });
+    } catch (logError) {
+      // Log the error but don't fail the request
+      console.error('[MagicLogin] Failed to log usage:', logError);
+    }
+
+    // =========================================================================
+    // 10. Return Success Response
     // =========================================================================
     return NextResponse.json<MagicLoginSuccessResponse>(
       {

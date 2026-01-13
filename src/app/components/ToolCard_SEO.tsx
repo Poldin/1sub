@@ -3,11 +3,10 @@
 import { useState, memo } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Star, Users, ExternalLink, Sparkles, Info } from 'lucide-react';
+import { Star, Users, ExternalLink, Sparkles, Info, X } from 'lucide-react';
 import { Tool, ToolProduct, DEFAULT_UI_METADATA, DEFAULT_ENGAGEMENT_METRICS, hasProducts } from '@/lib/tool-types';
 import { PricingSection } from './PricingDisplay';
 import { getToolPhase, getPhaseLabel, getPhaseTailwindClasses } from '@/lib/tool-phase';
-import { usePurchasedProducts } from '@/hooks/usePurchasedProducts';
 
 // Legacy props format (for backward compatibility)
 export interface LegacyToolCardProps {
@@ -279,19 +278,15 @@ function ToolCardSEOComponent(props: ToolCardProps) {
   const [heroImageError, setHeroImageError] = useState(false);
   const [logoImageError, setLogoImageError] = useState(false);
   const [magicLoginLoading, setMagicLoginLoading] = useState(false);
+  const [showLoginRequiredDialog, setShowLoginRequiredDialog] = useState(false);
 
   const canShowHeroImage = hasHeroImage && !heroImageError;
   const canShowLogoImage = hasLogoImage && !logoImageError;
 
-  // Check if user has active subscription to this tool
-  const { hasTool, getToolSubscriptions } = usePurchasedProducts();
-  const hasSubscription = hasTool(tool.id);
-  const toolSubs = hasSubscription ? getToolSubscriptions(tool.id) : [];
-  
   // Check if Magic Login is configured for this tool
   const hasMagicLogin = tool.has_magic_login === true;
   
-  // Show Magic Login button if Magic Login is configured (regardless of subscription)
+  // Show Magic Login button if Magic Login is configured (public page, no auth check)
   const showMagicLogin = hasMagicLogin;
 
   // Dynamic phase calculation based on paying user count and revenue
@@ -301,15 +296,13 @@ function ToolCardSEOComponent(props: ToolCardProps) {
   const phaseLabel = getPhaseLabel(calculatedPhase);
   const phaseClasses = getPhaseTailwindClasses(calculatedPhase);
 
-  // Border styling based on magic login, subscription, highlight, or calculated phase
+  // Border styling based on magic login, highlight, or calculated phase
   let borderClasses = 'border';
   if (isHighlighted) {
     borderClasses += ' border-[#3ecf8e] shadow-lg shadow-[#3ecf8e]/50 animate-pulse';
   } else if (showMagicLogin) {
     // Magic Login: border arancione senza ombra
     borderClasses += ' border-[#f97316]';
-  } else if (hasSubscription) {
-    borderClasses += ' border-[#f97316] shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40';
   } else {
     borderClasses += ' ' + phaseClasses.border + ' ' + phaseClasses.hover;
   }
@@ -336,6 +329,12 @@ function ToolCardSEOComponent(props: ToolCardProps) {
           toolId: tool.id,
         }),
       });
+      
+      // Check if user is not authenticated
+      if (response.status === 401) {
+        setShowLoginRequiredDialog(true);
+        return;
+      }
       
       const result = await response.json();
       
@@ -461,20 +460,38 @@ function ToolCardSEOComponent(props: ToolCardProps) {
         )}
       </div>
 
-      {/* Pricing section hidden for SEO cards */}
+      {/* Pricing section */}
+      <div className="px-4 md:px-0">
+        <PricingSection pricingOptions={effectivePricingOptions} isFromProducts={!!lowestProductPrice} />
+      </div>
 
       <div className="mt-auto px-4 md:px-0">
-        {/* Stats only - badge hidden for SEO cards */}
-        <div className="flex items-center gap-3 mb-3">
+        {/* Stats - 3 KPIs: Reviews (count + average), Unique Magic Login Users, Total Magic Logins */}
+        <div className="flex items-center gap-3 mb-3 flex-wrap">
+          {/* Review Average and Count */}
           <div className="flex items-center gap-1">
             <Star className="w-4 h-4 text-[#3ecf8e] fill-[#3ecf8e]" />
-            <span className="text-[#ededed] font-bold text-sm">{(tool.avg_rating ?? engagement.rating ?? 4.5).toFixed(1)}</span>
+            <span className="text-[#ededed] font-bold text-sm">
+              {(tool as any).review_average ? (tool as any).review_average.toFixed(1) : '0.0'}
+            </span>
+            <span className="text-[#9ca3af] font-medium text-xs">
+              ({(tool as any).review_count || 0})
+            </span>
           </div>
 
+          {/* Unique Magic Login Users */}
           <div className="flex items-center gap-1">
             <Users className="w-4 h-4 text-[#9ca3af]" />
             <span className="text-[#9ca3af] font-medium text-sm">
-              {formatAdoptions(tool.active_users ?? engagement.adoption_count ?? 0)}
+              {formatAdoptions((tool as any).magic_login_users || 0)}
+            </span>
+          </div>
+
+          {/* Total Magic Login Count - always shown */}
+          <div className="flex items-center gap-1">
+            <Sparkles className="w-4 h-4 text-[#f97316]" />
+            <span className="text-[#9ca3af] font-medium text-sm">
+              {formatAdoptions((tool as any).magic_login_count || 0)}
             </span>
           </div>
         </div>
@@ -524,6 +541,72 @@ function ToolCardSEOComponent(props: ToolCardProps) {
           </button>
         )}
       </div>
+
+      {/* Login Required Dialog */}
+      {showLoginRequiredDialog && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowLoginRequiredDialog(false);
+          }}
+        >
+          <div
+            className="relative w-full max-w-md bg-[#1f2937] rounded-lg shadow-2xl border border-[#374151] p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowLoginRequiredDialog(false);
+              }}
+              className="absolute top-4 right-4 p-2 bg-[#374151] hover:bg-[#4b5563] rounded-lg transition-colors"
+              aria-label="Close dialog"
+            >
+              <X className="w-5 h-5 text-[#ededed]" />
+            </button>
+
+            {/* Icon */}
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 bg-gradient-to-br from-[#f97316] to-[#ea580c] rounded-full flex items-center justify-center">
+                <Sparkles className="w-8 h-8 text-white" />
+              </div>
+            </div>
+
+            {/* Title */}
+            <h3 className="text-2xl font-bold text-[#ededed] text-center mb-3">
+              Login Required
+            </h3>
+
+            {/* Message */}
+            <p className="text-[#9ca3af] text-center mb-6 leading-relaxed">
+              To use Magic Login and access <span className="text-[#ededed] font-semibold">{tool.name}</span>, you need to be signed in to your 1Sub account first.
+            </p>
+
+            {/* CTA Button */}
+            <a
+              href={`/login?redirect=${encodeURIComponent(`/tool/${tool.slug}`)}`}
+              className="block w-full bg-gradient-to-r from-[#3ecf8e] to-[#2dd4bf] text-black px-6 py-3 rounded-lg font-bold hover:opacity-90 transition-opacity text-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              Sign in to 1Sub
+            </a>
+
+            {/* Optional: Sign up link */}
+            <p className="text-center text-sm text-[#9ca3af] mt-4">
+              Don't have an account?{' '}
+              <a
+                href={`/signup?redirect=${encodeURIComponent(`/tool/${tool.slug}`)}`}
+                className="text-[#3ecf8e] hover:underline font-medium"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Sign up
+              </a>
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
