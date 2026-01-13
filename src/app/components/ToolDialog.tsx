@@ -344,6 +344,11 @@ function ToolDialogComponent(props: ToolDialogProps) {
                 </div>
               </div>
 
+              {/* Short Description */}
+              <p className="text-[#9ca3af] text-base leading-relaxed mb-4">
+                {tool.description}
+              </p>
+
               {/* Stats and Meta */}
               <div className="mt-4">
                 {/* Stats */}
@@ -361,7 +366,7 @@ function ToolDialogComponent(props: ToolDialogProps) {
                   {/* Share Button */}
                   <button
                     onClick={async () => {
-                      const shareUrl = `${window.location.origin}/?tid=${tool.id}`;
+                      const shareUrl = `${window.location.origin}/tool/${tool.slug}`;
                       const shareData = {
                         title: tool.name,
                         text: tool.description || undefined,

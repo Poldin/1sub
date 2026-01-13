@@ -53,8 +53,11 @@ export async function GET() {
           for (const apiKey of apiKeysData) {
             const metadata = apiKey.metadata as Record<string, unknown> | null;
             const magicLoginUrl = metadata?.magic_login_url as string | null | undefined;
-            // Check if magic_login_url is configured (non-empty string)
-            const hasMagicLogin = typeof magicLoginUrl === 'string' && magicLoginUrl.trim().length > 0;
+            const magicLoginSecret = metadata?.magic_login_secret as string | null | undefined;
+            // Check if BOTH magic_login_url AND magic_login_secret are configured (non-empty strings)
+            const hasMagicLogin = 
+              (typeof magicLoginUrl === 'string' && magicLoginUrl.trim().length > 0) &&
+              (typeof magicLoginSecret === 'string' && magicLoginSecret.trim().length > 0);
             magicLoginMap.set(apiKey.tool_id, hasMagicLogin);
           }
         }
